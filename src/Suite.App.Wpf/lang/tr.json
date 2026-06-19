@@ -73,6 +73,7 @@
   "backup.approve": "Planı inceledim — onayla",
   "backup.empty.prompt": "Bu uygulamanın dışında bir yedek klasörü seç, sonra neyin kopyalanacağını görmek için planı oluştur.",
   "backup.report.summaryShort": "{0} kopyalanacak · {1} elle · {2} atlandı",
+  "backup.report.refused": "Plan reddedildi — hiçbir şey kopyalanmadı.",
 
   "install.title": "Kur",
   "install.subtitle": "Format sonrası uygulamaları ve ayarları güvenli sırayla geri yükle.",

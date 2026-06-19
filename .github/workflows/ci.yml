@@ -47,7 +47,15 @@ jobs:
         run: dotnet build WindowsCareKit.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test tests/Suite.Tests/Suite.Tests.csproj --configuration Release --no-build --verbosity normal
+        # Destructive tests (Category=Destructive) are EXCLUDED from CI by default: they touch real
+        # destructive sinks and may run ONLY on a deliberately-prepared disposable machine (see
+        # DisposableMachineGuard). They are handled separately by the manual/approval-gated destructive
+        # job (Step 4 / the disabled stub below), never on push/PR.
+        # Local full run incl. destructive (on a throwaway VM with WCK_DISPOSABLE_MACHINE=1 + marker):
+        #   dotnet test tests/Suite.Tests/Suite.Tests.csproj -c Debug
+        # Local default (matches CI):
+        #   dotnet test tests/Suite.Tests/Suite.Tests.csproj -c Debug --filter "Category!=Destructive"
+        run: dotnet test tests/Suite.Tests/Suite.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=Destructive"
 
   gitleaks:
     name: Secret Scan (gitleaks)

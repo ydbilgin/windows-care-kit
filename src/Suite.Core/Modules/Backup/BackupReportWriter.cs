@@ -39,8 +39,12 @@ public sealed class BackupReportWriter
 
     private string R(string? text) => _redactor.Redact(text);
 
-    /// <summary>Build the <c>RAPOR.md</c> text: copied OK, skipped, and the reinstall list.</summary>
-    public string BuildReport(BackupPlanResult plan, CopySkipReport copyReport, DateTime utc)
+    /// <summary>
+    /// Build the <c>RAPOR.md</c> text: copied OK, skipped, and the reinstall list. <paramref name="integrityCount"/>
+    /// is how many per-leaf rows the integrity manifest holds; it surfaces a one-line pointer to
+    /// <c>backup_integrity.json</c> in the summary (W4). Defaults to 0 so existing callers are unaffected.
+    /// </summary>
+    public string BuildReport(BackupPlanResult plan, CopySkipReport copyReport, DateTime utc, int integrityCount = 0)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(copyReport);
@@ -58,7 +62,9 @@ public sealed class BackupReportWriter
         sb.Append("- Copied: ").Append(copied.Count).Append('\n');
         sb.Append("- Skipped: ").Append(skippedCopies.Count).Append('\n');
         sb.Append("- Manual to-do: ").Append(plan.ManualTodos.Count).Append('\n');
-        sb.Append("- Reinstall list: ").Append(plan.ReinstallList.Count).Append("\n\n");
+        sb.Append("- Reinstall list: ").Append(plan.ReinstallList.Count).Append('\n');
+        sb.Append("- Integrity: ").Append(BackupIntegrityFiles.Integrity)
+          .Append(" (").Append(integrityCount).Append(" hash)\n\n");
 
         sb.Append("## Copied\n\n");
         if (copied.Count == 0)
@@ -144,7 +150,8 @@ public sealed class BackupReportWriter
     /// Throws <see cref="UnauthorizedAccessException"/> when the gate blocks the location.</para>
     /// </summary>
     public (string ReportPath, string ManualTodoPath) WriteReports(
-        BackupPlanResult plan, CopySkipReport copyReport, string payloadRootDir, DateTime utc, ISafetyGate gate)
+        BackupPlanResult plan, CopySkipReport copyReport, string payloadRootDir, DateTime utc, ISafetyGate gate,
+        int integrityCount = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(payloadRootDir);
         ArgumentNullException.ThrowIfNull(gate);
@@ -167,7 +174,7 @@ public sealed class BackupReportWriter
         string reportPath = Path.Combine(payloadRootDir, BackupReportFiles.Report);
         string manualPath = Path.Combine(payloadRootDir, BackupReportFiles.ManualTodo);
 
-        File.WriteAllText(reportPath, BuildReport(plan, copyReport, utc));
+        File.WriteAllText(reportPath, BuildReport(plan, copyReport, utc, integrityCount));
         File.WriteAllText(manualPath, BuildManualTodo(plan, utc));
 
         return (reportPath, manualPath);

@@ -4,6 +4,7 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
+using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Backup;
@@ -91,6 +92,14 @@ public partial class App : Application
         // The report writer redacts the username/profile out of RAPOR.md/MANUAL_TODO.md (they land on
         // external/USB media); ILogRedactor is already registered (LogRedactor.ForCurrentUser) so this auto-wires.
         s.AddSingleton<BackupReportWriter>();
+        // Backup integrity ring + headless runner (Step 3). Read-only ports + the integrity writer + the
+        // execution adapter that bridges the sanctioned GatedExecutor onto the Core IBackupExecutor seam.
+        s.AddSingleton<IClock, SystemClock>();
+        s.AddSingleton<IHasher, Sha256Hasher>();
+        s.AddSingleton<IFileSystem, PhysicalFileSystem>();
+        s.AddSingleton<IIntegrityWriter, BackupIntegrityWriter>();
+        s.AddSingleton<IBackupExecutor>(sp => new BackupExecutorAdapter(sp.GetRequiredService<GatedExecutor>()));
+        s.AddSingleton<BackupRunner>();
 
         // Install/Restore (Kur) module (manifest loader + driver/auth guards + state store + planner).
         s.AddSingleton<IInstallManifestLoader, InstallManifestLoader>();

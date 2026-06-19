@@ -7,15 +7,13 @@ using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
-using WindowsCareKit.Execution.Adapters;
 
 namespace WindowsCareKit.App.ViewModels;
 
 /// <summary>
 /// The Yedekle (Backup) view-model (spec §1.3). Flow: choose a payload folder OUTSIDE the app → load the
 /// manifest → build a dry-run plan of <see cref="CopyAction"/>s (secrets are never copied) → preview with
-/// <see cref="PlanRow"/> → explicit approve → execute via <see cref="IExecutor"/> → write/show
+/// <see cref="PlanRow"/> → explicit approve → execute via <see cref="BackupRunner"/> → write/show
 /// <c>RAPOR.md</c> + <c>MANUAL_TODO.md</c>. Nothing copies until the user approves the previewed plan and the
 /// approved hash matches at execution time. There is no other execution path.
 /// </summary>
@@ -23,9 +21,7 @@ public sealed class BackupViewModel : ObservableObject
 {
     private readonly IManifestLoader _manifestLoader;
     private readonly BackupPlanner _planner;
-    private readonly ISafetyGate _gate;
-    private readonly IExecutor _executor;
-    private readonly BackupReportWriter _reportWriter;
+    private readonly BackupRunner _runner;
 
     private string _payloadDir = string.Empty;
     private bool _isBusy;
@@ -35,15 +31,12 @@ public sealed class BackupViewModel : ObservableObject
     private string _summary = string.Empty;
     private string _payloadWarning = string.Empty;
 
-    public BackupViewModel(I18n i18n, IManifestLoader manifestLoader, BackupPlanner planner,
-        ISafetyGate gate, IExecutor executor, BackupReportWriter reportWriter)
+    public BackupViewModel(I18n i18n, IManifestLoader manifestLoader, BackupPlanner planner, BackupRunner runner)
     {
         I18n = i18n;
         _manifestLoader = manifestLoader;
         _planner = planner;
-        _gate = gate;
-        _executor = executor;
-        _reportWriter = reportWriter;
+        _runner = runner;
 
         BuildPlanCommand = new RelayCommand(async () => await BuildPlanAsync(), () => !IsBusy && HasPayloadDir);
         ApproveAndRunCommand = new RelayCommand(async () => await RunAsync(), () => CanRun);
@@ -164,7 +157,7 @@ public sealed class BackupViewModel : ObservableObject
         }
     }
 
-    /// <summary>Authorize and execute the approved plan, then write and summarize the reports.</summary>
+    /// <summary>Authorize and execute the approved plan via <see cref="BackupRunner"/>, then summarize the results.</summary>
     public async Task RunAsync()
     {
         if (!CanRun || _planResult is null || _approvedHash is null)
@@ -174,31 +167,22 @@ public sealed class BackupViewModel : ObservableObject
         ResultRows.Clear();
         try
         {
-            OperationPlan plan = _planResult.Plan;
             string hash = _approvedHash;
             string payload = _payloadDir;
-            DateTime now = DateTime.UtcNow;
             BackupPlanResult planResult = _planResult;
 
-            (ExecutionReport report, CopySkipReport copyReport) = await Task.Run(() =>
-            {
-                ExecutionReport r = _executor is GatedExecutor gated
-                    ? gated.ExecuteWithReport(plan, hash)
-                    : ToReport(_executor.Execute(plan, hash), plan);
-                CopySkipReport copy = BuildCopyReport(plan, r);
-                // Write RAPOR.md + MANUAL_TODO.md into the payload dir (outside the repo). The writer re-gates
-                // the destination through the SafetyGate before touching disk (L9).
-                if (r.Authorized)
-                    _reportWriter.WriteReports(planResult, copy, payload, now, _gate);
-                return (r, copy);
-            });
+            // The whole headless chain — execute → build copy report → build+write integrity → write reports —
+            // now lives in the Core BackupRunner; this view-model is a thin shell that runs it off-thread and
+            // renders the result rows / summary.
+            BackupRunResult result = await Task.Run(() => _runner.Run(planResult, hash, payload));
 
+            CopySkipReport copyReport = result.CopyReport;
             foreach (CopyFileOutcome o in copyReport.Outcomes)
                 ResultRows.Add(ResultRow(o));
 
-            Summary = report.Authorized
+            Summary = result.Authorized
                 ? I18n.Format("backup.report.summaryShort", copyReport.Copied.Count, planResult.ManualTodos.Count, copyReport.Skipped.Count)
-                : (report.Results.Count > 0 ? report.Results[0].Detail : "refused");
+                : RefusedSummary(copyReport);
 
             OnPropertyChanged(nameof(HasResults));
         }
@@ -208,60 +192,19 @@ public sealed class BackupViewModel : ObservableObject
         }
     }
 
-    /// <summary>Join the plan's copy actions (by id) with the executor's per-action results into a skip-report.</summary>
-    private static CopySkipReport BuildCopyReport(OperationPlan plan, ExecutionReport report)
+    /// <summary>
+    /// The refused-run summary: the localized generic sentence PLUS the real reason of the first non-copied
+    /// action (the gate-block / hash-mismatch / refusal detail the executor recorded). The runner reports a
+    /// <see cref="CopyFileOutcome"/> per copy action even on refusal, each carrying the executor's auth reason
+    /// in <see cref="CopyFileOutcome.Detail"/>; surfacing it keeps the UI from collapsing every refusal into the
+    /// same opaque sentence (F2). Falls back to the bare generic sentence when no detail is available.
+    /// </summary>
+    private string RefusedSummary(CopySkipReport copyReport)
     {
-        var byId = report.Results.ToDictionary(r => r.ActionId, r => r);
-        var outcomes = new List<CopyFileOutcome>();
-
-        foreach (PlannedAction action in plan.Actions)
-        {
-            if (action is not CopyAction copy)
-                continue;
-
-            ActionResult? result = byId.TryGetValue(copy.Id, out ActionResult? r) ? r : null;
-            bool copied = result?.Status == ActionStatus.Done;
-            CopySkipReason? reason = copied ? null : ClassifySkip(result);
-            outcomes.Add(new CopyFileOutcome(
-                copy.Id, copy.Source, copy.Destination, copied, reason, result?.Detail ?? "not run"));
-        }
-
-        return new CopySkipReport(outcomes);
-    }
-
-    /// <summary>Map an executor failure detail to a <see cref="CopySkipReason"/> for the report.</summary>
-    private static CopySkipReason ClassifySkip(ActionResult? result)
-    {
-        if (result is null)
-            return CopySkipReason.Other;
-        if (result.Status == ActionStatus.Blocked)
-            return CopySkipReason.Blocked;
-        if (result.Status == ActionStatus.NotRun)
-            return CopySkipReason.Other;
-
-        string d = result.Detail;
-        if (d.Contains("FileNotFound", StringComparison.OrdinalIgnoreCase) || d.Contains("DirectoryNotFound", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.Missing;
-        if (d.Contains("PathTooLong", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.TooLong;
-        // The copy engine throws a typed ForbiddenSourceException for protected secret stores and a
-        // DestinationReparseException when the destination component is a junction/symlink at the write
-        // boundary; the executor records "{TypeName}: …", so match those stable type tokens (not a fragile message).
-        if (d.Contains(ForbiddenSourceException.TypeToken, StringComparison.Ordinal)
-            || d.Contains(DestinationReparseException.TypeToken, StringComparison.Ordinal)
-            || d.Contains("UnauthorizedAccess", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.Forbidden;
-        if (d.Contains("IOException", StringComparison.OrdinalIgnoreCase) || d.Contains("being used by another process", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.Locked;
-        return CopySkipReason.Other;
-    }
-
-    /// <summary>Adapt a plain <see cref="ExecutionOutcome"/> to a report when the executor is not a <see cref="GatedExecutor"/> (test seam).</summary>
-    private static ExecutionReport ToReport(ExecutionOutcome outcome, OperationPlan plan)
-    {
-        ActionStatus status = outcome.Ran ? ActionStatus.Done : ActionStatus.NotRun;
-        var results = plan.Actions.Select(a => new ActionResult(a.Id, a.Kind, status, outcome.Reason)).ToArray();
-        return new ExecutionReport(outcome.Ran, plan.ComputeHash(), results);
+        string generic = I18n["backup.report.refused"];
+        CopyFileOutcome? first = copyReport.Skipped.FirstOrDefault();
+        string? reason = first?.Detail;
+        return string.IsNullOrWhiteSpace(reason) ? generic : $"{generic}: {reason}";
     }
 
     private void ResetPlan()
