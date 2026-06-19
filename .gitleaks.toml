@@ -1,0 +1,44 @@
+# gitleaks configuration for windows-care-kit (WCK)
+# Goal: block REAL secret leaks before the first public commit, while not
+# tripping on the deliberately-fake/fixture tokens the test suite needs
+# (synthetic-data rule, DECISION_test-security_2026-06-14).
+#
+# Run locally:   gitleaks protect --staged --redact   (see .githooks/pre-commit)
+# Inherits every rule from the bundled default gitleaks ruleset.
+
+title = "windows-care-kit gitleaks config"
+
+[extend]
+# Start from gitleaks' built-in ruleset (AWS, GitHub PAT, JWT, generic API
+# keys, private keys, etc.) and only ADD allowlisting below.
+useDefault = true
+
+[allowlist]
+description = "Specific WCK test fixture files embed synthetic (non-real) secrets"
+
+# A path is allowlisted if ANY of these regexes matches it. Forward slashes
+# match how gitleaks normalises paths on every OS.
+#
+# Scope is intentionally NARROW: only the specific test source files that embed
+# synthetic fixture tokens are allowlisted, NOT the whole tests/ tree. A real
+# token accidentally committed under any OTHER test file is still caught.
+paths = [
+  # Redactor fixtures: assert key=/token=/password=/apikey= values are masked.
+  '''(^|/)tests/Suite\.Tests/LoggingTests\.cs$''',
+
+  # Auth-probe fixture: writes a fake {"token":"secret-never-read"} file to
+  # prove the probe never reads secret contents.
+  '''(^|/)tests/Suite\.Tests/AuthProbeTests\.cs$''',
+]
+
+# Specific fixture literals used across the test suite. Listed explicitly so a
+# real secret accidentally pasted OUTSIDE tests/ is still caught, and so the
+# intent of each fake value is documented.
+regexes = [
+  '''secret-never-read''',
+  '''Hunter2Secret''',
+  '''Secret123''',
+  '''sk-deadbeef''',
+  '''eyJhbGciOiJ\.secret\.value''',
+  '''correct horse battery''',
+]

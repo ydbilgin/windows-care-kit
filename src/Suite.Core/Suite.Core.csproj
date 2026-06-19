@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>WindowsCareKit.Core</RootNamespace>
+    <AssemblyName>Suite.Core</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Core is pure domain/policy: contracts, OperationPlan, SafetyGate policy, ExecutionLog.
+       OS-specific work lives behind interfaces implemented in Suite.Win32. -->
+
+  <ItemGroup>
+    <!-- Tests need to see internal contracts for white-box verification. -->
+    <InternalsVisibleTo Include="Suite.Tests" />
+  </ItemGroup>
+
+  <!-- Build-level gate: destructive OS APIs are banned outside the sanctioned executor (spec §2/§8). -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="..\..\BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

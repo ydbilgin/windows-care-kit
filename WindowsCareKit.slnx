@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Suite.Core/Suite.Core.csproj" />
+    <Project Path="src/Suite.Win32/Suite.Win32.csproj" />
+    <Project Path="src/Suite.Execution/Suite.Execution.csproj" />
+    <Project Path="src/Suite.App.Wpf/Suite.App.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Suite.Tests/Suite.Tests.csproj" />
+  </Folder>
+</Solution>

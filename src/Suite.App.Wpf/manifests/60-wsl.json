@@ -1,0 +1,33 @@
+{
+  "entries": [
+    {
+      "id": "wsl-ubuntu-export",
+      "enabled": false,
+      "profile": ["dev"],
+      "phase": "backup",
+      "category": "wsl",
+      "tier": "T2",
+      "method": "export-cmd",
+      "command": "wsl --export Ubuntu-22.04 \"%PAYLOAD%\\wsl\\Ubuntu-22.04.tar\"",
+      "target": "wsl/Ubuntu-22.04.tar",
+      "requiresClosedProcesses": [],
+      "secretHandling": "normal",
+      "verify": { "exists": [], "maxSizeMB": 40000 },
+      "restore": { "order": 85, "mode": "command", "notes": "wsl --import ile geri yukle; once disk alani kontrol." },
+      "description": "WSL Ubuntu-22.04 tam export (tar). BUYUK olabilir (ext4.vhdx boyutu kadar). Alan kurali: Free > vhdx*1.2 + 2GB. Bu makinede vhdx BasePath'te bulunamadi (BLOCKED — toplama sirasinda cozulecek). Varsayilan KAPALI; GUI'de 'Boyut olc' ile onayli acilir.",
+      "uiWarning": "BUYUK export (10-40 GB olabilir). Once 'Boyut olc' ile hedef diskte yer oldugunu dogrula. WSL dagitimi kapali olmali (wsl --terminate)."
+    },
+    {
+      "id": "wsl-boyut-tespiti",
+      "enabled": true,
+      "phase": "backup",
+      "category": "wsl",
+      "tier": "T3",
+      "method": "manual-todo",
+      "instructions": "WSL export boyutunu olc: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss altinda DistributionName eslestir -> BasePath\\ext4.vhdx boyutunu oku -> hedef diskte Free > vhdx*1.2+2GB ise export'u ac. (Bu makinede BasePath bos cikti; vhdx yeri elle dogrulanmali.)",
+      "secretHandling": "normal",
+      "restore": { "order": 84, "mode": "manual", "notes": "Once boyut/alan dogrula." },
+      "description": "WSL VHDX boyut tespiti ve alan kurali. vhdx bulunamazsa export BLOCKED."
+    }
+  ]
+}

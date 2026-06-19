@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>WindowsCareKit.Execution</RootNamespace>
+    <AssemblyName>Suite.Execution</AssemblyName>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Suite.Core\Suite.Core.csproj" />
+    <ProjectReference Include="..\Suite.Win32\Suite.Win32.csproj" />
+  </ItemGroup>
+
+  <!-- Build-level gate (spec §2/§8): the destructive OS APIs are banned EVERYWHERE, including this
+       sanctioned layer. The legitimate sinks below (the only ones allowed to call them) are each wrapped
+       in a narrow #pragma warning disable RS0030 / restore RS0030. Any NEW un-gated destructive call is a
+       compile error, so "sanctioned" cannot silently leak project-wide muafiyet. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="..\..\BannedSymbols.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Suite.Tests" />
+  </ItemGroup>
+
+</Project>

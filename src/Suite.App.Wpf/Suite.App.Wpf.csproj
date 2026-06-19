@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>WindowsCareKit.App</RootNamespace>
+    <AssemblyName>WindowsCareKit</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- App opens as standard user (asInvoker). Elevation is per-action via a helper (spec §3). -->
+
+    <!-- Self-contained single-file portable ZIP target (spec §6). -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Suite.Core\Suite.Core.csproj" />
+    <ProjectReference Include="..\Suite.Win32\Suite.Win32.csproj" />
+    <ProjectReference Include="..\Suite.Execution\Suite.Execution.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- i18n string tables ship next to the exe. -->
+    <Content Include="lang\en.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="lang\tr.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Backup/Install manifests ship next to the exe (read at runtime by the Backup/Kur loaders). -->
+    <Content Include="manifests\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="..\..\BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

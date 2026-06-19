@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ============================================================================
+  WindowsCareKit-locked.wsb  —  LOCKED Windows Sandbox configuration
+  ============================================================================
+  PURPOSE
+    Supervised-testing tier (Step 4) for Windows Care Kit's DESTRUCTIVE
+    features (Sil / Temizle / Yedekle / Kur). This file isolates a throwaway
+    Windows Sandbox VM so that those operations can be exercised without any
+    risk to the host machine, the host network, or host data.
+
+  IMPORTANT — THIS IS CONFIG ONLY
+    This .wsb is a STATIC CONFIGURATION FILE. It is NOT launched automatically
+    by any build, test, tooling, or CI step. A human must explicitly
+    double-click it (or run it) to start the sandbox. Until then it does
+    nothing. (yalniz config; otomatik baslatilmaz.)
+
+  HARDENING SUMMARY
+    Every isolation surface that Windows Sandbox exposes is set to its most
+    restrictive value below. Each lock carries an inline comment explaining
+    WHY it is closed. The intent: a fully air-gapped, no-data-bridge VM.
+  ============================================================================
+-->
+<Configuration>
+
+  <!--
+    Networking: DISABLED.
+    No virtual NIC inside the sandbox. The VM cannot reach the host network,
+    the LAN, or the internet. This prevents tested destructive/cleanup code
+    from exfiltrating data, downloading payloads, or phoning home, and keeps
+    the test environment deterministic and offline.
+  -->
+  <Networking>Disable</Networking>
+
+  <!--
+    Clipboard redirection: DISABLED.
+    No copy/paste bridge between host and sandbox. Prevents accidental or
+    malicious transfer of data in either direction across the isolation
+    boundary.
+  -->
+  <ClipboardRedirection>Disable</ClipboardRedirection>
+
+  <!--
+    Protected client: ENABLED.
+    Runs the sandbox's RDP-based session host with extra security mitigations
+    (hardened connection settings / reduced attack surface on the host-facing
+    channel). Recommended for any untrusted-workload sandbox.
+  -->
+  <ProtectedClient>Enable</ProtectedClient>
+
+  <!--
+    Audio input (host microphone): DISABLED.
+    No host microphone is shared into the sandbox. Removes an unnecessary
+    device bridge; nothing under test needs audio capture.
+  -->
+  <AudioInput>Disable</AudioInput>
+
+  <!--
+    Video input (host camera): DISABLED.
+    No host webcam is shared into the sandbox. Removes an unnecessary device
+    bridge; nothing under test needs video capture.
+  -->
+  <VideoInput>Disable</VideoInput>
+
+  <!--
+    Printer redirection: DISABLED.
+    Host printers are not exposed to the sandbox. Removes an unnecessary
+    device bridge and avoids any host print-spooler interaction.
+  -->
+  <PrinterRedirection>Disable</PrinterRedirection>
+
+  <!--
+    Mapped folders: NONE.
+    Deliberately OMITTED so there is NO shared-folder bridge between host and
+    sandbox by default. Destructive features (Sil / Temizle / Yedekle) cannot
+    touch any host path because none is mounted. This is the safest default
+    for the locked profile.
+
+    If Step 4 testing later needs to inject a build/test payload INTO the
+    sandbox, add ONE read-only synthetic mapping (and nothing more). Use a
+    dedicated throwaway staging folder as the host side — NEVER a real user
+    or system directory — and keep ReadOnly=true so the sandbox can never
+    write back to the host:
+
+      <MappedFolders>
+        <MappedFolder>
+          <HostFolder>C:\WCK-SandboxStaging</HostFolder>
+          <SandboxFolder>C:\WCK-Input</SandboxFolder>
+          <ReadOnly>true</ReadOnly>
+        </MappedFolder>
+      </MappedFolders>
+  -->
+
+</Configuration>

@@ -1,0 +1,204 @@
+<UserControl x:Class="WindowsCareKit.App.Views.CleanView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- Dry-run row, identical shape to UninstallView's so the look matches. -->
+        <DataTemplate x:Key="PlanRowTemplate">
+            <Border Background="{StaticResource Bg.PanelAlt}" BorderBrush="{StaticResource Border.Soft}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Background="{Binding RiskBrush}" CornerRadius="4"
+                            Padding="6,2" VerticalAlignment="Top" Margin="0,1,10,0">
+                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10"
+                                   FontWeight="Bold" />
+                    </Border>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding Text}" Foreground="{StaticResource Text}"
+                                   FontSize="13" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Faint}" Margin="0,2,0,0" />
+                        <TextBlock Text="{Binding Undo}" Style="{StaticResource Faint}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="{Binding I18n[clean.title]}" Style="{StaticResource H1}" />
+            <TextBlock Text="{Binding I18n[clean.subtitle]}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+            <Border Background="#2E2614" CornerRadius="6" Padding="10,6" Margin="0,10,0,0"
+                    HorizontalAlignment="Left"
+                    Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding I18n[clean.result.title]}" Foreground="{StaticResource Gold}"
+                               FontWeight="SemiBold" FontSize="12" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding ResultSummary}" Foreground="{StaticResource Text}" FontSize="12" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="16" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- ===== Junk & temporary files ===== -->
+                <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding I18n[clean.junk.title]}" Style="{StaticResource H2}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Style="{StaticResource GhostButton}" Content="{Binding I18n[clean.junk.scan]}"
+                                    Command="{Binding ScanJunkCommand}" />
+                            <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                    Content="{Binding I18n[clean.junk.run]}" Command="{Binding RunJunkCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding I18n[clean.junk.none]}" Style="{StaticResource Faint}" Margin="0,10,0,0"
+                                   Visibility="{Binding JunkEmpty, Converter={StaticResource BoolToVis}}" />
+                        <ItemsControl ItemsSource="{Binding JunkPreview}" Margin="0,10,0,0"
+                                      ItemTemplate="{StaticResource PlanRowTemplate}" />
+                        <TextBlock Text="{Binding I18n[uninstall.leftovers.skippedTitle]}" Foreground="{StaticResource Danger}"
+                                   FontSize="12" FontWeight="SemiBold" Margin="0,8,0,6"
+                                   Visibility="{Binding JunkSkipped.Count, Converter={StaticResource PositiveToVis}}" />
+                        <ItemsControl ItemsSource="{Binding JunkSkipped}" ItemTemplate="{StaticResource PlanRowTemplate}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Recycle bin ===== -->
+                <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding I18n[clean.recycle.title]}" Style="{StaticResource H2}" />
+                        <TextBlock Text="{Binding RecycleStats}" Style="{StaticResource Muted}" Margin="0,10,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Style="{StaticResource GhostButton}" Content="{Binding I18n[common.refresh]}"
+                                    Command="{Binding RefreshRecycleCommand}" />
+                            <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                    Content="{Binding I18n[clean.recycle.empty]}" Command="{Binding EmptyRecycleCommand}" />
+                        </StackPanel>
+
+                        <!-- Irreversible: explicit confirm before emptying -->
+                        <Border Background="#241B0A" BorderBrush="{StaticResource Danger}" BorderThickness="1"
+                                CornerRadius="8" Padding="12" Margin="0,12,0,0"
+                                Visibility="{Binding RecycleConfirmPending, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.title]}" Foreground="{StaticResource Danger}"
+                                           FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.body]}" Style="{StaticResource Muted}"
+                                           Margin="0,6,0,10" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Style="{StaticResource GhostButton}"
+                                            Content="{Binding I18n[clean.recycle.confirm.approve]}"
+                                            Command="{Binding ConfirmEmptyRecycleCommand}" />
+                                    <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                            Content="{Binding I18n[clean.recycle.confirm.cancel]}"
+                                            Command="{Binding CancelEmptyRecycleCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Startup programs ===== -->
+                <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding I18n[clean.startup.title]}" Style="{StaticResource H2}"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Style="{StaticResource GhostButton}"
+                                    Content="{Binding I18n[common.refresh]}" Command="{Binding LoadStartupCommand}" />
+                        </Grid>
+                        <ListBox Style="{StaticResource AppList}" ItemContainerStyle="{StaticResource AppItem}"
+                                 Margin="0,10,0,0" MaxHeight="220"
+                                 ItemsSource="{Binding StartupEntries}" SelectedItem="{Binding SelectedStartup}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}"
+                                                   FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding SourceLabel}" Style="{StaticResource Faint}" />
+                                        <TextBlock Text="{Binding Command}" Style="{StaticResource Faint}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Button Style="{StaticResource GhostButton}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                Content="{Binding I18n[clean.startup.disable]}" Command="{Binding DisableStartupCommand}"
+                                Visibility="{Binding HasStartupSelection, Converter={StaticResource BoolToVis}}" />
+                        <ItemsControl ItemsSource="{Binding StartupPreview}" Margin="0,10,0,0"
+                                      ItemTemplate="{StaticResource PlanRowTemplate}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Browser extensions (inventory only) ===== -->
+                <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding I18n[clean.ext.title]}" Style="{StaticResource H2}"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Style="{StaticResource GhostButton}"
+                                    Content="{Binding I18n[common.refresh]}" Command="{Binding LoadExtensionsCommand}" />
+                        </Grid>
+                        <TextBlock Text="{Binding I18n[clean.ext.note]}" Style="{StaticResource Faint}" Margin="0,8,0,0" />
+                        <ItemsControl ItemsSource="{Binding Extensions}" Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource Bg.PanelAlt}" BorderBrush="{StaticResource Border.Soft}"
+                                            BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}"
+                                                           FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Browser}" Style="{StaticResource Faint}" />
+                                                    <TextBlock Text="  ·  " Style="{StaticResource Faint}" />
+                                                    <TextBlock Text="{Binding Profile}" Style="{StaticResource Faint}" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Id}" Style="{StaticResource Faint}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Style="{StaticResource GhostButton}" VerticalAlignment="Center"
+                                                    Margin="8,0,0,0" Content="{Binding DataContext.I18n[clean.ext.openFolder], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    Command="{Binding DataContext.OpenExtensionFolderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

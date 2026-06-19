@@ -1,0 +1,71 @@
+# Windows Care Kit (WCK) — .gitignore
+# PUBLIC repo. Order matters: security deny-list first.
+
+## ──────────────────────────────────────────────────────────────
+## SECURITY DENY-LIST (never commit — disk images, keys, secrets)
+## ──────────────────────────────────────────────────────────────
+*.vhd
+*.vhdx
+*.vmcx
+*.pfx
+*.pem
+*.key
+*.kdbx
+
+## Payload = personal user data (tool/payload separation). NEVER committed.
+payload/
+*.payload/
+
+## ──────────────────────────────────────────────────────────────
+## .NET build output
+## ──────────────────────────────────────────────────────────────
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+artifacts/
+TestResults/
+
+## ──────────────────────────────────────────────────────────────
+## IDE / Visual Studio / Rider
+## ──────────────────────────────────────────────────────────────
+.vs/
+.idea/
+*.user
+*.suo
+
+## ──────────────────────────────────────────────────────────────
+## Orchestration runtime — NEVER committed (regenerated per session)
+## ──────────────────────────────────────────────────────────────
+.planning/
+.cx_dispatch/
+.ax_dispatch/
+.cx_dispatch_locks/
+
+## Internal-only handoff reports surfaced inside the tree
+**/RAPOR.md
+**/MANUAL_TODO.md
+
+## Stray orchestration files dropped at repo root
+/CODEX_DONE*
+/CODEX_TASK*
+/AGY_DONE*
+/AGY_TASK*
+
+## Legacy PowerShell tool (kept locally, not shipped)
+legacy/
+
+## ──────────────────────────────────────────────────────────────
+## Internal dev/process docs — NOT shipped (curate clean public docs before release).
+## Status trackers, security scan reports/briefs, PR status, and contracts that
+## reference the internal multi-agent build process. Kept on disk; screenshots stay public.
+## ──────────────────────────────────────────────────────────────
+/docs/*.md
+/docs/security/
+
+## ──────────────────────────────────────────────────────────────
+## OS cruft
+## ──────────────────────────────────────────────────────────────
+Thumbs.db
+desktop.ini

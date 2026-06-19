@@ -1,0 +1,61 @@
+#!/bin/sh
+# windows-care-kit pre-commit hook — block real secret leaks before they enter history.
+#
+# Activate once per clone:   git config core.hooksPath .githooks
+#
+# Behaviour:
+#   * Runs `gitleaks protect --staged --redact` against the staged changes.
+#   * If gitleaks reports a finding, the commit is REJECTED.
+#   * If gitleaks is NOT installed, the commit is REJECTED (fail-closed):
+#     a missing scanner must never silently let a secret through.
+#
+# Bypass (use only when you are certain — e.g. a documented false positive that
+# the .gitleaks.toml allowlist does not yet cover):
+#   git commit --no-verify
+
+set -u
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+	echo "pre-commit: not inside a git repository — aborting." >&2
+	exit 1
+}
+
+CONFIG="$REPO_ROOT/.gitleaks.toml"
+
+# --- Fail closed if the scanner is unavailable ------------------------------
+if ! command -v gitleaks >/dev/null 2>&1; then
+	echo "==========================================================================" >&2
+	echo " pre-commit: gitleaks is NOT installed — commit REJECTED (fail-closed)." >&2
+	echo "" >&2
+	echo " A secret scanner is mandatory for this repository." >&2
+	echo " Install it, then commit again:" >&2
+	echo "   winget install gitleaks            # Windows" >&2
+	echo "   scoop install gitleaks             # Windows (scoop)" >&2
+	echo "   brew install gitleaks              # macOS / Linux" >&2
+	echo "   go install github.com/gitleaks/gitleaks/v8@latest" >&2
+	echo "" >&2
+	echo " Releases: https://github.com/gitleaks/gitleaks/releases" >&2
+	echo "==========================================================================" >&2
+	exit 1
+fi
+
+# --- Scan the staged content ------------------------------------------------
+CONFIG_ARG=""
+if [ -f "$CONFIG" ]; then
+	CONFIG_ARG="--config=$CONFIG"
+fi
+
+# shellcheck disable=SC2086 # CONFIG_ARG is intentionally word-split (empty or one flag).
+if gitleaks protect --staged --redact $CONFIG_ARG; then
+	exit 0
+fi
+
+echo "==========================================================================" >&2
+echo " pre-commit: gitleaks found a potential secret in the staged changes." >&2
+echo " Commit REJECTED." >&2
+echo "" >&2
+echo " * If this is a REAL secret: remove it, rotate it, and re-stage." >&2
+echo " * If this is a fixture / false positive: add an allowlist entry to" >&2
+echo "   .gitleaks.toml (path or regex), then re-stage and commit." >&2
+echo "==========================================================================" >&2
+exit 1

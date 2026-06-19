@@ -1,0 +1,13 @@
+<Project>
+  <!-- Shared properties for every project in Windows Care Kit. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Win32/registry/UWP are Windows-only; we knowingly target Windows. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <Company>Windows Care Kit (open source, MIT)</Company>
+    <Product>Windows Care Kit</Product>
+  </PropertyGroup>
+</Project>

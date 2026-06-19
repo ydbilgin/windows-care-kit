@@ -1,0 +1,219 @@
+using WindowsCareKit.Core.Execution;
+using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Execution.Adapters;
+
+namespace WindowsCareKit.Execution;
+
+/// <summary>
+/// The single execution entry point for the whole suite, and the only code that drives the destructive
+/// adapters. It enforces the spec §3 pipeline exactly: authorize → (per action) re-evaluate the gate →
+/// dispatch to the matching adapter → log every step. It fails closed: a refused authorization runs
+/// nothing; a per-action block or failure stops the plan and marks the rest <see cref="ActionStatus.NotRun"/>.
+/// The one controlled exception is the best-effort carve-out for recycle-bin junk deletes (§A.4):
+/// a <see cref="FileDeleteAction"/> that is <see cref="RiskLevel.Low"/> + <see cref="UndoCapability.Full"/>
+/// is continue-and-record on failure, so one locked temp file does not abort a cleanup sweep.
+/// </summary>
+public sealed class GatedExecutor : IExecutor
+{
+    private readonly ISafetyGate _gate;
+    private readonly ExecutionLog _log;
+    private readonly IFileDeleteAdapter _fileAdapter;
+    private readonly IRegistryAdapter _registryAdapter;
+    private readonly IServiceAdapter _serviceAdapter;
+    private readonly ITaskAdapter _taskAdapter;
+    private readonly IProcessAdapter _processAdapter;
+    private readonly ICopyAdapter _copyAdapter;
+
+    public GatedExecutor(
+        ISafetyGate gate,
+        ExecutionLog log,
+        IFileDeleteAdapter fileAdapter,
+        IRegistryAdapter registryAdapter,
+        IServiceAdapter serviceAdapter,
+        ITaskAdapter taskAdapter,
+        IProcessAdapter processAdapter,
+        ICopyAdapter copyAdapter)
+    {
+        _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+        _log = log ?? throw new ArgumentNullException(nameof(log));
+        _fileAdapter = fileAdapter ?? throw new ArgumentNullException(nameof(fileAdapter));
+        _registryAdapter = registryAdapter ?? throw new ArgumentNullException(nameof(registryAdapter));
+        _serviceAdapter = serviceAdapter ?? throw new ArgumentNullException(nameof(serviceAdapter));
+        _taskAdapter = taskAdapter ?? throw new ArgumentNullException(nameof(taskAdapter));
+        _processAdapter = processAdapter ?? throw new ArgumentNullException(nameof(processAdapter));
+        _copyAdapter = copyAdapter ?? throw new ArgumentNullException(nameof(copyAdapter));
+    }
+
+    /// <inheritdoc />
+    public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash)
+    {
+        ExecutionReport report = ExecuteWithReport(plan, approvedPlanHash);
+        if (!report.Authorized)
+            return new ExecutionOutcome(false, FirstDetailOr(report, "plan refused"));
+
+        string reason = $"{report.DoneCount} done, {report.FailedCount} failed of {report.Results.Count}";
+        return new ExecutionOutcome(true, reason);
+    }
+
+    /// <summary>
+    /// The full execution with per-action results. <see cref="Execute"/> wraps this; the UI calls this
+    /// directly to render the per-action report.
+    /// </summary>
+    public ExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        // 1) Authorize FIRST. Nothing runs unless the gate re-validates the whole plan AND the hash matches.
+        ExecutionAuthorization auth = ExecutionAuthorizer.Authorize(plan, approvedPlanHash, _gate);
+        if (!auth.Authorized)
+        {
+            _log.Append("plan.refused", $"{plan.ModuleName}: {auth.Reason}", new Dictionary<string, string?>
+            {
+                ["module"] = plan.ModuleName,
+                ["planId"] = plan.Id,
+                ["planHash"] = auth.PlanHash,
+                ["reason"] = auth.Reason,
+            });
+            // Every action is NotRun in a refusal.
+            var notRun = plan.Actions
+                .Select(a => new ActionResult(a.Id, a.Kind, ActionStatus.NotRun, auth.Reason))
+                .ToArray();
+            return new ExecutionReport(false, auth.PlanHash, notRun);
+        }
+
+        // 2) plan.start
+        _log.Append("plan.start", $"{plan.ModuleName}: {plan.Title}", new Dictionary<string, string?>
+        {
+            ["module"] = plan.ModuleName,
+            ["planId"] = plan.Id,
+            ["planHash"] = auth.PlanHash,
+            ["actionCount"] = plan.Actions.Count.ToString(),
+        });
+
+        var results = new List<ActionResult>(plan.Actions.Count);
+        bool stopped = false;
+
+        // 3) Each action, in plan order.
+        for (int i = 0; i < plan.Actions.Count; i++)
+        {
+            PlannedAction action = plan.Actions[i];
+
+            if (stopped)
+            {
+                results.Add(new ActionResult(action.Id, action.Kind, ActionStatus.NotRun, "a prior action stopped the plan"));
+                continue;
+            }
+
+            // 3a) Re-evaluate the gate at the moment of execution (TOCTOU, defense in depth).
+            SafetyVerdict verdict = _gate.Evaluate(action);
+            _log.LogVerdict(action, verdict);
+
+            // 3b) Blocked now → record + STOP the plan (the world changed since authorization).
+            if (!verdict.Allowed)
+            {
+                results.Add(new ActionResult(action.Id, action.Kind, ActionStatus.Blocked, verdict.Reason));
+                stopped = true;
+                continue;
+            }
+
+            // 3d/3e) Dispatch + try/catch.
+            try
+            {
+                Dispatch(action);
+                _log.Append("action.done", $"{action.Kind}: {action.Description}", ActionData(action));
+                results.Add(new ActionResult(action.Id, action.Kind, ActionStatus.Done, "ok"));
+            }
+            catch (Exception ex)
+            {
+                string detail = $"{ex.GetType().Name}: {ex.Message}";
+                _log.Append("action.failed", $"{action.Kind}: {action.Description}", ActionData(action, ex));
+                results.Add(new ActionResult(action.Id, action.Kind, ActionStatus.Failed, detail));
+
+                // §A.4 best-effort carve-out: a recycle-bin junk delete (Low + Full) is continue-and-record;
+                // every other action type / risk tier stops the plan (fail closed).
+                if (!IsBestEffort(action))
+                    stopped = true;
+            }
+        }
+
+        // 4) plan.done with tallies.
+        int done = results.Count(r => r.Status == ActionStatus.Done);
+        int failed = results.Count(r => r.Status is ActionStatus.Failed or ActionStatus.Blocked);
+        int notRunCount = results.Count(r => r.Status == ActionStatus.NotRun);
+        _log.Append("plan.done", $"{plan.ModuleName}: {done} done / {failed} failed / {notRunCount} not run",
+            new Dictionary<string, string?>
+            {
+                ["module"] = plan.ModuleName,
+                ["planId"] = plan.Id,
+                ["done"] = done.ToString(),
+                ["failed"] = failed.ToString(),
+                ["notRun"] = notRunCount.ToString(),
+            });
+
+        return new ExecutionReport(true, auth.PlanHash, results);
+    }
+
+    /// <summary>
+    /// The §A.4 carve-out: only a file delete EXPLICITLY flagged <see cref="FileDeleteAction.BestEffort"/>
+    /// continues on failure. That flag is set solely by the junk-sweep scanner, so an uninstall leftover
+    /// delete that happens to be Low+Full (recycle-bin) still fails closed — the carve-out is no longer
+    /// inferred from the risk/undo tier (L2). Risk/Undo are still asserted as a defensive sanity check.
+    /// </summary>
+    private static bool IsBestEffort(PlannedAction action)
+        => action is FileDeleteAction { BestEffort: true }
+           && action.Risk == RiskLevel.Low
+           && action.Undo == UndoCapability.Full;
+
+    private void Dispatch(PlannedAction action)
+    {
+        switch (action)
+        {
+            case FileDeleteAction file:
+                _fileAdapter.Delete(file);
+                break;
+            case RegistryDeleteAction reg:
+                _registryAdapter.Delete(reg);
+                break;
+            case ServiceDeleteAction svc:
+                _serviceAdapter.Apply(svc);
+                break;
+            case TaskDeleteAction task:
+                _taskAdapter.Apply(task);
+                break;
+            case CommandAction cmd:
+                _processAdapter.Run(cmd);
+                break;
+            case CopyAction copy:
+                _copyAdapter.Copy(copy);
+                break;
+            case RestoreMergeAction merge:
+                _copyAdapter.Merge(merge);
+                break;
+            default:
+                throw new NotSupportedException($"No adapter for action kind '{action.Kind}'.");
+        }
+    }
+
+    private static Dictionary<string, string?> ActionData(PlannedAction action, Exception? ex = null)
+    {
+        var data = new Dictionary<string, string?>
+        {
+            ["actionId"] = action.Id,
+            ["kind"] = action.Kind,
+            ["target"] = action.TargetSignature(),
+            ["risk"] = action.Risk.ToString(),
+            ["undo"] = action.Undo.ToString(),
+        };
+        if (ex is not null)
+        {
+            data["exception"] = ex.GetType().Name;
+            data["message"] = ex.Message;
+        }
+        return data;
+    }
+
+    private static string FirstDetailOr(ExecutionReport report, string fallback)
+        => report.Results.Count > 0 ? report.Results[0].Detail : fallback;
+}

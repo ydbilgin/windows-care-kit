@@ -1,0 +1,35 @@
+<Application x:Class="WindowsCareKit.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WindowsCareKit.App.ViewModels"
+             xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm"
+             xmlns:views="clr-namespace:WindowsCareKit.App.Views">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Strongbox.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+            <mvvm:ZeroToVisibleConverter x:Key="ZeroToVis" />
+            <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+            <mvvm:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+
+            <DataTemplate DataType="{x:Type vm:UninstallViewModel}">
+                <views:UninstallView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:CleanViewModel}">
+                <views:CleanView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:BackupViewModel}">
+                <views:BackupView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:InstallViewModel}">
+                <views:InstallView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}">
+                <views:PlaceholderView />
+            </DataTemplate>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
