@@ -97,6 +97,8 @@
   "install.loaded.summary": "{0} entries loaded",
   "install.plan.summary": "{0} to install · {1} manual · {2} skipped",
   "install.result.summary": "{0} done · {1} skipped · {2} failed",
+  "install.export.summary": "Install plan exported · {0} items",
+  "install.export.refused": "Export refused: target location blocked by the safety gate",
 
   "placeholder.body": "This module arrives in a later build. The foundation it relies on — the SafetyGate, the typed plan engine, the audit log — is already in place and tested.",
 

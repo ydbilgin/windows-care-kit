@@ -107,6 +107,13 @@ public partial class App : Application
         s.AddSingleton<IDriverGuard, Win32DriverGuard>();
         s.AddSingleton<IRestoreStateStore, RestoreStateStore>();
         s.AddSingleton<InstallPlanner>();
+        // Host-safe EXPORT slice (Step 3): the plan writer + the thin runner that projects a built plan into
+        // install_plan.json (the writer re-gates the payload root). The IInstallExecutor seam is declared in Core
+        // but intentionally NOT wired here — execute mode is Step 4, so the runner's optional executor stays null
+        // and no dormant adapter exists. IClock is already registered (Backup ring).
+        s.AddSingleton<IInstallPlanWriter, InstallPlanWriter>();
+        s.AddSingleton(sp => new InstallRunner(
+            sp.GetRequiredService<IInstallPlanWriter>(), sp.GetRequiredService<IClock>()));
 
         // View-models
         s.AddSingleton<UninstallViewModel>();

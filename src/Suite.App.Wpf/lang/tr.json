@@ -97,6 +97,8 @@
   "install.loaded.summary": "{0} kayıt yüklendi",
   "install.plan.summary": "{0} kurulacak · {1} elle · {2} atlandı",
   "install.result.summary": "{0} tamam · {1} atlandı · {2} başarısız",
+  "install.export.summary": "Kurulum planı dışa aktarıldı · {0} öğe",
+  "install.export.refused": "Dışa aktarma reddedildi: hedef konum güvenlik geçidi tarafından engellendi",
 
   "placeholder.body": "Bu modül sonraki bir sürümde geliyor. Dayandığı temel — SafetyGate, tipli plan motoru, denetim günlüğü — zaten hazır ve test edilmiş durumda.",
 

@@ -34,9 +34,12 @@ public sealed class InstallViewModel : ObservableObject
     private readonly IRestoreStateStore _stateStore;
     private readonly ISafetyGate _gate;
     private readonly IExecutor _executor;
+    private readonly InstallRunner _runner;
 
     private InstallManifest _manifest = InstallManifest.Empty;
     private OperationPlan? _plan;
+    // The last built plan result, kept so the host-safe EXPORT step can project it without re-planning.
+    private InstallPlanResult? _planResult;
     private string _approvedHash = string.Empty;
     // Maps a planned action id back to the manifest entry id, so the checkpoint can be updated per result.
     private readonly Dictionary<string, string> _actionToEntry = new();
@@ -56,7 +59,8 @@ public sealed class InstallViewModel : ObservableObject
         IAuthProbe authProbe,
         IRestoreStateStore stateStore,
         ISafetyGate gate,
-        IExecutor executor)
+        IExecutor executor,
+        InstallRunner runner)
     {
         I18n = i18n;
         _loader = loader;
@@ -65,6 +69,7 @@ public sealed class InstallViewModel : ObservableObject
         _stateStore = stateStore;
         _gate = gate;
         _executor = executor;
+        _runner = runner;
 
         LoadManifestCommand = new RelayCommand(() => LoadManifest());
         BuildPlanCommand = new RelayCommand(() => BuildPlan(), () => _manifest.Entries.Count > 0 && !IsBusy);
@@ -72,6 +77,8 @@ public sealed class InstallViewModel : ObservableObject
         CancelApprovalCommand = new RelayCommand(() => IsPreviewApproved = false, () => IsPreviewApproved);
         RunCommand = new RelayCommand(() => Run(), () => HasPlan && IsPreviewApproved && !IsBusy);
         ResumeCommand = new RelayCommand(() => BuildPlan(), () => CanResume && !IsBusy);
+        ExportPlanCommand = new RelayCommand(() => ExportPlan(),
+            () => _planResult is not null && !string.IsNullOrWhiteSpace(StateDirectory) && !IsBusy);
     }
 
     public I18n I18n { get; }
@@ -97,6 +104,9 @@ public sealed class InstallViewModel : ObservableObject
     public ICommand CancelApprovalCommand { get; }
     public ICommand RunCommand { get; }
     public ICommand ResumeCommand { get; }
+
+    /// <summary>Host-safe EXPORT: write the built plan as <c>install_plan.json</c> into the state directory.</summary>
+    public ICommand ExportPlanCommand { get; }
 
     public bool IsBusy { get => _isBusy; private set => SetField(ref _isBusy, value); }
     public bool HasPlan { get => _hasPlan; private set => SetField(ref _hasPlan, value); }
@@ -162,6 +172,7 @@ public sealed class InstallViewModel : ObservableObject
             InstallPlanResult result = _planner.BuildPlan(_manifest, state, now);
 
             _plan = result.Plan;
+            _planResult = result;
             _approvedHash = string.Empty;
             IsPreviewApproved = false;
             _actionToEntry.Clear();
@@ -224,6 +235,32 @@ public sealed class InstallViewModel : ObservableObject
             // After a run, approval is consumed; further runs (resume) re-plan from the checkpoint.
             IsPreviewApproved = false;
             RefreshResumeAvailability();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Host-safe EXPORT (Step 3 dry-run): project the most recently built plan into <c>install_plan.json</c> and
+    /// write it into the state directory (outside the repo, frequently external/USB media). This reads the plan
+    /// and writes JSON only — it NEVER runs winget/npm, spawns a process, or elevates; the writer re-gates the
+    /// payload root first, so a protected/system target is refused. The destructive <see cref="Run"/> path is
+    /// untouched.
+    /// </summary>
+    public void ExportPlan()
+    {
+        if (_planResult is null || string.IsNullOrWhiteSpace(StateDirectory))
+            return;
+
+        IsBusy = true;
+        try
+        {
+            InstallRunResult export = _runner.ExportPlan(_planResult, StateDirectory, _gate);
+            Summary = export.Authorized
+                ? I18n.Format("install.export.summary", export.Export.Items.Count)
+                : I18n["install.export.refused"];
         }
         finally
         {
@@ -313,6 +350,7 @@ public sealed class InstallViewModel : ObservableObject
     private void ResetPlanState()
     {
         _plan = null;
+        _planResult = null;
         _approvedHash = string.Empty;
         _actionToEntry.Clear();
         IsPreviewApproved = false;

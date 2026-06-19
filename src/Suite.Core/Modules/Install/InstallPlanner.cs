@@ -42,6 +42,15 @@ public sealed record InstallPlanResult(
     /// </summary>
     public IReadOnlyDictionary<string, string> ActionEntryIds { get; init; }
         = new Dictionary<string, string>();
+
+    /// <summary>
+    /// The authoritative entry-id → deterministic restore-order correlation, stamped by the planner from the
+    /// manifest's <see cref="InstallEntry.RestoreOrder"/>. The export uses this to order EXECUTABLE actions
+    /// (winget/npm/config) by their true restore position instead of falling back to an entry-id alphabetic
+    /// sort — the executable actions do not carry the order on the action itself (F3).
+    /// </summary>
+    public IReadOnlyDictionary<string, int> RestoreOrderByEntryId { get; init; }
+        = new Dictionary<string, int>();
 }
 
 /// <summary>
@@ -78,12 +87,17 @@ public sealed class InstallPlanner
         var skipped = new List<InstallSkip>();
         var manual = new List<InstallEntry>();
         var actionEntryIds = new Dictionary<string, string>();
+        var restoreOrderByEntryId = new Dictionary<string, int>(StringComparer.Ordinal);
 
         // Ordered by the restore sequence; manifest position is the stable tie-break (already in RestoreOrder).
         IEnumerable<InstallEntry> ordered = manifest.Entries.OrderBy(e => e.RestoreOrder);
 
         foreach (InstallEntry entry in ordered)
         {
+            // Stamp the entry's deterministic restore position so the export can order executable actions by it
+            // (the action records do not carry the order themselves — F3).
+            restoreOrderByEntryId[entry.Id] = entry.RestoreOrder;
+
             // 1) Resume: a completed entry is skipped without re-planning.
             if (state.IsDone(entry.Id))
             {
@@ -139,7 +153,11 @@ public sealed class InstallPlanner
         }
 
         var plan = new OperationPlan("Reinstall apps and restore settings", "install", actions, utc);
-        return new InstallPlanResult(plan, skipped, manual) { ActionEntryIds = actionEntryIds };
+        return new InstallPlanResult(plan, skipped, manual)
+        {
+            ActionEntryIds = actionEntryIds,
+            RestoreOrderByEntryId = restoreOrderByEntryId,
+        };
     }
 
     // Resolved ONCE to absolute, verified paths so the OS never PATH-searches the interpreter (PATH-hijack
@@ -161,6 +179,23 @@ public sealed class InstallPlanner
         @"^[A-Za-z0-9][A-Za-z0-9.+_-]*$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    /// <summary>
+    /// True when <paramref name="wingetId"/> is a plain, allow-listed winget package id (the SAME regex that gates the
+    /// executable <c>--id</c> argument). The single source of truth for "is this a safe winget id" so the export can
+    /// apply the exact same allow-list to package ids it emits from the skip/manual channels — a path/token-shaped id
+    /// from a hostile manifest (the loader only trims, it never shape-checks) is rejected, never written out.
+    /// </summary>
+    internal static bool IsValidWingetId(string? wingetId)
+        => !string.IsNullOrWhiteSpace(wingetId) && WingetId.IsMatch(wingetId.Trim());
+
+    /// <summary>
+    /// True when <paramref name="npmPackage"/> is a plain, allow-listed npm registry package name (the SAME regex that
+    /// gates the executable npm install argument). Single source of truth so the export reuses the identical allow-list
+    /// instead of copying a manifest value that could be a URL/git/path (code-execution / path-leak shaped).
+    /// </summary>
+    internal static bool IsValidNpmPackage(string? npmPackage)
+        => !string.IsNullOrWhiteSpace(npmPackage) && NpmPackageName.IsMatch(npmPackage.Trim());
+
     private static PlannedAction? BuildAction(InstallEntry entry) => entry.Method switch
     {
         InstallMethod.Winget when !string.IsNullOrWhiteSpace(entry.WingetId) => WingetInstall(entry),
@@ -176,7 +211,7 @@ public sealed class InstallPlanner
         // extra flag into the --id position). Same handling as an invalid npm package: return null → reported
         // as InstallSkipReason.Incomplete by BuildPlan, never planned.
         string id = entry.WingetId!.Trim();
-        if (!WingetId.IsMatch(id))
+        if (!IsValidWingetId(id))
             return null;
 
         return new CommandAction
@@ -199,7 +234,7 @@ public sealed class InstallPlanner
     private static CommandAction? NpmInstall(InstallEntry entry)
     {
         // Reject anything that is not a plain registry package name (URL/git/tarball/path = code execution).
-        if (!NpmPackageName.IsMatch(entry.NpmPackage!.Trim()))
+        if (!IsValidNpmPackage(entry.NpmPackage))
             return null;
 
         return new CommandAction
