@@ -44,6 +44,16 @@ internal static class MigrationRestoreTestData
                 currentUserProfile: profileRoot),
             new Win32PathCanonicalizer());
 
+    /// <summary>
+    /// A backup-side SafetyGate that AUTHORIZES copy writes into <paramref name="packageRoot"/> (a temp/export
+    /// directory). The decision refutes the "gate wrongly blocks external package dirs" fear: a non-protected
+    /// local path is allowed. Here we model the package root as the current profile so its subtree is writable,
+    /// while the real system-protected roots (Windows / Program Files / ProgramData) stay blocked — proving the
+    /// backup copy routes THROUGH the gate without special-casing the user-chosen directory.
+    /// </summary>
+    public static SafetyGate GateAllowingPackage(string packageRoot)
+        => GateForProfile(packageRoot, packageRoot);
+
     /// <summary>A real GatedExecutor: real gate + real CopyAdapter (only Copy/Merge are exercised here).</summary>
     public static GatedExecutor Executor(SafetyGate gate)
         => new(

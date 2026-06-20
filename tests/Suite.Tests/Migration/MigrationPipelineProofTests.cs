@@ -9,11 +9,13 @@ using Xunit.Abstractions;
 namespace WindowsCareKit.Tests.Migration;
 
 /// <summary>
-/// PROOF that the migration engine actually WORKS end-to-end through the PRODUCTION file system
-/// (<see cref="Win32RecipeFileSystem"/>) and the REAL <see cref="CopyAdapter"/> — not just the fake-FS unit
-/// tests. One deterministic test against a synthetic profile (so it is host-safe + CI-stable + also runs
-/// inside the Step 4 sandbox), and one lenient smoke against the REAL machine profile that writes a human
-/// report of what would be carried across a format.
+/// A LOW-LEVEL proof of the migration READ pipeline (<see cref="Win32RecipeFileSystem"/> →
+/// <see cref="RecipeResolver"/> → <see cref="RecipeToBackupEntry"/> → the real <see cref="CopyAdapter"/>): real
+/// config is carried and real secrets/caches are excluded at copy time through the production components. It does
+/// NOT prove the backup→restore ORCHESTRATION — that is owned by <c>MigrationBackupRunner</c> and proven
+/// end-to-end by <c>MigrationBackupRunnerTests</c> (BuildPlan/Run → gated executor → restore manifest → restore).
+/// One deterministic test against a synthetic profile (host-safe + CI-stable + Step-4-sandbox safe), and one
+/// lenient smoke against the REAL machine profile that writes a human report of what would be carried.
 /// </summary>
 public class MigrationPipelineProofTests
 {

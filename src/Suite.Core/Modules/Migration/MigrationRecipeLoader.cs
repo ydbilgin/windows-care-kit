@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace WindowsCareKit.Core.Modules.Migration;
 
@@ -53,6 +54,7 @@ public static class MigrationRecipeLoader
                 throw new RecipeValidationException($"unsupported schemaVersion {schemaVersion} (expected {SupportedSchemaVersion})");
 
             string id = RequireNonEmptyString(root, "id");
+            ValidateId(id);
             string displayName = RequireNonEmptyString(root, "displayName");
             string category = OptionalString(root, "category") ?? string.Empty;
 
@@ -68,6 +70,42 @@ public static class MigrationRecipeLoader
             return new MigrationRecipe(
                 schemaVersion, id, displayName, category, detect, items, exclude, secretRule, portability, restore);
         }
+    }
+
+    // The recipe id becomes a package SUBDIR (Entry.Target = "migration/{id}/{item}") that the backup runner
+    // joins onto the package root. An id containing '/', '\', ':' or '..' would let a hostile recipe steer the
+    // backup WRITE outside the package directory (the source sandbox guards the SOURCE, not the destination).
+    // So the id must be a single, plain path segment: starts alphanumeric, then alphanumeric / '.' / '_' / '-'.
+    // The built-in ids (git.config, anthropic.claude-code, microsoft.vscode, discord) all match.
+    private static readonly Regex IdGrammar = new(
+        "^[A-Za-z0-9][A-Za-z0-9._-]*$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    // Reserved Windows device-name stems (case-insensitive). Containment already prevents an escape, but an id
+    // that is a reserved name would make a problematic subdir on disk — reject it to future-proof the
+    // community-recipe surface. No built-in recipe uses a reserved name.
+    private static readonly IReadOnlySet<string> ReservedDeviceStems =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "con", "prn", "aux", "nul",
+            "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+            "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+        };
+
+    /// <summary>
+    /// Reject any id that is not a single, plain path segment, or whose stem is a reserved Windows device name
+    /// (decision §"recipe id is not path-validated"). This is the line that stops a package-escape via the id's
+    /// presence in <c>Entry.Target</c>.
+    /// </summary>
+    private static void ValidateId(string id)
+    {
+        if (!IdGrammar.IsMatch(id))
+            throw new RecipeValidationException(
+                $"recipe id '{id}' is not a valid single segment (allowed: ^[A-Za-z0-9][A-Za-z0-9._-]*$)");
+
+        // The stem is the portion before the first '.' (so "con.json" and "con" both trip the reserved check).
+        string stem = id.Split('.', 2)[0];
+        if (ReservedDeviceStems.Contains(stem))
+            throw new RecipeValidationException($"recipe id '{id}' uses a reserved Windows device name ('{stem}')");
     }
 
     private static RecipeDetect ParseDetect(JsonElement el)

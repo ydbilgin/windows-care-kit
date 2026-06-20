@@ -7,11 +7,19 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// <param name="TargetRelative">The payload-relative target path (forward slashes).</param>
 /// <param name="Include">Include allow-list globs (from the recipe item).</param>
 /// <param name="Exclude">Exclude globs (recipe-wide + item, secret overlay is added by the bridge).</param>
+/// <param name="RecipePath">
+/// The item's path as declared in the recipe, RELATIVE to its <see cref="RecipeDetect.KnownFolder"/>, normalized
+/// to forward slashes. It travels with exactly the sandbox-passing items, so the backup runner can correlate a
+/// bridged entry to its declared item path WITHOUT indexing back into <c>recipe.Items</c> — which is a superset
+/// (skips drop items) and would misalign by one for every skipped item (the latent index bug, killed here by
+/// construction).
+/// </param>
 public sealed record ResolvedRecipeItem(
     string AbsoluteSource,
     string TargetRelative,
     IReadOnlyList<string> Include,
-    IReadOnlyList<string> Exclude);
+    IReadOnlyList<string> Exclude,
+    string RecipePath);
 
 /// <summary>One item the sandbox refused, plus the human reason (for the report / tests).</summary>
 public sealed record RecipeItemSkip(string ItemPath, string Reason);
@@ -119,7 +127,10 @@ public sealed class RecipeResolver
 
             string targetRelative = BuildTargetRelative(recipe.Id, item.Path);
             var exclude = MergeExcludes(recipe.Exclude, item.Exclude);
-            items.Add(new ResolvedRecipeItem(canonical, targetRelative, item.Include, exclude));
+            // Carry the declared item path (normalized forward-slash, trimmed) so the backup runner never has to
+            // index back into the recipe's (superset) item list to recover it — skip-proof by construction.
+            string recipePath = item.Path.Replace('\\', '/').Trim('/');
+            items.Add(new ResolvedRecipeItem(canonical, targetRelative, item.Include, exclude, recipePath));
         }
 
         return new ResolvedRecipe(recipe, true, items, skipped);

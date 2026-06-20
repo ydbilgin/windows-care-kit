@@ -1,11 +1,8 @@
-using System.Security.Cryptography;
-using WindowsCareKit.Core.Modules.Backup;
+using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
-using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
-using WindowsCareKit.Execution.Adapters;
 using WindowsCareKit.Win32;
 using Xunit;
 
@@ -14,64 +11,40 @@ namespace WindowsCareKit.Tests.MigrationRestore;
 /// <summary>
 /// Slice 2 RESTORE — the user's literal question answered: "does it put settings back in the RIGHT place after
 /// a format, even with a different username / drive / relocated AppData?" These run host-safe over real temp
-/// dirs through the PRODUCTION components (RecipeResolver + CopyAdapter + GatedExecutor + atomic Merge).
+/// dirs through the PRODUCTION components: the BACKUP side is now the production <see cref="MigrationBackupRunner"/>
+/// (RecipeResolver → gated executor seam → restore manifest), and the RESTORE side is the unchanged
+/// <see cref="MigrationRestoreRunner"/> → GatedExecutor → atomic Merge.
 /// </summary>
 public class MigrationRestoreRoundTripTests
 {
     private static readonly DateTime T0 = new(2026, 6, 20, 12, 0, 0, DateTimeKind.Utc);
 
-    private static string Sha256Of(string path)
-    {
-        using FileStream fs = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
-    }
-
     /// <summary>
     /// Resolve + copy a recipe's items from <paramref name="profileRoots"/> into a package dir, and build +
-    /// save the restore manifest. Returns the package directory. This is the Slice 2 BACKUP side.
+    /// save the restore manifest. Returns the package directory. This is the Slice 2 BACKUP side — now driven
+    /// by the PRODUCTION <see cref="MigrationBackupRunner"/> (real gated executor + real hasher + real store),
+    /// so the round-trip exercises the production orchestration and the index bug is provably gone.
     /// </summary>
     private static string BackupToPackage(string packageDir, ProfileRoots profileRoots, params MigrationRecipe[] recipes)
     {
         var resolver = new RecipeResolver(new RecipePathResolver(profileRoots), new Win32RecipeFileSystem());
-        var copy = new CopyAdapter();
-        var targets = new List<MigrationRestoreTarget>();
 
-        foreach (MigrationRecipe recipe in recipes)
-        {
-            ResolvedRecipe resolved = resolver.Resolve(recipe);
-            IReadOnlyList<BridgedMigrationItem> bridged = RecipeToBackupEntry.Bridge(resolved);
+        // The backup-side gate must AUTHORIZE writes into the temp package dir (the decision refutes the
+        // "gate blocks external dirs" fear). Route the copy through the gated executor seam, not a direct
+        // CopyAdapter, so the manifest reflects what the sanctioned executor actually copied.
+        SafetyGate gate = MigrationRestoreTestData.GateAllowingPackage(packageDir);
+        GatedExecutor executor = MigrationRestoreTestData.Executor(gate);
+        var runner = new MigrationBackupRunner(
+            resolver,
+            new BackupExecutorAdapter(executor),
+            new Sha256Hasher(),
+            new PhysicalFileSystem(),
+            new MigrationRestoreManifestStore(),
+            gate);
 
-            // index the bridged items by entry id to recover the recipe item path for the manifest
-            for (int i = 0; i < bridged.Count; i++)
-            {
-                BridgedMigrationItem b = bridged[i];
-                string destAbs = Path.Combine(packageDir, b.Entry.Target.Replace('/', Path.DirectorySeparatorChar));
-                copy.Copy(new CopyAction
-                {
-                    Source = b.Entry.Source,
-                    Destination = destAbs,
-                    ExcludeLeaves = b.Entry.Exclude,
-                    Include = b.Entry.Include,
-                    Description = recipe.DisplayName,
-                    Reason = "backup",
-                });
-
-                // Slice 2 first sub-slice: single-file ConfigWrite targets. The recipe item path is the i-th item.
-                string itemRecipePath = recipe.Items[i].Path;
-                // Only emit a target when the package actually has the single file (single-file restore).
-                if (File.Exists(destAbs))
-                {
-                    MigrationRestoreTarget? t = MigrationRestoreManifestBuilder.BuildTarget(
-                        recipe, b.Meta, recipe.Detect.KnownFolder, itemRecipePath,
-                        b.Entry.Target, Sha256Of(destAbs));
-                    if (t is not null)
-                        targets.Add(t);
-                }
-            }
-        }
-
-        new MigrationRestoreManifestStore().Save(packageDir,
-            new MigrationRestoreManifest(MigrationRestoreManifest.CurrentSchemaVersion, targets));
+        MigrationBackupPlanResult plan = runner.BuildPlan(recipes, packageDir, T0);
+        MigrationBackupRunResult result = runner.Run(plan, plan.Plan.ComputeHash(), packageDir);
+        Assert.True(result.Authorized, "backup plan must be authorized for a temp package dir");
         return packageDir;
     }
 

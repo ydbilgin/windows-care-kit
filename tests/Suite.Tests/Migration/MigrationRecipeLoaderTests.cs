@@ -121,4 +121,59 @@ public class MigrationRecipeLoaderTests
     {
         Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load("{ not json "));
     }
+
+    // ---- recipe-id grammar (decision §"recipe id is not path-validated → package-escape") ----
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../evil")]
+    [InlineData("..\\evil")]
+    [InlineData("a/b")]
+    [InlineData("a\\b")]
+    [InlineData("c:evil")]
+    [InlineData(".hidden")]   // must START alphanumeric
+    [InlineData("-leading")]  // must START alphanumeric
+    [InlineData("has space")]
+    public void Rejects_recipe_id_that_is_not_a_single_plain_segment(string badId)
+    {
+        string json = Valid.Replace("\"id\": \"anthropic.claude-code\"", $"\"id\": \"{badId.Replace("\\", "\\\\")}\"");
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    [Theory]
+    [InlineData("con")]
+    [InlineData("PRN")]
+    [InlineData("nul")]
+    [InlineData("com1")]
+    [InlineData("lpt9")]
+    [InlineData("con.json")]   // stem before the first '.' is reserved
+    public void Rejects_reserved_windows_device_name_id(string reservedId)
+    {
+        string json = Valid.Replace("\"id\": \"anthropic.claude-code\"", $"\"id\": \"{reservedId}\"");
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+        Assert.Contains("reserved", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("git.config")]
+    [InlineData("anthropic.claude-code")]
+    [InlineData("microsoft.vscode")]
+    [InlineData("discord")]
+    [InlineData("App_123")]
+    public void Accepts_a_valid_single_segment_id(string goodId)
+    {
+        string json = Valid.Replace("\"id\": \"anthropic.claude-code\"", $"\"id\": \"{goodId}\"");
+        MigrationRecipe r = MigrationRecipeLoader.Load(json);
+        Assert.Equal(goodId, r.Id);
+    }
+
+    [Fact]
+    public void Every_builtin_recipe_loads_under_the_new_id_grammar()
+    {
+        // LoadAll runs the strict loader (including the id grammar) over every embedded seed; a built-in id
+        // that the new grammar rejected would throw here. This pins that the guard did not break the ship set.
+        IReadOnlyList<MigrationRecipe> recipes = BuiltinRecipeSource.LoadAll();
+        Assert.NotEmpty(recipes);
+        Assert.All(recipes, r => Assert.NotEmpty(r.Id));
+    }
 }
