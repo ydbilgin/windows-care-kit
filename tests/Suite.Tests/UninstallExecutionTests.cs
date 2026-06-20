@@ -27,8 +27,16 @@ public class UninstallExecutionTests
         var appxReader = new FakeAppxReader(appx ?? Array.Empty<InstalledAppx>());
         var gate = TestData.Gate();
         probe ??= new FakeLeftoverProbe();
-        return new UninstallViewModel(i18n, appReader, appxReader, gate, probe, executor, remover);
+        return new UninstallViewModel(i18n, appReader, appxReader, gate, probe, executor, remover, new FakeFolderOpener());
     }
+
+    /// <summary>Selects the unified-grid row backed by the first desktop app (mirrors a user clicking it).</summary>
+    private static void SelectFirstApp(UninstallViewModel vm)
+        => vm.SelectedRow = vm.AllRows.First(r => r.App is not null);
+
+    /// <summary>Selects the unified-grid row backed by the first Store app.</summary>
+    private static void SelectFirstAppx(UninstallViewModel vm)
+        => vm.SelectedRow = vm.AllRows.First(r => r.Appx is not null);
 
     private static async Task PumpAsync(Func<bool> until, int timeoutMs = 2000)
     {
@@ -47,7 +55,7 @@ public class UninstallExecutionTests
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
-        vm.SelectedApp = vm.Apps[0];
+        SelectFirstApp(vm);
         await PumpAsync(() => vm.LeftoverActions.Count > 0);
 
         vm.RunLeftoverCommand.Execute(null);
@@ -65,7 +73,7 @@ public class UninstallExecutionTests
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
-        vm.SelectedApp = vm.Apps[0];
+        SelectFirstApp(vm);
         await PumpAsync(() => vm.LeftoverActions.Count > 0);
 
         vm.RunLeftoverCommand.Execute(null);
@@ -84,7 +92,7 @@ public class UninstallExecutionTests
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
-        vm.SelectedApp = vm.Apps[0];
+        SelectFirstApp(vm);
         await PumpAsync(() => vm.LeftoverActions.Count > 0);
 
         vm.RunLeftoverCommand.Execute(null);
@@ -110,7 +118,7 @@ public class UninstallExecutionTests
         var vm = BuildVm(executor, new FakeAppxRemover(), apps: new[] { app });
 
         await vm.LoadAsync();
-        vm.SelectedApp = vm.Apps[0];
+        SelectFirstApp(vm);
         await PumpAsync(() => vm.OfficialActions.Count > 0);
 
         vm.RunOfficialCommand.Execute(null);
@@ -132,7 +140,7 @@ public class UninstallExecutionTests
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
-        vm.SelectedApp = vm.Apps[0];
+        SelectFirstApp(vm);
         await PumpAsync(() => vm.LeftoverActions.Count > 0);
 
         vm.RunLeftoverCommand.Execute(null);
@@ -154,7 +162,7 @@ public class UninstallExecutionTests
         var vm = BuildVm(executor, remover, appx: new[] { package });
 
         await vm.LoadAsync();
-        vm.SelectedAppx = vm.AppxApps[0];
+        SelectFirstAppx(vm);
 
         vm.RemoveAppxCommand.Execute(null);
         Assert.True(vm.RequiresConfirmation); // still gated behind confirm
@@ -165,7 +173,7 @@ public class UninstallExecutionTests
         Assert.Equal(0, executor.CallCount);              // never the typed-action executor
         Assert.Equal(1, remover.CallCount);
         Assert.True(vm.HasResult);
-        Assert.Empty(vm.AppxApps);                          // removed from the list on success
+        Assert.DoesNotContain(vm.AllRows, r => r.Appx is not null); // removed from the unified list on success
     }
 
     [Fact]
@@ -176,14 +184,14 @@ public class UninstallExecutionTests
         var vm = BuildVm(new FakeExecutor(), remover, appx: new[] { package });
 
         await vm.LoadAsync();
-        vm.SelectedAppx = vm.AppxApps[0];
+        SelectFirstAppx(vm);
         vm.RemoveAppxCommand.Execute(null);
         vm.ApproveCommand.Execute(null);
         await PumpAsync(() => vm.HasResult); // settle the full approve→remove→render before asserting
 
         Assert.Equal(1, remover.CallCount);
         Assert.True(vm.HasResult);
-        Assert.Single(vm.AppxApps); // not removed
+        Assert.Single(vm.AllRows, r => r.Appx is not null); // not removed — still in the unified list
     }
 
     private static FakeLeftoverProbe ProbeWithSafeLeftover()
@@ -218,6 +226,12 @@ public class UninstallExecutionTests
             LastHash = approvedPlanHash;
             return new ExecutionOutcome(true, "faked");
         }
+    }
+
+    private sealed class FakeFolderOpener : IFolderOpener
+    {
+        public string? LastPath { get; private set; }
+        public void OpenFolder(string path) => LastPath = path; // never launches Explorer in tests
     }
 
     private sealed class FakeAppxRemover : IAppxRemover

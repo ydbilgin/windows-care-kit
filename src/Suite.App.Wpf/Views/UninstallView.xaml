@@ -3,199 +3,291 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:WindowsCareKit.App.Controls">
     <UserControl.Resources>
-        <!-- Row template shared by the official-uninstaller, leftover, and result lists. -->
-        <DataTemplate x:Key="PlanRowTemplate">
-            <Border Background="{StaticResource Bg.PanelAlt}" BorderBrush="{StaticResource Border.Soft}"
-                    BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="{Binding RiskBrush}" CornerRadius="4"
-                            Padding="6,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10"
-                                   FontWeight="Bold" />
-                    </Border>
-                    <StackPanel Grid.Column="1">
-                        <TextBlock Text="{Binding Text}" Foreground="{StaticResource Text}"
-                                   FontSize="13" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Faint}" Margin="0,2,0,0" />
-                        <TextBlock Text="{Binding Undo}" Style="{StaticResource Faint}" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-        </DataTemplate>
+        <!-- ===== DataGrid look, scoped to this view (Strongbox tokens) ===== -->
+
+        <!-- Column header: quiet, faint, no chrome — matches mockup B's thin header row. -->
+        <Style x:Key="GridHeader" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{StaticResource Bg.Panel}" />
+            <Setter Property="Foreground" Value="{StaticResource Text.Faint}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Soft}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="GridHeaderRight" TargetType="DataGridColumnHeader" BasedOn="{StaticResource GridHeader}">
+            <Setter Property="HorizontalContentAlignment" Value="Right" />
+        </Style>
+
+        <!-- Row container: fixed ~46px height, hover/selected fills from the Strongbox palette. -->
+        <Style x:Key="GridRow" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Height" Value="46" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#211D17" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#2E2614" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="GridCell" TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Right-aligned, tabular-figure cell for Boyut / Yükleme. -->
+        <Style x:Key="NumCell" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Text.Muted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            <!-- tabular-nums: align digits in the size/date columns -->
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        </Style>
     </UserControl.Resources>
 
-    <Grid Margin="20">
+    <Grid Margin="0">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+        <!-- ===== Row 0: title strip ===== -->
+        <StackPanel Grid.Row="0" Margin="20,16,20,0">
             <TextBlock Text="{Binding I18n[uninstall.title]}" Style="{StaticResource H1}" />
             <TextBlock Text="{Binding I18n[uninstall.subtitle]}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
-            <TextBlock Text="{Binding I18n[uninstall.readonlyNotice]}" Foreground="{StaticResource Gold.Dim}"
-                       FontSize="11.5" Margin="0,6,0,0" />
-            <Grid Margin="0,12,0,0">
+        </StackPanel>
+
+        <!-- ===== Row 1: dense command bar (search + scope + sort + refresh), sits below the active top tab ===== -->
+        <Border Grid.Row="1" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
+                BorderThickness="0,1,0,1" Padding="20,10" Margin="0,14,0,0">
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBox Grid.Column="0" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}"
-                         VerticalContentAlignment="Center" />
-                <Button Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource GhostButton}"
+
+                <!-- Search: refreshes the ICollectionView filter only (never refills the source). -->
+                <TextBox Grid.Column="0" MaxWidth="420" HorizontalAlignment="Left"
+                         VerticalContentAlignment="Center"
+                         Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
+
+                <!-- Trivial scope filter (Tümü / Masaüstü / Mağaza). Desktop/Store PILLS are deferred (§2). -->
+                <ComboBox Grid.Column="1" Width="120" Margin="10,0,0,0" VerticalContentAlignment="Center"
+                          SelectedIndex="{Binding ScopeIndex}">
+                    <ComboBoxItem Content="{Binding I18n[uninstall.scope.all]}" />
+                    <ComboBoxItem Content="{Binding I18n[uninstall.scope.desktop]}" />
+                    <ComboBoxItem Content="{Binding I18n[uninstall.scope.store]}" />
+                </ComboBox>
+
+                <!-- Sort label (single A→Z order in v1 — name sort is applied at load; placeholder for §2 sort). -->
+                <TextBlock Grid.Column="2" Text="{Binding I18n[uninstall.sort]}" Style="{StaticResource Faint}"
+                           VerticalAlignment="Center" Margin="14,0,4,0" />
+
+                <Button Grid.Column="3" Margin="10,0,0,0" Style="{StaticResource GhostButton}"
                         Content="{Binding I18n[common.refresh]}" Command="{Binding RefreshCommand}" />
             </Grid>
-        </StackPanel>
+        </Border>
 
-        <!-- Body: list + detail -->
-        <Grid Grid.Row="1">
+        <!-- ===== Row 2: full-width content = grid + lean detail pane ===== -->
+        <Grid Grid.Row="2" Margin="20,14,20,16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="380" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="318" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left column: classic apps list + per-user Store apps list -->
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+            <!-- ===== The single virtualized DataGrid (desktop + Store, flat, name-sorted) ===== -->
+            <Border Grid.Column="0" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
+                    BorderThickness="1" CornerRadius="8">
+                <Grid>
+                    <DataGrid x:Name="AppsGrid"
+                              ItemsSource="{Binding AppsView}"
+                              SelectedItem="{Binding SelectedRow}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="None"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              CanUserReorderColumns="False" CanUserResizeRows="False"
+                              IsReadOnly="True" SelectionMode="Single"
+                              Background="Transparent" BorderThickness="0" RowBackground="Transparent"
+                              Foreground="{StaticResource Text}"
+                              ColumnHeaderStyle="{StaticResource GridHeader}"
+                              RowStyle="{StaticResource GridRow}"
+                              CellStyle="{StaticResource GridCell}"
+                              RowHeight="46"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                        <DataGrid.Columns>
+                            <!-- İkon 28 (placeholder glyph v1 — no real icon extraction this PR). -->
+                            <DataGridTemplateColumn Width="28" CanUserSort="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding IconGlyph}"
+                                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                   FontSize="15" Foreground="{StaticResource Text.Muted}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                <!-- Apps list -->
-                <Grid Grid.Row="0">
-                    <ListBox Style="{StaticResource AppList}" ItemContainerStyle="{StaticResource AppItem}"
-                             ItemsSource="{Binding Apps}" SelectedItem="{Binding SelectedApp}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text}"
-                                                   FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                            <TextBlock Text="{Binding Publisher}" Style="{StaticResource Faint}" />
-                                            <TextBlock Text="  ·  " Style="{StaticResource Faint}" />
-                                            <TextBlock Text="{Binding DisplayVersion}" Style="{StaticResource Faint}" />
+                            <!-- Ad * (publisher as a small subline). -->
+                            <DataGridTemplateColumn Header="{Binding DataContext.I18n[uninstall.col.name], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    Width="*" CanUserSort="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Publisher}" Style="{StaticResource Faint}"
+                                                       FontSize="10.5" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
-                                    </StackPanel>
-                                    <Border Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0"
-                                            Background="#2E2614" CornerRadius="4" Padding="6,2"
-                                            Visibility="{Binding IsMachineWide, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="{Binding DataContext.I18n[uninstall.elevation], RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                   Foreground="{StaticResource Gold}" FontSize="10" />
-                                    </Border>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Yayıncı 130 (hidden at narrow widths). -->
+                            <DataGridTextColumn x:Name="PublisherColumn"
+                                                Header="{Binding DataContext.I18n[uninstall.col.publisher], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Binding="{Binding Publisher}" Width="130" CanUserSort="False">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource Text.Muted}" />
+                                        <Setter Property="FontSize" Value="12" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- Boyut 78 (right-aligned, tabular-nums; hidden at narrow widths). -->
+                            <DataGridTextColumn x:Name="SizeColumn"
+                                                Header="{Binding DataContext.I18n[uninstall.col.size], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Binding="{Binding SizeDisplay}" Width="78" CanUserSort="False"
+                                                HeaderStyle="{StaticResource GridHeaderRight}"
+                                                ElementStyle="{StaticResource NumCell}" />
+
+                            <!-- Yükleme 96 (right-aligned). -->
+                            <DataGridTextColumn x:Name="InstalledColumn"
+                                                Header="{Binding DataContext.I18n[uninstall.col.installed], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Binding="{Binding InstallDateDisplay}" Width="96" CanUserSort="False"
+                                                HeaderStyle="{StaticResource GridHeaderRight}"
+                                                ElementStyle="{StaticResource NumCell}" />
+
+                            <!-- Sürüm 78 (hidden at narrow widths). -->
+                            <DataGridTextColumn x:Name="VersionColumn"
+                                                Header="{Binding DataContext.I18n[uninstall.col.version], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Binding="{Binding Version}" Width="78" CanUserSort="False">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource Text.Muted}" />
+                                        <Setter Property="FontSize" Value="12" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- Durum 110 (human-language badge; neutral gray / amber, never green). -->
+                            <DataGridTemplateColumn Header="{Binding DataContext.I18n[uninstall.col.status], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    Width="110" CanUserSort="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding BadgeText}" Foreground="{Binding BadgeBrush}"
+                                                   FontSize="11" VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
 
                     <!-- Loading overlay -->
-                    <Border Background="#AA141009" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                    <Border Background="#AA141009" CornerRadius="8"
+                            Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding I18n[uninstall.loading]}" Style="{StaticResource Muted}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                 </Grid>
+            </Border>
 
-                <!-- Per-user Store apps -->
-                <StackPanel Grid.Row="1" Margin="0,12,0,0">
-                    <TextBlock Text="{Binding I18n[uninstall.appx.section]}" Style="{StaticResource Faint}"
-                               Margin="0,0,0,6" />
-                    <ListBox Style="{StaticResource AppList}" ItemContainerStyle="{StaticResource AppItem}"
-                             MaxHeight="180" ItemsSource="{Binding AppxApps}" SelectedItem="{Binding SelectedAppx}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel>
-                                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text}"
-                                               FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding PublisherDisplayName}" Style="{StaticResource Faint}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                    <Button Margin="0,8,0,0" Style="{StaticResource GhostButton}"
-                            Content="{Binding I18n[uninstall.run.appx]}" Command="{Binding RemoveAppxCommand}"
-                            Visibility="{Binding HasAppxSelection, Converter={StaticResource BoolToVis}}" />
-                    <TextBlock Text="{Binding I18n[uninstall.appx.irreversible]}" Foreground="{StaticResource Danger}"
-                               FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
-                               Visibility="{Binding HasAppxSelection, Converter={StaticResource BoolToVis}}" />
-                </StackPanel>
-            </Grid>
+            <!-- ===== Lean, info-only detail pane (UI decision §3) ===== -->
+            <Border Grid.Column="1" Margin="14,0,0,0" Background="{StaticResource Bg.Card}"
+                    BorderBrush="{StaticResource Border.Soft}" BorderThickness="1" CornerRadius="10">
+                <Grid>
+                    <!-- Empty prompt -->
+                    <TextBlock Text="{Binding I18n[uninstall.selectPrompt]}" Style="{StaticResource Muted}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="240"
+                               Margin="20" TextAlignment="Center"
+                               Visibility="{Binding HasSelection, Converter={StaticResource InverseBoolToVis}}" />
 
-            <!-- Detail -->
-            <Grid Grid.Column="1" Margin="16,0,0,0">
-                <!-- Prompt when nothing is selected -->
-                <TextBlock Text="{Binding I18n[uninstall.selectPrompt]}" Style="{StaticResource Muted}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360"
-                           TextAlignment="Center"
-                           Visibility="{Binding HasSelection, Converter={StaticResource InverseBoolToVis}}" />
+                    <Grid Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}" Margin="18">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
-                    <StackPanel>
-                        <!-- Official uninstaller -->
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding I18n[uninstall.official.title]}" Style="{StaticResource H2}" />
-                            <Button Grid.Column="1" Style="{StaticResource GhostButton}"
-                                    Content="{Binding I18n[uninstall.run.official]}" Command="{Binding RunOfficialCommand}"
-                                    Visibility="{Binding OfficialActions.Count, Converter={StaticResource PositiveToVis}}" />
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding OfficialActions}" ItemTemplate="{StaticResource PlanRowTemplate}" />
-                        <TextBlock Text="{Binding I18n[uninstall.official.none]}" Style="{StaticResource Faint}"
-                                   Visibility="{Binding OfficialActions.Count, Converter={StaticResource ZeroToVis}}" />
+                        <StackPanel Grid.Row="0">
+                            <TextBlock Text="{Binding DetailTitle}" Style="{StaticResource H2}"
+                                       TextWrapping="Wrap" Margin="0,0,0,12" />
 
-                        <!-- Leftovers -->
-                        <Grid Margin="0,18,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding I18n[uninstall.leftovers.title]}" Style="{StaticResource H2}" />
-                            <Button Grid.Column="1" Style="{StaticResource GhostButton}"
-                                    Content="{Binding I18n[uninstall.run.leftovers]}" Command="{Binding RunLeftoverCommand}"
-                                    Visibility="{Binding LeftoverActions.Count, Converter={StaticResource PositiveToVis}}" />
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding LeftoverActions}" ItemTemplate="{StaticResource PlanRowTemplate}" />
-                        <TextBlock Text="{Binding I18n[uninstall.leftovers.none]}" Style="{StaticResource Faint}"
-                                   Visibility="{Binding LeftoverActions.Count, Converter={StaticResource ZeroToVis}}" />
+                            <TextBlock Text="{Binding I18n[uninstall.detail.publisher]}" Style="{StaticResource Faint}" />
+                            <TextBlock Text="{Binding DetailPublisher}" Foreground="{StaticResource Text}"
+                                       FontSize="12.5" Margin="0,1,0,10" TextWrapping="Wrap" />
 
-                        <!-- Skipped (protected) -->
-                        <TextBlock Text="{Binding I18n[uninstall.leftovers.skippedTitle]}" Foreground="{StaticResource Danger}"
-                                   FontSize="13" FontWeight="SemiBold" Margin="0,18,0,8"
-                                   Visibility="{Binding SkippedActions.Count, Converter={StaticResource PositiveToVis}}" />
-                        <ItemsControl ItemsSource="{Binding SkippedActions}" ItemTemplate="{StaticResource PlanRowTemplate}" />
+                            <TextBlock Text="{Binding I18n[uninstall.detail.version]}" Style="{StaticResource Faint}" />
+                            <TextBlock Text="{Binding DetailVersion}" Foreground="{StaticResource Text}"
+                                       FontSize="12.5" Margin="0,1,0,10" />
 
-                        <!-- Result of the last run -->
-                        <Border Background="{StaticResource Bg.Card}" BorderBrush="{StaticResource Border.Soft}"
-                                BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,18,0,0"
-                                Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding I18n[uninstall.result.title]}" Style="{StaticResource H2}" Margin="0,0,0,6" />
-                                <TextBlock Text="{Binding ResultSummary}" Foreground="{StaticResource Gold}"
-                                           FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                <ItemsControl ItemsSource="{Binding ExecutionResults}" ItemTemplate="{StaticResource PlanRowTemplate}" />
+                            <StackPanel Visibility="{Binding HasDetailLocation, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding I18n[uninstall.detail.location]}" Style="{StaticResource Faint}" />
+                                <TextBlock Text="{Binding DetailLocation}" Foreground="{StaticResource Text.Muted}"
+                                           FontSize="11.5" Margin="0,1,0,6" TextWrapping="Wrap" />
+                                <Button HorizontalAlignment="Left" Style="{StaticResource GhostButton}"
+                                        Padding="9,4" FontSize="11.5" FontWeight="Normal"
+                                        Content="{Binding I18n[uninstall.detail.openLocation]}"
+                                        Command="{Binding OpenLocationCommand}" />
                             </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                        </StackPanel>
 
-                <!-- Confirmation gate — the explicit approve step before anything runs. The reusable
-                     ConfirmGate (UI decision §B2) replaces the old ad-hoc overlay: it picks a tier from the
-                     staged plan's irreversibility, shows the exact dry-run rows, and requires type-to-confirm
-                     on the irreversible tier. -->
-                <controls:ConfirmGate DataContext="{Binding Gate}" />
-            </Grid>
+                        <!-- The single primary action. For PR-2 it stages the EXISTING official-uninstaller /
+                             Store-removal flow (PR-4 swaps in the wizard). -->
+                        <Button Grid.Row="1" Style="{StaticResource GhostButton}" Margin="0,14,0,0"
+                                HorizontalAlignment="Stretch" Padding="12,9"
+                                Content="{Binding I18n[uninstall.detail.remove]}"
+                                Command="{Binding UninstallSelectedCommand}" />
+                    </Grid>
+                </Grid>
+            </Border>
         </Grid>
+
+        <!-- Confirmation gate overlay — the reusable ConfirmGate (UI decision §B2), unchanged from PR-1. -->
+        <controls:ConfirmGate Grid.RowSpan="3" DataContext="{Binding Gate}" />
     </Grid>
 </UserControl>

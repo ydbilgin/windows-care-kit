@@ -66,6 +66,9 @@ public sealed class Win32InstalledAppReader : IInstalledAppReader
                 RegistryKeyName = subName,
                 Source = source,
                 IsSystemComponent = IsTruthy(key.GetValue("SystemComponent")),
+                // Cheap registry values — vendor-reported figures, never a disk scan (spec "Sahip kararları").
+                EstimatedSizeKb = ReadDword(key, "EstimatedSize"),
+                InstallDate = InstalledApp.ParseInstallDate(key.GetValue("InstallDate") as string),
             };
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
@@ -79,6 +82,14 @@ public sealed class Win32InstalledAppReader : IInstalledAppReader
 
     private static bool IsTruthy(object? value)
         => value is int i && i != 0;
+
+    /// <summary>
+    /// Reads a REG_DWORD value as a non-negative int, or null when absent. EstimatedSize is stored as a DWORD;
+    /// when the registry surfaces it as a (possibly negative) int we treat negatives as absent rather than
+    /// reinterpreting the bit pattern — vendor sizes that large are not meaningful for display.
+    /// </summary>
+    private static int? ReadDword(RegistryKey key, string name)
+        => key.GetValue(name) is int i && i >= 0 ? i : null;
 
     /// <summary>The Core <see cref="CoreView"/> equivalent of the given app, for callers that need it.</summary>
     public static CoreView ViewOf(InstalledApp app) => app.View;
