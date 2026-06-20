@@ -68,8 +68,15 @@ public partial class App : Application
         s.AddSingleton<ICopyAdapter, CopyAdapter>();
         s.AddSingleton<IRecycleBinEmptier, RecycleBinEmptier>();
         s.AddSingleton<IFolderOpener, FolderOpener>(); // benign read-only folder open (not a gated action)
+        // Restore-point creation (PR-5): the protective system-call sink, gate-armed + dispatched by the
+        // executor. SRSetRestorePointW via P/Invoke (no process launch). Injected into GatedExecutor below.
+        // The capability probe (registered below) is injected so the creator re-checks SR availability before
+        // the Win32 call and never reports a fake success against a disabled System Restore (PR-5 audit FIX 2).
+        s.AddSingleton<IRestorePointCreator>(sp =>
+            new Win32RestorePointCreator(sp.GetRequiredService<IRestorePointCapabilityProbe>()));
         // Register the concrete GatedExecutor once (CleanViewModel needs the concrete type for
-        // ExecuteWithReport) and alias IExecutor to that same instance.
+        // ExecuteWithReport) and alias IExecutor to that same instance. The IRestorePointCreator above is
+        // resolved into its (optional) ctor param.
         s.AddSingleton<GatedExecutor>();
         s.AddSingleton<IExecutor>(sp => sp.GetRequiredService<GatedExecutor>());
 
@@ -78,6 +85,13 @@ public partial class App : Application
         s.AddSingleton<IAppxReader, Win32AppxReader>();
         s.AddSingleton<ILeftoverProbe, Win32LeftoverProbe>();
         s.AddSingleton<IAppxRemover>(sp => new Win32AppxRemover(sp.GetRequiredService<ExecutionLog>()));
+        // Restore-point capability probe (PR-5): availability = SR enabled on the system drive AND elevated
+        // (NOT mere service presence — SRSetRestorePointW can succeed when SR is off). The wizard flips its
+        // toggle from this. The composing LOGIC is host-testable; the real signals are the two Win32 probes.
+        s.AddSingleton<ISystemRestoreConfigProbe, Win32SystemRestoreConfigProbe>();
+        s.AddSingleton<IElevationProbe, Win32ElevationProbe>();
+        s.AddSingleton<IRestorePointCapabilityProbe>(sp => new DefaultRestorePointCapabilityProbe(
+            sp.GetRequiredService<ISystemRestoreConfigProbe>(), sp.GetRequiredService<IElevationProbe>()));
 
         // Clean module (read-only probes/services).
         s.AddSingleton<IJunkProbe, Win32JunkProbe>();

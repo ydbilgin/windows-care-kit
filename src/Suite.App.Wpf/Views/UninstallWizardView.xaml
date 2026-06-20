@@ -242,15 +242,27 @@
                             <TextBlock Text="{Binding I18n[uninstall.wizard.prep.subtitle]}" Style="{StaticResource Muted}"
                                        Margin="0,5,0,16" TextWrapping="Wrap" />
 
-                            <!-- Restore-point toggle: PRESENT but DISABLED with an honest reason (PR-5 activates). -->
+                            <!-- Restore-point toggle: ENABLED only when SR is available (PR-5). When unavailable the
+                                 row is dimmed and the checkbox disabled, keeping the honest reason. The reason text
+                                 binds to RestorePointReason (available vs. needs-admin/SR-off). -->
                             <Border Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
-                                    BorderThickness="1" CornerRadius="10" Padding="14" Opacity="0.62">
+                                    BorderThickness="1" CornerRadius="10" Padding="14">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Opacity" Value="1.0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RestorePointAvailable}" Value="False">
+                                                <Setter Property="Opacity" Value="0.62" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <CheckBox Grid.Column="0" IsChecked="{Binding RestorePointEnabled, Mode=OneWay}"
+                                    <CheckBox Grid.Column="0" IsChecked="{Binding RestorePointEnabled, Mode=TwoWay}"
                                               IsEnabled="{Binding RestorePointAvailable}" VerticalAlignment="Top"
                                               Margin="0,2,12,0" />
                                     <StackPanel Grid.Column="1">
@@ -258,7 +270,7 @@
                                                    Foreground="{StaticResource Text}" FontSize="13.5" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding I18n[uninstall.wizard.prep.restorePoint.desc]}"
                                                    Style="{StaticResource Faint}" Margin="0,3,0,0" />
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.prep.restorePoint.reason]}"
+                                        <TextBlock Text="{Binding RestorePointReason}"
                                                    Foreground="{StaticResource Amber}" FontSize="11.5"
                                                    Margin="0,5,0,0" TextWrapping="Wrap" />
                                     </StackPanel>

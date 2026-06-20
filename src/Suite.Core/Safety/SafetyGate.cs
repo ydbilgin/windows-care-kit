@@ -31,6 +31,10 @@ public sealed class SafetyGate : ISafetyGate
         CommandAction c => EvaluateCommand(c),
         CopyAction cp => EvaluateWriteTarget(cp.Destination, "copy destination"),
         RestoreMergeAction rm => EvaluateWriteTarget(rm.Destination, "restore destination"),
+        // Creating a System Restore point is a pure system call that ADDS rollback state — it mutates no
+        // protected resource, so it is allowed outright (UI decision §5(a)). This is an EXPLICIT arm, not a
+        // catch-all: an unknown/unmodeled action type still falls through to the fail-closed `_ => Block`.
+        CreateRestorePointAction => SafetyVerdict.Allow("create restore point (pure system call)"),
         null => SafetyVerdict.Block("null action"),
         _ => SafetyVerdict.Block($"unknown action type: {action.GetType().Name}"),
     };

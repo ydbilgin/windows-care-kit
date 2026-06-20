@@ -58,6 +58,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
     private readonly ISafetyGate _gate;
     private readonly ILeftoverProbe _probe;
     private readonly IExecutor _executor;
+    private readonly IRestorePointCapabilityProbe? _restorePointCapability;
     private readonly Func<DateTime> _utcNow;
 
     private InstalledApp? _app;
@@ -76,18 +77,22 @@ public sealed class UninstallWizardViewModel : ObservableObject
     private int _failedCount;
     private bool _hasResult;
 
+    private bool _restorePointAvailable;
+    private bool _restorePointEnabled;
+
     // The plan currently staged for confirmation + the exact hash the user is approving.
     private OperationPlan? _pendingPlan;
     private string? _pendingPlanHash;
     private PendingKind _pendingKind;
 
     public UninstallWizardViewModel(I18n i18n, ISafetyGate gate, ILeftoverProbe probe, IExecutor executor,
-        Func<DateTime>? utcNow = null)
+        Func<DateTime>? utcNow = null, IRestorePointCapabilityProbe? restorePointCapability = null)
     {
         I18n = i18n;
         _gate = gate;
         _probe = probe;
         _executor = executor;
+        _restorePointCapability = restorePointCapability;
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
 
         // The reused 3-tier confirmation gate. BOTH ConfirmGate #1 (official) and #2 (leftovers) drive THIS
@@ -159,6 +164,12 @@ public sealed class UninstallWizardViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(app);
         _app = app;
         ResetState();
+        // Probe restore-point capability once per open (SR enabled on the system drive AND elevated). When the
+        // capability probe is absent (e.g. host tests not exercising PR-5), it stays unavailable + disabled.
+        RestorePointAvailable = _restorePointCapability?.IsAvailable() ?? false;
+        // When available, default the toggle ON — choosing the extra rollback layer is the safe default; it is
+        // co-staged as a neighbor of the destructive plan and never escalates the tier (UI decision §5).
+        RestorePointEnabled = RestorePointAvailable;
         IsOpen = true;
         OnPropertyChanged(nameof(AppTitle));
         OnPropertyChanged(nameof(AppMeta));
@@ -185,6 +196,8 @@ public sealed class UninstallWizardViewModel : ObservableObject
         _officialRan = false;
         _doneCount = _skippedCount = _failedCount = 0;
         _hasResult = false;
+        RestorePointAvailable = false;
+        RestorePointEnabled = false;
         StatusLine = string.Empty;
         BuildError = string.Empty;
         RegistryNodes.Clear();
@@ -282,14 +295,43 @@ public sealed class UninstallWizardViewModel : ObservableObject
     // ---- Beat 1: restore-point framing (PR-5 hook) ----
 
     /// <summary>
-    /// True once the restore-point typed-action + gate-arm + adapter ship (PR-5). For PR-4 it is hard-FALSE,
-    /// so the toggle is shown DISABLED with an honest reason. PR-5 flips this (and wires the toggle to its
-    /// CreateRestorePointAction, neighbor-staged with the destructive plan per spec §5).
+    /// True when a System Restore point can actually be created now — probed from
+    /// <see cref="IRestorePointCapabilityProbe"/> (SR enabled on the system drive AND elevated) when the wizard
+    /// opens (UI decision §5). When false, the toggle stays DISABLED with the honest reason. The capability is
+    /// captured ONCE per Open so the UI is stable across a session.
     /// </summary>
-    public bool RestorePointAvailable => false;
+    public bool RestorePointAvailable
+    {
+        get => _restorePointAvailable;
+        private set
+        {
+            if (SetField(ref _restorePointAvailable, value))
+            {
+                OnPropertyChanged(nameof(RestorePointReason));
+                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
 
-    /// <summary>The restore-point toggle's checked state — inert in PR-4 (the toggle is disabled).</summary>
-    public bool RestorePointEnabled => false;
+    /// <summary>
+    /// The restore-point toggle's checked state (two-way). It is only meaningful while
+    /// <see cref="RestorePointAvailable"/> is true; when available it defaults ON, so a co-staged restore point
+    /// is prepended to the official-uninstaller plan (UI decision §5). Toggling it off opts out of the extra
+    /// rollback layer — it never affects the destructive neighbor or its tier.
+    /// </summary>
+    public bool RestorePointEnabled
+    {
+        get => _restorePointEnabled;
+        set => SetField(ref _restorePointEnabled, value);
+    }
+
+    /// <summary>
+    /// The honest line under the toggle: when available, an honest "will be created before the operation"
+    /// note; when unavailable, the "needs admin / SR off" reason (UI decision §5 — no fake guarantee).
+    /// </summary>
+    public string RestorePointReason => RestorePointAvailable
+        ? I18n["uninstall.wizard.prep.restorePoint.reason.available"]
+        : I18n["uninstall.wizard.prep.restorePoint.reason"];
 
     // ---- Scan depth (Beat 2) ----
 
@@ -346,8 +388,37 @@ public sealed class UninstallWizardViewModel : ObservableObject
         if (plan is null || plan.IsEmpty)
             return;
 
+        // CO-STAGE the restore point (UI decision §5): when the user kept the toggle on AND SR is available,
+        // PREPEND a protective CreateRestorePointAction so it runs BEFORE the destructive uninstaller and is
+        // always a NEIGHBOR of it — never its own plan. The Irreversible tier still arises from the
+        // uninstaller's Undo=None (the restore point is IsProtective → tier-exempt, UI decision §5).
+        if (RestorePointAvailable && RestorePointEnabled)
+            plan = WithCoStagedRestorePoint(plan);
+
         StatusLine = I18n["uninstall.wizard.status.officialStaged"];
         Stage(plan, PendingKind.Official, I18n["uninstall.wizard.confirm.official.body"]);
+    }
+
+    /// <summary>
+    /// Build a new plan whose FIRST action is the protective <see cref="CreateRestorePointAction"/>, followed by
+    /// the original (destructive) actions. The restore point is prepended so it is created before anything is
+    /// removed; it is never staged alone (UI decision §5: "protective action is NEVER a standalone plan").
+    /// </summary>
+    private OperationPlan WithCoStagedRestorePoint(OperationPlan official)
+    {
+        var restorePoint = new CreateRestorePointAction
+        {
+            RestorePointName = I18n.Format("uninstall.wizard.restorePoint.name", AppTitle),
+            Description = $"Create a System Restore point before uninstalling {AppTitle}",
+            Reason = "Protective rollback layer co-staged with the official uninstaller (UI decision §5)",
+            Risk = RiskLevel.Info,
+            Undo = UndoCapability.None,
+            // IsProtective is type-bound true on CreateRestorePointAction (no longer a settable flag — PR-5 FIX 1).
+        };
+
+        var actions = new List<PlannedAction>(official.Actions.Count + 1) { restorePoint };
+        actions.AddRange(official.Actions);
+        return new OperationPlan(official.Title, official.ModuleName, actions, _utcNow());
     }
 
     // ---- Beat 2: leftover scan ----
@@ -729,6 +800,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(BuildError));
         OnPropertyChanged(nameof(RestorePointAvailable));
         OnPropertyChanged(nameof(RestorePointEnabled));
+        OnPropertyChanged(nameof(RestorePointReason));
         System.Windows.Input.CommandManager.InvalidateRequerySuggested();
     }
 }

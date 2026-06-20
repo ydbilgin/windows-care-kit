@@ -22,6 +22,27 @@ public abstract record PlannedAction
 
     public UndoCapability Undo { get; init; } = UndoCapability.None;
 
+    /// <summary>
+    /// Marks an action as PROTECTIVE (it creates rollback state — e.g. a System Restore point — rather than
+    /// mutating a protected resource). Such an action is EXEMPT from driving the irreversible confirm tier:
+    /// it must never escalate the gate on its own, because the user chose MORE safety, not less
+    /// (UI decision §5 / critic-fix #1). The irreversible tier still arises naturally from the destructive
+    /// neighbor it is staged alongside (e.g. the official uninstaller's <see cref="UndoCapability.None"/>).
+    ///
+    /// This is TYPE-BOUND, not a settable flag: it is a computed virtual that DEFAULTS false and is overridden
+    /// to true ONLY by <see cref="CreateRestorePointAction"/>. A settable flag was a confirmation-gate bypass —
+    /// any destructive action (a registry/command delete with <see cref="UndoCapability.None"/>) could set it
+    /// true and exempt itself from the irreversible type-to-confirm tier (PR-5 audit FIX 1, all 4 auditors).
+    /// Because the exemption is now closed to a single Core type, no destructive action can self-exempt.
+    ///
+    /// It is execution/tier metadata, NOT part of WHAT the action targets, so — like <see cref="Risk"/> /
+    /// <see cref="Undo"/> / <see cref="FileDeleteAction.BestEffort"/> — it is intentionally excluded from
+    /// <see cref="TargetSignature"/> and the plan hash. Crucially, it is NOT achieved by relabeling
+    /// <see cref="Undo"/> (relabeling Undo to Full would change tier resolution elsewhere — UI decision §5 /
+    /// critic MED#3).
+    /// </summary>
+    public virtual bool IsProtective => false;
+
     /// <summary>Short machine kind, e.g. <c>file.delete</c>. Used for the plan hash and logging.</summary>
     public abstract string Kind { get; }
 
@@ -164,4 +185,36 @@ public sealed record RestoreMergeAction : PlannedAction
     public override string Kind => "restore.merge";
     public override string TargetSignature()
         => $"{Kind}|{Source.ToLowerInvariant()}=>{Destination.ToLowerInvariant()}|bak={CreateBak}";
+}
+
+/// <summary>
+/// Create a Windows System Restore point before a destructive operation runs (UI decision §5). This is a
+/// PROTECTIVE action: it ADDS rollback state, it does not mutate a protected resource. It is therefore
+/// <see cref="PlannedAction.IsProtective"/> = true so it never escalates the confirm tier on its own
+/// (critic-fix #1), and its risk is <see cref="RiskLevel.Info"/>.
+///
+/// It is NEVER staged as a standalone plan — it is always PREPENDED as a neighbor of the destructive action
+/// it protects (the official uninstaller / a registry delete), so the irreversible tier still arises from
+/// that destructive neighbor, not from the restore point (UI decision §5). Creating it is a pure system call;
+/// the <c>SafetyGate</c> Allow-arm reflects that (it touches no protected resource).
+/// </summary>
+public sealed record CreateRestorePointAction : PlannedAction
+{
+    /// <summary>The description shown in the Windows System Restore UI (e.g. "Windows Care Kit — before uninstall").</summary>
+    public required string RestorePointName { get; init; }
+
+    /// <summary>
+    /// The ONE protective action in the suite — type-bound true so it is tier-exempt (UI decision §5). No other
+    /// action type can claim this: the base getter is false and only this override flips it (PR-5 audit FIX 1).
+    /// </summary>
+    public override bool IsProtective => true;
+
+    public override string Kind => "restore.create";
+
+    /// <summary>
+    /// Only the restore-point label identifies what is created. The protective flag / risk / undo are tier
+    /// metadata and are excluded from the signature (same rule as every other action's metadata).
+    /// </summary>
+    public override string TargetSignature()
+        => $"{Kind}|{RestorePointName.ToLowerInvariant()}";
 }
