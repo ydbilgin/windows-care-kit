@@ -8,6 +8,9 @@ internal sealed class RecordingAdapters
 {
     public List<string> Calls { get; } = new();
 
+    /// <summary>The actual actions dispatched to an adapter, in order — for asserting WHICH target ran.</summary>
+    public List<PlannedAction> Dispatched { get; } = new();
+
     /// <summary>Action ids that should throw when their adapter is invoked.</summary>
     public HashSet<string> ThrowForActionIds { get; } = new();
 
@@ -26,6 +29,7 @@ internal sealed class RecordingAdapters
         if (ThrowOnAnyCall)
             throw new InvalidOperationException($"adapter '{kind}' must not be called");
         Calls.Add($"{kind}:{action.Id}");
+        Dispatched.Add(action);
         if (ThrowForActionIds.Contains(action.Id))
             throw new InvalidOperationException($"boom:{action.Id}");
     }

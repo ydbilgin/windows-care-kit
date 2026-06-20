@@ -8,8 +8,12 @@ public sealed record LeftoverDirectory(string Path, string Note);
 /// <summary>A registry key that looks app-related.</summary>
 public sealed record LeftoverRegistryKey(RegistryHive Hive, string SubKeyPath, RegistryView View, string Note);
 
-/// <summary>A service that looks app-related.</summary>
-public sealed record LeftoverService(string ServiceName, string Note);
+/// <summary>
+/// A service that looks app-related. <paramref name="ImagePath"/> is the resolved executable path the probe
+/// used to correlate the service to the app (null when it could not be resolved); it is the attribution
+/// evidence the <see cref="LeftoverClassifier"/> re-checks before calling a service ProgramOwned.
+/// </summary>
+public sealed record LeftoverService(string ServiceName, string Note, string? ImagePath = null);
 
 /// <summary>A scheduled task that looks app-related.</summary>
 public sealed record LeftoverTask(string TaskPath, string Note);

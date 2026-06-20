@@ -74,6 +74,17 @@ public sealed record ServiceDeleteAction : PlannedAction
 {
     public required string ServiceName { get; init; }
     public ServiceOperation Operation { get; init; } = ServiceOperation.Stop;
+
+    /// <summary>
+    /// The service's resolved executable path (from its registry <c>ImagePath</c>), when the probe could
+    /// correlate one. This is the attribution EVIDENCE the leftover classifier needs: a service is only
+    /// <c>ProgramOwned</c> when this path resolves UNDER the app's install directory. Null when the probe
+    /// could not resolve it — in which case the classifier treats the service as Shared (fail-safe). It is
+    /// correlation evidence, not part of WHAT is operated on, so it is intentionally excluded from the
+    /// target signature / plan hash (like <see cref="PlannedAction.Risk"/> / <see cref="PlannedAction.Undo"/>).
+    /// </summary>
+    public string? ImagePath { get; init; }
+
     public override string Kind => "service.delete";
     public override string TargetSignature()
         => $"{Kind}|{Operation}|{ServiceName.ToLowerInvariant()}";
