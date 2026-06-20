@@ -15,8 +15,9 @@ public class Win32ReadersSmokeTests
     {
         var apps = new Win32InstalledAppReader().ReadAll();
         Assert.NotNull(apps);
-        // A real Windows box always has classic programs registered.
-        Assert.NotEmpty(apps);
+        // Don't assert non-empty: a pristine image (e.g. a fresh Windows Sandbox) can have no classic
+        // programs registered. Like AppxReader below, this smoke test only verifies the reader runs
+        // without throwing and returns sane shape — exact contents depend on the box (see class doc).
         Assert.All(apps, a => Assert.False(string.IsNullOrWhiteSpace(a.DisplayName)));
     }
 

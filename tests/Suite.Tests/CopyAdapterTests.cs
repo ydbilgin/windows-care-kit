@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
+using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -263,7 +263,7 @@ public class CopyAdapterTests
 
             string realTarget = Path.Combine(root, "realTarget");
             Directory.CreateDirectory(realTarget);
-            if (!TryCreateJunction(junctionParent, realTarget))
+            if (!JunctionHelper.TryCreateJunction(junctionParent, realTarget))
                 return; // junction creation unavailable here → skip (the guard is still unit-tested below)
 
             // Destination is UNDER the junction parent → the write boundary must refuse it.
@@ -280,7 +280,7 @@ public class CopyAdapterTests
             // The destructive write never happened: nothing was dropped through the junction into the real target.
             Assert.False(File.Exists(Path.Combine(realTarget, "a.txt")));
         }
-        finally { CleanupWithJunction(root, junctionParent); }
+        finally { JunctionHelper.CleanupWithJunction(root, junctionParent); }
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public class CopyAdapterTests
 
             string realTarget = Path.Combine(root, "realTarget");
             Directory.CreateDirectory(realTarget);
-            if (!TryCreateJunction(junctionDest, realTarget))
+            if (!JunctionHelper.TryCreateJunction(junctionDest, realTarget))
                 return; // junction creation unavailable → skip
 
             Assert.Throws<DestinationReparseException>(() => new CopyAdapter().Copy(new CopyAction
@@ -309,7 +309,7 @@ public class CopyAdapterTests
 
             Assert.False(File.Exists(Path.Combine(realTarget, "top.txt")));
         }
-        finally { CleanupWithJunction(root, junctionDest); }
+        finally { JunctionHelper.CleanupWithJunction(root, junctionDest); }
     }
 
     [Fact]
@@ -324,7 +324,7 @@ public class CopyAdapterTests
 
             string realTarget = Path.Combine(root, "realTarget");
             Directory.CreateDirectory(realTarget);
-            if (!TryCreateJunction(junctionParent, realTarget))
+            if (!JunctionHelper.TryCreateJunction(junctionParent, realTarget))
                 return; // junction creation unavailable → skip
 
             string dest = Path.Combine(junctionParent, "live.cfg");
@@ -340,49 +340,6 @@ public class CopyAdapterTests
 
             Assert.False(File.Exists(Path.Combine(realTarget, "live.cfg")));
         }
-        finally { CleanupWithJunction(root, junctionParent); }
-    }
-
-    /// <summary>
-    /// Tear down a temp root that contains a junction: unlink the junction itself FIRST (a non-recursive
-    /// delete removes the reparse point without recursing into / deleting the real target), then recursively
-    /// delete the root. A plain recursive delete of the root would otherwise fail on the junction.
-    /// </summary>
-    private static void CleanupWithJunction(string root, string junction)
-    {
-        try
-        {
-            if (Directory.Exists(junction) && File.GetAttributes(junction).HasFlag(FileAttributes.ReparsePoint))
-                Directory.Delete(junction, recursive: false); // unlink the reparse point only
-        }
-        catch { /* best-effort teardown */ }
-        if (Directory.Exists(root))
-            Directory.Delete(root, recursive: true);
-    }
-
-    /// <summary>Create an NTFS directory junction (no elevation needed) via cmd's mklink; false if unavailable.</summary>
-    private static bool TryCreateJunction(string link, string target)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{link}\" \"{target}\"")
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            using Process? p = Process.Start(psi);
-            if (p is null)
-                return false;
-            p.WaitForExit(10_000);
-            // Confirm the link exists AND is actually a reparse point.
-            return Directory.Exists(link)
-                   && File.GetAttributes(link).HasFlag(FileAttributes.ReparsePoint);
-        }
-        catch
-        {
-            return false;
-        }
+        finally { JunctionHelper.CleanupWithJunction(root, junctionParent); }
     }
 }

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ============================================================================
+  WindowsCareKit-step4-test.wsb  —  Step 4 DESTRUCTIVE-TEST sandbox
+  ============================================================================
+  PURPOSE
+    Runs Windows Care Kit's REAL-behavior (Category=Destructive) tests inside a
+    throwaway Windows Sandbox VM, so genuine delete / clean / backup-restore /
+    registry behavior is exercised WITHOUT any risk to the host. This is the
+    Step 4 "tam test edildi" tier — those tests never run on the host.
+
+  DIFFERENCE FROM WindowsCareKit-locked.wsb
+    The -locked profile is fully air-gapped with NO folder bridge (for probing
+    UNTRUSTED destructive behavior). THIS profile is for running OUR OWN test
+    suite, so it adds exactly two controlled, throwaway folder bridges:
+      * C:\WCK-Input   (READ-ONLY)  — the offline test bundle, injected in.
+      * C:\WCK-Output  (writable)   — TRX + log come back out to the host.
+    Networking stays DISABLED: the bundle is fully offline (portable SDK + a
+    flat local NuGet feed), so no download is ever needed.
+
+  HOW TO USE  (no admin needed to RUN this; Sandbox feature must be enabled once)
+    1. Host (PowerShell, no admin):   sandbox\step4-stage.ps1
+       -> builds C:\WCK-SandboxStaging\ (repo, dotnet, localfeed) + C:\WCK-SandboxOutput\
+    2. Double-click THIS .wsb. The sandbox auto-runs step4-run.cmd, executes the
+       full suite (incl. destructive), and writes results to C:\WCK-Output.
+    3. Read results on the HOST at C:\WCK-SandboxOutput\ (step4.trx, console log,
+       exit code), then close the sandbox (its contents are discarded).
+
+  CONFIG ONLY: nothing here launches automatically. A human double-clicks it.
+  ============================================================================
+-->
+<Configuration>
+
+  <!--
+    Networking: DISABLED. The bundle is fully offline (portable SDK + flat local
+    NuGet feed), so no network is required. Keeping it off preserves the air-gap:
+    test code cannot phone home, download, or exfiltrate.
+  -->
+  <Networking>Disable</Networking>
+
+  <!-- Clipboard bridge: DISABLED. No host<->VM copy/paste. -->
+  <ClipboardRedirection>Disable</ClipboardRedirection>
+
+  <!-- Hardened RDP session host for untrusted-workload sandboxes. -->
+  <ProtectedClient>Enable</ProtectedClient>
+
+  <!-- Unnecessary device bridges: all DISABLED. -->
+  <AudioInput>Disable</AudioInput>
+  <VideoInput>Disable</VideoInput>
+  <PrinterRedirection>Disable</PrinterRedirection>
+
+  <MappedFolders>
+    <!--
+      INPUT (read-only): the offline test bundle staged by step4-stage.ps1.
+      ReadOnly=true => the sandbox can never write back through this bridge, so
+      destructive code under test cannot touch the staged source on the host.
+      The host side is a DEDICATED THROWAWAY folder, never a real user/system dir.
+    -->
+    <MappedFolder>
+      <HostFolder>C:\WCK-SandboxStaging</HostFolder>
+      <SandboxFolder>C:\WCK-Input</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+
+    <!--
+      OUTPUT (writable): the ONLY writable bridge, used solely to return test
+      results (TRX + console log + exit code) to the host. Host side is again a
+      dedicated throwaway folder. Nothing else is written here.
+    -->
+    <MappedFolder>
+      <HostFolder>C:\WCK-SandboxOutput</HostFolder>
+      <SandboxFolder>C:\WCK-Output</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+
+  <!--
+    Auto-run the in-sandbox runner at logon. It sets the disposable-machine
+    opt-in (env var + marker), then runs the full suite offline.
+  -->
+  <LogonCommand>
+    <Command>cmd.exe /c "C:\WCK-Input\repo\sandbox\step4-run.cmd"</Command>
+  </LogonCommand>
+
+</Configuration>
