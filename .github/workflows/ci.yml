@@ -1,5 +1,5 @@
 # Read-only CI for Windows Care Kit (WCK).
-# Public repo. This workflow ONLY checks out, builds and tests.
+# Private repo (personal account). This workflow ONLY checks out, builds and tests.
 # It never runs the app's destructive features (Delete/Clean/Backup/Install)
 # and never opens a Sandbox/VM. Destructive/integration runs are gated
 # below as a commented-out, manual + approval-protected stub.
@@ -70,7 +70,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@cb7149fd92f1ee0d6a405241e9b5dd9b0b969d29 # v2.3.6
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           # No secret is provided to fork PRs (the value is simply empty there),
           # so secret scanning still runs but the paid org feature stays off.

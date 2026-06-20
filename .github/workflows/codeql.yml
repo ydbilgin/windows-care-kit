@@ -24,6 +24,10 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (csharp)
+    # CodeQL result upload requires GitHub code scanning, which on the free plan
+    # is available only for PUBLIC repos. This repo is private, so skip the job
+    # (it reports as neutral, not failed). Re-enables automatically if made public.
+    if: github.event.repository.visibility == 'public'
     runs-on: windows-latest
     permissions:
       contents: read
