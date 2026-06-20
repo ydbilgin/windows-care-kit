@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "microsoft.vscode",
+  "displayName": "Visual Studio Code",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "AppData", "path": "Code/User", "exists": true },
+  "items": [
+    { "path": "Code/User/settings.json" },
+    { "path": "Code/User/keybindings.json" }
+  ],
+  "exclude": [],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": {
+    "strategy": "merge-after-install",
+    "phase": "configWrite",
+    "preconditions": ["process-closed"]
+  }
+}

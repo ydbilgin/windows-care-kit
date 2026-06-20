@@ -225,13 +225,15 @@ public sealed class CopyAdapter : ICopyAdapter
     private sealed class Exclusions
     {
         private readonly HashSet<string> _leaves;
+        private readonly IReadOnlyList<Regex> _leafGlobs;
         private readonly HashSet<string> _forbiddenFull;
         private readonly IReadOnlyList<string> _include;
         private readonly Win32PathCanonicalizer _canon;
 
-        private Exclusions(HashSet<string> leaves, HashSet<string> forbiddenFull, IReadOnlyList<string> include, Win32PathCanonicalizer canon)
+        private Exclusions(HashSet<string> leaves, IReadOnlyList<Regex> leafGlobs, HashSet<string> forbiddenFull, IReadOnlyList<string> include, Win32PathCanonicalizer canon)
         {
             _leaves = leaves;
+            _leafGlobs = leafGlobs;
             _forbiddenFull = forbiddenFull;
             _include = include;
             _canon = canon;
@@ -239,18 +241,28 @@ public sealed class CopyAdapter : ICopyAdapter
 
         public static Exclusions From(CopyAction action, Win32PathCanonicalizer canon)
         {
+            // The hardened built-in superset is all EXACT leaves. An ExcludeLeaves entry containing '*' is a
+            // LEAF GLOB (e.g. "*.key", "id_rsa*", "*Cache*") — split it out so a real secret/cache leaf is caught,
+            // not just a file literally named "*.key" (council critic F3/HIGH: ExcludeLeaves was exact-match only,
+            // which left the migration secret-glob overlay + recipe cache excludes inert at copy time).
             var leaves = new HashSet<string>(ForbiddenSourceLeaves, StringComparer.OrdinalIgnoreCase);
+            var globs = new List<Regex>();
             foreach (string leaf in action.ExcludeLeaves)
-                if (!string.IsNullOrWhiteSpace(leaf)) leaves.Add(leaf.Trim());
+            {
+                if (string.IsNullOrWhiteSpace(leaf)) continue;
+                string trimmed = leaf.Trim();
+                if (trimmed.Contains('*')) globs.Add(CompileLeafGlob(trimmed));
+                else leaves.Add(trimmed);
+            }
 
             var full = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string p in action.ForbiddenSources)
                 if (!string.IsNullOrWhiteSpace(p)) full.Add(NormalizeFull(p));
 
-            return new Exclusions(leaves, full, action.Include, canon);
+            return new Exclusions(leaves, globs, full, action.Include, canon);
         }
 
-        public bool IsForbiddenLeaf(string leaf) => _leaves.Contains(leaf);
+        public bool IsForbiddenLeaf(string leaf) => _leaves.Contains(leaf) || MatchesLeafGlob(leaf);
         public bool IsForbiddenFull(string path) => _forbiddenFull.Count > 0 && _forbiddenFull.Contains(NormalizeFull(path));
 
         /// <summary>A file may be copied only if it passes the include allow-list (if any), is not excluded/
@@ -266,7 +278,8 @@ public sealed class CopyAdapter : ICopyAdapter
             string literalLeaf = Path.GetFileName(file.TrimEnd('\\', '/'));
             string resolvedLeaf = Path.GetFileName(canon.FinalPath.TrimEnd('\\', '/'));
 
-            if (_leaves.Contains(literalLeaf) || _leaves.Contains(resolvedLeaf))
+            if (_leaves.Contains(literalLeaf) || _leaves.Contains(resolvedLeaf)
+                || MatchesLeafGlob(literalLeaf) || MatchesLeafGlob(resolvedLeaf))
                 return false;
             if (IsForbiddenFull(file) || IsForbiddenFull(canon.FinalPath))
                 return false;
@@ -284,7 +297,7 @@ public sealed class CopyAdapter : ICopyAdapter
         public bool IsExcludedDir(string dir, string sourceRoot)
         {
             string leaf = Path.GetFileName(dir.TrimEnd('\\', '/'));
-            if (_leaves.Contains(leaf))
+            if (_leaves.Contains(leaf) || MatchesLeafGlob(leaf))
                 return true;
             // With an include allow-list, only prune a dir when nothing under it could ever match.
             if (_include.Count > 0)
@@ -330,6 +343,19 @@ public sealed class CopyAdapter : ICopyAdapter
             }
             return r == pattern || r.StartsWith(pattern + "/", StringComparison.Ordinal) || LeafOf(r) == pattern;
         }
+
+        /// <summary>True when a leaf name matches any '*'-bearing ExcludeLeaves entry (secret-glob overlay,
+        /// recipe cache/blob excludes). Leaf glob: '*' → any run of non-separator chars; anchored, case-insensitive.</summary>
+        private bool MatchesLeafGlob(string leaf)
+        {
+            if (string.IsNullOrEmpty(leaf)) return false;
+            foreach (Regex rx in _leafGlobs)
+                if (rx.IsMatch(leaf)) return true;
+            return false;
+        }
+
+        private static Regex CompileLeafGlob(string glob)
+            => new("^" + Regex.Escape(glob).Replace("\\*", "[^\\\\/]*") + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         private static string TrimGlob(string p) => p.Replace("/**", string.Empty).Replace("*", string.Empty).Trim('/');
         private static string LeafOf(string rel) { int i = rel.LastIndexOf('/'); return i < 0 ? rel : rel[(i + 1)..]; }

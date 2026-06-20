@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "discord",
+  "displayName": "Discord",
+  "category": "communication",
+  "detect": { "knownFolder": "AppData", "path": "discord", "exists": true },
+  "items": [
+    { "path": "discord/settings.json" },
+    { "path": "discord/quotes.json" }
+  ],
+  "exclude": [
+    "*Cache*",
+    "blob_storage",
+    "GPUCache"
+  ],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": {
+    "strategy": "merge-after-install",
+    "phase": "configWrite",
+    "preconditions": ["process-closed"]
+  }
+}

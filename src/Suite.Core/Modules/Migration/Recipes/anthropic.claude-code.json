@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "anthropic.claude-code",
+  "displayName": "Claude Code",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "UserProfile", "path": ".claude", "exists": true },
+  "items": [
+    { "path": ".claude/CLAUDE.md" },
+    { "path": ".claude/settings.json" },
+    { "path": ".claude/projects", "include": ["**/memory/**", "**/*.md"] },
+    { "path": ".claude/skills" }
+  ],
+  "exclude": [
+    "*Cache*",
+    "shell-snapshots",
+    "todos",
+    "node_modules"
+  ],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": {
+    "strategy": "merge-after-install",
+    "phase": "configWrite",
+    "preconditions": ["process-closed"]
+  }
+}
