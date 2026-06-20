@@ -49,7 +49,7 @@ public sealed class UninstallViewModel : ObservableObject
 
     public UninstallViewModel(I18n i18n, IInstalledAppReader appReader, IAppxReader appxReader,
         ISafetyGate gate, ILeftoverProbe probe, IExecutor executor, IAppxRemover appxRemover,
-        IFolderOpener folderOpener)
+        IFolderOpener folderOpener, IRestorePointCapabilityProbe? restorePointCapability = null)
     {
         I18n = i18n;
         _appReader = appReader;
@@ -93,7 +93,8 @@ public sealed class UninstallViewModel : ObservableObject
         // leftovers reuse) and runs plans through the SAME executor — the detail-pane "Kaldır →" opens it for a
         // desktop app. A Store app keeps the existing single-shot irreversible removal (no wizard / no leftover
         // scan — a Store app has neither an official-uninstaller plan nor registry leftovers, UI decision §4).
-        Wizard = new UninstallWizardViewModel(i18n, gate, probe, executor);
+        Wizard = new UninstallWizardViewModel(i18n, gate, probe, executor, utcNow: null,
+            restorePointCapability: restorePointCapability);
     }
 
     public I18n I18n { get; }

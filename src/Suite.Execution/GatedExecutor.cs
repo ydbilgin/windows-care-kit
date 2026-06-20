@@ -25,7 +25,13 @@ public sealed class GatedExecutor : IExecutor
     private readonly ITaskAdapter _taskAdapter;
     private readonly IProcessAdapter _processAdapter;
     private readonly ICopyAdapter _copyAdapter;
+    private readonly IRestorePointCreator _restorePointCreator;
 
+    /// <param name="restorePointCreator">
+    /// The protective <see cref="CreateRestorePointAction"/> sink (PR-5). Optional for backward compatibility:
+    /// when null, a fail-closed default is used that THROWS if such an action is dispatched — so a plan can
+    /// never silently skip the restore point it was promised. The production app injects the real Win32 creator.
+    /// </param>
     public GatedExecutor(
         ISafetyGate gate,
         ExecutionLog log,
@@ -34,7 +40,8 @@ public sealed class GatedExecutor : IExecutor
         IServiceAdapter serviceAdapter,
         ITaskAdapter taskAdapter,
         IProcessAdapter processAdapter,
-        ICopyAdapter copyAdapter)
+        ICopyAdapter copyAdapter,
+        IRestorePointCreator? restorePointCreator = null)
     {
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _log = log ?? throw new ArgumentNullException(nameof(log));
@@ -44,6 +51,7 @@ public sealed class GatedExecutor : IExecutor
         _taskAdapter = taskAdapter ?? throw new ArgumentNullException(nameof(taskAdapter));
         _processAdapter = processAdapter ?? throw new ArgumentNullException(nameof(processAdapter));
         _copyAdapter = copyAdapter ?? throw new ArgumentNullException(nameof(copyAdapter));
+        _restorePointCreator = restorePointCreator ?? new UnavailableRestorePointCreator();
     }
 
     /// <inheritdoc />
@@ -191,6 +199,9 @@ public sealed class GatedExecutor : IExecutor
             case RestoreMergeAction merge:
                 _copyAdapter.Merge(merge);
                 break;
+            case CreateRestorePointAction restorePoint:
+                _restorePointCreator.Create(restorePoint);
+                break;
             default:
                 throw new NotSupportedException($"No adapter for action kind '{action.Kind}'.");
         }
@@ -216,4 +227,15 @@ public sealed class GatedExecutor : IExecutor
 
     private static string FirstDetailOr(ExecutionReport report, string fallback)
         => report.Results.Count > 0 ? report.Results[0].Detail : fallback;
+
+    /// <summary>
+    /// Fail-closed default when no <see cref="IRestorePointCreator"/> is wired: dispatching a
+    /// <see cref="CreateRestorePointAction"/> THROWS, so a plan that staged a restore point can never run
+    /// without one having been created (the executor's try/catch then records the failure and stops the plan).
+    /// </summary>
+    private sealed class UnavailableRestorePointCreator : IRestorePointCreator
+    {
+        public void Create(CreateRestorePointAction action)
+            => throw new NotSupportedException("No IRestorePointCreator is wired into this executor.");
+    }
 }

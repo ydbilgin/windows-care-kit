@@ -153,21 +153,46 @@ public sealed class ConfirmGateViewModel : ObservableObject
     /// Picks the tier from the staged plan: any IRREVERSIBLE action (no undo, or Critical risk) → Irreversible;
     /// otherwise a partial-undo / Medium+ action → Medium; a wholly recycle-bin / .reg-backed plan → Reversible.
     /// Mirrors <see cref="UndoCapability"/> + <see cref="RiskLevel"/> semantics (UI decision §B2).
+    ///
+    /// PROTECTIVE actions (<see cref="PlannedAction.IsProtective"/>, e.g. a System Restore point) are EXEMPT
+    /// from escalation: the tier is driven only by the NON-protective actions, so choosing more safety never
+    /// raises the bar the user must clear (UI decision §5 / critic-fix #1). The protective action is staged as a
+    /// neighbor of a destructive action, so the irreversible tier still arises from THAT destructive neighbor —
+    /// it is NOT achieved by relabeling the restore point's Undo (which would break Undo-driven resolution
+    /// elsewhere, UI decision §5 / critic MED#3).
     /// </summary>
     public static ConfirmTier TierFor(OperationPlan plan)
     {
         if (plan.IsEmpty)
             return ConfirmTier.Reversible;
 
-        // Irreversible if ANY action can't be undone, or any action is Critical risk.
-        bool anyIrreversible = plan.Actions.Any(a => a.Undo == UndoCapability.None || a.Risk == RiskLevel.Critical);
+        // Only the non-protective (destructive) actions drive the tier. A protective action never escalates.
+        // SECURITY (PR-5 audit FIX 1 hardening): the exemption is keyed to the EXACT protective type via the
+        // closed IsTierExempt predicate — NOT the overridable PlannedAction.IsProtective marker. So no action
+        // can dodge the irreversibility ceremony, even one that (wrongly) overrides IsProtective => true.
+        var driving = plan.Actions.Where(a => !IsTierExempt(a)).ToArray();
+        if (driving.Length == 0)
+            return ConfirmTier.Reversible;
+
+        // Irreversible if ANY driving action can't be undone, or any is Critical risk.
+        bool anyIrreversible = driving.Any(a => a.Undo == UndoCapability.None || a.Risk == RiskLevel.Critical);
         if (anyIrreversible)
             return ConfirmTier.Irreversible;
 
         // Medium if anything is only partially reversible, or rises to Medium+ risk.
-        bool anyMedium = plan.Actions.Any(a => a.Undo == UndoCapability.Partial || a.Risk >= RiskLevel.Medium);
+        bool anyMedium = driving.Any(a => a.Undo == UndoCapability.Partial || a.Risk >= RiskLevel.Medium);
         return anyMedium ? ConfirmTier.Medium : ConfirmTier.Reversible;
     }
+
+    /// <summary>
+    /// The CLOSED set of tier-exempt PROTECTIVE action types — the SECURITY source of truth for the escalation
+    /// exemption. Keyed to the exact sealed type (not the overridable <see cref="PlannedAction.IsProtective"/>
+    /// marker), so a destructive action can never self-exempt from the Irreversible/type-to-confirm tier, even
+    /// if it wrongly overrides IsProtective. Adding a future protective type is a deliberate, reviewable change
+    /// HERE. (<see cref="PlannedAction.IsProtective"/> stays a semantic marker, kept in sync by a structural
+    /// test, but TierFor does NOT trust it for the security decision.)
+    /// </summary>
+    private static bool IsTierExempt(PlannedAction a) => a is CreateRestorePointAction;
 
     /// <summary>Opens the gate for a staged plan, supplying the chosen tier, heading, honest body, and rows.</summary>
     public void Open(ConfirmTier tier, string title, string body, IEnumerable<PlanRow> rows)
