@@ -1,6 +1,7 @@
 <UserControl x:Class="WindowsCareKit.App.Views.UninstallView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls">
     <UserControl.Resources>
         <!-- Row template shared by the official-uninstaller, leftover, and result lists. -->
         <DataTemplate x:Key="PlanRowTemplate">
@@ -189,26 +190,11 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Confirmation overlay — the explicit approve step before anything runs. -->
-                <Border Background="#CC0F0B05"
-                        Visibility="{Binding RequiresConfirmation, Converter={StaticResource BoolToVis}}">
-                    <Border Background="{StaticResource Bg.Card}" BorderBrush="{StaticResource Gold.Dim}"
-                            BorderThickness="1" CornerRadius="12" Padding="22" MaxWidth="460"
-                            HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <StackPanel>
-                            <TextBlock Text="{Binding I18n[uninstall.confirm.title]}" Style="{StaticResource H2}"
-                                       Foreground="{StaticResource Danger}" />
-                            <TextBlock Text="{Binding I18n[uninstall.confirm.body]}" Style="{StaticResource Muted}"
-                                       Margin="0,8,0,0" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-                                <Button Style="{StaticResource GhostButton}"
-                                        Content="{Binding I18n[uninstall.confirm.cancel]}" Command="{Binding CancelCommand}" />
-                                <Button Style="{StaticResource GhostButton}" Margin="10,0,0,0"
-                                        Content="{Binding I18n[uninstall.confirm.approve]}" Command="{Binding ApproveCommand}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </Border>
+                <!-- Confirmation gate — the explicit approve step before anything runs. The reusable
+                     ConfirmGate (UI decision §B2) replaces the old ad-hoc overlay: it picks a tier from the
+                     staged plan's irreversibility, shows the exact dry-run rows, and requires type-to-confirm
+                     on the irreversible tier. -->
+                <controls:ConfirmGate DataContext="{Binding Gate}" />
             </Grid>
         </Grid>
     </Grid>

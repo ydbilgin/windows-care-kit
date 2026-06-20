@@ -35,6 +35,15 @@
   "uninstall.result.title": "Sonuç",
   "uninstall.result.summary": "{0} tamam · {1} atlandı · {2} başarısız",
   "uninstall.appx.irreversible": "Mağaza uygulaması kaldırma geri alınamaz.",
+  "uninstall.confirm.appx.row": "Mağaza uygulamasını kaldır: {0}",
+
+  "confirm.tier.reversible": "🔁 Geri alınabilir — silinenler Geri Dönüşüm Kutusu'na taşınır veya kayıt için .reg yedeği alınır.",
+  "confirm.tier.medium": "Aşağıdaki işlemler tam olarak gösterildiği gibi çalışır. Bir kısmı yalnızca kısmen geri alınabilir (.bak ile).",
+  "confirm.tier.irreversible": "❌ Geri ALINAMAZ — bu işlem kalıcıdır. Devam etmek için onay kelimesini yazman gerekir.",
+  "confirm.type.prompt": "Onaylamak için \"{0}\" yaz.",
+  "confirm.type.word": "SİL",
+  "confirm.approve": "Onayla ve çalıştır",
+  "confirm.cancel": "İptal",
 
   "clean.title": "Temizle",
   "clean.subtitle": "Yer aç ve başlangıcı düzenle — her silme önce kuru çalışma.",

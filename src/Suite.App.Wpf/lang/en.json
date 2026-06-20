@@ -35,6 +35,15 @@
   "uninstall.result.title": "Result",
   "uninstall.result.summary": "{0} done · {1} skipped · {2} failed",
   "uninstall.appx.irreversible": "Store app removal can't be undone.",
+  "uninstall.confirm.appx.row": "Remove Store app: {0}",
+
+  "confirm.tier.reversible": "🔁 Reversible — deleted items go to the Recycle Bin, or a .reg backup is taken for the registry.",
+  "confirm.tier.medium": "The actions below run exactly as shown. Some are only partially reversible (via a .bak).",
+  "confirm.tier.irreversible": "❌ NOT reversible — this is permanent. You must type the confirm word to continue.",
+  "confirm.type.prompt": "Type \"{0}\" to confirm.",
+  "confirm.type.word": "DELETE",
+  "confirm.approve": "Approve and run",
+  "confirm.cancel": "Cancel",
 
   "clean.title": "Clean",
   "clean.subtitle": "Free up space and tidy startup — every delete is a dry-run first.",

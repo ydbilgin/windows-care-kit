@@ -65,12 +65,24 @@ public sealed class UninstallViewModel : ObservableObject
         RunLeftoverCommand = new RelayCommand(StageLeftovers, () => LeftoverActions.Count > 0 && !IsBusy);
         RemoveAppxCommand = new RelayCommand(StageAppx, () => _selectedAppx is not null && !IsBusy);
 
-        // Confirm dialog buttons.
+        // Confirm dialog buttons. These remain the canonical approve/cancel surface; the reusable
+        // ConfirmGate (UI decision §B2) drives them through its own buttons via the Gate view-model below.
         ApproveCommand = new RelayCommand(async () => await ApproveAsync(), () => RequiresConfirmation && !IsBusy);
         CancelCommand = new RelayCommand(CancelPending, () => RequiresConfirmation && !IsBusy);
+
+        // The reusable confirmation gate. It owns tier selection + type-to-confirm; Approve/Cancel delegate
+        // straight back into the existing flow so the staging/hash semantics are untouched.
+        Gate = new ConfirmGateViewModel(
+            i18n,
+            onApprove: () => ApproveCommand.Execute(null),
+            onCancel: () => CancelCommand.Execute(null),
+            isBusy: () => IsBusy);
     }
 
     public I18n I18n { get; }
+
+    /// <summary>The reusable 3-tier confirmation gate (UI decision §B2) — the reference integration.</summary>
+    public ConfirmGateViewModel Gate { get; }
     public ObservableCollection<InstalledApp> Apps { get; } = new();
     public ObservableCollection<InstalledAppx> AppxApps { get; } = new();
     public ObservableCollection<PlanRow> OfficialActions { get; } = new();
@@ -246,13 +258,23 @@ public sealed class UninstallViewModel : ObservableObject
 
     private void StageAppx()
     {
-        if (_selectedAppx is null)
+        InstalledAppx? package = _selectedAppx;
+        if (package is null)
             return;
 
-        // AppX removal is not a typed plan; we still route it through the same confirm gate.
+        // AppX removal is not a typed plan; we still route it through the same confirm gate. Store app
+        // removal can't be undone, so it is always the IRREVERSIBLE tier (type-to-confirm).
         _pendingPlan = null;
         _pendingPlanHash = null;
         _pendingKind = PendingKind.Appx;
+
+        var rows = new[]
+        {
+            ResultRow(I18n.Format("uninstall.confirm.appx.row", package.DisplayName), "❌",
+                RiskLevel.Critical, package.PackageFullName),
+        };
+        Gate.Open(ConfirmTier.Irreversible, I18n["uninstall.confirm.title"],
+            I18n["uninstall.appx.irreversible"], rows);
         RaiseConfirmationState();
     }
 
@@ -261,6 +283,12 @@ public sealed class UninstallViewModel : ObservableObject
         _pendingPlan = plan;
         _pendingPlanHash = plan.ComputeHash(); // captured from the EXACT previewed/staged plan (spec §3)
         _pendingKind = kind;
+
+        // Open the reusable gate with the tier chosen from the plan's irreversibility, the honest body, and
+        // the EXACT dry-run rows the user is about to approve (UI decision §B2).
+        ConfirmTier tier = ConfirmGateViewModel.TierFor(plan);
+        var rows = plan.Actions.Select(PlanRow.FromAction);
+        Gate.Open(tier, I18n["uninstall.confirm.title"], I18n["uninstall.confirm.body"], rows);
         RaiseConfirmationState();
     }
 
@@ -271,6 +299,7 @@ public sealed class UninstallViewModel : ObservableObject
         _pendingPlan = null;
         _pendingPlanHash = null;
         _pendingKind = PendingKind.None;
+        Gate.Close();
         RaiseConfirmationState();
     }
 
@@ -292,6 +321,7 @@ public sealed class UninstallViewModel : ObservableObject
         _pendingPlanHash = null;
         _pendingKind = PendingKind.None;
         IsBusy = true;
+        Gate.Close();
         RaiseConfirmationState();
         try
         {
@@ -394,6 +424,7 @@ public sealed class UninstallViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(RequiresConfirmation));
         OnPropertyChanged(nameof(IsBusy));
+        Gate.RefreshBusy(); // keep the gate's Approve/Cancel enablement in step with IsBusy
     }
 
     /// <summary>Builds a result row reusing the same <see cref="PlanRow"/> shape + Strongbox risk palette.</summary>

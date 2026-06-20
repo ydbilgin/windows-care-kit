@@ -1,0 +1,113 @@
+<UserControl x:Class="WindowsCareKit.App.Controls.ConfirmGate"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- The reusable confirm gate (UI decision §B2). DataContext = a ConfirmGateViewModel. The whole
+         control is collapsed until the gate is open, so it can sit in any module's view as an overlay. -->
+    <UserControl.Resources>
+        <!-- Dry-run row, identical shape to the module PlanRow templates so the look matches everywhere. -->
+        <DataTemplate x:Key="ConfirmRowTemplate">
+            <Border Background="{StaticResource Bg.PanelAlt}" BorderBrush="{StaticResource Border.Soft}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Background="{Binding RiskBrush}" CornerRadius="4"
+                            Padding="6,2" VerticalAlignment="Top" Margin="0,1,10,0">
+                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10"
+                                   FontWeight="Bold" />
+                    </Border>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding Text}" Foreground="{StaticResource Text}"
+                                   FontSize="13" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Faint}" Margin="0,2,0,0" />
+                        <TextBlock Text="{Binding Undo}" Style="{StaticResource Faint}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!-- Scrim + centered card. Collapsed entirely when the gate is closed. -->
+    <Border Background="#CC0F0B05"
+            Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}">
+        <Border Background="{StaticResource Bg.Card}" BorderBrush="{StaticResource Border.Gold}"
+                BorderThickness="1" CornerRadius="12" Padding="22" MaxWidth="520" MaxHeight="560"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Title -->
+                <TextBlock Grid.Row="0" Text="{Binding Title}" Style="{StaticResource H2}"
+                           TextWrapping="Wrap" />
+
+                <!-- Tier banner. The irreversible banner is the only red one (geri-alınabilirlik ekseni). -->
+                <Border Grid.Row="1" CornerRadius="8" Padding="12,8" Margin="0,12,0,0">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <!-- Reversible / Medium: a neutral gold-dim banner. -->
+                            <Setter Property="Background" Value="#241F14" />
+                            <Setter Property="BorderBrush" Value="{StaticResource Border.Gold}" />
+                            <Setter Property="BorderThickness" Value="1" />
+                            <Style.Triggers>
+                                <!-- Irreversible: red banner. -->
+                                <DataTrigger Binding="{Binding IsIrreversibleTier}" Value="True">
+                                    <Setter Property="Background" Value="#241B0A" />
+                                    <Setter Property="BorderBrush" Value="{StaticResource Danger}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding BannerText}" FontSize="12.5" FontWeight="SemiBold"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsIrreversibleTier}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource Danger}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
+                <!-- Honest body + the exact dry-run rows (what will be deleted/written). -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Body}" Style="{StaticResource Muted}"
+                                   TextWrapping="Wrap" Margin="0,0,0,10"
+                                   Visibility="{Binding Body.Length, Converter={StaticResource PositiveToVis}}" />
+                        <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource ConfirmRowTemplate}" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Type-to-confirm (Irreversible tier only): user types the confirm word to unlock Approve. -->
+                <StackPanel Grid.Row="3" Margin="0,12,0,0"
+                            Visibility="{Binding IsIrreversibleTier, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding TypePrompt}" Style="{StaticResource Muted}"
+                               TextWrapping="Wrap" />
+                    <TextBox x:Name="TypeBox" Margin="0,6,0,0" VerticalContentAlignment="Center"
+                             Text="{Binding TypedConfirm, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+
+                <!-- Buttons. Cancel is the LEFT (default-focused on the irreversible tier) button. -->
+                <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                    <Button x:Name="CancelButton" Style="{StaticResource GhostButton}"
+                            Content="{Binding I18n[confirm.cancel]}" Command="{Binding CancelCommand}" />
+                    <Button Style="{StaticResource GhostButton}" Margin="10,0,0,0"
+                            Content="{Binding I18n[confirm.approve]}" Command="{Binding ApproveCommand}"
+                            IsEnabled="{Binding CanApprove}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Border>
+</UserControl>
