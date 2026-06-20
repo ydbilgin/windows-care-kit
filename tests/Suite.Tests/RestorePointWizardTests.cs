@@ -144,7 +144,10 @@ public class RestorePointWizardTests
         Assert.Equal(2, wizard.Gate.Rows.Count);
     }
 
-    private static void SpinUntil(Func<bool> condition, int timeoutMs = 2000)
+    // Generous ceiling (flaky-fix 2026-06-21): the happy path exits the instant condition() is true (~ms),
+    // so a large cap never slows passing tests; it only prevents false timeouts when the async settle runs
+    // slow under CI/Release load (was 2000ms → flaked on CI while green on host).
+    private static void SpinUntil(Func<bool> condition, int timeoutMs = 30_000)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (!condition() && sw.ElapsedMilliseconds < timeoutMs)
