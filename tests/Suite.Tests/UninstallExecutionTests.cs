@@ -36,7 +36,10 @@ public class UninstallExecutionTests
     private static void SelectFirstAppx(UninstallViewModel vm)
         => vm.SelectedRow = vm.AllRows.First(r => r.Appx is not null);
 
-    private static async Task PumpAsync(Func<bool> until, int timeoutMs = 2000)
+    // Generous ceiling (flaky-fix 2026-06-21): the happy path exits the instant until() is true (~ms),
+    // so a large cap never slows passing tests; it only prevents false "did not complete in time"
+    // failures when the async ViewModel settle runs slow under CI/Release load (was 2000ms → flaked).
+    private static async Task PumpAsync(Func<bool> until, int timeoutMs = 30_000)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (!until() && sw.ElapsedMilliseconds < timeoutMs)
