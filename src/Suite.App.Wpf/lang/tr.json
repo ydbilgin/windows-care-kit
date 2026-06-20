@@ -8,6 +8,11 @@
   "nav.install": "Kur",
   "nav.settings": "Ayarlar",
 
+  "nav.uninstall.desc": "Programları kalıntılarıyla kaldır",
+  "nav.clean.desc": "Yer aç, başlangıcı düzenle",
+  "nav.backup.desc": "Format öncesi kopyala",
+  "nav.install.desc": "Format sonrası geri yükle",
+
   "common.languageToggle": "EN",
   "common.refresh": "Yenile",
   "common.search": "Program ara…",

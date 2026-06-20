@@ -16,13 +16,14 @@ public sealed class MainViewModel : ObservableObject
         I18n = i18n;
         Uninstall = uninstall;
 
+        // Glyphs are Segoe MDL2 Assets / Segoe Fluent Icons code points (delete / clean / save / download / gear).
         Nav = new ObservableCollection<NavItem>
         {
-            new(i18n, "nav.uninstall", "", uninstall),
-            new(i18n, "nav.clean", "", clean),
-            new(i18n, "nav.backup", "", backup),
-            new(i18n, "nav.install", "", install),
-            new(i18n, "nav.settings", "", new PlaceholderViewModel(i18n, "nav.settings")),
+            new(i18n, "nav.uninstall", "", uninstall, "nav.uninstall.desc"),
+            new(i18n, "nav.clean", "", clean, "nav.clean.desc"),
+            new(i18n, "nav.backup", "", backup, "nav.backup.desc"),
+            new(i18n, "nav.install", "", install, "nav.install.desc"),
+            new(i18n, "nav.settings", "", new PlaceholderViewModel(i18n, "nav.settings"), isSettings: true),
         };
 
         ToggleLanguageCommand = new RelayCommand(() => I18n.Toggle());

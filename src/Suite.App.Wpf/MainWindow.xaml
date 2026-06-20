@@ -9,52 +9,54 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
-                BorderThickness="0,0,0,1" Padding="20,14">
+        <!-- Row 1: quiet brand strip (logo + wordmark + tagline + language toggle) -->
+        <Border Grid.Row="0" Background="{StaticResource Bg.Panel}" BorderBrush="#221D14"
+                BorderThickness="0,0,0,1" Padding="18,0" Height="44">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="{Binding I18n[app.title]}" Style="{StaticResource H1}" />
-                    <TextBlock Text="{Binding I18n[app.tagline]}" Style="{StaticResource Faint}" Margin="0,2,0,0" />
+                <Border Grid.Column="0" Width="19" Height="19" CornerRadius="6" VerticalAlignment="Center"
+                        Margin="0,0,11,0">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#F3C97E" Offset="0" />
+                            <GradientStop Color="#D29A41" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding I18n[app.title]}" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding I18n[app.tagline]}" Style="{StaticResource Faint}"
+                               VerticalAlignment="Center" Margin="11,0,0,0" />
                 </StackPanel>
-                <Button Grid.Column="1" VerticalAlignment="Center"
-                        Style="{StaticResource GhostButton}"
+                <Button Grid.Column="3" VerticalAlignment="Center"
+                        Style="{StaticResource GhostButton}" Padding="9,3" FontWeight="Normal" FontSize="11.5"
                         Content="{Binding I18n[common.languageToggle]}"
                         Command="{Binding ToggleLanguageCommand}" />
             </Grid>
         </Border>
 
-        <!-- Body: nav + content -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="210" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <!-- Row 2: horizontal module tab strip (4 modules + far-right Settings) -->
+        <Border Grid.Row="1" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
+                BorderThickness="0,0,0,1" Height="58">
+            <ListBox Style="{StaticResource TopNavList}" ItemContainerStyle="{StaticResource TopNavTab}"
+                     ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}" Padding="10,0,10,0" />
+        </Border>
 
-            <Border Grid.Column="0" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
-                    BorderThickness="0,0,1,0">
-                <ListBox Style="{StaticResource NavList}" ItemContainerStyle="{StaticResource NavItem}"
-                         ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}" Margin="0,12">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Border>
-
-            <ContentControl Grid.Column="1" Content="{Binding CurrentContent}" Margin="0" />
-        </Grid>
+        <!-- Row 3: content, full width -->
+        <ContentControl Grid.Row="2" Content="{Binding CurrentContent}" Margin="0" />
 
         <!-- First-run notice overlay -->
-        <Grid Grid.RowSpan="2" Background="#CC0B0906"
+        <Grid Grid.RowSpan="3" Background="#CC0B0906"
               Visibility="{Binding ShowFirstRun, Converter={StaticResource BoolToVis}}">
             <Border Style="{StaticResource Card}" MaxWidth="520" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <StackPanel>

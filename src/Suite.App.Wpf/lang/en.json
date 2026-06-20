@@ -8,6 +8,11 @@
   "nav.install": "Reinstall",
   "nav.settings": "Settings",
 
+  "nav.uninstall.desc": "Remove programs with their leftovers",
+  "nav.clean.desc": "Free space, tidy startup",
+  "nav.backup.desc": "Copy before you format",
+  "nav.install.desc": "Restore after a format",
+
   "common.languageToggle": "TR",
   "common.refresh": "Refresh",
   "common.search": "Search programs…",
