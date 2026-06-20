@@ -56,9 +56,9 @@ TestResults/
 ## Legacy PowerShell tool (kept locally, not shipped)
 legacy/
 
-## Raw app screenshots (contain real installed-app names = personal data) + generated deck
+## Raw app screenshots (contain real installed-app names = personal data) + generated decks
 docs/screenshots/_capture/
-/WindowsCareKit_Sunum.pdf
+/WindowsCareKit_*.pdf
 
 ## ──────────────────────────────────────────────────────────────
 ## Internal dev/process docs — NOT shipped (curate clean public docs before release).
