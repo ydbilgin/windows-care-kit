@@ -19,7 +19,7 @@
 
 ## ⚠️ Status — Beta, read this first
 
-All four modules are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the suite passes **300+ automated tests**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
+All four modules are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the suite passes **700+ automated tests**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
 
 > **🚧 Real-world destructive operations are still undergoing supervised testing.** Treat this as **beta**: always have a separate backup before letting it delete, restore, or migrate on a machine you care about. See [Roadmap](#-roadmap) for what's built vs. planned.
 
@@ -152,11 +152,11 @@ See `docs/` for the full design decisions.
 Issues and PRs welcome. Because this app performs **destructive, system-level operations**, contributions are reviewed with that in mind:
 - Destructive code lives **only** in the sanctioned execution layer; the analyzer enforces this.
 - New behavior needs tests; tests use **fakes/synthetic data**, never real personal data.
-- See `CONTRIBUTING.md` *(yer-tutucu — repo açılınca eklenecek)* and `SECURITY.md` for the development & disclosure process.
+- See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md) for the development & disclosure process.
 
 ## 🔐 Security
 
-Found a security issue? Please report it privately (see `SECURITY.md` — *yer-tutucu*) rather than opening a public issue. This project treats user-data safety as its primary promise.
+Found a security issue? Please report it privately (see [`SECURITY.md`](SECURITY.md)) rather than opening a public issue. This project treats user-data safety as its primary promise.
 
 ## 🕵️ Privacy
 
