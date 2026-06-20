@@ -4,6 +4,7 @@ using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Execution;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -51,7 +52,7 @@ public class UninstallExecutionTests
     {
         var executor = new FakeExecutor();
         var vm = BuildVm(executor, new FakeAppxRemover(),
-            probe: ProbeWithSafeLeftover(),
+            probe: ProbeWithProgramOwnedLeftover(),
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
@@ -69,7 +70,7 @@ public class UninstallExecutionTests
     {
         var executor = new FakeExecutor();
         var vm = BuildVm(executor, new FakeAppxRemover(),
-            probe: ProbeWithSafeLeftover(),
+            probe: ProbeWithProgramOwnedLeftover(),
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
@@ -88,7 +89,7 @@ public class UninstallExecutionTests
     {
         var executor = new FakeExecutor();
         var vm = BuildVm(executor, new FakeAppxRemover(),
-            probe: ProbeWithSafeLeftover(),
+            probe: ProbeWithProgramOwnedLeftover(),
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
@@ -132,11 +133,11 @@ public class UninstallExecutionTests
     }
 
     [Fact]
-    public async Task Real_gated_executor_dispatches_a_safe_leftover_to_the_file_adapter()
+    public async Task Real_gated_executor_dispatches_a_program_owned_leftover_to_the_registry_adapter()
     {
         using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
         var vm = BuildVm(fx.Executor, new FakeAppxRemover(),
-            probe: ProbeWithSafeLeftover(),
+            probe: ProbeWithProgramOwnedLeftover(),
             apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
 
         await vm.LoadAsync();
@@ -148,9 +149,98 @@ public class UninstallExecutionTests
 
         await PumpAsync(() => vm.HasResult && !vm.RequiresConfirmation);
 
-        // The safe leftover folder routed to the (fake) file-delete adapter exactly once.
+        // The ProgramOwned vendor-leaf leftover routed to the (fake) registry-delete adapter exactly once.
         Assert.Single(fx.Adapters.Calls);
-        Assert.StartsWith("file:", fx.Adapters.Calls[0]);
+        Assert.StartsWith("registry:", fx.Adapters.Calls[0]);
+    }
+
+    [Fact]
+    public async Task Shared_and_protected_keys_never_reach_the_recording_registry_adapter()
+    {
+        // PR-3 A — the load-bearing integration test. A Shared vendor PARENT (HKLM\SOFTWARE\SomeVendor) and a
+        // Protected key (HKLM\SOFTWARE\Microsoft\Windows) plus one genuine ProgramOwned leaf flow through the
+        // REAL UninstallViewModel → stage → REAL GatedExecutor with a recording registry adapter. Assert that
+        // ONLY the ProgramOwned leaf is staged + executed; the Shared/Protected targets are absent and the
+        // adapter is never called for them.
+        using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
+        var app = TestData.App(displayName: "SomeApp", publisher: "SomeVendor",
+            source: InstalledAppSource.MachineWide64);
+        var vm = BuildVm(fx.Executor, new FakeAppxRemover(),
+            probe: ProbeWithSharedProtectedAndOwned(), apps: new[] { app });
+
+        await vm.LoadAsync();
+        SelectFirstApp(vm);
+        await PumpAsync(() => vm.LeftoverActions.Count > 0);
+
+        // The previewed/staged plan contains ONLY the ProgramOwned vendor leaf — Shared/Protected excluded.
+        Assert.Single(vm.LeftoverActions);
+
+        vm.RunLeftoverCommand.Execute(null);
+        vm.ApproveCommand.Execute(null);
+        await PumpAsync(() => vm.HasResult && !vm.RequiresConfirmation);
+
+        // The recording registry adapter was called EXACTLY ONCE — for the ProgramOwned leaf only.
+        Assert.Single(fx.Adapters.Calls);
+        Assert.StartsWith("registry:", fx.Adapters.Calls[0]);
+
+        // Inspect the exact action the executor dispatched: it is the ProgramOwned vendor leaf, NOT the parent.
+        var dispatched = Assert.IsType<RegistryDeleteAction>(Assert.Single(fx.Adapters.Dispatched));
+        Assert.Equal(@"SOFTWARE\SomeVendor\SomeApp", dispatched.SubKeyPath);
+
+        // The Shared vendor parent and the Protected system key were NEVER dispatched (call count 0 for each).
+        Assert.DoesNotContain(fx.Adapters.Dispatched.OfType<RegistryDeleteAction>(),
+            r => r.SubKeyPath.Equals(@"SOFTWARE\SomeVendor", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(fx.Adapters.Dispatched.OfType<RegistryDeleteAction>(),
+            r => r.SubKeyPath.Equals(@"SOFTWARE\Microsoft\Windows", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Without_the_classifier_filter_a_shared_key_WOULD_reach_the_adapter()
+    {
+        // FAIL-WITHOUT proof (the non-vacuous counterpart of the test above). This bypasses the classifier the
+        // way the OLD code did: it stages the RAW gate-allowed candidate plan (Shared + ProgramOwned) and runs
+        // it through the REAL GatedExecutor. The Shared vendor parent DOES reach the recording adapter — proving
+        // the classifier filter on the live path is exactly what keeps it out. Removing that filter regresses.
+        using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
+        var app = TestData.App(displayName: "SomeApp", publisher: "SomeVendor",
+            source: InstalledAppSource.MachineWide64);
+
+        // Build the RAW gate-allowed plan directly (no ProgramOwned filter) — what result.Plan used to be.
+        var probe = ProbeWithSharedProtectedAndOwned();
+        var scan = new LeftoverScanner(probe, TestData.Gate()).Scan(app, T0);
+        var rawAllowed = scan.Candidates
+            .Where(c => c.Classification != LeftoverClassification.Protected) // gate-allowed = Shared + ProgramOwned
+            .Select(c => c.Action)
+            .ToList();
+        var rawPlan = new OperationPlan("raw", "uninstall", rawAllowed, T0);
+
+        // Sanity: the raw plan carries BOTH the ProgramOwned leaf AND the Shared vendor parent.
+        Assert.Equal(2, rawPlan.Actions.Count);
+
+        ExecutionReport report = fx.Executor.ExecuteWithReport(rawPlan, rawPlan.ComputeHash());
+        await Task.CompletedTask;
+
+        Assert.True(report.Authorized); // the gate does NOT block Shared — only the classifier filter would
+        // BOTH registry deletes reached the recording adapter (the regression the live filter prevents).
+        Assert.Equal(2, fx.Adapters.Calls.Count);
+        // The Shared vendor parent DID reach the adapter when the classifier filter is bypassed.
+        Assert.Contains(fx.Adapters.Dispatched.OfType<RegistryDeleteAction>(),
+            r => r.SubKeyPath.Equals(@"SOFTWARE\SomeVendor", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// A probe emitting one ProgramOwned vendor leaf + one Shared vendor parent + one Protected system key.
+    /// </summary>
+    private static FakeLeftoverProbe ProbeWithSharedProtectedAndOwned()
+    {
+        var probe = new FakeLeftoverProbe();
+        probe.RegistryKeys.Add(new LeftoverRegistryKey(RegistryHive.LocalMachine,
+            @"SOFTWARE\SomeVendor\SomeApp", RegistryView.Registry64, "vendor leaf (ProgramOwned)"));
+        probe.RegistryKeys.Add(new LeftoverRegistryKey(RegistryHive.LocalMachine,
+            @"SOFTWARE\SomeVendor", RegistryView.Registry64, "vendor parent (Shared)"));
+        probe.RegistryKeys.Add(new LeftoverRegistryKey(RegistryHive.LocalMachine,
+            @"SOFTWARE\Microsoft\Windows", RegistryView.Registry64, "system key (Protected)"));
+        return probe;
     }
 
     [Fact]
@@ -194,10 +284,16 @@ public class UninstallExecutionTests
         Assert.Single(vm.AllRows, r => r.Appx is not null); // not removed — still in the unified list
     }
 
-    private static FakeLeftoverProbe ProbeWithSafeLeftover()
+    /// <summary>
+    /// A probe whose single leftover is a genuinely ProgramOwned candidate (the exact
+    /// Software\&lt;Publisher&gt;\&lt;DisplayName&gt; vendor leaf, in the app's own hive). This is what now flows into
+    /// the deletable plan — a leftover FOLDER is classified Shared (PR-3 A) and would yield an empty plan.
+    /// </summary>
+    private static FakeLeftoverProbe ProbeWithProgramOwnedLeftover()
     {
         var probe = new FakeLeftoverProbe();
-        probe.Directories.Add(new LeftoverDirectory(@"C:\Program Files\SomeApp", "leftover app folder"));
+        probe.RegistryKeys.Add(new LeftoverRegistryKey(RegistryHive.LocalMachine,
+            @"SOFTWARE\SomeVendor\SomeApp", RegistryView.Registry64, "vendor leaf (program-owned)"));
         return probe;
     }
 

@@ -34,7 +34,7 @@
   "uninstall.run.leftovers": "Onaylanan kalıntıları kaldır",
   "uninstall.run.appx": "Bu Mağaza uygulamasını kaldır (kullanıcı)",
   "uninstall.confirm.title": "Onayla — bu değişiklik yapacak",
-  "uninstall.confirm.body": "Aşağıdaki işlemler SafetyGate üzerinden çalışır. Mümkün olduğunda geri dönüşüm kutusu ve .reg yedeği alınır.",
+  "uninstall.confirm.body": "Çalışacak işlemler tam olarak bunlar. Silinen dosyalar Geri Dönüşüm Kutusu'na taşınır ve mümkün olduğunda her kayıt defteri değişikliğinden önce .reg yedeği alınır.",
   "uninstall.confirm.approve": "Onayla ve çalıştır",
   "uninstall.confirm.cancel": "İptal",
   "uninstall.result.title": "Sonuç",

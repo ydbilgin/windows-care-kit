@@ -94,7 +94,7 @@ public sealed class Win32LeftoverProbe : ILeftoverProbe
                     string? imagePath = svc?.GetValue("ImagePath") as string;
                     string? exe = ExtractExecutablePath(imagePath);
                     if (exe is not null && IsUnder(exe, location))
-                        found.Add(new LeftoverService(svcName, "Service whose executable lives in the app's install folder"));
+                        found.Add(new LeftoverService(svcName, "Service whose executable lives in the app's install folder", exe));
                 }
                 catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
                 {

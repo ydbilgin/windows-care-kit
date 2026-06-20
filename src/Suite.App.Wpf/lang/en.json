@@ -34,7 +34,7 @@
   "uninstall.run.leftovers": "Remove the approved leftovers",
   "uninstall.run.appx": "Remove this Store app (per-user)",
   "uninstall.confirm.title": "Confirm — this will make changes",
-  "uninstall.confirm.body": "The actions below run through the SafetyGate. Recycle-bin and .reg backups are taken where possible.",
+  "uninstall.confirm.body": "These are the exact actions that will run. Deleted files go to the Recycle Bin and a .reg backup is taken before each registry change, where possible.",
   "uninstall.confirm.approve": "Approve and run",
   "uninstall.confirm.cancel": "Cancel",
   "uninstall.result.title": "Result",
