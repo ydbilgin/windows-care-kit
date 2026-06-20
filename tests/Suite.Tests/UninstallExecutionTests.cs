@@ -10,10 +10,11 @@ using Xunit;
 namespace WindowsCareKit.Tests;
 
 /// <summary>
-/// The Sil execution wiring: staging a run only asks for confirmation (the executor is NOT called), and
-/// only Approve runs the plan through <see cref="IExecutor"/> with the hash captured from the EXACT staged
-/// plan. AppX removal goes through <see cref="IAppxRemover"/>, never the typed-action executor. No real OS
-/// destruction happens — everything is faked (spec §1.1, §3).
+/// The Sil execution wiring for the paths UninstallViewModel still owns: AppX removal is gated behind an
+/// explicit confirm and goes through <see cref="IAppxRemover"/>, never the typed-action executor. The
+/// path-independent FAIL-WITHOUT proof shows the classifier filter is what keeps a Shared key out of the
+/// adapter. (The desktop official-run wiring now lives in UninstallWizardTests.) No real OS destruction
+/// happens — everything is faked (spec §1.1, §3).
 /// </summary>
 public class UninstallExecutionTests
 {
@@ -31,10 +32,6 @@ public class UninstallExecutionTests
         return new UninstallViewModel(i18n, appReader, appxReader, gate, probe, executor, remover, new FakeFolderOpener());
     }
 
-    /// <summary>Selects the unified-grid row backed by the first desktop app (mirrors a user clicking it).</summary>
-    private static void SelectFirstApp(UninstallViewModel vm)
-        => vm.SelectedRow = vm.AllRows.First(r => r.App is not null);
-
     /// <summary>Selects the unified-grid row backed by the first Store app.</summary>
     private static void SelectFirstAppx(UninstallViewModel vm)
         => vm.SelectedRow = vm.AllRows.First(r => r.Appx is not null);
@@ -47,152 +44,19 @@ public class UninstallExecutionTests
         Assert.True(until(), "operation did not complete in time");
     }
 
-    [Fact]
-    public async Task Staging_leftovers_asks_to_confirm_and_does_not_execute()
-    {
-        var executor = new FakeExecutor();
-        var vm = BuildVm(executor, new FakeAppxRemover(),
-            probe: ProbeWithProgramOwnedLeftover(),
-            apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
+    // NOTE: UninstallViewModel's own official-uninstaller staging (RunOfficialCommand / StageOfficial /
+    // OfficialActions / RunPlanAsync) was removed in PR-4 — the desktop official run is owned ENTIRELY by the
+    // wizard. Its execution-wiring coverage (stage-does-not-execute, cancel-clears, approve-runs-the-exact-hash,
+    // command-action plan) lives in UninstallWizardTests: RunOfficial_stages_a_command_plan_through_the_gate_
+    // without_executing, Approving_official_runs_the_command_plan_then_advances_to_scan, and
+    // Broken_uninstaller_app_cannot_run_official_and_offers_a_skip.
 
-        await vm.LoadAsync();
-        SelectFirstApp(vm);
-        await PumpAsync(() => vm.LeftoverActions.Count > 0);
-
-        vm.RunLeftoverCommand.Execute(null);
-
-        Assert.True(vm.RequiresConfirmation);
-        Assert.Equal(0, executor.CallCount); // NOTHING ran on staging
-    }
-
-    [Fact]
-    public async Task Cancel_clears_the_confirmation_without_executing()
-    {
-        var executor = new FakeExecutor();
-        var vm = BuildVm(executor, new FakeAppxRemover(),
-            probe: ProbeWithProgramOwnedLeftover(),
-            apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
-
-        await vm.LoadAsync();
-        SelectFirstApp(vm);
-        await PumpAsync(() => vm.LeftoverActions.Count > 0);
-
-        vm.RunLeftoverCommand.Execute(null);
-        vm.CancelCommand.Execute(null);
-
-        Assert.False(vm.RequiresConfirmation);
-        Assert.Equal(0, executor.CallCount);
-    }
-
-    [Fact]
-    public async Task Approve_executes_the_exact_staged_plan_hash()
-    {
-        var executor = new FakeExecutor();
-        var vm = BuildVm(executor, new FakeAppxRemover(),
-            probe: ProbeWithProgramOwnedLeftover(),
-            apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
-
-        await vm.LoadAsync();
-        SelectFirstApp(vm);
-        await PumpAsync(() => vm.LeftoverActions.Count > 0);
-
-        vm.RunLeftoverCommand.Execute(null);
-        vm.ApproveCommand.Execute(null);
-
-        // Wait for the run to FULLY settle (result rendered), not just for the mid-run executor call —
-        // HasResult is set on the continuation after the executor returns, so pump on it to avoid a race.
-        await PumpAsync(() => vm.HasResult && !vm.RequiresConfirmation);
-
-        Assert.Equal(1, executor.CallCount);
-        Assert.NotNull(executor.LastPlan);
-        // The hash the VM passed must equal the staged plan's own hash (no drift between preview and run).
-        Assert.Equal(executor.LastPlan!.ComputeHash(), executor.LastHash);
-        Assert.False(vm.RequiresConfirmation);
-        Assert.True(vm.HasResult);
-    }
-
-    [Fact]
-    public async Task Official_run_stages_a_command_action_plan()
-    {
-        var executor = new FakeExecutor();
-        var app = TestData.App(uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S");
-        var vm = BuildVm(executor, new FakeAppxRemover(), apps: new[] { app });
-
-        await vm.LoadAsync();
-        SelectFirstApp(vm);
-        await PumpAsync(() => vm.OfficialActions.Count > 0);
-
-        vm.RunOfficialCommand.Execute(null);
-        vm.ApproveCommand.Execute(null);
-
-        await PumpAsync(() => executor.CallCount == 1);
-
-        Assert.NotNull(executor.LastPlan);
-        Assert.Single(executor.LastPlan!.Actions);
-        Assert.IsType<CommandAction>(executor.LastPlan!.Actions[0]);
-    }
-
-    [Fact]
-    public async Task Real_gated_executor_dispatches_a_program_owned_leftover_to_the_registry_adapter()
-    {
-        using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
-        var vm = BuildVm(fx.Executor, new FakeAppxRemover(),
-            probe: ProbeWithProgramOwnedLeftover(),
-            apps: new[] { TestData.App(installLocation: @"C:\Program Files\SomeApp") });
-
-        await vm.LoadAsync();
-        SelectFirstApp(vm);
-        await PumpAsync(() => vm.LeftoverActions.Count > 0);
-
-        vm.RunLeftoverCommand.Execute(null);
-        vm.ApproveCommand.Execute(null);
-
-        await PumpAsync(() => vm.HasResult && !vm.RequiresConfirmation);
-
-        // The ProgramOwned vendor-leaf leftover routed to the (fake) registry-delete adapter exactly once.
-        Assert.Single(fx.Adapters.Calls);
-        Assert.StartsWith("registry:", fx.Adapters.Calls[0]);
-    }
-
-    [Fact]
-    public async Task Shared_and_protected_keys_never_reach_the_recording_registry_adapter()
-    {
-        // PR-3 A — the load-bearing integration test. A Shared vendor PARENT (HKLM\SOFTWARE\SomeVendor) and a
-        // Protected key (HKLM\SOFTWARE\Microsoft\Windows) plus one genuine ProgramOwned leaf flow through the
-        // REAL UninstallViewModel → stage → REAL GatedExecutor with a recording registry adapter. Assert that
-        // ONLY the ProgramOwned leaf is staged + executed; the Shared/Protected targets are absent and the
-        // adapter is never called for them.
-        using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
-        var app = TestData.App(displayName: "SomeApp", publisher: "SomeVendor",
-            source: InstalledAppSource.MachineWide64);
-        var vm = BuildVm(fx.Executor, new FakeAppxRemover(),
-            probe: ProbeWithSharedProtectedAndOwned(), apps: new[] { app });
-
-        await vm.LoadAsync();
-        SelectFirstApp(vm);
-        await PumpAsync(() => vm.LeftoverActions.Count > 0);
-
-        // The previewed/staged plan contains ONLY the ProgramOwned vendor leaf — Shared/Protected excluded.
-        Assert.Single(vm.LeftoverActions);
-
-        vm.RunLeftoverCommand.Execute(null);
-        vm.ApproveCommand.Execute(null);
-        await PumpAsync(() => vm.HasResult && !vm.RequiresConfirmation);
-
-        // The recording registry adapter was called EXACTLY ONCE — for the ProgramOwned leaf only.
-        Assert.Single(fx.Adapters.Calls);
-        Assert.StartsWith("registry:", fx.Adapters.Calls[0]);
-
-        // Inspect the exact action the executor dispatched: it is the ProgramOwned vendor leaf, NOT the parent.
-        var dispatched = Assert.IsType<RegistryDeleteAction>(Assert.Single(fx.Adapters.Dispatched));
-        Assert.Equal(@"SOFTWARE\SomeVendor\SomeApp", dispatched.SubKeyPath);
-
-        // The Shared vendor parent and the Protected system key were NEVER dispatched (call count 0 for each).
-        Assert.DoesNotContain(fx.Adapters.Dispatched.OfType<RegistryDeleteAction>(),
-            r => r.SubKeyPath.Equals(@"SOFTWARE\SomeVendor", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(fx.Adapters.Dispatched.OfType<RegistryDeleteAction>(),
-            r => r.SubKeyPath.Equals(@"SOFTWARE\Microsoft\Windows", StringComparison.OrdinalIgnoreCase));
-    }
+    // NOTE: the legacy UninstallViewModel leftover-deletion path was removed (PR-4 fix #1). Its two
+    // integration tests (Real_gated_executor_dispatches_a_program_owned_leftover... and
+    // Shared_and_protected_keys_never_reach_the_recording_registry_adapter) are migrated to
+    // UninstallWizardTests.Shared_and_protected_never_reach_the_recording_adapter_via_the_wizard, which now
+    // covers the end-to-end Shared/Protected-never-deleted safety through the SINGLE leftover-deletion path.
+    // The FAIL-WITHOUT counterpart below is path-independent (it builds a raw plan directly), so it stays.
 
     [Fact]
     public async Task Without_the_classifier_filter_a_shared_key_WOULD_reach_the_adapter()
@@ -282,19 +146,6 @@ public class UninstallExecutionTests
         Assert.Equal(1, remover.CallCount);
         Assert.True(vm.HasResult);
         Assert.Single(vm.AllRows, r => r.Appx is not null); // not removed — still in the unified list
-    }
-
-    /// <summary>
-    /// A probe whose single leftover is a genuinely ProgramOwned candidate (the exact
-    /// Software\&lt;Publisher&gt;\&lt;DisplayName&gt; vendor leaf, in the app's own hive). This is what now flows into
-    /// the deletable plan — a leftover FOLDER is classified Shared (PR-3 A) and would yield an empty plan.
-    /// </summary>
-    private static FakeLeftoverProbe ProbeWithProgramOwnedLeftover()
-    {
-        var probe = new FakeLeftoverProbe();
-        probe.RegistryKeys.Add(new LeftoverRegistryKey(RegistryHive.LocalMachine,
-            @"SOFTWARE\SomeVendor\SomeApp", RegistryView.Registry64, "vendor leaf (program-owned)"));
-        return probe;
     }
 
     // ---- fakes ----

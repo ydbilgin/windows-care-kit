@@ -34,3 +34,20 @@ public sealed class InverseBoolToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Maps an int value to <c>true</c> when it equals the converter parameter (a stringified int), used to bind a
+/// set of mutually-exclusive RadioButtons to a single int (e.g. the wizard scan-depth selector). ConvertBack
+/// returns the parameter int only for a <c>true</c> (checked) state, so the bound int is set when the user
+/// picks an option; the unchecked event yields <see cref="Binding.DoNothing"/> so the index is not clobbered.
+/// </summary>
+public sealed class IndexEqualsConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is int i && int.TryParse(parameter?.ToString(), out int p) && i == p;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => (value is bool b && b && int.TryParse(parameter?.ToString(), out int p))
+            ? p
+            : Binding.DoNothing;
+}
