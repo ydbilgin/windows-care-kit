@@ -89,7 +89,60 @@ public sealed class CopyAdapter : ICopyAdapter
             CopyFileWithRetry(dest, bak);
         }
 
-        CopyFileWithRetry(action.Source, dest);
+        // F3 (crash-atomic restore): never write the live config in place. A direct File.Copy(overwrite)
+        // onto the destination leaves a half-written / corrupt config if the process is killed mid-copy.
+        // Instead stage the new bytes into a sibling temp file and atomically swap it into place — the
+        // destination is replaced as a single filesystem operation, so an interrupted restore leaves EITHER
+        // the untouched old file OR the complete new one, never a torn one. The .bak above is preserved.
+        AtomicWrite(action.Source, dest);
+    }
+
+    /// <summary>
+    /// F3 atomic restore write: copy <paramref name="source"/> into a sibling <c>.wcktmp</c> staging file in
+    /// the destination directory (same volume → the swap is a metadata-only rename), then atomically replace
+    /// the destination with it. When the destination does not yet exist, an empty placeholder is created first
+    /// so <see cref="File.Replace(string,string,string)"/>'s atomic swap can be used uniformly. <c>File.Move</c>
+    /// is banned (BannedSymbols), so <see cref="File.Replace(string,string,string)"/> is the only sanctioned
+    /// atomic swap. A leftover staging file from a previous crash is overwritten, so the operation is
+    /// idempotent on resume.
+    /// </summary>
+    private static void AtomicWrite(string source, string dest)
+    {
+        string longDest = LongPath(dest);
+        string? dir = Path.GetDirectoryName(longDest);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        // A deterministic, per-destination staging name keeps a crashed prior attempt from accumulating temp
+        // files — the next run overwrites it. It lives beside the destination, on the SAME volume, so the
+        // replace is atomic (a cross-volume File.Replace is not allowed and would not be atomic anyway).
+        string staging = longDest + ".wcktmp";
+
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Copy(LongPath(source), staging, overwrite: true);
+
+                if (File.Exists(longDest))
+                {
+                    // Atomic in-place swap; no separate backup here (.bak already taken by Merge).
+                    File.Replace(staging, longDest, destinationBackupFileName: null);
+                }
+                else
+                {
+                    // No destination yet: create an empty placeholder, then atomically swap the staged
+                    // content onto it. This keeps the create path atomic too (no torn first write).
+                    using (File.Create(longDest)) { }
+                    File.Replace(staging, longDest, destinationBackupFileName: null);
+                }
+                return;
+            }
+            catch (IOException) when (attempt < MaxRetries)
+            {
+                Thread.Sleep(RetryDelay);
+            }
+        }
     }
 
     // ---- engine ----------------------------------------------------------------------------
