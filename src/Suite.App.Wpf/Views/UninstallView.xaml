@@ -1,7 +1,8 @@
 <UserControl x:Class="WindowsCareKit.App.Views.UninstallView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls">
+             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls"
+             xmlns:views="clr-namespace:WindowsCareKit.App.Views">
     <UserControl.Resources>
         <!-- ===== DataGrid look, scoped to this view (Strongbox tokens) ===== -->
 
@@ -287,7 +288,11 @@
             </Border>
         </Grid>
 
-        <!-- Confirmation gate overlay — the reusable ConfirmGate (UI decision §B2), unchanged from PR-1. -->
+        <!-- Confirmation gate overlay — the reusable ConfirmGate (UI decision §B2), unchanged from PR-1.
+             This drives the EXISTING Sil flows (official / Store removal); the wizard owns its OWN gate. -->
         <controls:ConfirmGate Grid.RowSpan="3" DataContext="{Binding Gate}" />
+
+        <!-- The 4-beat uninstall wizard overlay (PR-4) — opened by the detail-pane "Kaldır →" for a desktop app. -->
+        <views:UninstallWizardView Grid.RowSpan="3" DataContext="{Binding Wizard}" />
     </Grid>
 </UserControl>

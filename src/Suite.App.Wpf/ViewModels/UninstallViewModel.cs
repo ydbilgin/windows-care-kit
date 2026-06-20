@@ -6,26 +6,21 @@ using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
-using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
 /// <summary>
-/// The Sil (Uninstall) view-model: lists installed programs and per-user Store apps, previews the
-/// official-uninstaller plan and the leftover dry-run, and — after an explicit confirm — runs them
-/// through <see cref="IExecutor"/> (the gated executor). Per-user AppX removal is a separate gated call
-/// via <see cref="IAppxRemover"/>. Every destructive path is build-plan → preview → approve → execute;
-/// there is no other execution path (spec §1.1, §3).
+/// The Sil (Uninstall) view-model: lists installed programs and per-user Store apps. A desktop app's
+/// official-uninstaller + leftover removal is owned ENTIRELY by the 4-beat <see cref="UninstallWizardViewModel"/>
+/// (opened from the detail-pane "Kaldır →"); this VM stages only the per-user AppX removal — a single-shot,
+/// gated call via <see cref="IAppxRemover"/> behind an explicit type-to-confirm. Store removal is the one
+/// destructive path this VM owns: stage → confirm → remove (spec §1.1, §3).
 /// </summary>
 public sealed class UninstallViewModel : ObservableObject
 {
     private readonly IInstalledAppReader _appReader;
     private readonly IAppxReader _appxReader;
-    private readonly ISafetyGate _gate;
-    private readonly ILeftoverProbe _probe;
-    private readonly IExecutor _executor;
     private readonly IAppxRemover _appxRemover;
     private readonly IFolderOpener _folderOpener;
 
@@ -43,18 +38,14 @@ public sealed class UninstallViewModel : ObservableObject
     private InstalledAppx? _selectedAppx;
     private int _appxCount;
 
-    // The leftover plan the user is currently previewing (reused verbatim when staging — H8).
-    private OperationPlan? _previewedLeftoverPlan;
-
-    // The plan currently staged for execution, the exact hash the user is about to approve, and what kind.
-    private OperationPlan? _pendingPlan;
-    private string? _pendingPlanHash;
+    // Which run path is staged for confirmation (only the Store-app removal lives here).
     private PendingKind _pendingKind;
     private bool _hasResult;
     private string _resultSummary = string.Empty;
 
-    /// <summary>Which run path is staged for confirmation.</summary>
-    private enum PendingKind { None, Official, Leftovers, Appx }
+    /// <summary>Which run path is staged for confirmation. The desktop official path lives in the wizard;
+    /// this VM stages only the Store-app removal.</summary>
+    private enum PendingKind { None, Appx }
 
     public UninstallViewModel(I18n i18n, IInstalledAppReader appReader, IAppxReader appxReader,
         ISafetyGate gate, ILeftoverProbe probe, IExecutor executor, IAppxRemover appxRemover,
@@ -63,11 +54,10 @@ public sealed class UninstallViewModel : ObservableObject
         I18n = i18n;
         _appReader = appReader;
         _appxReader = appxReader;
-        _gate = gate;
-        _probe = probe;
-        _executor = executor;
         _appxRemover = appxRemover;
         _folderOpener = folderOpener;
+        // gate + probe are forwarded to the wizard (the single leftover-deletion path); this VM no longer
+        // runs its own leftover scan.
 
         // One ICollectionView over the flat row list. Search updates the Filter predicate and calls Refresh();
         // it NEVER clears/refills the source, so a staged plan/selection survives typing (UI decision §2 + test).
@@ -75,13 +65,12 @@ public sealed class UninstallViewModel : ObservableObject
 
         RefreshCommand = new RelayCommand(async () => await LoadAsync());
 
-        // Each "run" command stages a plan + asks for confirmation; it does NOT execute yet.
-        RunOfficialCommand = new RelayCommand(StageOfficial, () => OfficialActions.Count > 0 && !IsBusy);
-        RunLeftoverCommand = new RelayCommand(StageLeftovers, () => LeftoverActions.Count > 0 && !IsBusy);
+        // The official uninstaller for a desktop app is driven solely by the wizard (the single official+leftover
+        // path); this VM only stages the Store-app removal. Staging asks for confirmation — it does NOT execute yet.
         RemoveAppxCommand = new RelayCommand(StageAppx, () => _selectedAppx is not null && !IsBusy);
 
-        // The detail pane's single primary action: stage whatever the selected row supports — the official
-        // uninstaller for a desktop app, or Store removal for an AppX row. PR-4 swaps this for the wizard.
+        // The detail pane's single primary action: a desktop app opens the wizard (official + leftovers); an
+        // AppX row stages the single-shot Store removal. See StageSelected.
         UninstallSelectedCommand = new RelayCommand(StageSelected, () => CanUninstallSelected && !IsBusy);
 
         // "Yükleme dizinini aç" — open the selected app's install folder in Explorer (read-only, host-safe).
@@ -99,6 +88,12 @@ public sealed class UninstallViewModel : ObservableObject
             onApprove: () => ApproveCommand.Execute(null),
             onCancel: () => CancelCommand.Execute(null),
             isBusy: () => IsBusy);
+
+        // The 4-beat uninstall wizard (PR-4). It owns its OWN confirm gate (ConfirmGate #1 official + #2
+        // leftovers reuse) and runs plans through the SAME executor — the detail-pane "Kaldır →" opens it for a
+        // desktop app. A Store app keeps the existing single-shot irreversible removal (no wizard / no leftover
+        // scan — a Store app has neither an official-uninstaller plan nor registry leftovers, UI decision §4).
+        Wizard = new UninstallWizardViewModel(i18n, gate, probe, executor);
     }
 
     public I18n I18n { get; }
@@ -106,15 +101,14 @@ public sealed class UninstallViewModel : ObservableObject
     /// <summary>The reusable 3-tier confirmation gate (UI decision §B2) — the reference integration.</summary>
     public ConfirmGateViewModel Gate { get; }
 
+    /// <summary>The 4-beat uninstall wizard overlay (PR-4), opened by the detail-pane "Kaldır →" for desktop apps.</summary>
+    public UninstallWizardViewModel Wizard { get; }
+
     /// <summary>
     /// The filtered, name-sorted view the DataGrid binds to. Backed by <see cref="_allRows"/>; the search box
     /// only refreshes this view's filter, it never touches the backing list (UI decision §2 / non-mutation test).
     /// </summary>
     public ICollectionView AppsView { get; }
-
-    public ObservableCollection<PlanRow> OfficialActions { get; } = new();
-    public ObservableCollection<PlanRow> LeftoverActions { get; } = new();
-    public ObservableCollection<PlanRow> SkippedActions { get; } = new();
 
     /// <summary>The backing row list — exposed read-only so tests can assert the filter never mutates it.</summary>
     public IReadOnlyList<AppRow> AllRows => _allRows;
@@ -123,8 +117,6 @@ public sealed class UninstallViewModel : ObservableObject
     public ObservableCollection<PlanRow> ExecutionResults { get; } = new();
 
     public ICommand RefreshCommand { get; }
-    public ICommand RunOfficialCommand { get; }
-    public ICommand RunLeftoverCommand { get; }
     public ICommand RemoveAppxCommand { get; }
     public ICommand UninstallSelectedCommand { get; }
     public ICommand OpenLocationCommand { get; }
@@ -196,10 +188,7 @@ public sealed class UninstallViewModel : ObservableObject
         private set
         {
             if (SetField(ref _selectedApp, value))
-            {
                 CancelPending(); // a new selection invalidates any staged plan
-                _ = BuildPreviewAsync(value);
-            }
         }
     }
 
@@ -216,9 +205,11 @@ public sealed class UninstallViewModel : ObservableObject
     public bool HasSelection => _selectedRow is not null;
     public bool HasAppxSelection => _selectedAppx is not null;
 
-    /// <summary>True when the selected row has something to uninstall: a desktop uninstaller, or a Store app.</summary>
-    public bool CanUninstallSelected =>
-        (_selectedApp is not null && OfficialActions.Count > 0) || _selectedAppx is not null;
+    /// <summary>
+    /// True when the selected row can be removed: ANY desktop app (the wizard handles even a broken-uninstaller
+    /// app — it can still scan + remove leftovers), or a Store app (single-shot removal).
+    /// </summary>
+    public bool CanUninstallSelected => _selectedApp is not null || _selectedAppx is not null;
 
     // ---- Lean, info-only detail-pane projections (UI decision §3 — identity, no plan dump). ----
 
@@ -303,53 +294,12 @@ public sealed class UninstallViewModel : ObservableObject
             _folderOpener.OpenFolder(path);
     }
 
-    private async Task BuildPreviewAsync(InstalledApp? app)
-    {
-        OfficialActions.Clear();
-        LeftoverActions.Clear();
-        SkippedActions.Clear();
-        _previewedLeftoverPlan = null;
-        // OfficialActions just changed (cleared) — keep the detail-pane "Kaldır →" enablement in step.
-        OnPropertyChanged(nameof(CanUninstallSelected));
-        RaiseRunCommandStates();
-        if (app is null)
-            return;
-
-        var now = DateTime.UtcNow;
-
-        // Official uninstaller plan — pure, cheap.
-        var official = OfficialUninstallerPlanner.Build(app, now);
-        if (official is not null)
-            foreach (var a in official.Actions)
-                OfficialActions.Add(PlanRow.FromAction(a));
-
-        // OfficialActions now reflects this app — refresh the detail-pane primary-action enablement.
-        OnPropertyChanged(nameof(CanUninstallSelected));
-        RaiseRunCommandStates();
-
-        // Leftover scan touches the filesystem/registry — run it off the UI thread.
-        var scanner = new LeftoverScanner(_probe, _gate);
-        LeftoverScanResult result = await Task.Run(() => scanner.Scan(app, now));
-
-        // Selection may have changed while scanning; only apply if still current.
-        if (!ReferenceEquals(app, _selectedApp))
-            return;
-
-        // Keep the EXACT plan object the rows were rendered from, so staging runs precisely what the user
-        // previewed — never a second scan whose results could differ (H8 dry-run honesty).
-        _previewedLeftoverPlan = result.Plan;
-
-        foreach (var a in result.Plan.Actions)
-            LeftoverActions.Add(PlanRow.FromAction(a));
-        foreach (var s in result.Skipped)
-            SkippedActions.Add(PlanRow.FromSkipped(s.Action, s.Reason));
-    }
-
     // ---- Stage (build plan + ask to confirm). Nothing executes here. ----
 
     /// <summary>
-    /// The detail-pane "Kaldır →" handler: stage whatever the selected row supports. For PR-2 this reuses the
-    /// EXISTING official-uninstaller / Store-removal staging (PR-4 will replace it with the multi-beat wizard).
+    /// The detail-pane "Kaldır →" handler. A desktop app opens the 4-beat wizard (PR-4); a Store app keeps the
+    /// EXISTING single-shot irreversible removal (a Store app has no official-uninstaller plan and no registry
+    /// leftovers, so the multi-beat wizard would be empty — UI decision §4).
     /// </summary>
     private void StageSelected()
     {
@@ -358,32 +308,8 @@ public sealed class UninstallViewModel : ObservableObject
             StageAppx();
             return;
         }
-        if (_selectedApp is not null && OfficialActions.Count > 0)
-            StageOfficial();
-    }
-
-    private void StageOfficial()
-    {
-        var app = _selectedApp;
-        if (app is null)
-            return;
-
-        OperationPlan? plan = OfficialUninstallerPlanner.Build(app, DateTime.UtcNow);
-        if (plan is null || plan.IsEmpty)
-            return;
-
-        Stage(plan, PendingKind.Official);
-    }
-
-    private void StageLeftovers()
-    {
-        // Stage the EXACT plan the user previewed — never a fresh scan (which could differ from the rows
-        // on screen). The hash is therefore the preview-time hash (H8 / spec §2).
-        OperationPlan? plan = _previewedLeftoverPlan;
-        if (plan is null || plan.IsEmpty)
-            return;
-
-        Stage(plan, PendingKind.Leftovers);
+        if (_selectedApp is not null)
+            Wizard.Open(_selectedApp);
     }
 
     private void StageAppx()
@@ -394,8 +320,6 @@ public sealed class UninstallViewModel : ObservableObject
 
         // AppX removal is not a typed plan; we still route it through the same confirm gate. Store app
         // removal can't be undone, so it is always the IRREVERSIBLE tier (type-to-confirm).
-        _pendingPlan = null;
-        _pendingPlanHash = null;
         _pendingKind = PendingKind.Appx;
 
         var rows = new[]
@@ -408,82 +332,39 @@ public sealed class UninstallViewModel : ObservableObject
         RaiseConfirmationState();
     }
 
-    private void Stage(OperationPlan plan, PendingKind kind)
-    {
-        _pendingPlan = plan;
-        _pendingPlanHash = plan.ComputeHash(); // captured from the EXACT previewed/staged plan (spec §3)
-        _pendingKind = kind;
-
-        // Open the reusable gate with the tier chosen from the plan's irreversibility, the honest body, and
-        // the EXACT dry-run rows the user is about to approve (UI decision §B2).
-        ConfirmTier tier = ConfirmGateViewModel.TierFor(plan);
-        var rows = plan.Actions.Select(PlanRow.FromAction);
-        Gate.Open(tier, I18n["uninstall.confirm.title"], I18n["uninstall.confirm.body"], rows);
-        RaiseConfirmationState();
-    }
-
     private void CancelPending()
     {
         if (_pendingKind == PendingKind.None)
             return;
-        _pendingPlan = null;
-        _pendingPlanHash = null;
         _pendingKind = PendingKind.None;
         Gate.Close();
         RaiseConfirmationState();
     }
 
-    // ---- Approve (the ONLY place that calls the executor / appx remover). ----
+    // ---- Approve (the ONLY place that calls the appx remover). ----
 
     private async Task ApproveAsync()
     {
-        if (_pendingKind == PendingKind.None)
+        // The desktop official path lives in the wizard; the only thing this VM stages + approves is the
+        // single-shot Store-app removal (UI decision §4).
+        if (_pendingKind != PendingKind.Appx)
             return;
 
-        PendingKind kind = _pendingKind;
-        OperationPlan? plan = _pendingPlan;
-        string? hash = _pendingPlanHash;
-
-        // Approval is captured into locals above, so the confirm panel can be dismissed BEFORE we run —
-        // the user has approved, and clearing now avoids any race where the result lands before the
-        // confirm state is reset.
-        _pendingPlan = null;
-        _pendingPlanHash = null;
+        // The user has approved — clear the staged state and dismiss the confirm panel BEFORE we run, so the
+        // result can never land before the confirm state is reset.
         _pendingKind = PendingKind.None;
         IsBusy = true;
         Gate.Close();
         RaiseConfirmationState();
         try
         {
-            if (kind == PendingKind.Appx)
-            {
-                await RunAppxRemovalAsync();
-            }
-            else if (plan is not null && hash is not null)
-            {
-                await RunPlanAsync(plan, hash);
-            }
+            await RunAppxRemovalAsync();
         }
         finally
         {
             IsBusy = false;
             RaiseConfirmationState();
         }
-    }
-
-    private async Task RunPlanAsync(OperationPlan plan, string approvedHash)
-    {
-        ExecutionResults.Clear();
-
-        ExecutionReport report = await Task.Run(() =>
-        {
-            // The executor is the GatedExecutor; ExecuteWithReport gives the per-action breakdown.
-            return _executor is GatedExecutor gated
-                ? gated.ExecuteWithReport(plan, approvedHash)
-                : ToReport(_executor.Execute(plan, approvedHash), plan);
-        });
-
-        RenderReport(report, plan);
     }
 
     private async Task RunAppxRemovalAsync()
@@ -515,43 +396,6 @@ public sealed class UninstallViewModel : ObservableObject
             SelectedRow = null;
             AppsView.Refresh();
         }
-    }
-
-    private void RenderReport(ExecutionReport report, OperationPlan plan)
-    {
-        // Map each action result back to a readable row (action descriptions live on the plan).
-        var byId = plan.Actions.ToDictionary(a => a.Id, a => a.Description);
-        int skipped = 0;
-        foreach (var r in report.Results)
-        {
-            string text = byId.TryGetValue(r.ActionId, out var desc) ? desc : r.Kind;
-            RiskLevel risk = r.Status switch
-            {
-                ActionStatus.Done => RiskLevel.Low,
-                ActionStatus.NotRun => RiskLevel.Info,
-                _ => RiskLevel.Critical,
-            };
-            if (r.Status == ActionStatus.NotRun)
-                skipped++;
-            ExecutionResults.Add(ResultRow(text, r.Status.ToString(), risk, r.Detail));
-        }
-
-        ResultSummary = I18n.Format("uninstall.result.summary", report.DoneCount, skipped, report.FailedCount);
-        HasResult = true;
-
-        // If the official uninstaller / leftovers ran, the world changed — refresh the leftover preview.
-        if (report.Authorized && _selectedApp is not null)
-            _ = BuildPreviewAsync(_selectedApp);
-    }
-
-    private static ExecutionReport ToReport(ExecutionOutcome outcome, OperationPlan plan)
-    {
-        // Fallback for a non-GatedExecutor IExecutor (e.g. a test double): synthesize a coarse report.
-        ActionStatus status = outcome.Ran ? ActionStatus.Done : ActionStatus.NotRun;
-        var results = plan.Actions
-            .Select(a => new ActionResult(a.Id, a.Kind, status, outcome.Reason))
-            .ToArray();
-        return new ExecutionReport(outcome.Ran, plan.ComputeHash(), results);
     }
 
     private void RaiseConfirmationState()
