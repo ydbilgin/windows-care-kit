@@ -85,7 +85,7 @@
   "backup.report.refused": "Plan refused — nothing was copied.",
 
   "install.title": "Reinstall",
-  "install.subtitle": "Restore apps and settings after a format, in a safe order.",
+  "install.subtitle": "Restore apps and settings after a format, in dependency order.",
   "install.loadManifest": "Load reinstall list",
   "install.buildPlan": "Build restore plan",
   "install.run": "Run restore",

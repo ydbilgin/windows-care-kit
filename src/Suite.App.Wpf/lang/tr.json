@@ -85,7 +85,7 @@
   "backup.report.refused": "Plan reddedildi — hiçbir şey kopyalanmadı.",
 
   "install.title": "Kur",
-  "install.subtitle": "Format sonrası uygulamaları ve ayarları güvenli sırayla geri yükle.",
+  "install.subtitle": "Format sonrası uygulamaları ve ayarları doğru bağımlılık sırasıyla geri yükle.",
   "install.loadManifest": "Kurulum listesini yükle",
   "install.buildPlan": "Geri yükleme planını oluştur",
   "install.run": "Geri yüklemeyi çalıştır",
