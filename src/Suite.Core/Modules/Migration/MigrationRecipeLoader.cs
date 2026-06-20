@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using WindowsCareKit.Core.Modules.Install;
 
 namespace WindowsCareKit.Core.Modules.Migration;
 
@@ -22,7 +23,17 @@ public sealed class RecipeValidationException : Exception
 /// </summary>
 public static class MigrationRecipeLoader
 {
-    public const int SupportedSchemaVersion = 1;
+    /// <summary>The oldest recipe schema this loader accepts (v1: no <c>install</c> block).</summary>
+    public const int MinSupportedSchemaVersion = 1;
+
+    /// <summary>The newest recipe schema this loader accepts (v2: adds the optional <c>install</c> block).</summary>
+    public const int MaxSupportedSchemaVersion = 2;
+
+    /// <summary>The schema version at which the optional <c>install</c> block becomes a recognized root field.</summary>
+    private const int InstallBlockSchemaVersion = 2;
+
+    /// <summary>Retained for source compatibility — the lowest version this loader supports.</summary>
+    public const int SupportedSchemaVersion = MinSupportedSchemaVersion;
 
     /// <summary>Load + validate a single recipe from a JSON string. Throws <see cref="RecipeValidationException"/>.</summary>
     public static MigrationRecipe Load(string json)
@@ -45,13 +56,20 @@ public static class MigrationRecipeLoader
             if (root.ValueKind != JsonValueKind.Object)
                 throw new RecipeValidationException("recipe root must be a JSON object");
 
-            RejectUnknownFields(root, "(root)",
-                "schemaVersion", "id", "displayName", "category",
-                "detect", "items", "exclude", "secretRule", "portabilityClass", "restore");
-
+            // The schema version is read FIRST because it decides whether `install` is a recognized root field:
+            // v1 rejects it as an unknown field (the built-in seeds are v1 and must keep loading), v2 allows it.
             int schemaVersion = RequireInt(root, "schemaVersion");
-            if (schemaVersion != SupportedSchemaVersion)
-                throw new RecipeValidationException($"unsupported schemaVersion {schemaVersion} (expected {SupportedSchemaVersion})");
+            if (schemaVersion < MinSupportedSchemaVersion || schemaVersion > MaxSupportedSchemaVersion)
+                throw new RecipeValidationException(
+                    $"unsupported schemaVersion {schemaVersion} (expected {MinSupportedSchemaVersion}..{MaxSupportedSchemaVersion})");
+
+            // v1: the original allowed-root set (install is REJECTED as an unknown field). v2: install is allowed.
+            // Building the set from the version keeps the strict "reject unknown field" guarantee version-exact —
+            // a v1 recipe smuggling `install` still fails closed.
+            string[] allowedRootFields = schemaVersion >= InstallBlockSchemaVersion
+                ? new[] { "schemaVersion", "id", "displayName", "category", "detect", "items", "exclude", "secretRule", "portabilityClass", "restore", "install" }
+                : new[] { "schemaVersion", "id", "displayName", "category", "detect", "items", "exclude", "secretRule", "portabilityClass", "restore" };
+            RejectUnknownFields(root, "(root)", allowedRootFields);
 
             string id = RequireNonEmptyString(root, "id");
             ValidateId(id);
@@ -67,8 +85,17 @@ public static class MigrationRecipeLoader
             PortabilityClass portability = ParsePortability(RequireNonEmptyString(root, "portabilityClass"));
             RecipeRestore restore = ParseRestore(RequireObject(root, "restore"));
 
+            // The optional v2 install block. Only ever present when schemaVersion >= 2 (else `install` would have
+            // been rejected above). Set via object-initializer so MigrationRecipe's positional arity is unchanged.
+            RecipeInstall? install = root.TryGetProperty("install", out JsonElement installEl)
+                ? ParseInstall(installEl)
+                : null;
+
             return new MigrationRecipe(
-                schemaVersion, id, displayName, category, detect, items, exclude, secretRule, portability, restore);
+                schemaVersion, id, displayName, category, detect, items, exclude, secretRule, portability, restore)
+            {
+                Install = install,
+            };
         }
     }
 
@@ -141,6 +168,62 @@ public static class MigrationRecipeLoader
         return new RecipeRestore(strategy, phase, ParseStringArray(el, "preconditions"));
     }
 
+    /// <summary>
+    /// Parse + validate the optional v2 <c>install</c> block fail-closed. The method must be a known value, and
+    /// EXACTLY ONE locator must be present AND it must be the one the method requires (a winget method with an
+    /// npm package, or two locators at once, is rejected). The winget id / npm name are checked through the SAME
+    /// allow-lists the gated <see cref="InstallPlanner"/> applies to the executable argument, so a recipe can only
+    /// ever describe the reviewed command — a path/leading-dash/whitespace id never gets past the loader.
+    /// </summary>
+    private static RecipeInstall ParseInstall(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Object)
+            throw new RecipeValidationException("field 'install' must be a JSON object");
+
+        RejectUnknownFields(el, "install",
+            "method", "wingetId", "npmPackage", "manualUrl", "requiresAdmin", "rebootExpected");
+
+        RecipeInstallMethod method = ParseInstallMethod(RequireNonEmptyString(el, "method"));
+        string? wingetId = OptionalString(el, "wingetId");
+        string? npmPackage = OptionalString(el, "npmPackage");
+        string? manualUrl = OptionalString(el, "manualUrl");
+        bool requiresAdmin = el.TryGetProperty("requiresAdmin", out JsonElement ra) && RequireBool(ra, "install.requiresAdmin");
+        bool rebootExpected = el.TryGetProperty("rebootExpected", out JsonElement re) && RequireBool(re, "install.rebootExpected");
+
+        // EXACTLY ONE locator overall — a second locator (regardless of method) is a smuggled second command.
+        int locators = (string.IsNullOrWhiteSpace(wingetId) ? 0 : 1)
+                     + (string.IsNullOrWhiteSpace(npmPackage) ? 0 : 1)
+                     + (string.IsNullOrWhiteSpace(manualUrl) ? 0 : 1);
+        if (locators != 1)
+            throw new RecipeValidationException(
+                $"install must declare EXACTLY ONE locator (wingetId / npmPackage / manualUrl); found {locators}");
+
+        // ... and that one locator must be the one the method requires, validated by the SAME guard as the planner.
+        switch (method)
+        {
+            case RecipeInstallMethod.Winget:
+                if (string.IsNullOrWhiteSpace(wingetId))
+                    throw new RecipeValidationException("install method 'install-winget' requires a 'wingetId' locator");
+                if (!InstallPlanner.IsValidWingetId(wingetId))
+                    throw new RecipeValidationException($"install wingetId '{wingetId}' is not a valid winget package id");
+                break;
+
+            case RecipeInstallMethod.Npm:
+                if (string.IsNullOrWhiteSpace(npmPackage))
+                    throw new RecipeValidationException("install method 'install-npm' requires an 'npmPackage' locator");
+                if (!InstallPlanner.IsValidNpmPackage(npmPackage))
+                    throw new RecipeValidationException($"install npmPackage '{npmPackage}' is not a valid npm package name");
+                break;
+
+            case RecipeInstallMethod.UrlManual:
+                if (string.IsNullOrWhiteSpace(manualUrl))
+                    throw new RecipeValidationException("install method 'install-url-manual' requires a 'manualUrl' locator");
+                break;
+        }
+
+        return new RecipeInstall(method, wingetId, npmPackage, manualUrl, requiresAdmin, rebootExpected);
+    }
+
     // ---- enum parsing (fail-closed) --------------------------------------------------------
 
     private static KnownFolder ParseKnownFolder(string s) => s.ToLowerInvariant() switch
@@ -173,6 +256,16 @@ public static class MigrationRecipeLoader
         "firstrunseed" or "first-run-seed" => RestorePhase.FirstRunSeed,
         "configwrite" or "config-write" => RestorePhase.ConfigWrite,
         _ => throw new RecipeValidationException($"unknown restore.phase '{s}'"),
+    };
+
+    // The wire values MIRROR the Kur module's InstallMethod string constants so the package install manifest and
+    // the recipe speak the same vocabulary; an unknown value fails closed (a recipe never names a free command).
+    private static RecipeInstallMethod ParseInstallMethod(string s) => s.ToLowerInvariant() switch
+    {
+        "install-winget" => RecipeInstallMethod.Winget,
+        "install-npm" => RecipeInstallMethod.Npm,
+        "install-url-manual" => RecipeInstallMethod.UrlManual,
+        _ => throw new RecipeValidationException($"unknown install.method '{s}'"),
     };
 
     // ---- field helpers ---------------------------------------------------------------------

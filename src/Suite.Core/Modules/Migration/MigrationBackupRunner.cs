@@ -1,6 +1,7 @@
 using System.IO;
 using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Modules.Backup;
+using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
@@ -43,6 +44,13 @@ public sealed record MigrationBackupPlanResult(
     /// <summary>action.Id → provisional restore target, only for single-file sources. Runner-internal provenance.</summary>
     internal IReadOnlyDictionary<string, ProvisionalRestoreTarget> ByActionId { get; init; } =
         new Dictionary<string, ProvisionalRestoreTarget>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The projected, self-describing install entries for the recipes that carry a v2 install block (one per
+    /// recipe), computed at plan time so the dry-run can already present what would be (re)installed. <see cref="Run"/>
+    /// SAVES these into <c>migration-install.json</c> only on the authorized + re-gate-passed path (critic fix #4).
+    /// </summary>
+    public IReadOnlyList<InstallEntry> InstallEntries { get; init; } = Array.Empty<InstallEntry>();
 }
 
 /// <summary>
@@ -95,6 +103,7 @@ public sealed class MigrationBackupRunner
     private readonly IFileSystem _fs;
     private readonly MigrationRestoreManifestStore _store;
     private readonly ISafetyGate _gate;
+    private readonly MigrationInstallManifestStore _installStore;
 
     public MigrationBackupRunner(
         RecipeResolver resolver,
@@ -102,7 +111,8 @@ public sealed class MigrationBackupRunner
         IHasher hasher,
         IFileSystem fs,
         MigrationRestoreManifestStore store,
-        ISafetyGate gate)
+        ISafetyGate gate,
+        MigrationInstallManifestStore? installStore = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
@@ -110,6 +120,9 @@ public sealed class MigrationBackupRunner
         _fs = fs ?? throw new ArgumentNullException(nameof(fs));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+        // Optional so the existing 6-arg construction sites (tests) compile unchanged; defaulted to the real
+        // strict store. The projector is pure/static, so it is not a ctor dependency.
+        _installStore = installStore ?? new MigrationInstallManifestStore();
     }
 
     /// <summary>
@@ -134,6 +147,11 @@ public sealed class MigrationBackupRunner
         var seenEntryIds = new HashSet<string>(StringComparer.Ordinal);
         var seenTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // The recipes that passed the duplicate-recipe-id check, in supplied order. The install projection runs
+        // over EXACTLY this set so the per-recipe install entries share the same dedup + ordering as the copy
+        // actions (a duplicate recipe id is surfaced ONCE, here, not a second time by the projector).
+        var acceptedRecipes = new List<MigrationRecipe>();
+
         foreach (MigrationRecipe recipe in recipes)
         {
             // A duplicate recipe id in the set would re-derive the same Entry.Target subdir and silently
@@ -143,6 +161,7 @@ public sealed class MigrationBackupRunner
                 skipped.Add(new RecipeItemSkip($"recipe:{recipe.Id}", "duplicate recipe id in the supplied set"));
                 continue;
             }
+            acceptedRecipes.Add(recipe);
 
             ResolvedRecipe resolved = _resolver.Resolve(recipe);
             foreach (RecipeItemSkip s in resolved.Skipped)
@@ -205,8 +224,19 @@ public sealed class MigrationBackupRunner
             }
         }
 
+        // Project the self-describing install entries for the recipes that carry a v2 install block (one per
+        // recipe). Pure/static — no IO, no gate. Its skip list (duplicate INSTALL ids) is surfaced alongside the
+        // copy skips; the recipe-id dedup is already done above so the input cannot re-trip a duplicate-recipe-id.
+        MigrationInstallProjection installProjection = MigrationInstallProjector.Project(acceptedRecipes);
+        foreach (RecipeItemSkip s in installProjection.Skipped)
+            skipped.Add(s);
+
         var plan = new OperationPlan("Migration backup", "migration-backup", actions, utc);
-        return new MigrationBackupPlanResult(plan, skipped) { ByActionId = byActionId };
+        return new MigrationBackupPlanResult(plan, skipped)
+        {
+            ByActionId = byActionId,
+            InstallEntries = installProjection.Entries,
+        };
     }
 
     /// <summary>
@@ -303,6 +333,13 @@ public sealed class MigrationBackupRunner
         // An authorized run that copied no single file still saves a VALID empty manifest (Targets = []).
         var manifest = new MigrationRestoreManifest(MigrationRestoreManifest.CurrentSchemaVersion, targets);
         _store.Save(packageDir, manifest);
+
+        // Save the parallel self-describing install manifest under the SAME re-gate that just authorized the
+        // restore-manifest write (both files sit at the package root, so the single package-root verdict governs
+        // both — critic fix #4). An authorized-but-no-install run still writes a VALID EMPTY install manifest
+        // (entries = []), mirroring the empty restore manifest. A refused or gate-blocked run never reaches here,
+        // so it writes NEITHER manifest. The entries were already validated by the strict loader at recipe load.
+        _installStore.Save(packageDir, plan.InstallEntries);
 
         return new MigrationBackupRunResult(
             Authorized: true,

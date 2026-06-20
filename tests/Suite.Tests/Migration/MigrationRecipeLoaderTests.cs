@@ -84,10 +84,23 @@ public class MigrationRecipeLoaderTests
         Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
     }
 
+    // Critic fix #2: v2 is now a SUPPORTED schema version (it adds the optional install block), so it must LOAD.
+    // The unsupported-version assertion moved to a version BELOW the floor (v0) and ABOVE the ceiling (v3).
     [Fact]
-    public void Rejects_unsupported_schema_version()
+    public void Loads_schema_version_2()
     {
         string json = Valid.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 2");
+        MigrationRecipe r = MigrationRecipeLoader.Load(json);
+        Assert.Equal(2, r.SchemaVersion);
+        Assert.Null(r.Install); // v2 without an install block is still valid (install is optional)
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Rejects_unsupported_schema_version(int unsupported)
+    {
+        string json = Valid.Replace("\"schemaVersion\": 1", $"\"schemaVersion\": {unsupported}");
         var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
         Assert.Contains("schemaVersion", ex.Message);
     }
@@ -97,6 +110,143 @@ public class MigrationRecipeLoaderTests
     {
         string json = Valid.Replace("\"id\": \"anthropic.claude-code\",", "");
         Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    // ---- v2 install block (decision §FINAL DESIGN 1-2 + Tests list 1) ----
+
+    // A v2 recipe carrying an install block. {0} is the inner install JSON (so each test supplies its own block).
+    private const string V2WithInstall = """
+    {
+      "schemaVersion": 2,
+      "id": "anthropic.claude-code",
+      "displayName": "Claude Code",
+      "category": "dev-tools",
+      "detect": { "knownFolder": "UserProfile", "path": ".claude", "exists": true },
+      "items": [ { "path": ".claude/CLAUDE.md" } ],
+      "exclude": [],
+      "secretRule": "global",
+      "portabilityClass": "profile-relative",
+      "restore": { "strategy": "config-write", "phase": "configWrite", "preconditions": [] },
+      "install": { __INSTALL__ }
+    }
+    """;
+
+    private static string V2(string install) => V2WithInstall.Replace("__INSTALL__", install);
+
+    [Fact]
+    public void V1_rejects_an_install_block_as_an_unknown_field()
+    {
+        // The Valid template is v1; adding install must be rejected as an unknown root field (built-in seeds are v1).
+        string json = Valid.Replace(
+            "\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }",
+            "\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }, \"install\": { \"method\": \"install-winget\", \"wingetId\": \"Anthropic.Claude\" }");
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+        Assert.Contains("install", ex.Message);
+    }
+
+    [Fact]
+    public void V2_accepts_install_winget()
+    {
+        MigrationRecipe r = MigrationRecipeLoader.Load(V2("""
+            "method": "install-winget", "wingetId": "Git.Git", "requiresAdmin": true, "rebootExpected": false
+            """));
+        Assert.NotNull(r.Install);
+        Assert.Equal(RecipeInstallMethod.Winget, r.Install!.Method);
+        Assert.Equal("Git.Git", r.Install.WingetId);
+        Assert.True(r.Install.RequiresAdmin);
+        Assert.Null(r.Install.NpmPackage);
+        Assert.Null(r.Install.ManualUrl);
+    }
+
+    [Fact]
+    public void V2_accepts_install_npm()
+    {
+        MigrationRecipe r = MigrationRecipeLoader.Load(V2("""
+            "method": "install-npm", "npmPackage": "@anthropic-ai/claude-code"
+            """));
+        Assert.NotNull(r.Install);
+        Assert.Equal(RecipeInstallMethod.Npm, r.Install!.Method);
+        Assert.Equal("@anthropic-ai/claude-code", r.Install.NpmPackage);
+        Assert.Null(r.Install.WingetId);
+    }
+
+    [Fact]
+    public void V2_accepts_install_url_manual()
+    {
+        MigrationRecipe r = MigrationRecipeLoader.Load(V2("""
+            "method": "install-url-manual", "manualUrl": "https://nvidia.com/app"
+            """));
+        Assert.NotNull(r.Install);
+        Assert.Equal(RecipeInstallMethod.UrlManual, r.Install!.Method);
+        Assert.Equal("https://nvidia.com/app", r.Install.ManualUrl);
+    }
+
+    [Fact]
+    public void V2_rejects_unknown_nested_install_field()
+    {
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(V2("""
+            "method": "install-winget", "wingetId": "Git.Git", "authCommand": "claude login"
+            """)));
+        Assert.Contains("authCommand", ex.Message);
+    }
+
+    [Fact]
+    public void V2_rejects_unknown_install_method()
+    {
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(V2("""
+            "method": "install-msi", "wingetId": "Git.Git"
+            """)));
+        Assert.Contains("install.method", ex.Message);
+    }
+
+    [Fact]
+    public void V2_rejects_install_that_is_the_wrong_json_kind()
+    {
+        // install present but a string, not an object.
+        string json = V2WithInstall.Replace("\"install\": { __INSTALL__ }", "\"install\": \"install-winget\"");
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    [Fact]
+    public void V2_rejects_multiple_locators()
+    {
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(V2("""
+            "method": "install-winget", "wingetId": "Git.Git", "npmPackage": "left-pad"
+            """)));
+        Assert.Contains("EXACTLY ONE locator", ex.Message);
+    }
+
+    [Fact]
+    public void V2_rejects_missing_locator()
+    {
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(V2("""
+            "method": "install-winget", "requiresAdmin": true
+            """)));
+        Assert.Contains("EXACTLY ONE locator", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("evil/../../id")]   // path
+    [InlineData("-e")]              // leading dash → would smuggle a flag into the --id position
+    [InlineData("Bad Id")]          // whitespace
+    public void V2_rejects_an_invalid_winget_id(string wingetId)
+    {
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(V2($$"""
+            "method": "install-winget", "wingetId": "{{wingetId}}"
+            """)));
+        Assert.Contains("winget", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("git+https://example.com/x.git")] // git ref (URL also tripwires, but the value is rejected as a name)
+    [InlineData("../local/path")]                 // path
+    [InlineData("Has Space")]                      // whitespace / invalid name
+    public void V2_rejects_an_invalid_npm_value(string npmPackage)
+    {
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(V2($$"""
+            "method": "install-npm", "npmPackage": "{{npmPackage}}"
+            """)));
+        Assert.Contains("npm", ex.Message);
     }
 
     [Fact]
@@ -175,5 +325,10 @@ public class MigrationRecipeLoaderTests
         IReadOnlyList<MigrationRecipe> recipes = BuiltinRecipeSource.LoadAll();
         Assert.NotEmpty(recipes);
         Assert.All(recipes, r => Assert.NotEmpty(r.Id));
+
+        // Critic fix #5: extend (do NOT duplicate) this test with the v2/install assertions. The shipped seeds
+        // are all v1 and carry NO install block — proving v1 still loads and that v1 never grows an install spec.
+        Assert.All(recipes, r => Assert.Equal(1, r.SchemaVersion));
+        Assert.All(recipes, r => Assert.Null(r.Install));
     }
 }

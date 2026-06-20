@@ -172,6 +172,122 @@ public class MigrationBackupRunnerTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    /// <summary>
+    /// INSTALL-phase enablement: a MULTI-ITEM recipe carrying a v2 install block emits EXACTLY ONE install entry
+    /// (per-recipe, NOT per restore target) in <c>migration-install.json</c>, while the restore manifest still
+    /// carries N config targets (one per backed-up single file). The strict store re-loads the install manifest
+    /// and the EXISTING gated <see cref="InstallPlanner"/> turns it into the exact, exported command action.
+    /// </summary>
+    [Fact]
+    public void Multi_item_recipe_with_install_emits_exactly_one_install_entry_plus_N_config_targets()
+    {
+        string root = MigrationRestoreTestData.TempDir("install-multi");
+        try
+        {
+            string profile = Path.Combine(root, "Users", "alice");
+            Directory.CreateDirectory(Path.Combine(profile, ".app"));
+            File.WriteAllText(Path.Combine(profile, ".app", "settings.json"), "{\"a\":1}");
+            File.WriteAllText(Path.Combine(profile, ".app", "keymap.json"), "{\"b\":2}");
+            var roots = new ProfileRoots(profile, Path.Combine(profile, "AppData", "Roaming"), Path.Combine(profile, "AppData", "Local"));
+
+            // ONE recipe, TWO single-file items, plus an install block (winget). Detect on .app (exists).
+            var recipe = new MigrationRecipe(
+                SchemaVersion: 2, Id: "vendor.app", DisplayName: "Vendor App", Category: "dev-tools",
+                Detect: new RecipeDetect(KnownFolder.UserProfile, ".app", Exists: true),
+                Items: new[]
+                {
+                    new RecipeItem(".app/settings.json", Array.Empty<string>(), Array.Empty<string>()),
+                    new RecipeItem(".app/keymap.json", Array.Empty<string>(), Array.Empty<string>()),
+                },
+                Exclude: Array.Empty<string>(), SecretRule: "global",
+                PortabilityClass: PortabilityClass.ProfileRelative,
+                Restore: new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, Array.Empty<string>()))
+            {
+                Install = new RecipeInstall(RecipeInstallMethod.Winget, "Vendor.App", null, null, RequiresAdmin: false, RebootExpected: false),
+            };
+
+            string pkg = Path.Combine(root, "package");
+            MigrationBackupRunResult result = RunBackup(roots, pkg, recipe);
+
+            Assert.True(result.Authorized);
+            Assert.Equal(2, result.Manifest.Targets.Count); // N config targets (both single files)
+
+            // EXACTLY ONE install entry, re-loaded through the STRICT store (not the permissive loader).
+            InstallManifest install = new MigrationInstallManifestStore().Load(pkg);
+            InstallEntry e = Assert.Single(install.Entries);
+            Assert.Equal("migration:vendor.app:install", e.Id);
+            Assert.Equal(InstallMethod.Winget, e.Method);
+            Assert.Equal("Vendor.App", e.WingetId);
+
+            // The package self-describes the reinstall: feed it to the EXISTING gated planner.
+            var planner = new InstallPlanner(MigrationRestoreTestData.GateAllowingPackage(pkg), new FakeDriverGuard());
+            InstallPlanResult plan = planner.BuildPlan(install, RestoreState.Empty, T0);
+            CommandAction cmd = Assert.IsType<CommandAction>(Assert.Single(plan.Plan.Actions));
+            Assert.Equal("Vendor.App", cmd.Arguments[2]);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>An authorized backup with NO install-block recipes still writes a VALID EMPTY install manifest.</summary>
+    [Fact]
+    public void Authorized_run_with_no_install_writes_a_valid_empty_install_manifest()
+    {
+        string root = MigrationRestoreTestData.TempDir("install-empty");
+        try
+        {
+            string profile = Path.Combine(root, "Users", "alice");
+            Directory.CreateDirectory(profile);
+            File.WriteAllText(Path.Combine(profile, ".gitconfig"), "[user]\n name = alice");
+            var roots = new ProfileRoots(profile, Path.Combine(profile, "AppData", "Roaming"), Path.Combine(profile, "AppData", "Local"));
+
+            string pkg = Path.Combine(root, "package");
+            MigrationBackupRunResult result = RunBackup(roots, pkg, GitRecipe()); // GitRecipe is v1, no install block
+            Assert.True(result.Authorized);
+
+            Assert.True(File.Exists(new MigrationInstallManifestStore().PathFor(pkg)), "an authorized run writes an install manifest");
+            InstallManifest install = new MigrationInstallManifestStore().Load(pkg);
+            Assert.Empty(install.Entries);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>A REFUSED run writes NEITHER manifest (critic fix #4: install save sits after the refusal return).</summary>
+    [Fact]
+    public void Refused_run_writes_no_install_manifest_either()
+    {
+        string root = MigrationRestoreTestData.TempDir("install-refused");
+        try
+        {
+            string profile = Path.Combine(root, "Users", "alice");
+            Directory.CreateDirectory(profile);
+            File.WriteAllText(Path.Combine(profile, ".gitconfig"), "[user]\n name = alice");
+            var roots = new ProfileRoots(profile, Path.Combine(profile, "AppData", "Roaming"), Path.Combine(profile, "AppData", "Local"));
+
+            string pkg = @"C:\Program Files\wck-should-never-write";
+            SafetyGate gate = new(ProtectedResources.ForCurrentSystem(), new Win32PathCanonicalizer());
+            MigrationBackupRunner runner = Runner(roots, gate);
+
+            var recipe = new MigrationRecipe(
+                SchemaVersion: 2, Id: "git.config", DisplayName: "Git", Category: "dev-tools",
+                Detect: new RecipeDetect(KnownFolder.UserProfile, ".gitconfig", Exists: true),
+                Items: new[] { new RecipeItem(".gitconfig", Array.Empty<string>(), Array.Empty<string>()) },
+                Exclude: Array.Empty<string>(), SecretRule: "global",
+                PortabilityClass: PortabilityClass.ProfileRelative,
+                Restore: new RecipeRestore(RestoreStrategy.MergeAfterInstall, RestorePhase.ConfigWrite, Array.Empty<string>()))
+            {
+                Install = new RecipeInstall(RecipeInstallMethod.Winget, "Git.Git", null, null, false, false),
+            };
+
+            MigrationBackupPlanResult plan = runner.BuildPlan(new[] { recipe }, pkg, T0);
+            MigrationBackupRunResult result = runner.Run(plan, plan.Plan.ComputeHash(), pkg);
+
+            Assert.False(result.Authorized);
+            Assert.False(File.Exists(new MigrationInstallManifestStore().PathFor(pkg)), "a refused run must write NO install manifest");
+            Assert.False(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)), "a refused run must write NO restore manifest");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     /// <summary>(c) A duplicate recipe id in the supplied set is skipped + surfaced — no silent overwrite.</summary>
     [Fact]
     public void Duplicate_recipe_id_is_skipped_and_surfaced_no_overwrite()
@@ -259,5 +375,72 @@ public class MigrationBackupRunnerTests
             Assert.True(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)));
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>
+    /// Pins the manifest RE-GATE branch (the TOCTOU defense): the EXECUTOR authorizes + runs the copies via a real
+    /// gate that allows the package dir, but the runner's manifest re-gate is fed a gate that blocks ONLY the
+    /// package-root manifest-write probe — simulating the package root being reparse-swapped between the copies and
+    /// the manifest write. The copies land (Authorized stays true), but NEITHER manifest is written and the block
+    /// is surfaced as a finalization-skip rather than thrown (a successful backup must not crash on the race).
+    /// </summary>
+    [Fact]
+    public void Regate_block_before_manifest_write_writes_neither_manifest_and_surfaces_it()
+    {
+        string root = MigrationRestoreTestData.TempDir("regate-block");
+        try
+        {
+            string profile = Path.Combine(root, "Users", "alice");
+            Directory.CreateDirectory(profile);
+            File.WriteAllText(Path.Combine(profile, ".gitconfig"), "[user]\n name = alice");
+            var roots = new ProfileRoots(profile, Path.Combine(profile, "AppData", "Roaming"), Path.Combine(profile, "AppData", "Local"));
+
+            string pkg = Path.Combine(root, "package");
+            SafetyGate realGate = MigrationRestoreTestData.GateAllowingPackage(pkg); // executor authorizes the copies
+            var regate = new ManifestWriteBlockingGate(realGate);                    // runner re-gate blocks the manifest probe
+
+            var runner = new MigrationBackupRunner(
+                new RecipeResolver(new RecipePathResolver(roots), new Win32RecipeFileSystem()),
+                new BackupExecutorAdapter(MigrationRestoreTestData.Executor(realGate)),
+                new Sha256Hasher(),
+                new PhysicalFileSystem(),
+                new MigrationRestoreManifestStore(),
+                regate);
+
+            MigrationBackupPlanResult plan = runner.BuildPlan(new[] { GitRecipe() }, pkg, T0);
+            MigrationBackupRunResult result = runner.Run(plan, plan.Plan.ComputeHash(), pkg);
+
+            // Copies were authorized + ran; only the manifest write was blocked.
+            Assert.True(result.Authorized);
+            Assert.Empty(result.Manifest.Targets);
+            Assert.False(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)),
+                "a blocked re-gate must write NO restore manifest");
+            Assert.False(File.Exists(new MigrationInstallManifestStore().PathFor(pkg)),
+                "a blocked re-gate must write NO install manifest");
+            Assert.Contains(result.FinalizationSkips, s => s.Reason.Contains("gate", StringComparison.OrdinalIgnoreCase));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>
+    /// A gate that delegates to a real inner gate but blocks ONLY the synthetic manifest-write probe (a
+    /// <see cref="CopyAction"/> whose destination is a migration manifest at the package root) — so the plan's
+    /// real copies still authorize while the post-copy re-gate fails, exercising the TOCTOU branch host-safe.
+    /// </summary>
+    private sealed class ManifestWriteBlockingGate : ISafetyGate
+    {
+        private readonly ISafetyGate _inner;
+        public ManifestWriteBlockingGate(ISafetyGate inner) => _inner = inner;
+
+        public SafetyVerdict Evaluate(PlannedAction action)
+            => action is CopyAction c && IsMigrationManifest(c.Destination)
+                ? SafetyVerdict.Block("simulated TOCTOU: package root reparsed before manifest write")
+                : _inner.Evaluate(action);
+
+        public PlanValidationResult Validate(OperationPlan plan) => _inner.Validate(plan);
+
+        private static bool IsMigrationManifest(string destination)
+            => destination.EndsWith(MigrationRestoreManifest.FileName, StringComparison.OrdinalIgnoreCase)
+            || destination.EndsWith("migration-install.json", StringComparison.OrdinalIgnoreCase);
     }
 }

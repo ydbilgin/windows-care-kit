@@ -88,12 +88,53 @@ public sealed record RecipeRestore(
     IReadOnlyList<string> Preconditions);
 
 /// <summary>
+/// The closed set of install methods a recipe may declare (recipe schema v2). It MIRRORS the Kur module's
+/// <see cref="WindowsCareKit.Core.Modules.Install.InstallMethod"/> string constants but is a typed enum on the
+/// recipe so the strict loader can reject any value outside this set fail-closed (a recipe is DATA, never a
+/// command string). The projector maps it 1:1 onto an <c>InstallEntry.Method</c> so the SAME gated
+/// <c>InstallPlanner</c> builds the action — there is no second command-builder.
+/// </summary>
+public enum RecipeInstallMethod
+{
+    /// <summary>Install via <c>winget</c> (<see cref="RecipeInstall.WingetId"/> required + id-validated).</summary>
+    Winget,
+
+    /// <summary>Install a global <c>npm</c> package (<see cref="RecipeInstall.NpmPackage"/> required + name-validated).</summary>
+    Npm,
+
+    /// <summary>Manual download (<see cref="RecipeInstall.ManualUrl"/> required) — listed only, NEVER executed.</summary>
+    UrlManual,
+}
+
+/// <summary>
+/// Optional declarative install intent (recipe schema v2). DATA only — never a command string. Exactly ONE
+/// locator is populated, matching <see cref="Method"/>: <see cref="WingetId"/> for <see cref="RecipeInstallMethod.Winget"/>,
+/// <see cref="NpmPackage"/> for <see cref="RecipeInstallMethod.Npm"/>, <see cref="ManualUrl"/> for
+/// <see cref="RecipeInstallMethod.UrlManual"/>. The loader validates the winget id / npm name through the SAME
+/// allow-lists the gated <see cref="WindowsCareKit.Core.Modules.Install.InstallPlanner"/> applies, so a recipe
+/// can only ever describe the reviewed install command — never a path/flag-shaped one.
+/// </summary>
+/// <param name="Method">The install method (closed enum).</param>
+/// <param name="WingetId">Required iff <see cref="Method"/> is <see cref="RecipeInstallMethod.Winget"/>; validated by <c>InstallPlanner.IsValidWingetId</c>.</param>
+/// <param name="NpmPackage">Required iff <see cref="Method"/> is <see cref="RecipeInstallMethod.Npm"/>; validated by <c>InstallPlanner.IsValidNpmPackage</c>.</param>
+/// <param name="ManualUrl">Required iff <see cref="Method"/> is <see cref="RecipeInstallMethod.UrlManual"/> (listed, never opened).</param>
+/// <param name="RequiresAdmin">When true the install needs elevation (default false).</param>
+/// <param name="RebootExpected">When true a reboot is expected after install (default false) — drives the future manual/reboot barrier.</param>
+public sealed record RecipeInstall(
+    RecipeInstallMethod Method,
+    string? WingetId,
+    string? NpmPackage,
+    string? ManualUrl,
+    bool RequiresAdmin,
+    bool RebootExpected);
+
+/// <summary>
 /// A declarative migration recipe — DATA, never code (decision §"Bildirimsel-only"). It describes WHAT to
 /// back up from one app's profile-relative footprint; it can express paths, globs and a closed set of enums
 /// and nothing else. Every recipe is validated by the strict loader (<see cref="MigrationRecipeLoader"/>),
 /// resolved + sandbox-contained by <see cref="RecipeResolver"/>, and only then bridged to copy actions.
 /// </summary>
-/// <param name="SchemaVersion">Recipe schema version (currently 1). Unknown versions are rejected.</param>
+/// <param name="SchemaVersion">Recipe schema version. The loader accepts 1 and 2 (v2 adds the optional <c>install</c> block; v1 rejects it). Other versions are rejected.</param>
 /// <param name="Id">Stable id, e.g. <c>anthropic.claude-code</c>.</param>
 /// <param name="DisplayName">Human-readable name.</param>
 /// <param name="Category">UI grouping, e.g. <c>dev-tools</c>.</param>
@@ -113,4 +154,15 @@ public sealed record MigrationRecipe(
     IReadOnlyList<string> Exclude,
     string SecretRule,
     PortabilityClass PortabilityClass,
-    RecipeRestore Restore);
+    RecipeRestore Restore)
+{
+    /// <summary>
+    /// Optional declarative install intent (recipe schema v2). INIT-ONLY (NOT a positional parameter) so the
+    /// existing positional construction sites — the loader and the round-trip/backup tests — compile unchanged
+    /// (critic fix #1: a plain positional <c>null</c>-defaulted param would still be a positional-arity change
+    /// for callers that use positional args). The strict loader sets this via object-initializer for a v2 recipe
+    /// that carries an <c>install</c> block; a v1 recipe leaves it null. When present, the backup projects it into
+    /// exactly one gated install entry (<see cref="MigrationInstallProjector"/>).
+    /// </summary>
+    public RecipeInstall? Install { get; init; }
+}
