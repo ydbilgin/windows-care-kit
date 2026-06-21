@@ -344,6 +344,15 @@ public sealed class SafetyGate : ISafetyGate
         if (isMsiexec && !IsTrustedSystem32Msiexec(expanded))
             return SafetyVerdict.Block("msiexec must be the trusted System32 binary (spoofed path blocked)");
 
+        // (Phase 2) STRICTLY ADDITIVE profile restriction. Runs AFTER every Phase-1 check above, so an
+        // OfficialUninstaller/Winget/Npm tag can only FURTHER restrict — it can never re-admit a command the
+        // Phase-1 deny-stems / dangerous-exts / msiexec-pin already blocked (those return Block before we reach
+        // here). It narrows the elevated official uninstaller to the app's own install dir (or the NSIS /
+        // System32-msiexec carve-outs) and binds winget/npm to their exact resolver shapes.
+        SafetyVerdict profileVerdict = EvaluateProfileRestriction(c, expanded, leaf, isMsiexec);
+        if (!profileVerdict.Allowed)
+            return profileVerdict;
+
         // Argument hygiene for every command: no UNC sources, URLs, encoded commands, or script URIs.
         foreach (string arg in c.Arguments)
         {
@@ -357,6 +366,53 @@ public sealed class SafetyGate : ISafetyGate
             return EvaluateMsiexecArguments(c.Arguments);
 
         return SafetyVerdict.Allow("command allowed");
+    }
+
+    /// <summary>
+    /// Command-policy Phase 2 (Fixes 2/3/5/7): the ADDITIVE, profile-keyed restriction applied AFTER all Phase-1
+    /// checks. It can only further restrict an already-Phase-1-clean command:
+    /// <list type="bullet">
+    /// <item><b>Generic</b> — unchanged (no extra restriction). A non-elevated official uninstaller is also
+    /// unaffected — only an ELEVATED official uninstaller is anchored.</item>
+    /// <item><b>OfficialUninstaller + RequiresElevation</b> — the canonical (8.3-EXPANDED) exe must be contained
+    /// under <see cref="CommandAction.AllowedExecutableRoot"/> (segment-boundary, via
+    /// <see cref="Modules.Uninstall.LeftoverClassifier.IsPathUnder"/>), OR be the narrow NSIS carve-out, OR be the
+    /// System32-pinned msiexec. Otherwise → block (→ manual fallback). UNC / un-rooted root cannot anchor.</item>
+    /// <item><b>WingetInstall / NpmInstall</b> — the expanded leaf must be exactly <c>winget.exe</c> / <c>npm.cmd</c>,
+    /// so a forged profile tag on some other executable is rejected. (npm's <c>.cmd</c> is profile-admitted ONLY
+    /// here; a Generic <c>.cmd</c> still follows the unchanged Phase-1 extension policy.)</item>
+    /// </list>
+    /// </summary>
+    private static SafetyVerdict EvaluateProfileRestriction(CommandAction c, string expanded, string leaf, bool isMsiexec)
+    {
+        switch (c.Profile)
+        {
+            case CommandPolicyProfile.WingetInstall:
+                return string.Equals(leaf, "winget.exe", StringComparison.OrdinalIgnoreCase)
+                    ? SafetyVerdict.Allow("winget install (profile-bound resolver)")
+                    : SafetyVerdict.Block("WingetInstall profile requires winget.exe (spoofed resolver blocked)");
+
+            case CommandPolicyProfile.NpmInstall:
+                return string.Equals(leaf, "npm.cmd", StringComparison.OrdinalIgnoreCase)
+                    ? SafetyVerdict.Allow("npm install (profile-bound resolver)")
+                    : SafetyVerdict.Block("NpmInstall profile requires npm.cmd (spoofed resolver blocked)");
+
+            case CommandPolicyProfile.OfficialUninstaller:
+                // A non-elevated official uninstaller (per-user under %LOCALAPPDATA%) is unaffected — no anchor.
+                if (!c.RequiresElevation)
+                    return SafetyVerdict.Allow("official uninstaller (non-elevated, unanchored)");
+                // msiexec is already pinned to System32 by the Phase-1 (D) check — that pin IS the control here.
+                if (isMsiexec)
+                    return SafetyVerdict.Allow("official uninstaller (System32-pinned msiexec)");
+                // Elevated, non-MSI: the exe must anchor under the app's install dir (or the NSIS carve-out).
+                return CommandPolicy.IsElevatedUninstallerAnchored(expanded, c.AllowedExecutableRoot)
+                    ? SafetyVerdict.Allow("official uninstaller anchored under the app install directory")
+                    : SafetyVerdict.Block("elevated official uninstaller not anchored under its install directory (manual uninstall)");
+
+            case CommandPolicyProfile.Generic:
+            default:
+                return SafetyVerdict.Allow("generic command (unchanged Phase-1 policy)");
+        }
     }
 
     /// <summary>

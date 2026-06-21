@@ -20,7 +20,9 @@ public class RestorePointWizardTests
 
     private static InstalledApp MachineWideApp() => TestData.App(
         displayName: "SomeApp", publisher: "SomeVendor", source: InstalledAppSource.MachineWide64,
-        uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S");
+        uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
+        // Phase 2: an elevated (machine-wide) uninstaller is anchored to the app's install dir; the exe sits under it.
+        installLocation: @"C:\Program Files\SomeApp");
 
     private static UninstallWizardViewModel BuildWizard(FakeExecutor executor, bool restorePointAvailable)
     {
