@@ -88,12 +88,28 @@ if ($LASTEXITCODE -ne 0) {
 Write-Step "Publish: OK  ($PublishDir)"
 
 # --- 3. Copy sandbox scripts so the VM can find them ---
+# The runner is a Windows batch file: cmd.exe REQUIRES CRLF line endings. With
+# LF-only endings cmd loses line-sync on goto/( ) blocks and runs REM comment
+# text as commands (the cause of the earlier blocked live-run). .gitattributes
+# keeps the checked-out copy CRLF; we ALSO normalize the staged copy here so the
+# sandbox always gets CRLF even if the working-tree file somehow regressed to LF.
 $ScriptsDir = Join-Path $StagingDir 'scripts'
 New-Item -ItemType Directory -Force -Path $ScriptsDir | Out-Null
 $SandboxDir = Join-Path $RepoRoot 'sandbox'
-Copy-Item (Join-Path $SandboxDir 'migration-e2e-run.cmd') $ScriptsDir -Force
+$RunCmdSrc  = Join-Path $SandboxDir 'migration-e2e-run.cmd'
+$RunCmdDst  = Join-Path $ScriptsDir 'migration-e2e-run.cmd'
+# Byte-exact LF->CRLF: insert 0x0D before every 0x0A that lacks one (content-preserving).
+$srcBytes = [System.IO.File]::ReadAllBytes($RunCmdSrc)
+$dst = [System.Collections.Generic.List[byte]]::new($srcBytes.Length + 256)
+$prev = 0
+foreach ($b in $srcBytes) {
+    if ($b -eq 0x0A -and $prev -ne 0x0D) { $dst.Add([byte]0x0D); $dst.Add([byte]0x0A) }
+    else { $dst.Add($b) }
+    $prev = $b
+}
+[System.IO.File]::WriteAllBytes($RunCmdDst, $dst.ToArray())
 
-Write-Step "Scripts staged -> $ScriptsDir"
+Write-Step "Scripts staged (CRLF-normalized) -> $ScriptsDir"
 
 # --- 4. Prepare output dir ---
 # FIX 6: guard against accidentally deleting an arbitrary directory.
