@@ -10,5 +10,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/MigrationE2E/MigrationE2E.csproj" />
+    <Project Path="tools/UninstallE2E/UninstallE2E.csproj" />
   </Folder>
 </Solution>

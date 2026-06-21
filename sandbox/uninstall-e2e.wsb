@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  uninstall-e2e.wsb : WCK Uninstall E2E real-program sandbox.
+
+  PURPOSE
+    Proves the Uninstall module's command-policy (Phase 1 + Phase 2) end to end
+    against REAL programs inside a throwaway Windows Sandbox VM. It installs four
+    different KINDS of program silently (7-Zip MSI, Git for Windows Inno, Notepad++
+    NSIS, VS Code user setup), then runs the UninstallE2E console harness, which
+    reads the registry (read-only), production-gate-vets each app's uninstaller,
+    ACTUALLY uninstalls git + vscode through the GatedExecutor + real ProcessAdapter,
+    and re-reads the registry to prove they are gone. 7-Zip + Notepad++ are
+    evaluated read-only (MSI-without-/qn would hang; Notepad++ has no InstallLocation
+    so the planner returns MANUAL).
+
+  HOW TO USE
+    1. Host (PowerShell, no admin): sandbox\uninstall-e2e-stage.ps1
+       publishes the harness to C:\WCK-UninstallStaging\harness\ and prepares
+       C:\WCK-UninstallOutput\.
+    2. Open this .wsb. The sandbox auto-runs uninstall-e2e-run.cmd, which self-
+       elevates, installs the four programs, runs the harness, and writes PASS or
+       FAIL plus evidence to C:\WCK-Output (mapped to C:\WCK-UninstallOutput on host).
+    3. Read results on the HOST at C:\WCK-UninstallOutput\, then close the sandbox
+       (its contents are discarded).
+
+  HOST SAFETY
+    The host-side stage script only builds and publishes. It installs nothing,
+    opens no window, and touches no real profile, registry, or program. ALL real
+    install/uninstall activity happens exclusively inside the disposable VM. The
+    harness additionally REFUSES to uninstall anything unless the in-VM
+    disposable-machine signal is present.
+-->
+<Configuration>
+
+  <!-- Networking ENABLED so the VM can download the four installers. The VM is a
+       throwaway Windows Sandbox, so network access is acceptable here. -->
+  <Networking>Enable</Networking>
+
+  <ClipboardRedirection>Disable</ClipboardRedirection>
+  <AudioInput>Disable</AudioInput>
+  <VideoInput>Disable</VideoInput>
+  <PrinterRedirection>Disable</PrinterRedirection>
+
+  <MappedFolders>
+    <!-- INPUT (read only): staged harness + run script from uninstall-e2e-stage.ps1.
+         Contains harness\UninstallE2E.exe and scripts\uninstall-e2e-run.cmd. -->
+    <MappedFolder>
+      <HostFolder>C:\WCK-UninstallStaging</HostFolder>
+      <SandboxFolder>C:\WCK-Input</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+
+    <!-- OUTPUT (writable): the only writable bridge. Evidence, summary, console
+         log and PASS/FAIL result are written here and come back to the host. -->
+    <MappedFolder>
+      <HostFolder>C:\WCK-UninstallOutput</HostFolder>
+      <SandboxFolder>C:\WCK-Output</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+
+  <!-- Auto-run the in-sandbox runner at logon. -->
+  <LogonCommand>
+    <Command>cmd.exe /c "C:\WCK-Input\scripts\uninstall-e2e-run.cmd"</Command>
+  </LogonCommand>
+
+</Configuration>
