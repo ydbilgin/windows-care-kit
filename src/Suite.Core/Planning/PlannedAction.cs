@@ -122,6 +122,29 @@ public sealed record TaskDeleteAction : PlannedAction
 }
 
 /// <summary>
+/// The command-policy provenance of a <see cref="CommandAction"/> (Command-policy Phase 2). It tells the
+/// <c>SafetyGate</c> which producer built the action so the gate can apply the right ADDITIVE restriction.
+/// The default is <see cref="Generic"/> — fail-safe: an action that does not opt into a stricter profile gets
+/// the unchanged Phase-1 treatment, and a tag can only ever FURTHER restrict, never re-admit a denied command.
+/// </summary>
+public enum CommandPolicyProfile
+{
+    /// <summary>No profile — unchanged Phase-1 command policy (the safe default for every producer).</summary>
+    Generic = 0,
+
+    /// <summary>The vendor uninstaller from <c>OfficialUninstallerPlanner</c>: when elevated, the executable must
+    /// be anchored under the app's own install directory (or the narrow NSIS / System32-msiexec carve-outs).</summary>
+    OfficialUninstaller,
+
+    /// <summary>A winget install built fresh by <c>InstallPlanner</c>: the executable must be <c>winget.exe</c>.</summary>
+    WingetInstall,
+
+    /// <summary>An npm global install built fresh by <c>InstallPlanner</c>: the executable must be <c>npm.cmd</c>
+    /// (the ONLY place a <c>.cmd</c> resolver is profile-admitted).</summary>
+    NpmInstall,
+}
+
+/// <summary>
 /// Run an executable with a structured argument list — never a shell string. This is how official
 /// uninstallers / msiexec / winget are invoked; cmd/powershell string execution is blocked by the
 /// gate (spec §1.1, §4).
@@ -132,6 +155,23 @@ public sealed record CommandAction : PlannedAction
     public IReadOnlyList<string> Arguments { get; init; } = Array.Empty<string>();
     public bool RequiresElevation { get; init; }
     public override string Kind => "command";
+
+    /// <summary>
+    /// The command-policy provenance set by the PRODUCER (Command-policy Phase 2). Defaults to
+    /// <see cref="CommandPolicyProfile.Generic"/> (fail-safe). It is execution/policy metadata, NOT part of WHAT
+    /// the action targets, so — like <see cref="PlannedAction.Risk"/> / <see cref="PlannedAction.Undo"/> — it is
+    /// intentionally excluded from <see cref="TargetSignature"/> and the plan hash. The gate uses it only to apply
+    /// a FURTHER restriction; it can never re-admit a command the Phase-1 checks denied.
+    /// </summary>
+    public CommandPolicyProfile Profile { get; init; } = CommandPolicyProfile.Generic;
+
+    /// <summary>
+    /// For <see cref="CommandPolicyProfile.OfficialUninstaller"/>, the canonical install directory the executable
+    /// must sit under when the action <see cref="RequiresElevation"/> (Command-policy Phase 2 anchor). Null = no
+    /// anchor available — an elevated official uninstaller with no anchor is refused by the gate (→ manual
+    /// fallback). It is policy metadata, excluded from <see cref="TargetSignature"/> like <see cref="Profile"/>.
+    /// </summary>
+    public string? AllowedExecutableRoot { get; init; }
 
     /// <summary>
     /// Binds the elevation flag and a hash of the arguments (not the raw args) so the elevation decision is

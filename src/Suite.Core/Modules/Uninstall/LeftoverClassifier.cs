@@ -162,8 +162,11 @@ public sealed class LeftoverClassifier
     /// boundary (so <c>...\AB</c> does not match <c>...\ABC</c>). Paths are canonicalized first (collapsing
     /// <c>..</c>/<c>.</c> segments) so <c>C:\App\..\Evil</c> does NOT match <c>C:\App</c>. Pure, no filesystem
     /// access, host-safe. Mirrors the Win32 probe's own <c>IsUnder</c> check.
+    ///
+    /// Exposed <c>internal</c> so the <c>SafetyGate</c> reuses the SAME segment-boundary containment for the
+    /// Command-policy Phase 2 elevated-uninstaller anchor (Fix 7) — one implementation, not a divergent copy.
     /// </summary>
-    private static bool IsPathUnder(string candidate, string root)
+    internal static bool IsPathUnder(string candidate, string root)
     {
         string c = NormalizePath(candidate);
         string r = NormalizePath(root);

@@ -38,11 +38,35 @@ public static class OfficialUninstallerPlanner
                 Environment.GetFolderPath(Environment.SpecialFolder.System), "msiexec.exe")
             : parsed.FileName;
 
+        bool requiresElevation = app.IsMachineWide;
+
+        // Command-policy Phase 2 (Fix 1): carry the OfficialUninstaller profile and the canonical install
+        // directory the executable must sit under when elevated. The GATE is the authoritative decision point and
+        // does the real containment check on the 8.3-EXPANDED exe path. Here we only PRE-FLIGHT the
+        // expansion-INDEPENDENT "can this EVER anchor?" question (a usable local-rooted InstallLocation exists, OR
+        // the NSIS carve-out), so an elevated uninstaller that can never anchor returns null → the wizard's manual
+        // fallback (no broken/no-op auto action). We deliberately do NOT run the path-containment check here: the
+        // planner has no IPathCanonicalizer, so containing the RAW exe would over-block a registry-stored 8.3 path
+        // (C:\PROGRA~1\App\unins000.exe) the gate WOULD allow after expansion (cx REJECT). The planner is thus
+        // never STRICTER than the gate. msiexec is System32-pinned and handled by the gate's System32 special-case.
+        string? allowedRoot = CanonicalizeRoot(app.InstallLocation);
+
+        if (requiresElevation && !parsed.IsMsi
+            && !CommandPolicy.CanPossiblyAnchorElevatedUninstaller(parsed.FileName, allowedRoot))
+        {
+            // Elevated AND anchoring is impossible regardless of expansion (no usable InstallLocation AND not the
+            // NSIS carve-out) → manual fallback, not a silent failure. (If a usable root exists, we build the action
+            // and let the gate make the authoritative contained-or-block decision on the expanded path.)
+            return null;
+        }
+
         var command = new CommandAction
         {
             FileName = fileName,
             Arguments = parsed.Arguments,
-            RequiresElevation = app.IsMachineWide,
+            RequiresElevation = requiresElevation,
+            Profile = CommandPolicyProfile.OfficialUninstaller,
+            AllowedExecutableRoot = parsed.IsMsi ? null : allowedRoot,
             Description = $"Run the official uninstaller for {app.DisplayName}",
             Reason = "Vendor-provided uninstaller from the registry UninstallString",
             Risk = RiskLevel.Medium,
@@ -50,6 +74,27 @@ public static class OfficialUninstallerPlanner
         };
 
         return new OperationPlan($"Uninstall {app.DisplayName}", "uninstall", new[] { command }, utc);
+    }
+
+    /// <summary>
+    /// Canonicalize the app's <c>InstallLocation</c> into the anchor root the gate keys off (Command-policy
+    /// Phase 2). Quotes/whitespace are trimmed and <c>..</c>/<c>.</c> collapsed via <see cref="System.IO.Path.GetFullPath(string)"/>;
+    /// a missing or malformed location returns null (no anchor). The gate independently re-checks the exe against
+    /// this root (and rejects UNC / un-rooted roots), so this is a best-effort normalization only.
+    /// </summary>
+    private static string? CanonicalizeRoot(string? installLocation)
+    {
+        if (string.IsNullOrWhiteSpace(installLocation))
+            return null;
+        string p = installLocation.Trim().Trim('"').Trim();
+        if (p.Length == 0)
+            return null;
+        try { p = System.IO.Path.GetFullPath(p); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+        return p.TrimEnd('\\');
     }
 
     private static readonly HashSet<string> DangerousUninstallerExtensions =

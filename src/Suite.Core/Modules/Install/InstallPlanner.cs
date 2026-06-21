@@ -223,6 +223,7 @@ public sealed class InstallPlanner
                 "--accept-source-agreements", "--accept-package-agreements",
             },
             RequiresElevation = entry.RequiresAdmin,
+            Profile = CommandPolicyProfile.WingetInstall, // Command-policy Phase 2: built fresh, not forgeable.
             Description = $"Install {id} (winget)",
             Reason = string.IsNullOrWhiteSpace(entry.Description)
                 ? "Reinstall via winget" : entry.Description,
@@ -242,6 +243,7 @@ public sealed class InstallPlanner
             FileName = ResolveNpm(),
             Arguments = new[] { "install", "-g", "--ignore-scripts", entry.NpmPackage!.Trim() },
             RequiresElevation = entry.RequiresAdmin,
+            Profile = CommandPolicyProfile.NpmInstall, // Command-policy Phase 2: built fresh, not forgeable.
             Description = $"Install {entry.NpmPackage} (npm global)",
             Reason = string.IsNullOrWhiteSpace(entry.Description)
                 ? "Reinstall global npm package" : entry.Description,

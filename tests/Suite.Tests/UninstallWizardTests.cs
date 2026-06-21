@@ -79,7 +79,9 @@ public class UninstallWizardTests
 
     private static InstalledApp MachineWideApp() => TestData.App(
         displayName: "SomeApp", publisher: "SomeVendor", source: InstalledAppSource.MachineWide64,
-        uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S");
+        uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
+        // Phase 2: an elevated (machine-wide) uninstaller is anchored to the app's install dir; the exe sits under it.
+        installLocation: @"C:\Program Files\SomeApp");
 
     /// <summary>Open the wizard, run the official uninstaller (ConfirmGate #1), then scan — landing on beat 3.</summary>
     private static async Task<UninstallWizardViewModel> OpenScannedAsync(FakeLeftoverProbe probe, FakeExecutor executor)
@@ -298,6 +300,54 @@ public class UninstallWizardTests
         wizard.RunOfficialCommand.Execute(null);
         Assert.False(wizard.Gate.IsOpen);
         Assert.Equal(0, executor.CallCount);
+    }
+
+    // ---- Command-policy Phase 2 (Fix 8): manual fallback for an elevated uninstaller that cannot anchor ----
+
+    [Fact]
+    public void Elevated_uninstaller_with_an_unanchorable_install_location_falls_back_to_manual()
+    {
+        // A machine-wide (elevated) app whose UninstallString points OUTSIDE a missing/stale InstallLocation can
+        // no longer auto-run (Phase 2 anchor) → OfficialUninstallerPlanner.Build returns null → the wizard surfaces
+        // the SAME manual fallback as a broken uninstaller: CanRunOfficial is false, OfficialUnavailable is true,
+        // and "Taramaya geç →" (CanSkipToScan) is offered. This is the host-safe, ViewModel-level Fix 8 proof.
+        var executor = new FakeExecutor();
+        var app = TestData.App(
+            displayName: "MachineWideNoLoc", source: InstalledAppSource.MachineWide64,
+            uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
+            installLocation: null); // stale/missing → the elevated uninstaller cannot anchor
+        var i18n = new I18n();
+        i18n.Load("tr");
+        var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), new FakeLeftoverProbe(), executor, () => T0);
+        wizard.Open(app);
+
+        Assert.False(wizard.CanRunOfficial);     // no auto official run
+        Assert.True(wizard.OfficialUnavailable);  // surfaces the honest "manual" note
+        Assert.True(wizard.CanSkipToScan);        // the manual path ("go to scan") is offered
+
+        // Pressing "run official" stages nothing and runs nothing (no broken/no-op auto action).
+        wizard.RunOfficialCommand.Execute(null);
+        Assert.False(wizard.Gate.IsOpen);
+        Assert.Equal(0, executor.CallCount);
+    }
+
+    [Fact]
+    public void Elevated_uninstaller_anchored_under_its_install_location_can_still_run_official()
+    {
+        // Paired positive: with a MATCHING InstallLocation the elevated uninstaller still auto-runs (no regression
+        // for the common case). The exe sits under the install dir, so the Phase-2 anchor is satisfied.
+        var executor = new FakeExecutor();
+        var app = TestData.App(
+            displayName: "MachineWideWithLoc", source: InstalledAppSource.MachineWide64,
+            uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
+            installLocation: @"C:\Program Files\SomeApp");
+        var i18n = new I18n();
+        i18n.Load("tr");
+        var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), new FakeLeftoverProbe(), executor, () => T0);
+        wizard.Open(app);
+
+        Assert.True(wizard.CanRunOfficial);
+        Assert.False(wizard.OfficialUnavailable);
     }
 
     // ---- Real GatedExecutor integration: Shared/Protected never reach the adapter ----
