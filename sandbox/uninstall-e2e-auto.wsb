@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  uninstall-e2e-auto.wsb : AUTONOMOUS variant of uninstall-e2e.wsb.
+  Identical config + mappings (networking ENABLED for installer downloads),
+  EXCEPT the LogonCommand: (1) drops C:\WCK-Output\autoclose.marker so
+  uninstall-e2e-run.cmd shuts the VM down cleanly when it finishes, and
+  (2) captures the runner's console stdout+stderr to C:\WCK-Output\run-stdout.log.
+
+  NOTE: uninstall-e2e-run.cmd SELF-ELEVATES, so the elevated instance runs detached
+  and run-stdout.log only shows the non-elevated wrapper relaunching. The real,
+  full log of the elevated work is written by the runner itself to
+  C:\WCK-Output\progress.log and C:\WCK-Output\harness-console.log.
+  The human-facing uninstall-e2e.wsb is unchanged.
+-->
+<Configuration>
+  <Networking>Enable</Networking>
+  <ClipboardRedirection>Disable</ClipboardRedirection>
+  <AudioInput>Disable</AudioInput>
+  <VideoInput>Disable</VideoInput>
+  <PrinterRedirection>Disable</PrinterRedirection>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\WCK-UninstallStaging</HostFolder>
+      <SandboxFolder>C:\WCK-Input</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\WCK-UninstallOutput</HostFolder>
+      <SandboxFolder>C:\WCK-Output</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <!-- /V:ON enables delayed expansion so !TIME! is evaluated when the line runs.
+         Drop the autoclose marker FIRST so the runner sees it even though it self-
+         elevates and detaches; the elevated instance reads the marker and shuts down. -->
+    <Command>cmd.exe /V:ON /c "echo 1 &gt; C:\WCK-Output\autoclose.marker &amp; echo [logon] !TIME! invoking runner &gt; C:\WCK-Output\run-stdout.log &amp; call C:\WCK-Input\scripts\uninstall-e2e-run.cmd &gt;&gt; C:\WCK-Output\run-stdout.log 2&gt;&amp;1 &amp; echo [logon] !TIME! wrapper returned exit=!ERRORLEVEL! &gt;&gt; C:\WCK-Output\run-stdout.log"</Command>
+  </LogonCommand>
+</Configuration>
