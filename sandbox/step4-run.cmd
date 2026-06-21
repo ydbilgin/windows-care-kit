@@ -116,4 +116,12 @@ echo   On the HOST these are at  C:\WCK-SandboxOutput\
 echo ===========================================================================
 echo You may now close the sandbox (everything inside is discarded).
 echo.
-pause
+REM Unattended/autonomous runs drop C:\WCK-Output\autoclose.marker via the -auto .wsb so
+REM the VM shuts itself down cleanly (no human X, no host force-kill). Human double-click
+REM of the normal .wsb has no marker -> pause as before (backward compatible).
+if exist "%OUT%\autoclose.marker" (
+  echo [step4] autoclose marker present -- shutting down the sandbox VM cleanly...
+  shutdown /s /t 5 /c "WCK step4 done; auto-closing sandbox"
+) else (
+  pause
+)

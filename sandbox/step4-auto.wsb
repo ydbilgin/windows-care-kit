@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  step4-auto.wsb : AUTONOMOUS variant of WindowsCareKit-step4-test.wsb.
+  Identical air-gapped config + mappings, EXCEPT the LogonCommand first drops
+  C:\WCK-Output\autoclose.marker so step4-run.cmd shuts the VM down cleanly when
+  the suite finishes (instead of pausing for a human to close the window). This
+  lets an orchestrator run it unattended and poll C:\WCK-SandboxOutput on the host
+  without a GUI close or a host force-kill. The human-facing WindowsCareKit-step4-test.wsb
+  (no marker -> pause) is unchanged.
+-->
+<Configuration>
+  <Networking>Disable</Networking>
+  <ClipboardRedirection>Disable</ClipboardRedirection>
+  <ProtectedClient>Enable</ProtectedClient>
+  <AudioInput>Disable</AudioInput>
+  <VideoInput>Disable</VideoInput>
+  <PrinterRedirection>Disable</PrinterRedirection>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\WCK-SandboxStaging</HostFolder>
+      <SandboxFolder>C:\WCK-Input</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\WCK-SandboxOutput</HostFolder>
+      <SandboxFolder>C:\WCK-Output</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>cmd.exe /c "echo 1 &gt; C:\WCK-Output\autoclose.marker &amp; C:\WCK-Input\repo\sandbox\step4-run.cmd"</Command>
+  </LogonCommand>
+</Configuration>
