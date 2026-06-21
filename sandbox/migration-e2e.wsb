@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  migration-e2e.wsb : WCK Migration E2E real-app sandbox.
+
+  PURPOSE
+    Proves the format-migration value end to end with REAL installed apps inside
+    a throwaway Windows Sandbox VM. It installs git and VS Code silently, generates
+    genuine config (real .gitconfig, VS Code settings, Claude tree, Discord
+    settings), seeds excluded noise to prove the harness excludes Cache dirs,
+    shell-snapshots, todos and secret-named files, then runs the MigrationE2E
+    console harness over the real sandbox Profile A to a fabricated Profile B and
+    verifies SHA integrity. Real installs are best-effort environmental setup; the
+    proof is the round-trip over real config (PASS does not depend on the installs).
+
+  HOW TO USE
+    1. Host (PowerShell, no admin): sandbox\migration-e2e-stage.ps1
+       publishes the harness to C:\WCK-MigrationStaging\harness\ and prepares
+       C:\WCK-MigrationOutput\.
+    2. Open this .wsb. The sandbox auto-runs migration-e2e-run.cmd, which installs
+       git plus VS Code, seeds config, runs the harness, and writes PASS or FAIL
+       plus evidence to C:\WCK-Output (mapped to C:\WCK-MigrationOutput on host).
+    3. Read results on the HOST at C:\WCK-MigrationOutput\, then close the sandbox
+       (its contents are discarded).
+
+  HOST SAFETY
+    The host-side stage script only builds and publishes. It installs nothing,
+    opens no window, and touches no real profile or registry. All real-app
+    activity happens exclusively inside the VM.
+-->
+<Configuration>
+
+  <!-- Networking ENABLED so the VM can download git and VS Code. The VM is a
+       throwaway Windows Sandbox, so network access is acceptable here. -->
+  <Networking>Enable</Networking>
+
+  <!-- No clipboard bridge between host and VM. -->
+  <ClipboardRedirection>Disable</ClipboardRedirection>
+
+  <!-- Unnecessary device bridges all disabled. -->
+  <AudioInput>Disable</AudioInput>
+  <VideoInput>Disable</VideoInput>
+  <PrinterRedirection>Disable</PrinterRedirection>
+
+  <MappedFolders>
+    <!-- INPUT (read only): staged harness + run script from migration-e2e-stage.ps1.
+         Contains harness\MigrationE2E.exe and scripts\migration-e2e-run.cmd.
+         ReadOnly true so the VM cannot corrupt the host staging dir. -->
+    <MappedFolder>
+      <HostFolder>C:\WCK-MigrationStaging</HostFolder>
+      <SandboxFolder>C:\WCK-Input</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+
+    <!-- OUTPUT (writable): the only writable bridge. Evidence, summary, progress
+         log and PASS/FAIL result are written here and come back to the host. -->
+    <MappedFolder>
+      <HostFolder>C:\WCK-MigrationOutput</HostFolder>
+      <SandboxFolder>C:\WCK-Output</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+
+  <!-- Auto-run the in-sandbox runner at logon. -->
+  <LogonCommand>
+    <Command>cmd.exe /c "C:\WCK-Input\scripts\migration-e2e-run.cmd"</Command>
+  </LogonCommand>
+
+</Configuration>
