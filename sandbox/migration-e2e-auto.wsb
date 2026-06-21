@@ -2,10 +2,11 @@
 <!--
   migration-e2e-auto.wsb : AUTONOMOUS variant of migration-e2e.wsb.
   Identical config + mappings (networking ENABLED for git/VS Code downloads),
-  EXCEPT the LogonCommand first drops C:\WCK-Output\autoclose.marker so
-  migration-e2e-run.cmd shuts the VM down cleanly when the harness finishes
-  (instead of pausing). Lets an orchestrator run it unattended and poll
-  C:\WCK-MigrationOutput on the host. The human-facing migration-e2e.wsb is unchanged.
+  EXCEPT the LogonCommand: (1) drops C:\WCK-Output\autoclose.marker so
+  migration-e2e-run.cmd shuts the VM down cleanly when it finishes, and
+  (2) captures the runner's console stdout+stderr to C:\WCK-Output\run-stdout.log
+  so an orchestrator can see how far it got even if it fails before its own
+  progress.log. The human-facing migration-e2e.wsb is unchanged.
 -->
 <Configuration>
   <Networking>Enable</Networking>
@@ -26,6 +27,6 @@
     </MappedFolder>
   </MappedFolders>
   <LogonCommand>
-    <Command>cmd.exe /c "echo 1 &gt; C:\WCK-Output\autoclose.marker &amp; C:\WCK-Input\scripts\migration-e2e-run.cmd"</Command>
+    <Command>cmd.exe /c "echo 1 &gt; C:\WCK-Output\autoclose.marker &amp; echo [logon] %TIME% invoking runner &gt; C:\WCK-Output\run-stdout.log &amp; call C:\WCK-Input\scripts\migration-e2e-run.cmd &gt;&gt; C:\WCK-Output\run-stdout.log 2&gt;&amp;1 &amp; echo [logon] %TIME% runner returned exit=%ERRORLEVEL% &gt;&gt; C:\WCK-Output\run-stdout.log"</Command>
   </LogonCommand>
 </Configuration>
