@@ -195,11 +195,11 @@ public class InstallPlanExportRedTeamTests
     }
 
     // ====================================================================================================
-    // 5) BY-CONTRACT EntryId leak surface. The production docstring states EntryId is an "inherently-safe
-    //    correlation key" carried verbatim, with shape-checking deferred to a future Import gate. This test
-    //    DOCUMENTS the residual leak: a hostile manifest that puts a real profile path in the entry id DOES
-    //    surface that path in entryId + description. (Not a code bug — a contract boundary; pinned so the
-    //    future Import gate has a regression anchor and the risk is not silently forgotten.)
+    // 5) BY-CONTRACT EntryId leak surface (UNTRUSTED-PASSTHROUGH INVARIANT). EntryId is carried VERBATIM and is
+    //    NOT redacted/shape-checked. This test DOCUMENTS the present-tense leak: a hostile manifest that puts a
+    //    real profile path in the entry id DOES surface that path in entryId + description in install_plan.json
+    //    ON DISK. (Not a code bug — a deliberate contract boundary; pinned so any future Import gate has a
+    //    regression anchor and the risk is not silently forgotten.)
     // ====================================================================================================
 
     [Fact]
@@ -252,6 +252,61 @@ public class InstallPlanExportRedTeamTests
         Assert.DoesNotContain("authCommand", json);
         // But the AuthKey payload (the by-contract verbatim channel) DOES travel.
         Assert.Contains("sk-LEAKEDSECRET", json);
+    }
+
+    // ====================================================================================================
+    // 6b) UNTRUSTED-PASSTHROUGH INVARIANT (consolidating regression anchor). EntryId, the Login auth key, and the
+    //     Login Description are UNTRUSTED verbatim passthrough: they are written into install_plan.json ON DISK with
+    //     NO redaction or shape-check. This is a PRESENT-TENSE data-at-rest contract boundary (the exported file may
+    //     be synced/shared/carried in a migration bundle), not merely a future-importer concern. Any consumer MUST
+    //     shape-validate these before using them as a path/command/lookup-key/credential. If a future change starts
+    //     sanitizing them, THIS test is the deliberate tripwire to revisit the contract.
+    // ====================================================================================================
+
+    [Fact]
+    public void EntryId_and_Login_AuthKey_and_Description_are_UNTRUSTED_verbatim_passthrough_a_future_importer_MUST_validate()
+    {
+        const string pathId = @"C:\Users\victim\.aws\credentials";
+        const string secretKey = "claude TOKEN=sk-INVARIANT-LEAK";
+
+        // A non-Login reinstall entry whose id is a filesystem path, and a Login entry whose auth key is a secret
+        // (with the genuinely-redacted channels also populated, to prove THIS exception is narrow, not a blanket hole).
+        InstallEntry reinstall = RawEntry(pathId, InstallMethod.UrlManual);
+        var login = new InstallEntry(
+            "login", "install", "ai-cli", InstallMethod.UrlManual,
+            null, null, false, false, 100, "Sign in")
+        {
+            InstallTier = InstallTier.ManualAfter,
+            AuthKey = secretKey,
+            AuthProbe = @"C:\Users\victim\.creds",
+            AuthCommand = "login --secret SUPERSECRET",
+            ManualUrl = "https://x.test/login?token=URLSECRET",
+        };
+        var result = new InstallPlanResult(
+            new OperationPlan("Reinstall apps and restore settings", "install", Array.Empty<PlannedAction>(), T0),
+            Array.Empty<InstallSkip>(),
+            new[] { reinstall, login });
+
+        InstallPlanExportDoc doc = InstallPlanExport.Build(result, new FakeClock(T0));
+        string json = Serialize(doc);
+
+        // INVARIANT (present-tense): the path-shaped EntryId reaches the on-disk JSON verbatim (entryId + description).
+        InstallPlanItem pathItem = Assert.Single(doc.Items, i => i.EntryId == pathId);
+        Assert.Contains(pathId, pathItem.Description);
+        Assert.Contains("victim", json);
+
+        // INVARIANT (present-tense): the Login auth key (a secret) reaches the on-disk JSON verbatim (description).
+        InstallPlanItem loginItem = Assert.Single(doc.Items, i => i.Class == InstallItemClass.Login);
+        Assert.Equal(secretKey, loginItem.Description);
+        Assert.Contains("sk-INVARIANT-LEAK", json);
+
+        // ...while the genuinely-redacted channels stay OUT — proving this is a NARROW, named exception, not a
+        // blanket hole: the probe path, sign-in command, and URL token are still fully redacted.
+        Assert.DoesNotContain(".creds", json);
+        Assert.DoesNotContain("SUPERSECRET", json);
+        Assert.DoesNotContain("URLSECRET", json);
+        Assert.DoesNotContain("authProbe", json);
+        Assert.DoesNotContain("authCommand", json);
     }
 
     // ====================================================================================================
