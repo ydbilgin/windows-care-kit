@@ -146,8 +146,8 @@ public sealed class AppDiscoveryEngine : IAppDiscoveryProbe
                 if (CacheGlobOverlay.IsCacheLeaf(entryLeaf) || SecretGlobOverlay.IsSecretLeaf(entryLeaf))
                     continue; // pruned; entries NOT counted (prune happens before budget consumption, F5)
 
-                // Per F2: skip reparse-point child dirs (AttributesToSkip=ReparsePoint in EnumerateChildren
-                // means the impl already omits them from the enumeration result, but guard here too).
+                // Per F2: skip reparse-point child dirs. EnumerateChildren RETURNS reparse entries (it does
+                // not omit them), so this guard is what actually prunes a reparse child directory here.
                 if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
                     continue;
 
