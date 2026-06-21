@@ -79,6 +79,6 @@ Some of this is enforced in code, so reviewers and reporters know where to look:
   silently include known credential/token files.
 - **Honest failure.** When a protective guarantee can't be met, the app refuses and records a
   failure rather than reporting a success that didn't happen.
-- **No runtime network calls / no telemetry.**
+- **No telemetry / no phone-home.** The app never contacts a server on its own; network activity only occurs when the user explicitly runs the Install module (`winget`/`npm` reinstalls).
 
 Thank you for helping keep Windows Care Kit safe.

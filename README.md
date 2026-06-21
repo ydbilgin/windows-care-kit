@@ -2,9 +2,9 @@
 
 # 🛡️ Windows Care Kit
 
-**Uninstall cleanly · Clean up · Back up before you format · Reinstall everything.**
+**Carry your settings across a Windows reinstall — and get them back in the right place.**
 
-*The open-source, ad-free, fully transparent alternative to Revo Uninstaller + CCleaner + manual format migration.*
+*Open-source, ad-free, radically honest: it tells you what can't transfer instead of faking success. Covers the full format lifecycle: Uninstall · Clean · Backup · Reinstall.*
 
 <!-- BADGE PLACEHOLDER — buraya rozet gelecek: build status, latest release, license, downloads -->
 ![status](https://img.shields.io/badge/status-beta-orange) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
@@ -19,7 +19,7 @@
 
 ## ⚠️ Status — Beta, read this first
 
-All four modules are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the suite passes **700+ automated tests**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
+All four modules are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the suite passes **~780 automated tests**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
 
 > **🚧 Real-world destructive operations are still undergoing supervised testing.** Treat this as **beta**: always have a separate backup before letting it delete, restore, or migrate on a machine you care about. See [Roadmap](#-roadmap) for what's built vs. planned.
 
@@ -45,8 +45,9 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 > *Screenshots will be added after the first visual pass of the GUI. The layout below reserves a spot for each module.*
 > *Ekran görüntüleri GUI ilk görsel turundan sonra eklenecek. Aşağıda her modül için yer ayrıldı.*
 
-<!-- 📸 SCREENSHOT PLACEHOLDER #2 — buraya SİL (Uninstall) modülü ekran görüntüsü gelecek: uygulama envanteri + dry-run planı -->
-**🗑️ Sil / Uninstall** — *[Buraya uygulama envanteri + kaldırma dry-run planı ekran görüntüsü gelecek]*
+**🗑️ Sil / Uninstall**
+
+![Sil / Uninstall module — app inventory and dry-run removal plan](docs/screenshots/suite-sil.png)
 
 <!-- 📸 SCREENSHOT PLACEHOLDER #3 — buraya TEMİZLE (Clean) modülü ekran görüntüsü gelecek: junk tarama sonucu + başlangıç yöneticisi -->
 **🧹 Temizle / Clean** — *[Buraya junk tarama sonucu + başlangıç yöneticisi ekran görüntüsü gelecek]*
@@ -97,7 +98,7 @@ This is the part most "cleaner" tools get wrong. Here it is the core design:
 - **One gate, no exceptions.** Every destructive action passes through a single **`SafetyGate`** (system-folder guards, junction/symlink resolution, protected process/service guards) and is re-validated **again at execution time** (TOCTOU-safe).
 - **Dry-run first, always.** Nothing happens until you see a typed, risk-classified plan and **approve** it.
 - **Honest interface.** If something can't transfer (DPAPI-encrypted passwords, cloud-only saves), the app **says so** — it doesn't fake success.
-- **No telemetry, no network calls at runtime.** It doesn't phone home.
+- **No telemetry, no analytics, no phone-home.** The app never contacts a server on its own. The only network activity happens when *you* run the Install module — it reinstalls your apps via `winget`/`npm`, and shows you the exact, approved plan before anything downloads.
 - **Tool/payload separation + secret exclusion** so a backup never leaks your credentials.
 - **Auditable:** a single sanctioned execution layer, an analyzer that **fails the build** if destructive APIs are used outside it, and a redacted **execution log**.
 
@@ -160,7 +161,7 @@ Found a security issue? Please report it privately (see [`SECURITY.md`](SECURITY
 
 ## 🕵️ Privacy
 
-No telemetry. No analytics. No network calls at runtime. Your backup data (`payload/`) never enters the repository and never leaves your machine unless *you* move it.
+No telemetry, no analytics, no phone-home — the app never contacts a server on its own. The only network activity is when *you* run the Install module, which reinstalls your apps via `winget`/`npm`; it shows you the exact, approved plan before anything downloads. Your backup data (`payload/`) never enters the repository and never leaves your machine unless *you* move it.
 
 ## 🌍 Language
 
