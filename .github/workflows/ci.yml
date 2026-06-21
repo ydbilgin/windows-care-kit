@@ -85,13 +85,30 @@ jobs:
           # Full history so gitleaks can scan past commits.
           fetch-depth: 0
 
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env:
-          # No secret is provided to fork PRs (the value is simply empty there),
-          # so secret scanning still runs but the paid org feature stays off.
-          # Safe-by-default: fork PRs never receive repository secrets.
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      # We run the gitleaks CLI binary directly instead of gitleaks/gitleaks-action.
+      # The ACTION wrapper now phones home to validate a paid license: it calls the
+      # GitHub API to decide if the repo is org-owned, and when that call is rate-
+      # limited it FAILS CLOSED demanding a GITLEAKS_LICENSE secret (the cause of the
+      # recurring "missing gitleaks license" CI failures). The gitleaks CLI itself is
+      # MIT-licensed with no license check and no Node-20 deprecation. Pinned to an
+      # exact version + SHA256 so a tampered release cannot slip in.
+      - name: Install gitleaks (CLI, MIT, no license/telemetry)
+        run: |
+          set -euo pipefail
+          VERSION=8.30.1
+          SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          FILE="gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -sSL --fail "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${FILE}" -o "${FILE}"
+          echo "${SHA256}  ${FILE}" | sha256sum -c -
+          tar -xzf "${FILE}" gitleaks
+          ./gitleaks version
+
+      - name: Run gitleaks (scan full git history)
+        # `gitleaks git .` scans the repo's commit history (the non-deprecated
+        # successor to `detect`; `detect` is hidden/deprecated in v8.x). Exit code 1
+        # on any finding fails the job. --redact keeps secret values out of the
+        # public log. Full history is available thanks to fetch-depth: 0 above.
+        run: ./gitleaks git . --redact --no-banner --exit-code 1
 
 # ---------------------------------------------------------------------------
 # DESTRUCTIVE / INTEGRATION RUNS -- DISABLED STUB (DO NOT ENABLE CASUALLY)
