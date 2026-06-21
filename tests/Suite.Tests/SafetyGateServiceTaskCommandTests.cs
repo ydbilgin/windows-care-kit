@@ -170,4 +170,107 @@ public class SafetyGateServiceTaskCommandTests
         var v = TestData.Gate().Evaluate(TestData.Restore(@"C:\backup\x", @"C:\Users\alice"));
         Assert.False(v.Allowed);
     }
+
+    // ---- Audit Item 1: LOLBin deny-stem expansion (registry UninstallString → admin-binary abuse) ----
+    // The headline vector: an attacker-controlled UninstallString runs "vssadmin delete shadows /all"
+    // (ransomware anti-recovery) elevated through the uninstall flow. These admin binaries are never a
+    // legitimate uninstaller, so they are now denied at the command gate.
+
+    [Fact]
+    public void Blocks_vssadmin_delete_shadows_command()
+    {
+        // The exact ransomware anti-recovery invocation, pinned to its real System32 path.
+        var v = TestData.Gate().Evaluate(
+            TestData.Command(@"C:\Windows\System32\vssadmin.exe", "delete", "shadows", "/all", "/quiet"));
+        Assert.False(v.Allowed, "vssadmin delete shadows must be blocked at the command gate");
+    }
+
+    [Fact]
+    public void Blocks_bcdedit_command()
+    {
+        var v = TestData.Gate().Evaluate(
+            TestData.Command(@"C:\Windows\System32\bcdedit.exe", "/set", "{default}", "recoveryenabled", "no"));
+        Assert.False(v.Allowed, "bcdedit must be blocked at the command gate");
+    }
+
+    [Theory]
+    [InlineData("vssadmin")]
+    [InlineData("bcdedit")]
+    [InlineData("cipher")]
+    [InlineData("fsutil")]
+    [InlineData("diskpart")]
+    [InlineData("schtasks")]
+    [InlineData("sc")]
+    [InlineData("net")]
+    [InlineData("net1")]
+    [InlineData("taskkill")]
+    [InlineData("takeown")]
+    [InlineData("icacls")]
+    [InlineData("netsh")]
+    public void Blocks_every_expanded_lolbin_stem(string stem)
+    {
+        var v = TestData.Gate().Evaluate(TestData.Command($@"C:\Windows\System32\{stem}.exe", "x"));
+        Assert.False(v.Allowed, "should block expanded LOLBin stem: " + stem);
+    }
+
+    // POSITIVE counter-tests (Item 1 must NOT over-block legitimate uninstall flows):
+
+    [Fact]
+    public void Item1_still_allows_pinned_system32_msiexec_uninstall()
+    {
+        // A real msiexec uninstall at its pinned System32 path must remain allowed — the deny-stem
+        // expansion must not collateral-damage the legitimate uninstall path.
+        var v = TestData.Gate().Evaluate(
+            TestData.Command(@"C:\Windows\System32\msiexec.exe", "/x", "{0A1B2C3D-4E5F-6789-ABCD-EF0123456789}"));
+        Assert.True(v.Allowed, v.Reason);
+    }
+
+    [Fact]
+    public void Item1_still_allows_a_benign_app_uninstaller()
+    {
+        // A normal vendor uninstaller exe (rooted, not a LOLBin) stays allowed.
+        var v = TestData.Gate().Evaluate(
+            TestData.Command(@"C:\Program Files\SomeApp\unins000.exe", "/SILENT"));
+        Assert.True(v.Allowed, v.Reason);
+    }
+
+    // ---- Audit Item 4: msiexec /L /log writes an arbitrary attacker-named file (data-loss) ----
+
+    [Fact]
+    public void Blocks_msiexec_uninstall_with_a_log_switch()
+    {
+        // /L*v <path> makes msiexec CREATE/TRUNCATE the named file — here a victim document.
+        var v = TestData.Gate().Evaluate(TestData.Command(
+            "msiexec.exe", "/x", "{0A1B2C3D-4E5F-6789-ABCD-EF0123456789}", "/L*v", @"C:\victim\important.docx"));
+        Assert.False(v.Allowed, "msiexec logging switch must be blocked (arbitrary file write)");
+    }
+
+    [Theory]
+    [InlineData("/log")]
+    [InlineData("/l")]
+    [InlineData("/L*v")]
+    public void Blocks_msiexec_any_log_token_form(string logArg)
+    {
+        var v = TestData.Gate().Evaluate(TestData.Command(
+            "msiexec.exe", "/x", "{0A1B2C3D-4E5F-6789-ABCD-EF0123456789}", logArg, @"C:\victim\x.docx"));
+        Assert.False(v.Allowed, "should block msiexec log token: " + logArg);
+    }
+
+    // POSITIVE counter-tests (Item 4 must NOT over-block a legitimate quiet uninstall):
+
+    [Fact]
+    public void Item4_still_allows_msiexec_quiet_uninstall_qn()
+    {
+        var v = TestData.Gate().Evaluate(TestData.Command(
+            "msiexec.exe", "/x", "{0A1B2C3D-4E5F-6789-ABCD-EF0123456789}", "/qn"));
+        Assert.True(v.Allowed, v.Reason);
+    }
+
+    [Fact]
+    public void Item4_still_allows_msiexec_quiet_norestart_uninstall()
+    {
+        var v = TestData.Gate().Evaluate(TestData.Command(
+            "msiexec.exe", "/x", "{0A1B2C3D-4E5F-6789-ABCD-EF0123456789}", "/quiet", "/norestart"));
+        Assert.True(v.Allowed, v.Reason);
+    }
 }

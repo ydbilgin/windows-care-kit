@@ -13,8 +13,10 @@ namespace WindowsCareKit.Execution.Adapters;
 /// <item>an <c>Include</c> allow-list (when present, ONLY matching paths are copied);</item>
 /// <item>the per-action <c>ExcludeLeaves</c>/<c>ForbiddenSources</c> from the manifest PLUS a hardened
 /// built-in superset of credential/cookie/session leaves;</item>
-/// <item>every file is resolved with <c>GetFinalPathNameByHandle</c> and any file reparse point (symlink/
-/// hardlink alias of a secret store) is skipped — leaf-name checks alone cannot catch a renamed link.</item>
+/// <item>every file is resolved with <c>GetFinalPathNameByHandle</c> so a renamed SYMLINK to a secret store is
+/// still caught, and any file reparse point (symlink) is skipped. A HARD LINK, however, is NOT de-aliased by
+/// that API — both names are equal aliases of the same on-disk file and it returns whichever you opened — so a
+/// multi-linked file (<c>nNumberOfLinks &gt; 1</c>) is instead REFUSED outright as a possible hardlink alias.</item>
 /// </list>
 /// <see cref="Merge"/> never blindly overwrites — it backs the destination up to a timestamped <c>.bak</c>.
 /// </summary>
@@ -83,11 +85,7 @@ public sealed class CopyAdapter : ICopyAdapter
             Directory.CreateDirectory(destDir);
 
         if (action.CreateBak && File.Exists(dest))
-        {
-            string stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
-            string bak = $"{dest}.bak.{stamp}";
-            CopyFileWithRetry(dest, bak);
-        }
+            BackupToUniqueBak(dest);
 
         // F3 (crash-atomic restore): never write the live config in place. A direct File.Copy(overwrite)
         // onto the destination leaves a half-written / corrupt config if the process is killed mid-copy.
@@ -95,6 +93,42 @@ public sealed class CopyAdapter : ICopyAdapter
         // destination is replaced as a single filesystem operation, so an interrupted restore leaves EITHER
         // the untouched old file OR the complete new one, never a torn one. The .bak above is preserved.
         AtomicWrite(action.Source, dest);
+    }
+
+    /// <summary>
+    /// Collision-proof backup of the existing destination before a restore overwrites it. The previous
+    /// 1-second timestamp (<c>yyyyMMdd_HHmmss</c>) collided when two restore merges hit the SAME destination
+    /// within the same second AND the copy used <c>overwrite: true</c> — the second backup clobbered the first,
+    /// destroying the user's original. This uses a high-resolution stamp PLUS a short Guid and creates the
+    /// <c>.bak</c> with <see cref="FileMode.CreateNew"/> (never overwrite), looping to a fresh name on the rare
+    /// stamp+Guid tie. The original is therefore always recoverable from SOME <c>.bak</c>, never lost.
+    /// </summary>
+    private static void BackupToUniqueBak(string dest)
+    {
+        string longDest = LongPath(dest);
+        for (int attempt = 1; ; attempt++)
+        {
+            string stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmssfffffff", CultureInfo.InvariantCulture);
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 8);
+            string bak = LongPath($"{dest}.bak.{stamp}.{suffix}");
+            try
+            {
+                // FileMode.CreateNew → throws if the name already exists, so a backup can NEVER overwrite an
+                // earlier one (the whole point of the fix). Copy the bytes ourselves instead of routing the
+                // .bak through the overwrite copy path.
+                using var src = new FileStream(longDest, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var bakStream = new FileStream(bak, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                src.CopyTo(bakStream);
+                return;
+            }
+            catch (IOException) when (attempt < MaxRetries)
+            {
+                // Either an astronomically unlikely stamp+Guid tie (CreateNew refused) or a transient sharing
+                // violation on the source — spin a fresh name and retry. The retry never overwrites because
+                // each attempt creates a brand-new uniquely-named .bak.
+                Thread.Sleep(RetryDelay);
+            }
+        }
     }
 
     /// <summary>
@@ -319,14 +353,23 @@ public sealed class CopyAdapter : ICopyAdapter
         public bool IsForbiddenFull(string path) => _forbiddenFull.Count > 0 && _forbiddenFull.Contains(NormalizeFull(path));
 
         /// <summary>A file may be copied only if it passes the include allow-list (if any), is not excluded/
-        /// forbidden by literal OR resolved name, and is not a reparse point (symlink/hardlink to a secret).</summary>
+        /// forbidden by literal OR resolved name, is not a reparse point (symlink), and is not a multi-linked
+        /// (hard-linked) file. A symlink is de-referenced by <c>GetFinalPathNameByHandle</c>, but a HARD LINK is
+        /// NOT — both names are equal aliases of the same on-disk file and the API returns whichever you opened,
+        /// so a hard link under an innocuous leaf is refused outright (fail-safe) rather than copied.</summary>
         public bool AllowsFile(string file, string sourceRoot)
         {
-            // Skip any file reparse point outright — a link can alias a secret store under an innocent name.
+            // Skip any file reparse point outright — a symlink can alias a secret store under an innocent name.
             try { if (File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint)) return false; }
             catch { return false; }
 
-            // Resolve the true target so a renamed hardlink/symlink to "Login Data" is still caught.
+            // A hard link cannot be de-aliased by GetFinalPathNameByHandle (it returns the opened name, not the
+            // "secret" sibling name), so a hard link under a benign leaf would slip past the leaf-name filter.
+            // Refuse any multi-linked file: "multi-linked file (possible hardlink alias) excluded".
+            if (HardLinkProbe.IsMultiLinked(file))
+                return false;
+
+            // Resolve the true target so a renamed symlink to "Login Data" is still caught.
             var canon = _canon.Canonicalize(file);
             string literalLeaf = Path.GetFileName(file.TrimEnd('\\', '/'));
             string resolvedLeaf = Path.GetFileName(canon.FinalPath.TrimEnd('\\', '/'));
@@ -384,17 +427,61 @@ public sealed class CopyAdapter : ICopyAdapter
         {
             string r = Normalize(rel);
             if (pattern == "**") return true;
-            if (pattern.EndsWith("/**", StringComparison.Ordinal))
-            {
-                string prefix = pattern[..^3];
-                return r == prefix || r.StartsWith(prefix + "/", StringComparison.Ordinal);
-            }
             if (pattern.Contains('*'))
             {
-                var rx = new Regex("^" + Regex.Escape(pattern).Replace("\\*", "[^/]*") + "$", RegexOptions.IgnoreCase);
-                return rx.IsMatch(r) || rx.IsMatch(LeafOf(r));
+                Regex rx = CompilePathGlob(pattern);
+                // A separator-free pattern (e.g. "*.md") is a LEAF glob — match the leaf too so a bare
+                // wildcard keeps its historical "any file named X" meaning. Patterns that contain a
+                // separator are anchored to the full relative path.
+                if (rx.IsMatch(r)) return true;
+                return !pattern.Contains('/') && rx.IsMatch(LeafOf(r));
             }
             return r == pattern || r.StartsWith(pattern + "/", StringComparison.Ordinal) || LeafOf(r) == pattern;
+        }
+
+        /// <summary>
+        /// Translate a path glob to an anchored regex with TRUE <c>**</c> semantics: <c>**</c> matches across
+        /// path separators (any depth, including zero segments when written as a leading/middle <c>**/</c>),
+        /// while a single <c>*</c> stays within one segment (<c>[^/]*</c>). Separators are normalized to '/'
+        /// and everything else is escaped literally. Anchored + case-insensitive.
+        /// </summary>
+        private static Regex CompilePathGlob(string pattern)
+        {
+            string p = Normalize(pattern);
+            var sb = new System.Text.StringBuilder("^");
+            for (int i = 0; i < p.Length; i++)
+            {
+                char c = p[i];
+                if (c == '*')
+                {
+                    bool doubleStar = i + 1 < p.Length && p[i + 1] == '*';
+                    if (doubleStar)
+                    {
+                        i++; // consume the second '*'
+                        // A "**/" segment matches zero OR more leading path segments, so "**/x" also matches
+                        // a bare "x". Consume the following '/' and emit an optional "any-segments/" group.
+                        if (i + 1 < p.Length && p[i + 1] == '/')
+                        {
+                            i++; // consume the '/'
+                            sb.Append("(?:.*/)?");
+                        }
+                        else
+                        {
+                            sb.Append(".*"); // trailing/standalone "**" → anything incl. separators
+                        }
+                    }
+                    else
+                    {
+                        sb.Append("[^/]*"); // single '*' → within one segment
+                    }
+                }
+                else
+                {
+                    sb.Append(Regex.Escape(c.ToString()));
+                }
+            }
+            sb.Append('$');
+            return new Regex(sb.ToString(), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
         /// <summary>True when a leaf name matches any '*'-bearing ExcludeLeaves entry (secret-glob overlay,

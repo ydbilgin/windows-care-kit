@@ -338,4 +338,177 @@ public class CopyAdapterTests
         }
         finally { JunctionHelper.CleanupWithJunction(root, junctionParent); }
     }
+
+    // ---- Audit Item 2: collision-proof .bak (two same-destination merges must not lose the original) ----
+    // Old code: .bak name = dest + ".bak." + yyyyMMdd_HHmmss AND the copy used overwrite:true. Two restore
+    // merges to the SAME destination within the same second produced the SAME .bak name → the second backup
+    // overwrote the first → the user's ORIGINAL content was destroyed. The fix uses a high-res stamp + Guid
+    // and FileMode.CreateNew so the original is always recoverable from SOME .bak.
+
+    [Fact]
+    public void Two_merges_to_the_same_destination_keep_the_original_in_a_bak()
+    {
+        string root = TempDir();
+        try
+        {
+            string dst = Path.Combine(root, "live.cfg");
+            string srcA = Path.Combine(root, "A.cfg");
+            string srcB = Path.Combine(root, "B.cfg");
+            File.WriteAllText(dst, "ORIGINAL"); // O — must survive
+            File.WriteAllText(srcA, "AAA");
+            File.WriteAllText(srcB, "BBB");
+
+            var adapter = new CopyAdapter();
+            // First restore merge: backs up O, then writes A.
+            adapter.Merge(new RestoreMergeAction
+            {
+                Source = srcA, Destination = dst, CreateBak = true, Description = "m1", Reason = "t",
+            });
+            // Second restore merge to the SAME destination (the collision case): backs up A, then writes B.
+            adapter.Merge(new RestoreMergeAction
+            {
+                Source = srcB, Destination = dst, CreateBak = true, Description = "m2", Reason = "t",
+            });
+
+            Assert.Equal("BBB", File.ReadAllText(dst)); // destination ends with the last restore
+
+            // The ORIGINAL content must be recoverable from SOME .bak (it was not clobbered by the 2nd backup).
+            string[] baks = Directory.GetFiles(root, "live.cfg.bak.*");
+            Assert.Contains(baks, b => File.ReadAllText(b) == "ORIGINAL");
+            // And the two backups are distinct files (no name collision): O and A both preserved.
+            Assert.Contains(baks, b => File.ReadAllText(b) == "AAA");
+            Assert.True(baks.Length >= 2, "each merge must produce its own distinct .bak");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    // ---- Audit Item 3: a hard link under a benign leaf aliases a secret; GetFinalPathNameByHandle cannot
+    // de-alias it, so any multi-linked file is refused. Real-FS hard link in temp; statically skipped (not
+    // silently passed) when CreateHardLink is unavailable on this volume.
+
+    [FactRequiresHardlink]
+    public void Skips_a_hardlink_aliasing_a_secret_store()
+    {
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "profile");
+            Directory.CreateDirectory(src);
+
+            // A "secret" target file (filename-based, innocuous content — no real secret literal).
+            string secret = Path.Combine(root, "real-secret");
+            File.WriteAllText(secret, "x");
+            File.WriteAllText(Path.Combine(src, "Bookmarks"), "{}");
+
+            // A hard link under a totally benign leaf name aliasing the secret, INSIDE the copy source tree.
+            string link = Path.Combine(src, "settings.json");
+            Assert.True(HardLinkInterop.TryCreateHardLink(link, secret)); // gated by [FactRequiresHardlink]
+
+            string dst = Path.Combine(root, "out");
+            new CopyAdapter().Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
+
+            Assert.True(File.Exists(Path.Combine(dst, "Bookmarks")));         // normal file copied
+            Assert.False(File.Exists(Path.Combine(dst, "settings.json")));    // multi-linked alias refused
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [FactRequiresHardlink]
+    public void Refuses_a_single_file_copy_of_a_hardlink()
+    {
+        string root = TempDir();
+        try
+        {
+            string secret = Path.Combine(root, "real-secret");
+            File.WriteAllText(secret, "x");
+            string link = Path.Combine(root, "notes.db");
+            Assert.True(HardLinkInterop.TryCreateHardLink(link, secret));
+
+            string dst = Path.Combine(root, "out", "notes.db");
+            // A single-file copy of a multi-linked file is silently skipped (AllowsFile == false) — nothing copied.
+            new CopyAdapter().Copy(new CopyAction { Source = link, Destination = dst, Description = "c", Reason = "t" });
+
+            Assert.False(File.Exists(dst));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Copies_a_normal_single_linked_file_after_the_hardlink_guard()
+    {
+        // Positive counter-test: the hard-link guard must NOT refuse an ordinary file (nNumberOfLinks == 1).
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "ordinary.txt");
+            string dst = Path.Combine(root, "out", "ordinary.txt");
+            File.WriteAllText(src, "hello");
+
+            new CopyAdapter().Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
+
+            Assert.Equal("hello", File.ReadAllText(dst));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    // ---- Audit Item 5: true "**" semantics — "**" matches across path separators while single "*" stays
+    // within one segment. Old code translated "**" to "[^/]*[^/]*" (still within-segment) so a shipped recipe
+    // include like ["**/memory/**","**/*.md"] silently dropped nested notes/memory trees (data loss).
+
+    [Fact]
+    public void Double_star_include_matches_across_separators()
+    {
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "src");
+            Directory.CreateDirectory(Path.Combine(src, "a", "b", "memory"));
+            Directory.CreateDirectory(Path.Combine(src, "a", "b", "c"));
+            File.WriteAllText(Path.Combine(src, "a", "b", "memory", "x.dat"), "M"); // matched by **/memory/**
+            File.WriteAllText(Path.Combine(src, "a", "b", "c", "note.md"), "N");     // matched by **/*.md
+
+            string dst = Path.Combine(root, "out");
+            new CopyAdapter().Copy(new CopyAction
+            {
+                Source = src,
+                Destination = dst,
+                Include = new[] { "**/memory/**", "**/*.md" },
+                Description = "c",
+                Reason = "t",
+            });
+
+            Assert.True(File.Exists(Path.Combine(dst, "a", "b", "memory", "x.dat")), "deep memory/ file must be copied");
+            Assert.True(File.Exists(Path.Combine(dst, "a", "b", "c", "note.md")), "deep .md note must be copied");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Single_star_include_stays_within_one_segment()
+    {
+        // Guards the OTHER half of Item 5: a single "*" must NOT cross a separator. "a/*.md" matches a
+        // top-level a/note.md but NOT a/sub/deep.md (that would need "a/**/*.md").
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "src");
+            Directory.CreateDirectory(Path.Combine(src, "a", "sub"));
+            File.WriteAllText(Path.Combine(src, "a", "note.md"), "T");
+            File.WriteAllText(Path.Combine(src, "a", "sub", "deep.md"), "D");
+
+            string dst = Path.Combine(root, "out");
+            new CopyAdapter().Copy(new CopyAction
+            {
+                Source = src,
+                Destination = dst,
+                Include = new[] { "a/*.md" },
+                Description = "c",
+                Reason = "t",
+            });
+
+            Assert.True(File.Exists(Path.Combine(dst, "a", "note.md")));        // within-segment match
+            Assert.False(File.Exists(Path.Combine(dst, "a", "sub", "deep.md"))); // single * did not cross '/'
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
 }

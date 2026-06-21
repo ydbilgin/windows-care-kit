@@ -378,6 +378,11 @@ public sealed class SafetyGate : ISafetyGate
             // install / admin-install / advertise / patch / repair-reinstall verbs are forbidden (uninstall only).
             if (t.StartsWith('i') || t.StartsWith('a') || t.StartsWith('j') || t.StartsWith('p') || t.StartsWith('f'))
                 return SafetyVerdict.Block("msiexec install/repair verb not allowed (uninstall only)");
+            // Logging switches (/L, /L*v, /log) make msiexec CREATE/TRUNCATE an arbitrary attacker-named
+            // file — a data-loss / overwrite vector. No legitimate uninstall needs to write a log here, so
+            // any token whose trimmed form starts with 'l' is refused.
+            if (t.StartsWith('l'))
+                return SafetyVerdict.Block("msiexec logging switch not allowed (arbitrary file write)");
         }
 
         bool hasUninstallVerb = args.Any(a =>
