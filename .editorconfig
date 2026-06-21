@@ -4,3 +4,5 @@ root = true
 # Banned-API analyzer: destructive OS APIs are a build error in all src projects
 # (referenced by Suite.Core / Suite.Win32 / Suite.Execution / Suite.App.Wpf; tests are exempt).
 dotnet_diagnostic.RS0030.severity = error
+# DLL search-order hijack hardening: every P/Invoke must declare a safe search path.
+dotnet_diagnostic.CA5392.severity = error
