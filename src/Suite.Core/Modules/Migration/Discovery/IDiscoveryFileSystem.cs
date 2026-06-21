@@ -23,8 +23,12 @@ public interface IDiscoveryFileSystem : IRecipeFileSystem
 {
     /// <summary>
     /// Returns the direct children of <paramref name="directory"/> (non-recursive). The implementation
-    /// uses <c>EnumerationOptions { IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint }</c>;
-    /// per-entry metadata is best-effort — entries that throw on attribute/time access are skipped.
+    /// uses <c>EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = false }</c> and
+    /// MUST return reparse-point entries (it does NOT skip them): the discovery engine applies the reparse
+    /// policy itself — it prunes a reparse child directory and surfaces a reparse candidate as
+    /// <c>NotTraversedReparse</c> rather than silently omitting it, so an implementation that filtered
+    /// reparse entries here would break that safety property. Per-entry metadata is best-effort — entries
+    /// that throw on attribute/time access are skipped.
     /// </summary>
     IEnumerable<DiscoveryFileSystemEntry> EnumerateChildren(string directory);
 }
