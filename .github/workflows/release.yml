@@ -1,0 +1,115 @@
+# Tag-triggered release build for Windows Care Kit.
+# Produces a self-contained single-file win-x64 portable EXE, packages it as a
+# ZIP with a SHA256 hash, and publishes a GitHub Prerelease.
+#
+# Security posture (matches ci.yml):
+#   - Pinned action SHAs.
+#   - Least-privilege permissions (contents:write is the minimum needed to
+#     create a GitHub Release and upload an asset).
+#   - Only GITHUB_TOKEN is used — no hardcoded secrets or PATs.
+#   - Destructive tests are NEVER executed (Category!=Destructive filter).
+name: Release
+
+# Run only when a version tag is pushed (e.g. v0.1.0).
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Least-privilege default; the single job needs write only to create the Release.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: windows-latest
+    # Narrow to the minimum needed at the job level.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        # Same pinned SHA as ci.yml (actions/checkout v4.2.2).
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET (from global.json)
+        # Same pinned SHA as ci.yml (actions/setup-dotnet v4.0.1).
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.0.1
+        with:
+          # Pinned SDK matches global.json (10.0.301).
+          dotnet-version: 10.0.301
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore WindowsCareKit.slnx
+
+      - name: Build
+        run: dotnet build WindowsCareKit.slnx --configuration Release --no-restore
+
+      - name: Test
+        # Destructive tests (Category=Destructive) are EXCLUDED: they touch real
+        # destructive sinks and may only run on a deliberately-prepared disposable
+        # machine. This is the same filter used in ci.yml.
+        run: dotnet test tests/Suite.Tests/Suite.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=Destructive"
+
+      - name: Publish (self-contained single-file win-x64)
+        # Produces a single portable EXE. Self-contained means the .NET runtime
+        # is bundled — no pre-installed runtime required on the end-user machine.
+        run: >
+          dotnet publish src/Suite.App.Wpf/Suite.App.Wpf.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          --output publish/win-x64
+
+      - name: Package ZIP and compute SHA256
+        shell: pwsh
+        run: |
+          # Derive the tag name (e.g. "v0.1.0") from the git ref.
+          $tag = "${{ github.ref_name }}"
+          $zipName = "WindowsCareKit-$tag-win-x64.zip"
+
+          # Compress the publish output directory into the zip.
+          Compress-Archive -Path publish/win-x64/* -DestinationPath $zipName
+
+          # Compute SHA256 for supply-chain verification. Consumers can run:
+          #   (Get-FileHash WindowsCareKit-<tag>-win-x64.zip -Algorithm SHA256).Hash
+          # and compare against the value in the release body.
+          $hash = (Get-FileHash $zipName -Algorithm SHA256).Hash
+          Write-Host "ZIP: $zipName"
+          Write-Host "SHA256: $hash"
+
+          # Pass values to subsequent steps via environment file.
+          "ZIP_NAME=$zipName"  >> $env:GITHUB_ENV
+          "SHA256=$hash"       >> $env:GITHUB_ENV
+
+      - name: Create GitHub Release
+        # Uses the pre-installed gh CLI (available on all GitHub-hosted runners).
+        # Authenticates via the built-in GITHUB_TOKEN — no PAT or hardcoded secret.
+        # v0.x releases are marked --prerelease to signal beta status.
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" "${{ env.ZIP_NAME }}" `
+            --title "Windows Care Kit ${{ github.ref_name }}" `
+            --prerelease `
+            --notes "## Windows Care Kit ${{ github.ref_name }}
+
+          Portable self-contained build for Windows x64.
+          No .NET runtime installation required.
+
+          ### Download
+          Attach \`${{ env.ZIP_NAME }}\` from the assets below.
+
+          ### SHA256 checksum
+          \`\`\`
+          ${{ env.SHA256 }}  ${{ env.ZIP_NAME }}
+          \`\`\`
+
+          > **BETA:** Real-world destructive operations are under supervised
+          > testing. Review the safety model before use on a production machine.
+
+          See [CHANGELOG.md](https://github.com/ydbilgin/windows-care-kit/blob/master/CHANGELOG.md) for what is included in this release."
