@@ -54,15 +54,25 @@ public enum InstallItemClass
 /// <see cref="Description"/> (a path-free safe label, or for Login the short auth key), <see cref="SkipReason"/>
 /// (an enum name).</item>
 /// </list>
-/// The TWO by-contract exceptions are <see cref="EntryId"/> (an inherently-safe correlation key) and — for the Login
-/// class only — the short auth key carried in <see cref="Description"/> (the intended sign-in payload, locked
-/// decision #3). Both travel verbatim by design; in an untrusted-import scenario these must be shape-checked at load
-/// time (future Import gate work).
+/// The TWO by-contract exceptions travel VERBATIM and are UNTRUSTED (see the invariant below): <see cref="EntryId"/>
+/// (the correlation key) and — for the Login class only — the short auth key carried in <see cref="Description"/>
+/// (the intended sign-in payload, locked decision #3).
+/// </para>
+/// <para>
+/// UNTRUSTED-PASSTHROUGH INVARIANT (present-tense, not merely a future concern): EntryId, the Login auth key, and the
+/// Login <see cref="Description"/> are NOT redacted and NOT shape-checked — they are copied verbatim from the manifest
+/// into install_plan.json ON DISK. A hostile or malformed manifest can therefore place a filesystem path or a secret
+/// in these fields TODAY, and that value is written to the exported file (which the user may sync, share, or carry in
+/// a migration bundle). This is a deliberate contract boundary, NOT a redaction guarantee. Any consumer that reads
+/// install_plan.json back — a future Import gate, or anything that treats these as a path, command, lookup key, or
+/// credential — MUST shape-validate them first. Regression anchors: InstallPlanExportRedTeamTests pin the
+/// path-in-EntryId and secret-in-AuthKey cases.
 /// </para>
 /// </summary>
-/// <param name="EntryId">The manifest entry id this item came from (correlates back to the plan). EntryId =
-/// inherently-safe correlation key by design; guvenilmeyen-import senaryosunda id'ler load-time'da shape-kontrol
-/// edilmeli (gelecek Import gate isi).</param>
+/// <param name="EntryId">The manifest entry id this item came from (correlates back to the plan). UNTRUSTED verbatim
+/// passthrough — NOT inherently safe: copied as-is into install_plan.json on disk, so a hostile manifest can place a
+/// path/secret here. Any importer MUST shape-validate it before use (see the UNTRUSTED-PASSTHROUGH INVARIANT on
+/// InstallPlanItem).</param>
 /// <param name="Class">How the item is classified for the user.</param>
 /// <param name="Method">The original manifest method token (<c>install-winget</c>/<c>install-npm</c>/<c>config-restore</c>/…) or empty.</param>
 /// <param name="WingetId">The winget package id, when this is a winget reinstall (allow-listed at plan time); otherwise null.</param>
@@ -70,7 +80,9 @@ public enum InstallItemClass
 /// <param name="RequiresAdmin">True when the action needs elevation.</param>
 /// <param name="RestoreOrder">The deterministic restore-sequence position (spec §1.4), so the export preserves ordering.</param>
 /// <param name="SkipReason">For an <see cref="InstallItemClass.Excluded"/> item, why it was skipped; otherwise null.</param>
-/// <param name="Description">A short, redaction-safe, path-free label (for Login: the auth key ONLY).</param>
+/// <param name="Description">A short, path-free label built from safe inputs for most classes — EXCEPT (1) for Login
+/// it carries the auth key VERBATIM, and (2) when an item's EntryId is itself path/secret-shaped that value flows into
+/// this label as-is; both are UNTRUSTED passthrough (see the UNTRUSTED-PASSTHROUGH INVARIANT on InstallPlanItem).</param>
 /// <param name="Channel">Forward-looking package channel; NOT populated in this slice (locked decision #2) — left null
 /// and omitted from the serialized JSON.</param>
 public sealed record InstallPlanItem(
@@ -230,11 +242,11 @@ public static class InstallPlanExport
     }
 
     /// <summary>
-    /// Build a short, path-free, secret-free label from a class tag + an already-safe identifier (an entry id or an
-    /// allow-listed package id). The redaction discipline (locked decision #3) applies to EVERY class, so the
-    /// description is constructed here from safe inputs and is NEVER copied from the planner's UI text (which embeds
-    /// the destination path). Login is the one exception, handled in <see cref="FromManual"/>: its label is the
-    /// short auth key only.
+    /// Build a short label from a class tag + an identifier. The identifier is either an allow-listed package id (safe)
+    /// OR a verbatim entry id (UNTRUSTED passthrough — if the manifest entry id is path/secret-shaped it flows into the
+    /// label as-is; see the UNTRUSTED-PASSTHROUGH INVARIANT on InstallPlanItem). The label is NEVER copied from the
+    /// planner's UI text (which embeds the destination path), so it never leaks the config source/destination. Login is
+    /// the one exception, handled in <see cref="FromManual"/>: its label is the short auth key only (also verbatim/UNTRUSTED).
     /// </summary>
     private static string SafeLabel(InstallItemClass cls, string safeIdentifier)
         => $"{cls}: {safeIdentifier}";
