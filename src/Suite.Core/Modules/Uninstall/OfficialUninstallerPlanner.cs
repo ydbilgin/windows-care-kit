@@ -23,6 +23,14 @@ public static class OfficialUninstallerPlanner
         if (parsed is null || !parsed.IsValid)
             return null;
 
+        // A NON-MSI uninstaller whose executable is a script/shell-container (.bat/.cmd/.ps1/.vbs/…) is never a
+        // legitimate vendor uninstaller (L1-L7 shapes are all real executables) — it is the registry-string
+        // wrapper-script attack. Do NOT build the official-uninstaller action; return null so the caller falls
+        // back to leftover-cleanup. (.bat/.cmd ARE rejected here, unlike the command gate's npm carve-out,
+        // because npm flows through InstallPlanner, not this planner.)
+        if (!parsed.IsMsi && HasDangerousUninstallerExtension(parsed.FileName))
+            return null;
+
         // Pin msiexec to the trusted System32 binary (registry stores it bare). The gate validates that the
         // arguments are an uninstall (/x{GUID}) only.
         string fileName = parsed.IsMsi
@@ -42,5 +50,15 @@ public static class OfficialUninstallerPlanner
         };
 
         return new OperationPlan($"Uninstall {app.DisplayName}", "uninstall", new[] { command }, utc);
+    }
+
+    private static readonly HashSet<string> DangerousUninstallerExtensions =
+        new(ProtectedResources.DefaultUninstallerDeniedExtensions, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>True when the parsed uninstaller's file name ends in a script/dangerous extension (no legit uninstaller does).</summary>
+    private static bool HasDangerousUninstallerExtension(string fileName)
+    {
+        string ext = System.IO.Path.GetExtension(fileName.Trim().TrimEnd('.', ' '));
+        return ext.Length > 0 && DangerousUninstallerExtensions.Contains(ext);
     }
 }

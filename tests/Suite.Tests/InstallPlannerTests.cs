@@ -254,4 +254,49 @@ public class InstallPlannerTests
         var cmd = Assert.IsType<CommandAction>(Assert.Single(result.Plan.Actions));
         Assert.Equal("Microsoft.PowerToys", cmd.Arguments[2]);
     }
+
+    // ---- Command-policy hardening PHASE 1: the npm `.cmd` tripwire (paired ALLOW counter-test) ----
+    // npm ships as npm.cmd. If anyone ever blanket-blocks .bat/.cmd at the command gate (Phase-1 B over-reach),
+    // these fail LOUDLY. Built through the real npm CommandAction shape the planner emits
+    // (npm.cmd install -g --ignore-scripts <pkg>), gated directly — both non-elevated and elevated.
+
+    private static CommandAction NpmCmdAction(bool elevated) => new()
+    {
+        // Rooted npm.cmd, exactly the planner's resolved shape (Program Files\nodejs\npm.cmd).
+        FileName = @"C:\Program Files\nodejs\npm.cmd",
+        Arguments = new[] { "install", "-g", "--ignore-scripts", "@anthropic-ai/claude-code" },
+        RequiresElevation = elevated,
+        Description = "Install @anthropic-ai/claude-code (npm global)",
+        Reason = "test",
+    };
+
+    [Fact]
+    public void Phase1_npm_cmd_stays_allowed_non_elevated()
+    {
+        var v = TestData.Gate().Evaluate(NpmCmdAction(elevated: false));
+        Assert.True(v.Allowed, v.Reason);
+    }
+
+    [Fact]
+    public void Phase1_npm_cmd_stays_allowed_elevated()
+    {
+        var v = TestData.Gate().Evaluate(NpmCmdAction(elevated: true));
+        Assert.True(v.Allowed, v.Reason);
+    }
+
+    [Fact]
+    public void Phase1_real_npm_planner_action_is_gate_clean()
+    {
+        // End-to-end through the planner: the shipped npm-install entry shape produces a gate-clean .cmd action.
+        var manifest = Loader.Parse(ManifestJson("""
+            { "id": "install-claude", "category": "ai-cli", "method": "install-npm",
+              "npmPackage": "@anthropic-ai/claude-code", "installTier": "auto", "requiresNode": true }
+            """));
+
+        var result = Planner().BuildPlan(manifest, RestoreState.Empty, T0);
+
+        var cmd = Assert.IsType<CommandAction>(Assert.Single(result.Plan.Actions));
+        Assert.EndsWith("npm.cmd", cmd.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.True(TestData.Gate().Validate(result.Plan).AllAllowed, "npm .cmd plan must stay gate-clean");
+    }
 }
