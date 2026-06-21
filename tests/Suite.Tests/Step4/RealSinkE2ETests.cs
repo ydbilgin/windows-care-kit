@@ -34,7 +34,11 @@ public class RealSinkE2ETests
     {
         using var fx = new RealExecutorFixture();
         string target = fx.Workspace.WriteFile("junk/leftover.tmp", "delete me");
-        Assert.True(File.Exists(target));
+
+        // Pre-existence guard: fail loud if a prior crashed run left this path behind under a different name.
+        // (The workspace generates a fresh GUID root per fixture, so a pre-existing path here means the fixture
+        // itself is broken — surface it immediately rather than letting the test silently operate on stale state.)
+        Assert.True(File.Exists(target), "workspace WriteFile must have created the temp file before the test begins");
 
         var action = new FileDeleteAction
         {
@@ -47,12 +51,27 @@ public class RealSinkE2ETests
         };
         var plan = new OperationPlan("t", "step4", new[] { action }, T0);
 
-        ExecutionReport report = fx.Executor.ExecuteWithReport(plan, plan.ComputeHash());
+        ExecutionReport report;
+        try
+        {
+            report = fx.Executor.ExecuteWithReport(plan, plan.ComputeHash());
+            // Assert the real adapter removed the file BEFORE the finally's best-effort cleanup runs,
+            // so this assertion still catches a silent fail-to-delete regression (cleanup would otherwise
+            // delete the file first and mask it).
+            Assert.False(File.Exists(target), "the real adapter must have permanently removed the file");
+        }
+        finally
+        {
+            // Guarantee cleanup even if an assertion above or the executor call throws: the temp file
+            // lives inside the fixture workspace so the workspace Dispose already covers it, but an
+            // explicit best-effort delete here makes the cleanup intent explicit and handles any edge
+            // case where the adapter left the file in place.
+            try { if (File.Exists(target)) File.Delete(target); } catch { /* best-effort */ }
+        }
 
         Assert.True(report.Authorized, string.Join(",", report.Results.Select(r => r.Detail)));
         ActionResult result = Assert.Single(report.Results);
-        Assert.Equal(ActionStatus.Done, result.Status);
-        Assert.False(File.Exists(target));        // the real file is gone
+        Assert.Equal(ActionStatus.Done, result.Status);   // file-gone asserted inside the try, above
 
         string log = string.Join("\n", fx.LogLines());
         Assert.Contains("plan.start", log);
@@ -120,6 +139,16 @@ public class RealSinkE2ETests
         string guid = Guid.NewGuid().ToString("N");
         string subKey = $@"Software\WindowsCareKit.Tests\{guid}";
 
+        // Pre-existence guard: if a prior crashed run left this exact GUID key behind, the test would operate
+        // on stale state. A GUID collision is astronomically unlikely; if it happens, fail loud immediately.
+        using (RegistryKey? preExisting = Registry.CurrentUser.OpenSubKey(subKey))
+        {
+            // xunit 2.9.x: Assert.Null takes only the object (no message overload); use Assert.False for a message.
+            Assert.False(preExisting is not null,
+                $"HKCU\\{subKey} already exists before the test creates it — leftover from a crashed run. " +
+                "Delete it manually and re-run.");
+        }
+
         // Provision a real HKCU key with a value and a child key.
         using (RegistryKey created = Registry.CurrentUser.CreateSubKey(subKey, writable: true))
         {
@@ -160,7 +189,8 @@ public class RealSinkE2ETests
         }
         finally
         {
-            // Defensive cleanup if the delete did not run (e.g. an unexpected refusal).
+            // Guarantee cleanup even if an assertion fails or the executor throws: delete the test subkey
+            // so no leftover state affects a subsequent run.
             try { Registry.CurrentUser.DeleteSubKeyTree($@"Software\WindowsCareKit.Tests\{guid}", throwOnMissingSubKey: false); }
             catch { /* best-effort */ }
         }
