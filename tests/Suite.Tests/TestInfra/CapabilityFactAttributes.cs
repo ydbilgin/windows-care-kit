@@ -25,6 +25,9 @@ internal static class HostCapabilities
     /// <summary>True when 8.3 short-name generation is enabled on the temp volume (8dot3name on).</summary>
     public static readonly bool ShortNameSupported = ProbeShortName();
 
+    /// <summary>True when an NTFS hard link can be created on the temp volume (same-volume NTFS, no elevation).</summary>
+    public static readonly bool HardLinkSupported = ProbeHardLink();
+
     private static bool ProbeJunction()
     {
         string root = Path.Combine(Path.GetTempPath(), "wck-cap-junc-" + Guid.NewGuid().ToString("N"));
@@ -62,6 +65,27 @@ internal static class HostCapabilities
             }
             return Directory.Exists(link)
                    && File.GetAttributes(link).HasFlag(FileAttributes.ReparsePoint);
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch { /* ignore */ }
+        }
+    }
+
+    private static bool ProbeHardLink()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "wck-cap-hl-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            string target = Path.Combine(root, "target");
+            string link = Path.Combine(root, "link");
+            File.WriteAllText(target, "x");
+            return HardLinkInterop.TryCreateHardLink(link, target);
         }
         catch
         {
@@ -124,5 +148,16 @@ internal sealed class FactRequires8Dot3Attribute : FactAttribute
     {
         if (!HostCapabilities.ShortNameSupported)
             Skip = "requires 8.3 short-name generation (8dot3name disabled on this volume)";
+    }
+}
+
+/// <summary>STATIC-skips a test unless NTFS hard links can be created on this host (same-volume NTFS temp).</summary>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+internal sealed class FactRequiresHardlinkAttribute : FactAttribute
+{
+    public FactRequiresHardlinkAttribute()
+    {
+        if (!HostCapabilities.HardLinkSupported)
+            Skip = "requires NTFS hard-link support (CreateHardLink unavailable on this volume)";
     }
 }

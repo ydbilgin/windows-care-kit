@@ -240,5 +240,11 @@ public sealed class ProtectedResources
         "forfiles", "mavinject", "ieexec", "presentationhost", "msxsl", "wsl",
         // network / shell helpers
         "curl", "wget", "explorer",
+        // System administration binaries an attacker-controlled UninstallString could abuse to wipe
+        // recovery state / tamper with the machine (never legitimate as an uninstaller). The headline
+        // vector: registry UninstallString → "vssadmin delete shadows /all" (ransomware anti-recovery),
+        // run elevated by the uninstall flow. Denying these stems does not break any real uninstall.
+        "vssadmin", "bcdedit", "cipher", "fsutil", "diskpart", "schtasks",
+        "sc", "net", "net1", "taskkill", "takeown", "icacls", "netsh",
     };
 }
