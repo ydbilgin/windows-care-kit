@@ -1,6 +1,5 @@
-using System.Runtime.InteropServices;
-using System.Text;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Tests.TestInfra;
 using WindowsCareKit.Win32;
 using Xunit;
 
@@ -9,17 +8,6 @@ namespace WindowsCareKit.Tests;
 public class Win32CanonicalizerTests
 {
     private readonly Win32PathCanonicalizer _canon = new();
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    private static extern uint GetShortPathName(string lpszLongPath, StringBuilder lpszShortPath, uint cchBuffer);
-
-    private static string? ShortName(string longPath)
-    {
-        var sb = new StringBuilder(512);
-        uint len = GetShortPathName(longPath, sb, (uint)sb.Capacity);
-        return len == 0 || len > sb.Capacity ? null : sb.ToString();
-    }
 
     [Fact]
     public void Resolves_a_real_file_to_a_normalized_final_path()
@@ -74,23 +62,16 @@ public class Win32CanonicalizerTests
         Assert.False(c.Resolved);
     }
 
-    [Fact]
+    [FactRequiresSymlink]
     public void Resolves_a_directory_symlink_to_its_target_and_gate_blocks_protected_target()
     {
-        // Creating a symlink needs admin or Developer Mode. If unavailable, this check no-ops.
+        // Creating a symlink needs admin or Developer Mode; statically skipped (not silently passed) otherwise.
         string linkDir = Path.Combine(Path.GetTempPath(), "wck-link-" + Guid.NewGuid().ToString("N"));
         string targetDir = Path.Combine(Path.GetTempPath(), "wck-target-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(targetDir);
         try
         {
-            try
-            {
-                Directory.CreateSymbolicLink(linkDir, targetDir);
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-            {
-                return; // no privilege to create links on this box — skip the live check
-            }
+            Directory.CreateSymbolicLink(linkDir, targetDir);
 
             // 1) the canonicalizer follows the link to the real target and flags the reparse point
             var c = _canon.Canonicalize(linkDir);
@@ -105,7 +86,7 @@ public class Win32CanonicalizerTests
         }
     }
 
-    [Fact]
+    [FactRequiresSymlink]
     public void Resolves_a_junction_parent_under_a_nonexistent_leaf()
     {
         string target = Path.Combine(Path.GetTempPath(), "wck-tgt-" + Guid.NewGuid().ToString("N"));
@@ -113,8 +94,7 @@ public class Win32CanonicalizerTests
         Directory.CreateDirectory(target);
         try
         {
-            try { Directory.CreateSymbolicLink(link, target); }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { return; }
+            Directory.CreateSymbolicLink(link, target);
 
             // The leaf (and an intermediate dir) does not exist, but the PARENT is a link.
             string dest = Path.Combine(link, "newsub", "file.txt");
@@ -134,14 +114,13 @@ public class Win32CanonicalizerTests
         }
     }
 
-    [Fact]
+    [FactRequiresSymlink]
     public void Gate_blocks_write_through_a_junction_parent_into_windows()
     {
         string link = Path.Combine(Path.GetTempPath(), "wck-winp-" + Guid.NewGuid().ToString("N"));
         try
         {
-            try { Directory.CreateSymbolicLink(link, @"C:\Windows"); }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { return; }
+            Directory.CreateSymbolicLink(link, @"C:\Windows");
 
             var gate = new SafetyGate(ProtectedResources.ForCurrentSystem(), _canon);
             // Non-existent leaf under a junction that points at C:\Windows — must be blocked.
@@ -154,20 +133,22 @@ public class Win32CanonicalizerTests
         }
     }
 
-    [Fact]
+    [FactRequires8Dot3]
     public void ExpandLongPath_round_trips_an_8_3_short_name_to_its_long_form()
     {
         // L12: create a directory whose long name has no 8.3 equivalent unless short names exist, derive its
-        // short (8.3) form, and assert ExpandLongPath maps the short form back to the long one.
+        // short (8.3) form, and assert ExpandLongPath maps the short form back to the long one. Statically
+        // skipped (not silently passed) when 8dot3name is disabled on the temp volume.
         string longDir = Path.Combine(Path.GetTempPath(), "wck-longname-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(longDir);
         try
         {
-            string? shortDir = ShortName(longDir);
-            if (shortDir is null || string.Equals(shortDir, longDir, StringComparison.OrdinalIgnoreCase))
-                return; // 8.3 short-name creation disabled on this volume (8dot3name) — skip the live check
+            string? shortDir = ShortNameInterop.TryGetShortPathName(longDir);
+            // The [FactRequires8Dot3] gate already proved short names work on this volume, so this must hold.
+            Assert.NotNull(shortDir);
+            Assert.NotEqual(longDir, shortDir, StringComparer.OrdinalIgnoreCase);
 
-            string expanded = _canon.ExpandLongPath(shortDir);
+            string expanded = _canon.ExpandLongPath(shortDir!);
             Assert.Equal(
                 Path.TrimEndingDirectorySeparator(longDir),
                 Path.TrimEndingDirectorySeparator(expanded),
@@ -187,21 +168,14 @@ public class Win32CanonicalizerTests
     public void StripTrailingDotSpacePerSegment_trims_each_segment(string input, string expected)
         => Assert.Equal(expected, Win32PathCanonicalizer.StripTrailingDotSpacePerSegment(input));
 
-    [Fact]
+    [FactRequiresSymlink]
     public void Gate_with_real_canonicalizer_blocks_a_symlink_into_windows()
     {
         string linkDir = Path.Combine(Path.GetTempPath(), "wck-winlink-" + Guid.NewGuid().ToString("N"));
         try
         {
-            try
-            {
-                // The link's target need not be writable; we only store the path.
-                Directory.CreateSymbolicLink(linkDir, @"C:\Windows\System32");
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-            {
-                return; // skip if links cannot be created without privilege
-            }
+            // The link's target need not be writable; we only store the path.
+            Directory.CreateSymbolicLink(linkDir, @"C:\Windows\System32");
 
             var gate = new SafetyGate(ProtectedResources.ForCurrentSystem(), _canon);
             var verdict = gate.Evaluate(TestData.FileDelete(linkDir));

@@ -34,6 +34,25 @@ public class UninstallWizardTests
         return new UninstallWizardViewModel(i18n, TestData.Gate(), probe, executor, () => T0);
     }
 
+    /// <summary>
+    /// Approve a staged plan THROUGH the production confirm guard (Item 2) — never via a bare
+    /// <c>Execute(null)</c> that skips <see cref="ConfirmGateViewModel.CanApprove"/>. For the Irreversible tier
+    /// (the official-uninstaller command, Undo=None) it asserts Approve is LOCKED, types the localized confirm
+    /// word, and asserts it UNLOCKS before executing. For lower tiers (the leftover registry deletes are
+    /// Medium — they carry a .reg backup) it asserts Approve is already enabled, so the approval still goes
+    /// through the real <c>CanApprove</c> gate, then executes.
+    /// </summary>
+    private static void ApproveThroughGuard(UninstallWizardViewModel wizard)
+    {
+        if (wizard.Gate.Tier == ConfirmTier.Irreversible)
+        {
+            Assert.False(wizard.Gate.ApproveCommand.CanExecute(null)); // locked until the confirm word is typed
+            wizard.Gate.TypedConfirm = wizard.Gate.ConfirmWord;
+        }
+        Assert.True(wizard.Gate.ApproveCommand.CanExecute(null));      // CanApprove gate passed (per tier)
+        wizard.Gate.ApproveCommand.Execute(null);
+    }
+
     // Generous ceiling (flaky-fix 2026-06-21): the happy path exits the instant until() is true (~ms),
     // so a large cap never slows passing tests; it only prevents false "did not complete in time"
     // failures when the async ViewModel settle runs slow under CI/Release load (was 2000ms → flaked).
@@ -184,7 +203,7 @@ public class UninstallWizardTests
 
         wizard.RegistryNodes.Single(n => n.IsProgramOwned).IsChecked = true;
         wizard.DeleteSelectedCommand.Execute(null);
-        wizard.Gate.ApproveCommand.Execute(null);
+        ApproveThroughGuard(wizard);
 
         await PumpAsync(() => wizard.IsResultBeat && wizard.HasResult);
 
@@ -252,7 +271,7 @@ public class UninstallWizardTests
         wizard.Open(MachineWideApp());
 
         wizard.RunOfficialCommand.Execute(null);
-        wizard.Gate.ApproveCommand.Execute(null);
+        ApproveThroughGuard(wizard);
 
         await PumpAsync(() => wizard.IsScanBeat);
 
@@ -299,7 +318,7 @@ public class UninstallWizardTests
         // Select ALL (which only checks the one ProgramOwned leaf) and delete.
         wizard.SelectAllOwnedCommand.Execute(null);
         wizard.DeleteSelectedCommand.Execute(null);
-        wizard.Gate.ApproveCommand.Execute(null);
+        ApproveThroughGuard(wizard);
         await PumpAsync(() => wizard.IsResultBeat && wizard.HasResult);
 
         Assert.Single(fx.Adapters.Calls);
@@ -384,7 +403,7 @@ public class UninstallWizardTests
 
         wizard.RegistryNodes.Single(n => n.IsProgramOwned).IsChecked = true;
         wizard.DeleteSelectedCommand.Execute(null);
-        wizard.Gate.ApproveCommand.Execute(null);
+        ApproveThroughGuard(wizard);
         await PumpAsync(() => wizard.IsResultBeat && wizard.HasResult);
 
         // One ProgramOwned removed + one Protected (the system key) skipped & surfaced as a teal line.

@@ -172,7 +172,7 @@ public class RealSinkE2ETests
     // Defense-in-depth interaction (gate-allows vs adapter-refuses); not a repeat of the adapter-only test.
     // ----------------------------------------------------------------------------------------------------
 
-    [Fact]
+    [FactRequiresJunction]
     public void A4_FileDelete_of_a_junction_is_allowed_by_the_gate_but_refused_by_the_adapter_leaving_the_target_intact()
     {
         using var fx = new RealExecutorFixture();
@@ -182,8 +182,7 @@ public class RealSinkE2ETests
         File.WriteAllText(keepFile, "do not lose me");
 
         string junction = fx.Workspace.Combine("link");
-        if (!JunctionHelper.TryCreateJunction(junction, realTarget))
-            return; // junction creation unavailable in this environment → skip (boundary is covered elsewhere)
+        Assert.True(JunctionHelper.TryCreateJunction(junction, realTarget)); // gated by [FactRequiresJunction]
 
         try
         {

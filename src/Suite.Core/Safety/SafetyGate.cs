@@ -166,7 +166,11 @@ public sealed class SafetyGate : ISafetyGate
         if (!TryEffectiveRegistryPath(r.Hive, r.SubKeyPath, out string sub, out SafetyVerdict? hiveBlock))
             return hiveBlock!;
 
-        bool isValueDelete = r.ValueName is not null;
+        // An empty-string ValueName denotes the "(Default)" value, but routing it to the permissive
+        // value-delete path would let a key-shaped delete (StartupPlanner sets ValueName = entry.Name, which
+        // can be empty) slip past the protected-key checks. Treat null OR empty as a KEY delete so it goes
+        // through the protected-subtree/key path (Item 6 hardening).
+        bool isValueDelete = !string.IsNullOrEmpty(r.ValueName);
 
         if (sub.Length == 0)
         {

@@ -1,8 +1,11 @@
+using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
 using WindowsCareKit.Tests.Execution;
+using WindowsCareKit.Win32;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -103,13 +106,31 @@ public class GatedExecutorFailClosedTests
         Assert.DoesNotContain($"file:{after.Id}", fx.Adapters.Calls);
     }
 
-    [Fact]
-    public void A_gate_block_at_execution_time_stops_the_plan_TOCTOU()
+    /// <summary>
+    /// The action kinds the TOCTOU-flip test exercises. Item 1(c): the flipped/blocked middle action is not
+    /// only a FileDelete but ALSO a ServiceDeleteAction and a CommandAction — so the per-action re-gate is
+    /// proven to fail closed (Blocked + adapter NOT called) for the service: and command: dispatch paths too.
+    /// </summary>
+    public enum FlipKind { File, Service, Command }
+
+    private static (PlannedAction action, string callPrefix) FlipTarget(FlipKind kind) => kind switch
+    {
+        FlipKind.File => (TestData.FileDelete(@"C:\Program Files\SomeApp\b.tmp"), "file"),
+        FlipKind.Service => (TestData.Service("SomeVendorSvc", ServiceOperation.Delete), "service"),
+        FlipKind.Command => (TestData.Command(@"C:\Program Files\SomeApp\uninst.exe", "/S"), "command"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    [Theory]
+    [InlineData(FlipKind.File)]
+    [InlineData(FlipKind.Service)]
+    [InlineData(FlipKind.Command)]
+    public void A_gate_block_at_execution_time_stops_the_plan_TOCTOU(FlipKind kind)
     {
         // The gate allows everything at Validate (authorization), but flips one action to blocked at the
         // per-action Evaluate that the executor does right before touching the OS.
         var first = TestData.FileDelete(@"C:\Program Files\SomeApp\a.tmp");
-        var becomesBlocked = TestData.FileDelete(@"C:\Program Files\SomeApp\b.tmp");
+        (PlannedAction becomesBlocked, string callPrefix) = FlipTarget(kind);
         var third = TestData.FileDelete(@"C:\Program Files\SomeApp\c.tmp");
 
         var gate = new FlipAtExecutionGate(blockActionId: becomesBlocked.Id);
@@ -132,12 +153,89 @@ public class GatedExecutorFailClosedTests
             Assert.Equal(ActionStatus.Done, report.Results[0].Status);
             Assert.Equal(ActionStatus.Blocked, report.Results[1].Status);
             Assert.Equal(ActionStatus.NotRun, report.Results[2].Status);
-            Assert.DoesNotContain($"file:{becomesBlocked.Id}", adapters.Calls);
+            // GUARDRAIL (adapter-not-called): the blocked action's matching adapter (file/service/command)
+            // was NEVER invoked — the re-gate stops it BEFORE dispatch, for every kind.
+            Assert.DoesNotContain($"{callPrefix}:{becomesBlocked.Id}", adapters.Calls);
+            // And the third action never ran either (plan stopped at the block).
+            Assert.DoesNotContain($"file:{third.Id}", adapters.Calls);
         }
         finally
         {
             if (File.Exists(logPath)) File.Delete(logPath);
         }
+    }
+
+    // Item 5: Co-staged restore-point fail-closed. A protective CreateRestorePointAction is PREPENDED to a
+    // destructive action. The real Win32RestorePointCreator, given an UNAVAILABLE capability probe, throws
+    // BEFORE any Win32 call → the restore point Fails → the plan stops → the destructive neighbor is NotRun
+    // and its adapter is NEVER dispatched. This proves the user-opted safety net being absent halts the
+    // destruction (it does not proceed without the promised rollback layer).
+    [Theory]
+    [InlineData(DestructiveKind.Command)]
+    [InlineData(DestructiveKind.FileDelete)]
+    public void An_unavailable_restore_point_fails_closed_and_the_destructive_neighbor_never_runs(DestructiveKind kind)
+    {
+        var restorePoint = new CreateRestorePointAction
+        {
+            RestorePointName = "Windows Care Kit — before uninstall",
+            Description = "create restore point",
+            Reason = "protective rollback layer",
+            Risk = RiskLevel.Info,
+            Undo = UndoCapability.None,
+        };
+        (PlannedAction destructive, string callPrefix) = DestructiveNeighbor(kind);
+
+        // The real creator over an UNAVAILABLE probe → throws (honest failure) when dispatched.
+        var creator = new Win32RestorePointCreator(new FakeCapability(available: false));
+
+        string logPath = Path.Combine(Path.GetTempPath(), "wck-rpfc-" + Guid.NewGuid().ToString("N") + ".jsonl");
+        var adapters = new RecordingAdapters();
+        var executor = new GatedExecutor(
+            TestData.Gate(), new ExecutionLog(logPath, new LogRedactor(null, null)),
+            adapters.File, adapters.Registry, adapters.Service,
+            adapters.Task, adapters.Process, adapters.Copy, creator);
+
+        try
+        {
+            var plan = new OperationPlan("t", "uninstall",
+                new PlannedAction[] { restorePoint, destructive }, T0);
+
+            var report = executor.ExecuteWithReport(plan, plan.ComputeHash());
+
+            Assert.True(report.Authorized);                              // the gate allows it (pure system call)
+            Assert.Equal(ActionStatus.Failed, report.Results[0].Status); // restore point failed closed (SR off)
+            Assert.Equal(ActionStatus.NotRun, report.Results[1].Status); // destructive neighbor never started
+            // GUARDRAIL (adapter-not-called): the destructive adapter was NEVER dispatched.
+            Assert.DoesNotContain($"{callPrefix}:{destructive.Id}", adapters.Calls);
+            Assert.Empty(adapters.Dispatched); // nothing destructive was dispatched at all
+        }
+        finally
+        {
+            if (File.Exists(logPath)) File.Delete(logPath);
+        }
+    }
+
+    public enum DestructiveKind { Command, FileDelete }
+
+    private static (PlannedAction action, string callPrefix) DestructiveNeighbor(DestructiveKind kind) => kind switch
+    {
+        // An official-uninstaller-shaped command with Undo=None (the canonical Irreversible destructive neighbor).
+        DestructiveKind.Command => (new CommandAction
+        {
+            FileName = @"C:\Program Files\SomeApp\uninst.exe",
+            Arguments = new[] { "/S" },
+            Description = "run the official uninstaller",
+            Reason = "vendor uninstaller",
+            Risk = RiskLevel.Medium,
+            Undo = UndoCapability.None,
+        }, "command"),
+        DestructiveKind.FileDelete => (TestData.FileDelete(@"C:\Program Files\SomeApp\leftover"), "file"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    private sealed class FakeCapability(bool available) : IRestorePointCapabilityProbe
+    {
+        public bool IsAvailable() => available;
     }
 
     /// <summary>Allows the whole plan at <see cref="Validate"/>, but blocks one action id at per-action <see cref="Evaluate"/>.</summary>

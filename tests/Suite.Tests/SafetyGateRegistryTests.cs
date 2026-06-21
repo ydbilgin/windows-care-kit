@@ -125,4 +125,30 @@ public class SafetyGateRegistryTests
     [Fact]
     public void Blocks_hku_without_a_sid()
         => Assert.False(TestData.Gate().Evaluate(TestData.RegKey(RegistryHive.Users, "SoftwareNoSid")).Allowed);
+
+    // ---- Item 6: empty-string ValueName routes to the protected KEY-delete path, not the permissive value path ----
+
+    [Theory]
+    [InlineData("SOFTWARE\\Microsoft\\Windows")]            // protected key
+    [InlineData("SOFTWARE\\Microsoft\\Windows\\CurrentVersion")]
+    public void Empty_value_name_on_a_protected_subtree_key_is_blocked(string sub)
+    {
+        // StartupPlanner sets ValueName = entry.Name, which can be EMPTY ("(Default)" value). An empty
+        // ValueName must route to the KEY-delete (protected) path — NOT the permissive value-delete path —
+        // so it cannot delete a protected key's "(Default)" value under a protected subtree. The fix is
+        // `!string.IsNullOrEmpty(r.ValueName)` at SafetyGate.cs (Item 6); with `is not null` an empty name
+        // wrongly hit the value path and (for these keys, which are not on ProtectedValueKeys) ALLOWED.
+        var v = TestData.Gate().Evaluate(TestData.RegValue(RegistryHive.LocalMachine, sub, ""));
+        Assert.False(v.Allowed, "empty value-name delete on a protected key must be blocked: " + sub);
+    }
+
+    [Fact]
+    public void A_normal_nonempty_value_delete_on_an_allowed_run_key_is_still_allowed()
+    {
+        // GUARDRAIL positive counter-test: the Item 6 hardening must NOT over-block a legitimate startup-entry
+        // delete. A non-empty named value on the Run key (the real startup-disable path) stays allowed.
+        var v = TestData.Gate().Evaluate(TestData.RegValue(
+            RegistryHive.CurrentUser, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "SomeApp"));
+        Assert.True(v.Allowed, v.Reason);
+    }
 }

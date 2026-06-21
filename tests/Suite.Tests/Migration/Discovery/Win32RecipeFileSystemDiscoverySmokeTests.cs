@@ -4,7 +4,6 @@ using WindowsCareKit.Core.Modules.Migration.Discovery;
 using WindowsCareKit.Tests.TestInfra;
 using WindowsCareKit.Win32;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace WindowsCareKit.Tests.Migration.Discovery;
 
@@ -34,11 +33,6 @@ namespace WindowsCareKit.Tests.Migration.Discovery;
 public sealed class Win32RecipeFileSystemDiscoverySmokeTests
 {
     private static readonly DateTime T0 = new(2026, 6, 21, 12, 0, 0, DateTimeKind.Utc);
-
-    private readonly ITestOutputHelper _output;
-
-    public Win32RecipeFileSystemDiscoverySmokeTests(ITestOutputHelper output)
-        => _output = output;
 
     /// <summary>
     /// Build a real temp tree shaped like the three profile roots the engine expects and return the wired
@@ -169,7 +163,7 @@ public sealed class Win32RecipeFileSystemDiscoverySmokeTests
     /// gate that still proves the sibling) rather than failing. Non-vacuous: the sibling <c>NormalApp</c> is
     /// discovered in the same run.
     /// </summary>
-    [Fact]
+    [FactRequiresJunction]
     public void Reparse_candidate_is_surfaced_not_traversed_with_sibling_discovered()
     {
         using var ws = new TempWorkspace("wck-disco-");
@@ -185,23 +179,14 @@ public sealed class Win32RecipeFileSystemDiscoverySmokeTests
         File.SetLastWriteTimeUtc(Path.Combine(target, "deep_inside.dat"), T0); // newest possible — must not leak
 
         string junction = Path.Combine(roots.AppData, "JunctionApp");
-        bool created = JunctionHelper.TryCreateJunction(junction, target);
+        Assert.True(JunctionHelper.TryCreateJunction(junction, target)); // gated by [FactRequiresJunction]
 
         try
         {
             var apps = Engine(roots).Discover(Opts(), CancellationToken.None);
 
-            // Sibling anchor always present regardless of junction support.
+            // Sibling anchor present (non-vacuity).
             Assert.Contains(apps, a => a.Id == "NormalApp");
-
-            if (!created)
-            {
-                // Host disallows junctions: visibly skip the reparse assertions (not a hidden vacuous pass).
-                // xunit 2.x has no dynamic Assert.Skip; emit a SKIP line so this is visible in test output, then
-                // return having already proven the sibling NormalApp was discovered (run was non-vacuous).
-                _output.WriteLine("SKIP[reparse]: host does not permit directory junctions (TryCreateJunction=false).");
-                return;
-            }
 
             DiscoveredApp app = Assert.Single(apps, a => a.Id == "JunctionApp");
             Assert.Equal(DiscoveryScanStatus.NotTraversedReparse, app.Status);
@@ -212,8 +197,7 @@ public sealed class Win32RecipeFileSystemDiscoverySmokeTests
         }
         finally
         {
-            if (created)
-                JunctionHelper.CleanupWithJunction(ws.Root, junction);
+            JunctionHelper.CleanupWithJunction(ws.Root, junction);
         }
     }
 
@@ -226,7 +210,7 @@ public sealed class Win32RecipeFileSystemDiscoverySmokeTests
     /// containment-skip branch — see the class remarks.) Guarded by <see cref="JunctionHelper.TryCreateJunction"/>.
     /// Non-vacuous: the sibling <c>NormalApp</c> is discovered in the same run.
     /// </summary>
-    [Fact]
+    [FactRequiresJunction]
     public void Out_of_root_target_junction_is_surfaced_not_descended_with_sibling_discovered()
     {
         using var ws = new TempWorkspace("wck-disco-");
@@ -244,19 +228,13 @@ public sealed class Win32RecipeFileSystemDiscoverySmokeTests
         File.SetLastWriteTimeUtc(Path.Combine(outsideTarget, "escape_marker.dat"), T0);
 
         string junction = Path.Combine(roots.AppData, "EscapeApp");
-        bool created = JunctionHelper.TryCreateJunction(junction, outsideTarget);
+        Assert.True(JunctionHelper.TryCreateJunction(junction, outsideTarget)); // gated by [FactRequiresJunction]
 
         try
         {
             var apps = Engine(roots).Discover(Opts(), CancellationToken.None);
 
             Assert.Contains(apps, a => a.Id == "NormalApp");
-
-            if (!created)
-            {
-                _output.WriteLine("SKIP[escape]: host does not permit directory junctions (TryCreateJunction=false).");
-                return;
-            }
 
             // The escape junction is surfaced (reparse) but NOT descended: its out-of-root target's file
             // never raises activity. Either it is surfaced as NotTraversedReparse, or (if a future production
@@ -276,8 +254,7 @@ public sealed class Win32RecipeFileSystemDiscoverySmokeTests
         }
         finally
         {
-            if (created)
-                JunctionHelper.CleanupWithJunction(ws.Root, junction);
+            JunctionHelper.CleanupWithJunction(ws.Root, junction);
         }
     }
 
