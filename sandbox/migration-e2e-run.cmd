@@ -231,4 +231,12 @@ echo ===========================================================================
 echo.
 echo You may now close the sandbox (all VM contents are discarded).
 echo.
-pause
+REM Unattended/autonomous runs drop C:\WCK-Output\autoclose.marker via the -auto .wsb so
+REM the VM shuts itself down cleanly (no human X, no host force-kill). Human double-click
+REM of the normal .wsb has no marker -> pause as before (backward compatible).
+if exist "%OUT%\autoclose.marker" (
+  echo [e2e] autoclose marker present -- shutting down the sandbox VM cleanly...
+  shutdown /s /t 5 /c "WCK migration E2E done; auto-closing sandbox"
+) else (
+  pause
+)
