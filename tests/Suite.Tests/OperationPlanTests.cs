@@ -45,6 +45,37 @@ public class OperationPlanTests
     }
 
     [Fact]
+    public void Hash_changes_when_service_operation_changes_Stop_vs_Delete()
+    {
+        // Item 1(a): the ServiceDeleteAction.Operation is part of TargetSignature(), so a Stop and a Delete of
+        // the SAME service hash differently. Without Operation in the signature a TOCTOU swap (approve Stop,
+        // execute Delete) would re-validate against the same hash and slip through.
+        var stop = TestData.Service("SomeVendorSvc", ServiceOperation.Stop);
+        var delete = TestData.Service("SomeVendorSvc", ServiceOperation.Delete);
+        var a = new OperationPlan("t", "m", new[] { stop }, T0);
+        var b = new OperationPlan("t", "m", new[] { delete }, T0);
+        Assert.NotEqual(a.ComputeHash(), b.ComputeHash());
+    }
+
+    [Fact]
+    public void Hash_changes_when_command_argument_values_change_same_filename_and_argc()
+    {
+        // Item 1(b): two commands with the SAME FileName and the SAME argument COUNT but different argument
+        // VALUES must hash differently — this binds CommandAction.ArgHash(). If only argc were hashed, an
+        // attacker could swap "/x {GUID-A}" for "/x {GUID-B}" (same shape) after approval undetected.
+        var a = new OperationPlan("t", "m", new[] { TestData.Command(@"C:\a\u.exe", "/x", "{AAAA}") }, T0);
+        var b = new OperationPlan("t", "m", new[] { TestData.Command(@"C:\a\u.exe", "/x", "{BBBB}") }, T0);
+
+        // Guard: same FileName and same argument count (so the difference is purely the VALUES → ArgHash).
+        var ca = (CommandAction)a.Actions[0];
+        var cb = (CommandAction)b.Actions[0];
+        Assert.Equal(ca.FileName, cb.FileName);
+        Assert.Equal(ca.Arguments.Count, cb.Arguments.Count);
+
+        Assert.NotEqual(a.ComputeHash(), b.ComputeHash());
+    }
+
+    [Fact]
     public void MaxRisk_and_IsEmpty()
     {
         var empty = new OperationPlan("t", "m", Array.Empty<PlannedAction>(), T0);

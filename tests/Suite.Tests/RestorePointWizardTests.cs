@@ -75,7 +75,7 @@ public class RestorePointWizardTests
         Assert.True(wizard.RestorePointEnabled);
 
         wizard.RunOfficialCommand.Execute(null);   // stage official → ConfirmGate #1 (no execution yet)
-        wizard.Gate.ApproveCommand.Execute(null);
+        ApproveThroughGuard(wizard);               // approve THROUGH the type-to-confirm guard (Item 2)
 
         // Pump the async approve to completion.
         SpinUntil(() => executor.CallCount == 1);
@@ -100,7 +100,7 @@ public class RestorePointWizardTests
         wizard.RestorePointEnabled = false; // user opts out of the extra layer
 
         wizard.RunOfficialCommand.Execute(null);
-        wizard.Gate.ApproveCommand.Execute(null);
+        ApproveThroughGuard(wizard);
         SpinUntil(() => executor.CallCount == 1);
 
         OperationPlan ran = Assert.IsType<OperationPlan>(executor.LastPlan);
@@ -120,7 +120,7 @@ public class RestorePointWizardTests
         wizard.RestorePointEnabled = true;
 
         wizard.RunOfficialCommand.Execute(null);
-        wizard.Gate.ApproveCommand.Execute(null);
+        ApproveThroughGuard(wizard);
         SpinUntil(() => executor.CallCount == 1);
 
         OperationPlan ran = Assert.IsType<OperationPlan>(executor.LastPlan);
@@ -142,6 +142,21 @@ public class RestorePointWizardTests
         Assert.True(wizard.Gate.IsOpen);
         Assert.Equal(ConfirmTier.Irreversible, wizard.Gate.Tier);
         Assert.Equal(2, wizard.Gate.Rows.Count);
+    }
+
+    /// <summary>
+    /// Approve an Irreversible-tier staged plan THROUGH the production type-to-confirm guard (Item 2): assert
+    /// Approve is LOCKED before typing, type the localized confirm word, assert it UNLOCKS, then execute — so
+    /// the approve path exercises <see cref="ConfirmGateViewModel.CanApprove"/> rather than bypassing it via a
+    /// bare <c>Execute(null)</c>. (All these wizard plans carry a destructive Undo=None neighbor → Irreversible.)
+    /// </summary>
+    private static void ApproveThroughGuard(UninstallWizardViewModel wizard)
+    {
+        Assert.Equal(ConfirmTier.Irreversible, wizard.Gate.Tier);
+        Assert.False(wizard.Gate.ApproveCommand.CanExecute(null)); // locked until the confirm word is typed
+        wizard.Gate.TypedConfirm = wizard.Gate.ConfirmWord;
+        Assert.True(wizard.Gate.ApproveCommand.CanExecute(null));  // now unlocked
+        wizard.Gate.ApproveCommand.Execute(null);
     }
 
     // Generous ceiling (flaky-fix 2026-06-21): the happy path exits the instant condition() is true (~ms),

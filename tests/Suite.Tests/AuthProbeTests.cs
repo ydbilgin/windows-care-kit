@@ -41,6 +41,22 @@ public class AuthProbeTests : IDisposable
         => Assert.False(_probe.Exists(path));
 
     [Fact]
+    public void Detects_a_file_held_open_with_FileShare_None_without_reading_it()
+    {
+        // Item 4: the probe must answer existence ONLY — it must never open/read the artifact (a token store).
+        // Hold the file open with FileShare.None (deny read AND write to other handles). A regression that
+        // tried to File.OpenRead / ReadAllText would throw IOException (sharing violation) or return false;
+        // an existence-only check (File.Exists) still returns true under the exclusive lock.
+        string file = Path.Combine(_dir, "locked-auth.json");
+        File.WriteAllText(file, "{\"token\":\"secret-never-read\"}");
+
+        using (new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.True(_probe.Exists(file));
+        }
+    }
+
+    [Fact]
     public void Expands_environment_variables_in_the_path()
     {
         // %TEMP% expands; the missing child does not exist → absent (proves expansion ran, not a literal match).

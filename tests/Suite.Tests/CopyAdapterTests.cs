@@ -204,7 +204,7 @@ public class CopyAdapterTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
-    [Fact]
+    [FactRequiresSymlink]
     public void Skips_a_file_symlink_aliasing_a_secret_store()
     {
         string root = TempDir();
@@ -217,8 +217,7 @@ public class CopyAdapterTests
             File.WriteAllText(Path.Combine(src, "Bookmarks"), "{}");
 
             string link = Path.Combine(src, "InnocentName");
-            try { File.CreateSymbolicLink(link, secret); }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { return; }
+            File.CreateSymbolicLink(link, secret);
 
             string dst = Path.Combine(root, "out");
             new CopyAdapter().Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
@@ -249,9 +248,9 @@ public class CopyAdapterTests
     // F1: write-boundary destination TOCTOU re-check (the write-side counterpart of the delete adapter's
     // pre-op reparse re-check). A copy whose destination PARENT is a junction is refused with the typed
     // DestinationReparseException, so a same-user attacker cannot swap a destination parent → junction (into a
-    // protected tree) between gate-authorize and the copy. Uses a real-FS junction in temp; if a junction
-    // cannot be created in this environment the test self-skips (mirrors the symlink-alias test pattern).
-    [Fact]
+    // protected tree) between gate-authorize and the copy. Uses a real-FS junction in temp; statically skipped
+    // (not silently passed) when a junction cannot be created in this environment.
+    [FactRequiresJunction]
     public void Refuses_a_single_file_copy_whose_destination_parent_is_a_junction()
     {
         string root = TempDir();
@@ -263,8 +262,7 @@ public class CopyAdapterTests
 
             string realTarget = Path.Combine(root, "realTarget");
             Directory.CreateDirectory(realTarget);
-            if (!JunctionHelper.TryCreateJunction(junctionParent, realTarget))
-                return; // junction creation unavailable here → skip (the guard is still unit-tested below)
+            Assert.True(JunctionHelper.TryCreateJunction(junctionParent, realTarget)); // gated by [FactRequiresJunction]
 
             // Destination is UNDER the junction parent → the write boundary must refuse it.
             string dest = Path.Combine(junctionParent, "a.txt");
@@ -283,7 +281,7 @@ public class CopyAdapterTests
         finally { JunctionHelper.CleanupWithJunction(root, junctionParent); }
     }
 
-    [Fact]
+    [FactRequiresJunction]
     public void Refuses_a_tree_copy_whose_destination_root_is_a_junction()
     {
         string root = TempDir();
@@ -296,8 +294,7 @@ public class CopyAdapterTests
 
             string realTarget = Path.Combine(root, "realTarget");
             Directory.CreateDirectory(realTarget);
-            if (!JunctionHelper.TryCreateJunction(junctionDest, realTarget))
-                return; // junction creation unavailable → skip
+            Assert.True(JunctionHelper.TryCreateJunction(junctionDest, realTarget)); // gated by [FactRequiresJunction]
 
             Assert.Throws<DestinationReparseException>(() => new CopyAdapter().Copy(new CopyAction
             {
@@ -312,7 +309,7 @@ public class CopyAdapterTests
         finally { JunctionHelper.CleanupWithJunction(root, junctionDest); }
     }
 
-    [Fact]
+    [FactRequiresJunction]
     public void Refuses_a_merge_whose_destination_parent_is_a_junction()
     {
         string root = TempDir();
@@ -324,8 +321,7 @@ public class CopyAdapterTests
 
             string realTarget = Path.Combine(root, "realTarget");
             Directory.CreateDirectory(realTarget);
-            if (!JunctionHelper.TryCreateJunction(junctionParent, realTarget))
-                return; // junction creation unavailable → skip
+            Assert.True(JunctionHelper.TryCreateJunction(junctionParent, realTarget)); // gated by [FactRequiresJunction]
 
             string dest = Path.Combine(junctionParent, "live.cfg");
 
