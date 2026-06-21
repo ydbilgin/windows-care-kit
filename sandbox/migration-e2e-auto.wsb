@@ -27,6 +27,12 @@
     </MappedFolder>
   </MappedFolders>
   <LogonCommand>
-    <Command>cmd.exe /c "echo 1 &gt; C:\WCK-Output\autoclose.marker &amp; echo [logon] %TIME% invoking runner &gt; C:\WCK-Output\run-stdout.log &amp; call C:\WCK-Input\scripts\migration-e2e-run.cmd &gt;&gt; C:\WCK-Output\run-stdout.log 2&gt;&amp;1 &amp; echo [logon] %TIME% runner returned exit=%ERRORLEVEL% &gt;&gt; C:\WCK-Output\run-stdout.log"</Command>
+    <!-- /V:ON enables delayed expansion so !TIME! and !ERRORLEVEL! are evaluated
+         AFTER the runner returns. With plain %ERRORLEVEL% cmd expands the whole
+         line up-front (before `call` runs), so the logged exit code is always the
+         pre-call value (0) and the second timestamp is the start time. The runner
+         does its own setlocal EnableDelayedExpansion and contains no literal `!`
+         before that point, so /V:ON here does not change how it parses. -->
+    <Command>cmd.exe /V:ON /c "echo 1 &gt; C:\WCK-Output\autoclose.marker &amp; echo [logon] !TIME! invoking runner &gt; C:\WCK-Output\run-stdout.log &amp; call C:\WCK-Input\scripts\migration-e2e-run.cmd &gt;&gt; C:\WCK-Output\run-stdout.log 2&gt;&amp;1 &amp; echo [logon] !TIME! runner returned exit=!ERRORLEVEL! &gt;&gt; C:\WCK-Output\run-stdout.log"</Command>
   </LogonCommand>
 </Configuration>

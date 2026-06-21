@@ -1,0 +1,6 @@
+# Windows batch files are parsed by cmd.exe, which REQUIRES CRLF line endings.
+# With LF-only endings cmd.exe loses line-sync on goto/call/( ) blocks and starts
+# executing comment (REM) text as commands. Force CRLF so a checkout on any
+# platform (and any core.autocrlf setting) always produces a runnable script.
+*.cmd text eol=crlf
+*.bat text eol=crlf
