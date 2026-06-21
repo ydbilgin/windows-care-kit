@@ -11,6 +11,7 @@ public class Win32CanonicalizerTests
     private readonly Win32PathCanonicalizer _canon = new();
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern uint GetShortPathName(string lpszLongPath, StringBuilder lpszShortPath, uint cchBuffer);
 
     private static string? ShortName(string longPath)
