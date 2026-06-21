@@ -299,16 +299,37 @@ public sealed class SafetyGate : ISafetyGate
         if (string.IsNullOrWhiteSpace(fileName))
             return SafetyVerdict.Block("empty command");
 
-        // UNC / device executable paths are never launched.
+        // UNC / device executable paths are never launched (literal form).
         if (fileName.StartsWith(@"\\", StringComparison.Ordinal))
             return SafetyVerdict.Block("UNC/device command path");
 
-        string stem = CommandStem(fileName);
+        // (A) Resolve 8.3 short-name / trailing-dot aliases BEFORE deriving the stem/extension, mirroring the
+        // file-delete branch's use of ExpandLongPath. A short alias (VSSADM~1.EXE) expands to its real leaf
+        // (vssadmin.exe) and is then caught by the deny-stems. ExpandLongPath is fail-open-to-literal for a
+        // non-existent path — SAFE here, because expansion can only turn a short alias INTO a denied stem,
+        // never out of one. The stem/extension and the script-extension/msiexec-pin checks all run on the
+        // EXPANDED leaf; the absolute-path (PATH-hijack) guard stays on the literal so a bare name is still
+        // rooted-checked rather than silently rooted-to-cwd by the expansion.
+        string expanded = ExpandForGate(fileName);
+
+        // Re-check UNC/device on the expanded path too (an alias could resolve onto a device path).
+        if (expanded.StartsWith(@"\\", StringComparison.Ordinal))
+            return SafetyVerdict.Block("UNC/device command path");
+
+        string leaf = LeafOf(expanded);
+        string stem = StemOf(leaf);
         if (stem.Length == 0)
             return SafetyVerdict.Block("invalid command path");
 
         if (_policy.CommandDenyStems.Contains(stem) || _policy.CommandDenyList.Contains(stem + ".exe"))
             return SafetyVerdict.Block("interpreter/LOLBin not allowed (no shell-string execution)");
+
+        // (B) Block dangerous script/container extensions on the EXPANDED leaf (e.g. an UninstallString that
+        // points at a .ps1/.hta/.cpl whose content an interpreter would execute). .bat/.cmd are intentionally
+        // NOT in this set (npm ships as npm.cmd).
+        string ext = ExtensionOf(leaf);
+        if (ext.Length > 0 && _policy.CommandDeniedExtensions.Contains(ext))
+            return SafetyVerdict.Block($"dangerous script/container extension not allowed ({ext})");
 
         bool isMsiexec = stem == "msiexec";
 
@@ -316,6 +337,12 @@ public sealed class SafetyGate : ISafetyGate
         // (especially under elevation/runas) can never PATH-search the executable (PATH-hijack defense).
         if (!isMsiexec && !Path.IsPathFullyQualified(fileName))
             return SafetyVerdict.Block("command must be an absolute path (no PATH search)");
+
+        // (D) Gate-pin msiexec to the trusted System32 binary. The gate treats any "msiexec" stem as the MSI
+        // path (uninstall-only arg policy); without this pin a spoofed C:\Temp\msiexec.exe from a registry
+        // string would inherit that trust. Production always passes (OfficialUninstallerPlanner pins System32).
+        if (isMsiexec && !IsTrustedSystem32Msiexec(expanded))
+            return SafetyVerdict.Block("msiexec must be the trusted System32 binary (spoofed path blocked)");
 
         // Argument hygiene for every command: no UNC sources, URLs, encoded commands, or script URIs.
         foreach (string arg in c.Arguments)
@@ -332,23 +359,61 @@ public sealed class SafetyGate : ISafetyGate
         return SafetyVerdict.Allow("command allowed");
     }
 
-    /// <summary>Normalized executable stem: file name, trailing dots/spaces stripped, extension removed, lowercased.</summary>
-    private static string CommandStem(string fileName)
+    /// <summary>
+    /// Expand 8.3 short names / trailing-dot aliases for the gate (best-effort; never throws — falls back to the
+    /// literal on any canonicalizer failure, which is SAFE because expansion only ever turns an alias INTO a
+    /// denied stem/extension, never out of one).
+    /// </summary>
+    private string ExpandForGate(string fileName)
     {
-        string name;
         try
         {
-            name = Path.GetFileName(fileName.Trim());
+            string expanded = _canonicalizer.ExpandLongPath(fileName);
+            return string.IsNullOrWhiteSpace(expanded) ? fileName : expanded;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return fileName;
+        }
+    }
+
+    /// <summary>The leaf (file name) of <paramref name="path"/> with trailing dots/spaces stripped; empty on failure.</summary>
+    private static string LeafOf(string path)
+    {
+        try
+        {
+            return Path.GetFileName(path.Trim()).TrimEnd('.', ' ');
         }
         catch (ArgumentException)
         {
             return string.Empty;
         }
-        name = name.TrimEnd('.', ' ');
-        int dot = name.LastIndexOf('.');
-        if (dot > 0)
-            name = name.Substring(0, dot);
+    }
+
+    /// <summary>The lowercased stem of a leaf: extension removed (the existing trailing-dot/strip rule).</summary>
+    private static string StemOf(string leaf)
+    {
+        int dot = leaf.LastIndexOf('.');
+        string name = dot > 0 ? leaf.Substring(0, dot) : leaf;
         return name.ToLowerInvariant();
+    }
+
+    /// <summary>The lowercased extension (incl. leading dot) of a leaf, or empty when there is none.</summary>
+    private static string ExtensionOf(string leaf)
+    {
+        int dot = leaf.LastIndexOf('.');
+        return dot > 0 ? leaf.Substring(dot).ToLowerInvariant() : string.Empty;
+    }
+
+    /// <summary>True when <paramref name="expandedPath"/> is exactly %SystemRoot%\System32\msiexec.exe (case-insensitive).</summary>
+    private static bool IsTrustedSystem32Msiexec(string expandedPath)
+    {
+        string system32 = Environment.GetFolderPath(Environment.SpecialFolder.System);
+        if (system32.Length == 0)
+            return false;
+        string trusted = Path.Combine(system32, "msiexec.exe");
+        string candidate = ProtectedResources.NormalizeDirectory(expandedPath);
+        return candidate == ProtectedResources.NormalizeDirectory(trusted);
     }
 
     private static SafetyVerdict InspectArgument(string? arg)

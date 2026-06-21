@@ -58,6 +58,16 @@ public sealed class ProtectedResources
     public IReadOnlySet<string> CommandDenyStems { get; }
 
     /// <summary>
+    /// File extensions (lowercased, leading dot) that may never be launched as a <c>CommandAction</c>: script
+    /// and shell-container formats whose "executable" is an interpreter that runs arbitrary code from the file.
+    /// Matched against the EXPANDED leaf's extension in <see cref="SafetyGate.Evaluate"/>. Deliberately does NOT
+    /// include <c>.bat</c>/<c>.cmd</c> — npm ships as <c>npm.cmd</c>, and blanket-blocking those breaks the
+    /// shipped npm-install entries (the uninstall-flow's stricter <see cref="DefaultUninstallerDeniedExtensions"/>
+    /// adds <c>.bat</c>/<c>.cmd</c> separately, because no legitimate uninstaller is a script).
+    /// </summary>
+    public IReadOnlySet<string> CommandDeniedExtensions { get; }
+
+    /// <summary>
     /// Roots under which WRITING a file is refused (copy/restore destinations): the Windows tree,
     /// Program Files (both), and ProgramData. Stricter than the delete policy — uninstall may delete
     /// an app folder under Program Files, but nothing may CREATE files there (DLL-plant / all-users
@@ -96,6 +106,7 @@ public sealed class ProtectedResources
         WholeSubtreeRegistryRoots = wholeSubtreeRegistryRoots.Select(s => s.Trim().ToLowerInvariant()).ToHashSet();
         CommandDenyList = commandDenyList.Select(s => s.Trim().ToLowerInvariant()).ToHashSet();
         CommandDenyStems = DefaultCommandDenyStems.Select(s => s.Trim().ToLowerInvariant()).ToHashSet();
+        CommandDeniedExtensions = DefaultCommandDeniedExtensions.Select(s => s.Trim().ToLowerInvariant()).ToHashSet();
         ValueDeleteAllowedKeys = (valueDeleteAllowedKeys ?? DefaultValueDeleteAllowedKeys)
             .Select(NormalizeRegistry).Where(s => s.Length > 0).ToHashSet();
         ProtectedValueKeys = (protectedValueKeys ?? DefaultProtectedValueKeys)
@@ -246,5 +257,29 @@ public sealed class ProtectedResources
         // run elevated by the uninstall flow. Denying these stems does not break any real uninstall.
         "vssadmin", "bcdedit", "cipher", "fsutil", "diskpart", "schtasks",
         "sc", "net", "net1", "taskkill", "takeown", "icacls", "netsh",
+    };
+
+    /// <summary>
+    /// Dangerous script / shell-container extensions blocked at the COMMAND GATE (every <c>CommandAction</c>),
+    /// matched on the expanded leaf. An attacker-controlled UninstallString that points at one of these gets the
+    /// file content run by an interpreter (WSH, mshta, control panel, etc.). <c>.bat</c>/<c>.cmd</c> are NOT here
+    /// on purpose: npm ships as <c>npm.cmd</c> and a blanket block breaks the shipped npm-install entries.
+    /// </summary>
+    public static readonly string[] DefaultCommandDeniedExtensions =
+    {
+        ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
+        ".hta", ".scr", ".msc", ".com", ".pif", ".cpl",
+    };
+
+    /// <summary>
+    /// Script / dangerous extensions that disqualify a parsed NON-MSI UNINSTALLER (used by
+    /// <c>OfficialUninstallerPlanner</c>). This is the command-gate set PLUS <c>.bat</c>/<c>.cmd</c>: a real
+    /// vendor uninstaller (L1-L7 shapes) is never a script, and npm does NOT flow through this planner — so the
+    /// batch carve-out the gate needs for <c>npm.cmd</c> does not apply here.
+    /// </summary>
+    public static readonly string[] DefaultUninstallerDeniedExtensions =
+    {
+        ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf",
+        ".wsh", ".hta", ".scr", ".msc", ".com", ".pif", ".cpl",
     };
 }
