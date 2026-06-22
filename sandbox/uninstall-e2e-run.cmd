@@ -113,17 +113,26 @@ if errorlevel 1 (
   echo [u-e2e]   VS Code installer exit: !ERRORLEVEL!
 )
 
+REM VS Code user-setup AUTO-LAUNCHES after install (the /MERGETASKS deselect of `runcode` is
+REM unreliable under cmd delayed-expansion). A running VS Code makes its OWN uninstaller pop a modal
+REM "close all copies of the app, then OK/Cancel" prompt that hangs an unattended run. Kill any
+REM running instance BEFORE the harness so the /SILENT uninstaller completes cleanly.
+echo [u-e2e] closing any auto-launched VS Code so its uninstaller does not block...
+taskkill /IM Code.exe /F >nul 2>&1
+taskkill /IM "Code - Insiders.exe" /F >nul 2>&1
+
 REM Let the registry settle after the install wave before inventory.
->> "%OUT%\progress.log" echo [!TIME!] installs done; settling 10s before harness...
+>> "%OUT%\progress.log" echo [!TIME!] installs done, VS Code closed; settling 10s before harness...
 ping -n 11 127.0.0.1 >nul
 
 REM --- (4) run the harness -----------------------------------------------------
 echo [u-e2e] (4) Running UninstallE2E harness...
 >> "%OUT%\progress.log" echo [!TIME!] running UninstallE2E.exe (execute git,vscode)...
-REM settleSeconds 90: Git + VS Code are Inno uninstallers that relaunch unins000.exe from a
-REM temp copy and return BEFORE the registry key is gone; a cold VM under post-install load can
-REM lag, so poll generously (a false FAIL would cost an autonomous re-run; never a false pass).
-"%HARNESS%\UninstallE2E.exe" --output "%OUT%" --execute git,vscode --require 7zip,git,vscode,notepadpp --settleSeconds 90 1> "%OUT%\harness-console.log" 2>&1
+REM settleSeconds 90: Inno uninstallers (Git, VS Code) relaunch unins000.exe from a temp copy and
+REM return BEFORE the registry key is gone; a cold VM under post-install load can lag, so poll
+REM generously. execTimeoutSeconds 120: a watchdog so a hung vendor uninstaller can never wedge the
+REM run + the VM forever (it is abandoned, the registry ground-truth still decides removed/not).
+"%HARNESS%\UninstallE2E.exe" --output "%OUT%" --execute git,vscode --require 7zip,git,vscode,notepadpp --settleSeconds 90 --execTimeoutSeconds 120 1> "%OUT%\harness-console.log" 2>&1
 set "RC=!ERRORLEVEL!"
 >> "%OUT%\progress.log" echo [!TIME!] harness exited rc=!RC!
 >"%OUT%\harness-exitcode.txt" echo !RC!
