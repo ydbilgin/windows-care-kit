@@ -41,4 +41,7 @@ regexes = [
   '''sk-deadbeef''',
   '''eyJhbGciOiJ\.secret\.value''',
   '''correct horse battery''',
+  # Throwaway autologon password for the disposable, network-isolated WCK-E2E Hyper-V test guest
+  # (sandbox/hyperv/*). Reverted on every checkpoint; no value outside the VM. NOT a real credential.
+  '''WckE2E!2026''',
 ]
