@@ -89,6 +89,25 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 - **Restore settings after install** — config files are merged **after** the app exists, with a timestamped **`.bak`** so nothing is blindly overwritten.
 - **Auth probe** — tells you where you'll need to log in again.
 
+### 💼 Format-migration (Settings Portability)
+
+Backs up an app's config before a Windows reformat and restores it to the correct place on
+a new profile — across all four built-in apps (Claude Code, Discord, VS Code, Git).
+
+**Honest deferral for machine-locked settings:** Discord's config is **backed up** (captured
+in the package and zip export), but its **restore is safely deferred** — Discord stores
+machine-specific values (window geometry, local paths, feature flags) that cannot be
+rebound automatically onto a different machine. Rather than silently copying stale config
+and claiming success, the tool surfaces this as `SKIPPED (not yet restorable)` and lets
+you compare your backed-up values manually. Full machine-aware rebinding is planned for
+a future release. This is the correct behavior: honest deferral, not a fake green result.
+
+**What restores automatically vs. what's captured for later:** single-file configs auto-restore
+to the right place (e.g. Claude `CLAUDE.md` / `settings.json`, your `.gitconfig`, VS Code
+`settings.json`). Larger directory trees (e.g. Claude `projects/`, `skills/`, and memory) are
+**captured in your backup package** but their automatic restore is a future slice — they're
+safe in the zip today and can be copied back manually. No data is lost; nothing is overclaimed.
+
 ---
 
 ## 🔒 Safety model (non-negotiable)

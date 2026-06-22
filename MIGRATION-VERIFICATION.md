@@ -50,9 +50,36 @@ pwsh sandbox\migration-e2e-stage.ps1
   defers them to "Slice 3" because their config embeds machine-specific paths needing
   rebind first. The harness surfaces this as `SKIPPED (NotAllowListed)` — correct, safe
   behavior, **not** a fake pass.
-- **Secret/cache exclusion is real**: seeded `id_rsa` / `*.secret` / `Cache` files placed
-  inside a backed-up subtree are proven **absent** from the package (the check fails the
-  run if any leaks).
+- **Secret/cache exclusion is real**: all 8 seeded noise files (`id_rsa`, `*.secret`,
+  `Cache/*`, `LocalCache/*`, `shell-snapshots/*`, `todos/*`, `GPUCache/*`) are placed
+  inside `.claude/skills/demo/` — a directory the Claude recipe actively walks — so
+  each item is a genuine backup candidate that the secret/cache overlay must prune.
+  The exclusion check fails the run if any of these names appear in the package.
+
+#### Discord backup and deferred restore (by design)
+
+Discord's settings (`discord/settings.json`, `discord/quotes.json`) **are backed up**
+into the package — the recipe captures them and they land in the zip export.
+
+However, Discord's restore is **safely deferred**: Discord config contains
+machine-specific values (window bounds, local paths, feature flags tied to the local
+install) that cannot be blindly applied on a new machine without rebinding. Rather than
+silently copying stale/machine-locked values and claiming success, the restore runner
+honestly skips Discord via `NotAllowListed` and surfaces it as a deferred step. This
+is correct behavior, not a gap.
+
+Restoring Discord settings with machine-specific rebinding is a planned "Slice 3"
+capability. Until then, the discord config is safely in your package/zip and can be
+compared manually — no data is lost, and no fake restore is claimed.
+
+#### Why `projects/**` and `skills/**` files are in the package but not the restore manifest
+
+The Claude recipe backs up `.claude/projects` and `.claude/skills` as **directory
+items** (whole-tree copy). The `MigrationRestoreManifest` tracks individual **file**
+restore targets (Slice 2 single-file restore). A directory-source copy action lands
+all matching files in the package but produces no per-file manifest entry — by design,
+not a bug. The files exist in the package/zip and can be verified there; individual
+per-file restore tracking for directory items is a future Slice 3 capability.
 
 > Honest status (2026-06-21): Layer 1 is automated + green. The Layer 2 **live** real-app
 > run is owner-run-when-ready — the harness logic is independently verified over temp, and
