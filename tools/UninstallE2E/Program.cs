@@ -64,6 +64,7 @@ internal enum ExpectedOutcome
     AllowAnchored,     // ALLOW, non-MSI, elevated, exe anchored under InstallLocation
     AllowNonElevated,  // ALLOW, non-MSI, NOT elevated (per-user)
     Manual,            // planner returns null (no usable / non-anchorable uninstaller)
+    Block,             // planner builds a plan, but the gate BLOCKS it (e.g. msiexec /I maintenance verb)
 }
 
 internal static class Program
@@ -90,8 +91,11 @@ internal static class Program
 
     private static readonly TargetSpec[] Targets =
     {
+        // 7-Zip's registry UninstallString is "MsiExec.exe /I{GUID}" — the maintenance/repair verb, NOT /X.
+        // The gate (uninstall-only msiexec policy) correctly BLOCKS /I, so 7-Zip's official uninstaller falls
+        // to manual in the real app. (A clean System32-msiexec /X{GUID} ALLOW is covered by unit tests.)
         new("7zip", "7-Zip", Array.Empty<string>(),
-            "MSI machine-wide → ALLOW (System32-msiexec pin)", ExpectedOutcome.AllowMsiPin),
+            "MSI machine-wide, /I maintenance verb → BLOCK (gate refuses non-/X msiexec)", ExpectedOutcome.Block),
 
         new("git", "Git", new[] { "GitHub", "Gitleaks", "githubprotocol", "Git LFS", "Git Credential" },
             "Inno machine-wide → ALLOW (elevated InstallLocation anchor)", ExpectedOutcome.AllowAnchored),
@@ -224,7 +228,7 @@ internal static class Program
                 if (!cfg.Execute.Contains(f.TargetId, StringComparer.OrdinalIgnoreCase))
                     continue;
 
-                ExecutionEntry exec = Execute(f, executor, cfg.SettleSeconds);
+                ExecutionEntry exec = Execute(f, executor, cfg.SettleSeconds, cfg.ExecTimeoutSeconds);
                 executions.Add(exec);
                 Console.WriteLine($"[U-E2E]   EXEC [{f.TargetId}] {f.DisplayName}: authorized={exec.Authorized} status={exec.ActionStatus} removed={exec.RemovedFromRegistry} ({exec.Detail})");
             }
@@ -350,7 +354,8 @@ internal static class Program
             ExpectedOutcome.AllowMsiPin => v.Allowed && isMsi && cmd.RequiresElevation,
             ExpectedOutcome.AllowAnchored => v.Allowed && !isMsi && cmd.RequiresElevation && cmd.AllowedExecutableRoot is { Length: > 0 },
             ExpectedOutcome.AllowNonElevated => v.Allowed && !isMsi && !cmd.RequiresElevation,
-            ExpectedOutcome.Manual => false, // a built plan never satisfies a Manual expectation
+            ExpectedOutcome.Block => !v.Allowed, // planner built a plan, gate refused it (e.g. msiexec /I verb)
+            ExpectedOutcome.Manual => false,     // a built plan never satisfies a Manual expectation
             _ => false,
         };
         if (!branchOk)
@@ -372,7 +377,7 @@ internal static class Program
     }
 
     // -----------------------------------------------------------------------
-    private static ExecutionEntry Execute(FocusEntry f, GatedExecutor executor, int settleSeconds)
+    private static ExecutionEntry Execute(FocusEntry f, GatedExecutor executor, int settleSeconds, int execTimeoutSeconds)
     {
         // Re-resolve the live app so we execute against the CURRENT registry (and capture identity to verify).
         InstalledApp? app = new Win32InstalledAppReader().ReadAll()
@@ -396,20 +401,48 @@ internal static class Program
             return new ExecutionEntry(f.TargetId, f.DisplayName ?? "", Skipped: true,
                 Detail: "not executed: registry uninstall string has no silent switch (would block unattended)");
 
-        ExecutionReport report;
-        try
+        // Run the (blocking) uninstall on a worker so a hung vendor uninstaller (e.g. a GUI uninstaller that
+        // stalls on a "close the app first" modal) can't wedge the whole run AND the VM forever.
+        // ProcessAdapter.WaitForExit has no timeout; if it exceeds execTimeoutSeconds we ABANDON the worker
+        // (a thread-pool BACKGROUND thread — it cannot keep the process alive past Main) and fall through to the
+        // registry ground-truth check. The abandoned uninstaller keeps running in the disposable VM and is torn
+        // down by the auto-close shutdown.
+        Exception? execEx = null;
+        var work = System.Threading.Tasks.Task.Run(() =>
         {
-            report = executor.ExecuteWithReport(plan, plan.ComputeHash());
-        }
-        catch (Exception ex)
+            try { return executor.ExecuteWithReport(plan, plan.ComputeHash()); }
+            catch (Exception ex) { execEx = ex; return null; }
+        });
+        bool finished = work.Wait(TimeSpan.FromSeconds(execTimeoutSeconds));
+        ExecutionReport? report = finished ? work.Result : null;
+
+        // GROUND TRUTH regardless of how the process behaved: did the registry key go away? (Runs AFTER the
+        // watchdog, so a slow-but-working uninstaller still gets the settle window to finish removing the key.)
+        bool removed = VerifyRemoved(app.Source, app.RegistryKeyName, settleSeconds, out int waitedSeconds);
+
+        if (!finished)
         {
             return new ExecutionEntry(f.TargetId, f.DisplayName ?? "", Skipped: false,
-                Detail: $"executor threw: {ex.GetType().Name}: {ex.Message}")
+                Detail: $"uninstaller did not return within {execTimeoutSeconds}s (abandoned); registry-gone={removed} after {waitedSeconds}s")
+            {
+                Authorized = true, // the gate authorized it and it was launched; exit status is unknown
+                ActionStatus = "TimedOut",
+                Blocked = false,
+                RemovedFromRegistry = removed,
+                SettleSeconds = waitedSeconds,
+            };
+        }
+
+        if (execEx is not null || report is null)
+        {
+            return new ExecutionEntry(f.TargetId, f.DisplayName ?? "", Skipped: false,
+                Detail: $"executor threw: {execEx?.GetType().Name}: {execEx?.Message}; registry-gone={removed}")
             {
                 Authorized = false,
                 ActionStatus = "Exception",
                 Blocked = false,
-                RemovedFromRegistry = false,
+                RemovedFromRegistry = removed,
+                SettleSeconds = waitedSeconds,
             };
         }
 
@@ -417,9 +450,6 @@ internal static class Program
             ? report.Results[0]
             : new ActionResult("", "command", ActionStatus.NotRun, "no result");
         bool blocked = !report.Authorized || r0.Status == ActionStatus.Blocked;
-
-        // GROUND TRUTH: re-read the registry until the key is gone (settle window) — independent of exit code.
-        bool removed = VerifyRemoved(app.Source, app.RegistryKeyName, settleSeconds, out int waitedSeconds);
 
         string detail = report.Authorized
             ? $"executor status={r0.Status} ({r0.Detail}); registry-gone={removed} after {waitedSeconds}s"
@@ -583,12 +613,22 @@ internal static class Program
                 Console.Error.WriteLine($"[U-E2E] WARNING: ignoring invalid --settleSeconds '{ss}', using {settle}");
         }
 
+        int execTimeout = 120;
+        if (d.TryGetValue("execTimeoutSeconds", out string? et))
+        {
+            if (int.TryParse(et, out int parsedEt) && parsedEt > 0)
+                execTimeout = parsedEt;
+            else
+                Console.Error.WriteLine($"[U-E2E] WARNING: ignoring invalid --execTimeoutSeconds '{et}', using {execTimeout}");
+        }
+
         cfg = new Config(
             OutputDir: output,
             Execute: Csv("execute", Array.Empty<string>()),
             Require: Csv("require", Targets.Select(t => t.Id)),
             LogDir: d.TryGetValue("logDir", out string? ld) && !string.IsNullOrWhiteSpace(ld) ? ld : Path.GetTempPath(),
-            SettleSeconds: settle);
+            SettleSeconds: settle,
+            ExecTimeoutSeconds: execTimeout);
         return true;
     }
 
@@ -634,7 +674,8 @@ internal sealed record Config(
     List<string> Execute,
     List<string> Require,
     string LogDir,
-    int SettleSeconds);
+    int SettleSeconds,
+    int ExecTimeoutSeconds);
 
 internal sealed class EvidenceReport
 {
