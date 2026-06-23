@@ -111,4 +111,74 @@ public class RecipeToBackupEntryTests
         var fs = new FakeRecipeFileSystem(); // detect absent
         Assert.Empty(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(fs).Resolve(recipe)));
     }
+
+    // --- B-1: a recipe that over-declares a secret leaf in `include` can never render a green badge ---
+
+    [Fact]
+    public void Over_declared_secret_include_sets_the_meta_signal_and_blocks_a_works_badge()
+    {
+        // ProfileRelative recipe whose include names a secret pattern (id_rsa) — the engine still prunes it,
+        // but the badge must NOT claim "works". Non-vacuous: revert the bridge aggregation and this fails.
+        var recipe = Recipe(PortabilityClass.ProfileRelative,
+            Item(".claude/projects", include: new[] { "id_rsa" }));
+
+        var bridged = Assert.Single(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(Fs()).Resolve(recipe)));
+
+        Assert.True(bridged.Meta.HasExcludedSecret);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Clean_include_leaves_the_secret_signal_unset_and_the_badge_green()
+    {
+        // Counter-test (no over-block): a non-secret include keeps the honest ✅ for a clean profile-relative item.
+        var recipe = Recipe(PortabilityClass.ProfileRelative,
+            Item(".claude/projects", include: new[] { "**/memory/**" }));
+
+        var bridged = Assert.Single(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(Fs()).Resolve(recipe)));
+
+        Assert.False(bridged.Meta.HasExcludedSecret);
+        Assert.True(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Over_declared_fixed_credential_include_blocks_a_works_badge()
+    {
+        // Review cx#1: a FIXED credential leaf (logins.json) is NOT a glob-overlay match but IS pruned by the
+        // copy engine — the badge must still downgrade. Non-vacuous: the old overlay-only aggregation missed this.
+        var recipe = Recipe(PortabilityClass.ProfileRelative,
+            Item(".claude/projects", include: new[] { "logins.json" }));
+
+        var bridged = Assert.Single(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(Fs()).Resolve(recipe)));
+
+        Assert.True(bridged.Meta.HasExcludedSecret);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Path_shaped_secret_include_is_matched_by_its_leaf()
+    {
+        // Review cx#2: a path-bearing include (**/id_rsa) is reduced to its leaf before the name policy runs.
+        var recipe = Recipe(PortabilityClass.ProfileRelative,
+            Item(".claude/projects", include: new[] { "**/id_rsa" }));
+
+        var bridged = Assert.Single(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(Fs()).Resolve(recipe)));
+
+        Assert.True(bridged.Meta.HasExcludedSecret);
+    }
+
+    [Fact]
+    public void Item_whose_path_leaf_is_a_secret_blocks_a_works_badge()
+    {
+        // Review cx#2: the declared item path can itself be the secret (empty include) — its leaf must be checked.
+        var fs = new FakeRecipeFileSystem()
+            .AddDir(@"C:\Users\alice\.claude")
+            .AddFile(@"C:\Users\alice\.claude\id_rsa");
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/id_rsa"));
+
+        var bridged = Assert.Single(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(fs).Resolve(recipe)));
+
+        Assert.True(bridged.Meta.HasExcludedSecret);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
 }

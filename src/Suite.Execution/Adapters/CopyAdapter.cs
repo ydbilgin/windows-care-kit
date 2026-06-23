@@ -27,17 +27,10 @@ public sealed class CopyAdapter : ICopyAdapter
     private readonly Win32PathCanonicalizer _canon = new();
 
     // Hardened built-in superset: credential / cookie / autofill / session stores that must NEVER be copied.
-    private static readonly string[] ForbiddenSourceLeaves =
-    {
-        // Chromium
-        "Login Data", "Login Data For Account", "Local State", "Cookies", "Web Data",
-        // Firefox
-        "key4.db", "key3.db", "logins.json", "cert9.db", "signons.sqlite", "cookies.sqlite",
-        "cookies.sqlite-wal", "cookies.sqlite-shm",
-        // Firefox session / form / web storage (tokens, autofill)
-        "sessionstore.jsonlz4", "sessionstore.js", "sessionstore-backups",
-        "formhistory.sqlite", "webappsstore.sqlite", "storage",
-    };
+    // SINGLE source of truth lives in Core (MigrationSecretFilter.FixedCredentialLeaves) so the pre-execution
+    // B-1 badge fail-safe consults the EXACT same name policy this engine enforces — no drift between the two.
+    private static readonly IReadOnlyList<string> ForbiddenSourceLeaves =
+        WindowsCareKit.Core.Modules.Migration.MigrationSecretFilter.FixedCredentialLeaves;
 
     /// <inheritdoc />
     public void Copy(CopyAction action)
