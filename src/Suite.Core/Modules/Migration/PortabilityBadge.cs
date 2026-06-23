@@ -34,8 +34,22 @@ public sealed record PortabilityBadgeResult(BadgeKind Kind, string Glyph, bool M
 /// </summary>
 public static class PortabilityBadge
 {
-    public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions) => cls switch
+    /// <summary>Back-compat overload: no declared-secret signal (equivalent to <c>hasExcludedSecret: false</c>).</summary>
+    public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions)
+        => Compute(cls, hasPreconditions, hasExcludedSecret: false);
+
+    /// <summary>
+    /// PURE badge computation with the B-1 secret fail-safe as a FIRST-CLASS input (decision §3A / critic#1-#2).
+    /// When <paramref name="hasExcludedSecret"/> is true (the item declares a secret leaf the name-based filter
+    /// excludes), an otherwise-portable item is downgraded to <see cref="BadgeKind.Partial"/> with
+    /// <c>MayClaimWorks == false</c> — the green "works" claim can never be drawn over an item whose declared
+    /// content includes a pruned secret. The override is here, in the pure function, so no UI layer can fork it.
+    /// </summary>
+    public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions, bool hasExcludedSecret) => cls switch
     {
+        // B-1: a declared secret on an otherwise-portable item can never be presented as a confident "works".
+        PortabilityClass.ProfileRelative when hasExcludedSecret
+            => new PortabilityBadgeResult(BadgeKind.Partial, "⚠️", MayClaimWorks: false),
         PortabilityClass.ProfileRelative when hasPreconditions
             => new PortabilityBadgeResult(BadgeKind.PortableWithStep, "🔁", MayClaimWorks: true),
         PortabilityClass.ProfileRelative
@@ -48,10 +62,10 @@ public static class PortabilityBadge
         _ => new PortabilityBadgeResult(BadgeKind.MachineLocked, "❌", MayClaimWorks: false),
     };
 
-    /// <summary>Convenience overload computing the badge straight from an item's restore META.</summary>
+    /// <summary>Convenience overload computing the badge straight from an item's restore META (reads the B-1 signal).</summary>
     public static PortabilityBadgeResult Compute(MigrationItemMeta meta)
     {
         ArgumentNullException.ThrowIfNull(meta);
-        return Compute(meta.PortabilityClass, meta.Preconditions.Count > 0);
+        return Compute(meta.PortabilityClass, meta.Preconditions.Count > 0, meta.HasExcludedSecret);
     }
 }

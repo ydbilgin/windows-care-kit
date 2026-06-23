@@ -19,4 +19,18 @@ public sealed record MigrationItemMeta(
     PortabilityClass PortabilityClass,
     RestoreStrategy RestoreStrategy,
     RestorePhase RestorePhase,
-    IReadOnlyList<string> Preconditions);
+    IReadOnlyList<string> Preconditions)
+{
+    /// <summary>
+    /// B-1 honesty fail-safe (decision §3A): true when this item DECLARES a secret leaf the name-based
+    /// filter would exclude (e.g. an <c>include</c> pattern matching <c>id_rsa</c>/<c>*.key</c>). The bridge
+    /// sets it per-item by aggregating the per-leaf <see cref="MigrationSecretFilter"/> over the item's
+    /// declared leaves. <see cref="PortabilityBadge.Compute(MigrationItemMeta)"/> reads it as a FIRST-CLASS
+    /// input so a declared <see cref="PortabilityClass.ProfileRelative"/> item that over-declares a secret can
+    /// NEVER render a green "works" badge — the override lives in the pure function, not in UI layering.
+    /// <para>Honesty residual: this is NAME-based; an unknown-named DPAPI blob under a broad include is only
+    /// caught by the M2.5 content-signature probe. Init-only (defaults false) so the positional record's
+    /// existing construction sites compile unchanged.</para>
+    /// </summary>
+    public bool HasExcludedSecret { get; init; }
+}

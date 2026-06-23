@@ -43,6 +43,25 @@ public static class RecipeToBackupEntry
             excludes.AddRange(item.Exclude);
             excludes.AddRange(SecretGlobOverlay.Globs);
 
+            // B-1 (decision §3A; review cx#1/#2): aggregate the FULL name policy the copy engine enforces
+            // (fixed credential leaves + secret globs, via MigrationSecretFilter) over this item's DECLARED
+            // secret surface — the item's own path leaf AND each include pattern's leaf (path-shaped patterns
+            // such as `**/id_rsa` or `keys/*.pem` are reduced to their leaf first). A declared secret the engine
+            // prunes must NOT let the item claim a clean "works". Honesty residual (M2.5 content probe):
+            // name-based only — an unknown-named DPAPI blob under a broad/empty include is NOT caught here.
+            bool hasExcludedSecret = MigrationSecretFilter.IsSecretLeafName(LeafOf(item.RecipePath));
+            if (!hasExcludedSecret)
+            {
+                foreach (string inc in item.Include)
+                {
+                    if (MigrationSecretFilter.IsSecretLeafName(LeafOf(inc)))
+                    {
+                        hasExcludedSecret = true;
+                        break;
+                    }
+                }
+            }
+
             var entry = new BackupEntry(
                 Id: entryId,
                 Enabled: true,
@@ -66,12 +85,26 @@ public static class RecipeToBackupEntry
                 PortabilityClass: recipe.PortabilityClass,
                 RestoreStrategy: recipe.Restore.Strategy,
                 RestorePhase: recipe.Restore.Phase,
-                Preconditions: recipe.Restore.Preconditions);
+                Preconditions: recipe.Restore.Preconditions)
+            {
+                HasExcludedSecret = hasExcludedSecret,
+            };
 
             result.Add(new BridgedMigrationItem(entry, meta));
         }
 
         return result;
+    }
+
+    /// <summary>The leaf (final segment) of a declared item/include path, separator-agnostic — so a path-shaped
+    /// secret declaration (<c>**/id_rsa</c>, <c>.ssh/id_rsa</c>, <c>keys/*.pem</c>) is matched by its leaf name (B-1).</summary>
+    private static string LeafOf(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return string.Empty;
+        string s = path.Replace('\\', '/').TrimEnd('/');
+        int slash = s.LastIndexOf('/');
+        return slash >= 0 ? s[(slash + 1)..] : s;
     }
 
     private static string RestoreModeText(RestoreStrategy strategy) => strategy switch
