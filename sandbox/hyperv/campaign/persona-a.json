@@ -1,0 +1,49 @@
+{
+  "persona": "A",
+  "expectedAdapterCount": 0,
+  "apps": [
+    {
+      "id": "git",
+      "installer": "F:\\WCK-VM\\installers\\Git.exe",
+      "kind": "inno",
+      "uninstallExpectation": "ALLOW-anchored"
+    },
+    {
+      "id": "vscode",
+      "installer": "F:\\WCK-VM\\installers\\VSCodeUserSetup.exe",
+      "kind": "peruser",
+      "uninstallExpectation": "non-elevated"
+    },
+    {
+      "id": "7zip",
+      "installer": "F:\\WCK-VM\\installers\\7z.msi",
+      "kind": "msi",
+      "uninstallExpectation": "BLOCK"
+    },
+    {
+      "id": "notepadpp",
+      "installer": "F:\\WCK-VM\\installers\\npp.exe",
+      "kind": "nsis",
+      "uninstallExpectation": "MANUAL"
+    }
+  ],
+  "seeds": [
+    {
+      "type": "cli-profile",
+      "path": "%USERPROFILE%\\.claude\\settings.json",
+      "syntheticContent": "{ \"profile\": \"persona-a\", \"provider\": \"synthetic\", \"model\": \"demo-sonnet\" }"
+    },
+    {
+      "type": "cli-profile",
+      "path": "%USERPROFILE%\\.codex\\config.toml",
+      "syntheticContent": "profile = \"persona-a\"\nworkspace = \"F:\\\\synthetic\\\\repo\"\n"
+    },
+    {
+      "type": "dotfile",
+      "path": "%USERPROFILE%\\.gitconfig",
+      "syntheticContent": "[user]\n    name = WCK Persona A\n    email = persona-a@example.invalid\n[includeIf \"gitdir:F:/synthetic/repo/\"]\n    path = F:/synthetic/repo/.gitconfig\n",
+      "canaryToken": "ghp_FAKE0000000000000000000000000000FAKE"
+    }
+  ],
+  "honestyCells": []
+}

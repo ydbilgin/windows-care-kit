@@ -81,6 +81,8 @@ internal static class Program
         Console.WriteLine($"[C-E2E] Output         : {cfg.OutputDir}");
         Console.WriteLine($"[C-E2E] Execute        : {(cfg.Execute ? "yes" : "no (eval/dry-run)")}");
         Console.WriteLine($"[C-E2E] Settle seconds : {cfg.SettleSeconds}");
+        Console.WriteLine($"[C-E2E] Junk dir       : {cfg.JunkDir ?? "(auto)"}");
+        Console.WriteLine($"[C-E2E] Run value      : {cfg.RunValueName ?? "(auto)"}");
 
         try
         {
@@ -269,13 +271,17 @@ internal static class Program
             Console.WriteLine("[C-E2E] Step 1: seeding disposable artifacts...");
 
             // P1 junk: a real directory with a file the executor will delete.
-            junkDir = Path.Combine(Path.GetTempPath(), $"WCK-CleanE2E-{Guid.NewGuid():N}");
+            junkDir = string.IsNullOrWhiteSpace(cfg.JunkDir)
+                ? Path.Combine(Path.GetTempPath(), $"WCK-CleanE2E-{Guid.NewGuid():N}")
+                : cfg.JunkDir;
             Directory.CreateDirectory(junkDir);
             File.WriteAllText(Path.Combine(junkDir, "junk.txt"), "WCK CleanE2E junk file", Encoding.UTF8);
             Console.WriteLine($"[C-E2E]   Junk dir seeded: {junkDir}");
 
             // P3 Run value: a fake startup entry in HKCU\...\Run.
-            seedRunValueName = $"WCK-CleanE2E-{Guid.NewGuid():N}";
+            seedRunValueName = string.IsNullOrWhiteSpace(cfg.RunValueName)
+                ? $"WCK-CleanE2E-{Guid.NewGuid():N}"
+                : cfg.RunValueName;
             using (var runKey = Registry.CurrentUser.OpenSubKey(RunSubKey, writable: true))
             {
                 if (runKey is null)
@@ -504,6 +510,8 @@ internal static class Program
         string? output = null;
         bool execute = false;
         string? logDir = null;
+        string? junkDir = null;
+        string? runValueName = null;
         int settle = 45;
 
         int i = 0;
@@ -548,6 +556,10 @@ internal static class Program
                 output = val;
             else if (key.Equals("logDir", StringComparison.OrdinalIgnoreCase))
                 logDir = val;
+            else if (key.Equals("junkDir", StringComparison.OrdinalIgnoreCase))
+                junkDir = val;
+            else if (key.Equals("runValueName", StringComparison.OrdinalIgnoreCase))
+                runValueName = val;
             else if (key.Equals("settleSeconds", StringComparison.OrdinalIgnoreCase))
             {
                 if (int.TryParse(val, out int parsed) && parsed >= 0)
@@ -572,7 +584,9 @@ internal static class Program
             OutputDir: output,
             Execute: execute,
             LogDir: logDir ?? Path.GetTempPath(),
-            SettleSeconds: settle);
+            SettleSeconds: settle,
+            JunkDir: junkDir,
+            RunValueName: runValueName);
         return true;
     }
 
@@ -581,6 +595,7 @@ internal static class Program
           CleanE2E --output <dir>
                    [--execute]
                    [--logDir <dir>] [--settleSeconds 45]
+                   [--junkDir <dir>] [--runValueName <name>]
 
           Without --execute: eval/dry-run (zero mutation) — asserts gate decisions only. Exits EVAL-PASS.
           --execute: performs real seed+delete pipeline. REFUSED unless
@@ -627,7 +642,9 @@ internal sealed record Config(
     string OutputDir,
     bool Execute,
     string LogDir,
-    int SettleSeconds);
+    int SettleSeconds,
+    string? JunkDir,
+    string? RunValueName);
 
 internal sealed class EvidenceReport
 {

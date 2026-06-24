@@ -33,12 +33,59 @@ param(
     [string] $OutputDir    = 'C:\WCK-UninstallOutput',
     [int]    $ReadyTimeoutMin = 10,
     [switch] $Publish,
-    [switch] $KeepDirtyState   # debug: skip the final checkpoint restore
+    [switch] $KeepDirtyState,    # debug: skip the final checkpoint restore
+    [securestring] $GuestPassword,
+    # FIX-D: the campaign cell-runner owns the SINGLE checkpoint-epoch — it does the guarded
+    # restore ITSELF before snapshotting BEFORE, then calls this runner with -SkipInitialRestore
+    # so the inner flow does NOT restore on top of the cell-runner's pristine epoch.
+    [switch] $SkipInitialRestore,
+    # FIX-D: when set, every delegated Stop-VM -TurnOff / Restore here passes the C-16 marker
+    # gate first (the cell-runner dot-sources Guard-WckDisposable.ps1 into this process).
+    [switch] $Campaign
 )
 
 $ErrorActionPreference = 'Stop'
 function Step([string]$m){ Write-Host "==> $m" -ForegroundColor Cyan }
 function Info([string]$m){ Write-Host "    $m" -ForegroundColor DarkGray }
+
+# FIX-D: in campaign mode the marker guard MUST already be in scope (dot-sourced by the
+# cell-runner). Assert it before any delegated force-op; load it directly as a fallback.
+# SCOPE FIX: the cell-runner's dot-source does NOT cross the `& script.ps1` invocation
+# boundary for $script:-scoped vars (the guard FUNCTIONS are inherited, but $script:WckCampaignRoot
+# is not). Dot-source the guard at THIS script's scope in campaign mode so the pinned root is set
+# here before any Assert-WckPathUnderRoot call.
+if ($Campaign) { . (Join-Path $PSScriptRoot 'campaign\Guard-WckDisposable.ps1') }
+
+function Assert-CampaignDisposable([string]$name) {
+    if (-not $Campaign) { return }
+    if (-not (Get-Command Assert-WckDisposableVM -ErrorAction SilentlyContinue)) {
+        . (Join-Path $PSScriptRoot 'campaign\Guard-WckDisposable.ps1')
+    }
+    $null = Assert-WckDisposableVM -VMName $name
+}
+function Assert-CampaignPath([string]$path) {
+    if (-not $Campaign) { return }
+    if (-not (Get-Command Assert-WckPathUnderRoot -ErrorAction SilentlyContinue)) {
+        . (Join-Path $PSScriptRoot 'campaign\Guard-WckDisposable.ps1')
+    }
+    $null = Assert-WckPathUnderRoot -Path $path
+}
+
+function Get-GuestCredential {
+    if ($GuestPassword) {
+        Info "guest credential source: -GuestPassword (disposable VM only)"
+        return [System.Management.Automation.PSCredential]::new('wck', $GuestPassword)
+    }
+    $pw = $env:WCK_GUEST_CRED
+    if ([string]::IsNullOrEmpty($pw)) {
+        throw "Guest credential required: provide -GuestPassword (SecureString) or env:WCK_GUEST_CRED; refusing to use a script-literal default."
+    }
+    Info "guest credential source: env:WCK_GUEST_CRED (disposable VM only)"
+    $sec = ConvertTo-SecureString $pw -AsPlainText -Force
+    [System.Management.Automation.PSCredential]::new('wck', $sec)
+}
+
+$cred = Get-GuestCredential
 
 # --- preflight --------------------------------------------------------------
 if (-not (Get-Command Get-VM -ErrorAction SilentlyContinue)) { throw "Hyper-V module unavailable." }
@@ -60,14 +107,13 @@ if (Test-Path $OutputDir) {
     $isDefault = ($OutputDir -eq 'C:\WCK-UninstallOutput')
     $isEmpty   = -not (Get-ChildItem -LiteralPath $OutputDir -ErrorAction SilentlyContinue | Select-Object -First 1)
     if (-not ($isDefault -or $isEmpty)) { throw "OutputDir '$OutputDir' is non-empty and not the default; refuse to clear." }
+    Assert-CampaignPath $OutputDir
     Remove-Item $OutputDir -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-$sec  = ConvertTo-SecureString 'WckE2E!2026' -AsPlainText -Force
-$cred = New-Object System.Management.Automation.PSCredential('wck', $sec)
-
 function Restore-Baseline {
+    Assert-CampaignDisposable $VMName   # FIX-D: marker gate before any TurnOff/restore in campaign mode
     $cp = Get-VMCheckpoint -VMName $VMName -Name $Checkpoint -ErrorAction SilentlyContinue
     if (-not $cp) { throw "Checkpoint '$Checkpoint' not found on '$VMName'." }
     if ((Get-VM -Name $VMName).State -ne 'Off') { Stop-VM -Name $VMName -TurnOff -Force }
@@ -76,8 +122,15 @@ function Restore-Baseline {
 
 try {
     # --- 1. pristine guest ---
-    Step "Restoring '$Checkpoint' checkpoint..."
-    Restore-Baseline
+    # FIX-D: in campaign mode the cell-runner already restored to the pristine epoch and took
+    # its BEFORE snapshot; restoring AGAIN here would start a SECOND epoch (BEFORE/mutate/AFTER
+    # would no longer share one checkpoint-epoch). Skip the initial restore in that case.
+    if ($SkipInitialRestore) {
+        Step "Skipping initial restore (campaign cell-runner owns the checkpoint-epoch)."
+    } else {
+        Step "Restoring '$Checkpoint' checkpoint..."
+        Restore-Baseline
+    }
 
     # --- 2. boot + wait for PowerShell Direct ---
     Step "Starting VM; waiting for PowerShell Direct..."
@@ -131,7 +184,7 @@ try {
 finally {
     if (-not $KeepDirtyState) {
         Step "Resetting VM to clean baseline (discard run)..."
-        try { Restore-Baseline; if ((Get-VM -Name $VMName).State -ne 'Off') { Stop-VM -Name $VMName -TurnOff -Force } }
+        try { Restore-Baseline; Assert-CampaignDisposable $VMName; if ((Get-VM -Name $VMName).State -ne 'Off') { Stop-VM -Name $VMName -TurnOff -Force } }
         catch { Write-Host "    cleanup warning: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
 }

@@ -1,0 +1,81 @@
+{
+  "persona": "B",
+  "expectedAdapterCount": 0,
+  "apps": [
+    {
+      "id": "qbittorrent",
+      "installer": "F:\\WCK-VM\\installers\\qbittorrent.exe",
+      "kind": "nsis",
+      "uninstallExpectation": "ALLOW-anchored"
+    },
+    {
+      "id": "chrome-enterprise",
+      "installer": "F:\\WCK-VM\\installers\\GoogleChromeStandaloneEnterprise64.msi",
+      "kind": "msi",
+      "uninstallExpectation": "MANUAL"
+    },
+    {
+      "id": "steam",
+      "installer": "synthetic-seed",
+      "kind": "synthetic",
+      "uninstallExpectation": "MANUAL"
+    },
+    {
+      "id": "discord",
+      "installer": "synthetic-seed",
+      "kind": "synthetic",
+      "uninstallExpectation": "MANUAL"
+    },
+    {
+      "id": "spotify",
+      "installer": "synthetic-seed",
+      "kind": "synthetic",
+      "uninstallExpectation": "MANUAL"
+    }
+  ],
+  "seeds": [
+    {
+      "type": "token-store",
+      "path": "%APPDATA%\\discord\\Local State",
+      "syntheticContent": "{ \"persona\": \"B\", \"tokens\": [\"synthetic-discord-token-do-not-restore\"] }"
+    },
+    {
+      "type": "launcher-layout",
+      "path": "F:\\fake-steam\\steamapps\\libraryfolders.vdf",
+      "syntheticContent": "\"libraryfolders\"\n{\n  \"0\"\n  {\n    \"path\" \"F:\\\\fake-steam\"\n  }\n}\n"
+    },
+    {
+      "type": "launcher-layout",
+      "path": "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\wck-fake-launcher-run-key.txt",
+      "syntheticContent": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\WckFakeLauncher -> C:\\Users\\wck\\AppData\\Local\\FakeLauncher\\launcher.exe\n"
+    },
+    {
+      "type": "browser-profile",
+      "path": "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Preferences",
+      "syntheticContent": "{ \"profile\": { \"name\": \"Persona B\" }, \"sync\": { \"requested\": true }, \"abe\": \"machine-bound\" }"
+    },
+    {
+      "type": "dotfile",
+      "path": "%USERPROFILE%\\OneDrive\\Documents\\wck-redirect-note.txt",
+      "syntheticContent": "Synthetic OneDrive redirected Documents marker. C:-resident reparse/redirect metadata is not restorable after format.\n"
+    }
+  ],
+  "honestyCells": [
+    {
+      "name": "Chrome-ABE",
+      "expectedWarning": "geri-yuklenemez, sync kullan"
+    },
+    {
+      "name": "OneDrive-redirect",
+      "expectedWarning": "C:-resident, format siler"
+    },
+    {
+      "name": "dead-PATH",
+      "expectedWarning": "yeniden EKLEME"
+    },
+    {
+      "name": "launcher",
+      "expectedWarning": "sadece re-add"
+    }
+  ]
+}

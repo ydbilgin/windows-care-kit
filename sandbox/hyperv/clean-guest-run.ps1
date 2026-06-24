@@ -13,7 +13,9 @@
 [CmdletBinding()]
 param(
     [string] $Harness = 'C:\WCK-CleanE2E\CleanE2E.exe',
-    [string] $Output  = 'C:\WCK-CleanOutput'
+    [string] $Output  = 'C:\WCK-CleanOutput',
+    [string] $JunkDir,
+    [string] $RunValueName
 )
 $ErrorActionPreference = 'Stop'
 
@@ -25,7 +27,10 @@ Set-Content $marker 'disposable' -Encoding ascii
 Write-Host "[clean-guest] WCK_DISPOSABLE_MACHINE=1, marker=$marker"
 if (-not (Test-Path $Harness)) { throw "harness not found: $Harness" }
 
-& $Harness --execute --output $Output
+$argsList = @('--execute', '--output', $Output)
+if (-not [string]::IsNullOrWhiteSpace($JunkDir)) { $argsList += @('--junkDir', $JunkDir) }
+if (-not [string]::IsNullOrWhiteSpace($RunValueName)) { $argsList += @('--runValueName', $RunValueName) }
+& $Harness @argsList
 $rc = $LASTEXITCODE
 Write-Host "[clean-guest] CleanE2E.exe exit code: $rc"
 [pscustomobject]@{ ExitCode = $rc }
