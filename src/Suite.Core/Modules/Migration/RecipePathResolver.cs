@@ -50,7 +50,15 @@ public sealed class RecipePathResolver
     public RecipePathResolver(ProfileRoots roots)
         => _roots = roots ?? throw new ArgumentNullException(nameof(roots));
 
-    /// <summary>The absolute, normalized root directory for a <see cref="KnownFolder"/>.</summary>
+    /// <summary>
+    /// The absolute, normalized root directory for a <see cref="KnownFolder"/>.
+    /// <para>
+    /// Non-profile roots (<see cref="KnownFolder.ProgramFiles"/>, <see cref="KnownFolder.ProgramFilesX86"/>,
+    /// <see cref="KnownFolder.ProgramData"/>, <see cref="KnownFolder.WindowsEtc"/>) are resolved for detection
+    /// and inventory only. <see cref="MigrationRecipeLoader"/> structurally caps recipes using them at
+    /// <see cref="RestoreTier.InventoryOnly"/>; they must never be projected into a copy/write restore target.
+    /// </para>
+    /// </summary>
     public string RootFor(KnownFolder folder)
     {
         string raw = folder switch
