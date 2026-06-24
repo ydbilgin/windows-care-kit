@@ -79,13 +79,14 @@ public static class RecipeToBackupEntry
                 Include = item.Include,
             };
 
+            IReadOnlyList<string> preconditions = MergePreconditions(recipe.Restore.Preconditions, item.RequiresClosedProcesses);
             var meta = new MigrationItemMeta(
                 RecipeId: recipe.Id,
                 EntryId: entryId,
                 PortabilityClass: recipe.PortabilityClass,
                 RestoreStrategy: recipe.Restore.Strategy,
                 RestorePhase: recipe.Restore.Phase,
-                Preconditions: recipe.Restore.Preconditions)
+                Preconditions: preconditions)
             {
                 HasExcludedSecret = hasExcludedSecret,
             };
@@ -113,6 +114,21 @@ public static class RecipeToBackupEntry
         RestoreStrategy.Replace => "replace",
         _ => "config-write",
     };
+
+    private static IReadOnlyList<string> MergePreconditions(
+        IReadOnlyList<string> recipePreconditions,
+        IReadOnlyList<string> closedProcesses)
+    {
+        if (closedProcesses.Count == 0)
+            return recipePreconditions;
+
+        var merged = new List<string>(recipePreconditions.Count + closedProcesses.Count);
+        merged.AddRange(recipePreconditions);
+        foreach (string process in closedProcesses)
+            if (!string.IsNullOrWhiteSpace(process))
+                merged.Add($"process-closed:{process.Trim()}");
+        return merged;
+    }
 
     // A machine-locked recipe must never be presented as "it will work" — surface a warning, never a green claim.
     private static string? WarningFor(PortabilityClass cls) => cls switch

@@ -81,6 +81,7 @@ public sealed class Win32AppxReader : IAppxReader
             return new InstalledAppx
             {
                 PackageFullName = fullName,
+                PackageFamilyName = package.Id.FamilyName,
                 DisplayName = display,
                 PublisherDisplayName = publisher,
                 Version = version,

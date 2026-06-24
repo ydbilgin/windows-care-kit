@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 3,
+  "id": "7zip.7zip",
+  "displayName": "7-Zip",
+  "category": "utilities",
+  "detect": { "knownFolder": "ProgramFiles", "path": "7-Zip", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "7zip-reinstall-note", "manualTodo": ["Reinstall 7-Zip; no user config is copied by this recipe."] }
+  ],
+  "exclude": [],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "config-write", "phase": "configWrite", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "7zip.7zip" },
+  "wingetId": "7zip.7zip",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["7-Zip"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Reinstall-only recipe; no personal app data is copied.",
+      "tr": "Sadece yeniden kurulum recetesi; kisisel uygulama verisi kopyalanmaz."
+    },
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

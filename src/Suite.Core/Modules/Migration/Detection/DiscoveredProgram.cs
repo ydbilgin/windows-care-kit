@@ -7,7 +7,7 @@ namespace WindowsCareKit.Core.Modules.Migration.Detection;
 public sealed record DiscoveredProgram
 {
     /// <summary>
-    /// Stable identifier. Precedence: MSI ProductCode (GUID) → InstallPathLeaf → "NormalizedName|publisher".
+    /// Stable identifier. Precedence: MSI ProductCode → PackageFamilyName → InstallPathLeaf → "NormalizedName|publisher".
     /// </summary>
     public required string Id { get; init; }
 

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "id": "notepadplusplus.notepadplusplus",
+  "displayName": "Notepad++",
+  "category": "utilities",
+  "detect": { "knownFolder": "AppData", "path": "Notepad++", "exists": true },
+  "items": [
+    { "path": "Notepad++/config.xml", "requiresClosedProcesses": ["notepad++.exe"] },
+    { "path": "Notepad++/shortcuts.xml", "requiresClosedProcesses": ["notepad++.exe"] },
+    { "path": "Notepad++/plugins/config", "requiresClosedProcesses": ["notepad++.exe"] }
+  ],
+  "exclude": ["backup", "session.xml"],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Notepad++.Notepad++" },
+  "wingetId": "Notepad++.Notepad++",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Notepad++"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies Notepad++ settings and plugin config; open documents/session state are not promised.",
+      "tr": "Notepad++ ayarlari ve plugin config kopyalanir; acik belge/session durumu garanti edilmez."
+    },
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

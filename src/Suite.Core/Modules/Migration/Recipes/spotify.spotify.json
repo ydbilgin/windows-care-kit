@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "spotify.spotify",
+  "displayName": "Spotify",
+  "category": "media",
+  "detect": { "knownFolder": "AppData", "path": "Spotify", "exists": true },
+  "items": [
+    { "path": "Spotify/prefs", "requiresClosedProcesses": ["Spotify.exe"] }
+  ],
+  "exclude": ["Data", "Browser", "Cache", "Code Cache", "GPUCache", "Users"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Spotify.Spotify" },
+  "wingetId": "Spotify.Spotify",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Spotify"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies lightweight preferences only; account session and downloads are not restored.",
+      "tr": "Yalnizca hafif tercihleri kopyalar; hesap oturumu ve indirmeler geri yuklenmez."
+    },
+    "manualTodo": ["Sign in again and re-download offline music if needed."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

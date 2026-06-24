@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "valve.steam",
+  "displayName": "Steam",
+  "category": "games",
+  "detect": { "knownFolder": "LocalAppData", "path": "Steam", "exists": false },
+  "items": [
+    { "kind": "machineRoot", "path": "steam-library", "libraryDetector": "steam", "launcherId": "Steam" }
+  ],
+  "exclude": [],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "Valve.Steam" },
+  "wingetId": "Valve.Steam",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Steam"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Steam libraries are inventory-only here; WCK records that they must be re-added, not copied.",
+      "tr": "Steam kutuphaneleri burada sadece envanterdir; WCK kopyalamaz, yeniden ekleme notu tutar."
+    },
+    "manualTodo": ["Re-add existing Steam library folders from Steam settings after reinstall."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": true
+  }
+}

@@ -6,13 +6,24 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// <param name="UserProfile">Absolute path of <c>%USERPROFILE%</c>.</param>
 /// <param name="AppData">Absolute path of <c>%APPDATA%</c>.</param>
 /// <param name="LocalAppData">Absolute path of <c>%LOCALAPPDATA%</c>.</param>
-public sealed record ProfileRoots(string UserProfile, string AppData, string LocalAppData)
+public sealed record ProfileRoots(
+    string UserProfile,
+    string AppData,
+    string LocalAppData,
+    string? ProgramData = null,
+    string? ProgramFiles = null,
+    string? ProgramFilesX86 = null,
+    string? WindowsEtc = null)
 {
     /// <summary>The roots for the running process's real user (production wiring).</summary>
     public static ProfileRoots ForCurrentUser() => new(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "drivers", "etc"));
 }
 
 /// <summary>Thrown when a recipe path cannot be safely resolved (fail-closed, critic fix F1/F2).</summary>
@@ -47,6 +58,10 @@ public sealed class RecipePathResolver
             KnownFolder.UserProfile => _roots.UserProfile,
             KnownFolder.AppData => _roots.AppData,
             KnownFolder.LocalAppData => _roots.LocalAppData,
+            KnownFolder.ProgramData => _roots.ProgramData ?? string.Empty,
+            KnownFolder.ProgramFiles => _roots.ProgramFiles ?? string.Empty,
+            KnownFolder.ProgramFilesX86 => _roots.ProgramFilesX86 ?? string.Empty,
+            KnownFolder.WindowsEtc => _roots.WindowsEtc ?? string.Empty,
             _ => throw new RecipePathException($"unknown known-folder {folder}"),
         };
         if (string.IsNullOrWhiteSpace(raw))

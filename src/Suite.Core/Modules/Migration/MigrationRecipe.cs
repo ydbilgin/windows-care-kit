@@ -16,6 +16,18 @@ public enum KnownFolder
 
     /// <summary><c>%LOCALAPPDATA%</c> — local app data (e.g. <c>C:\Users\alice\AppData\Local</c>).</summary>
     LocalAppData,
+
+    /// <summary><c>%PROGRAMDATA%</c> — non-profile machine data. Inventory-only in Slice 1.</summary>
+    ProgramData,
+
+    /// <summary><c>%ProgramFiles%</c> — non-profile install root. Inventory-only in Slice 1.</summary>
+    ProgramFiles,
+
+    /// <summary><c>%ProgramFiles(x86)%</c> — non-profile install root. Inventory-only in Slice 1.</summary>
+    ProgramFilesX86,
+
+    /// <summary>Windows drivers/etc content such as hosts. Inventory/export only in Slice 1.</summary>
+    WindowsEtc,
 }
 
 /// <summary>
@@ -66,6 +78,76 @@ public enum RestorePhase
     ConfigWrite,
 }
 
+/// <summary>Honest restore capability tier for v3 recipes. It gates claims; Slice 1 does not execute restores.</summary>
+public enum RestoreTier
+{
+    InventoryOnly,
+    ConfigCopy,
+    MergeAfterInstall,
+}
+
+/// <summary>Safety/curation tier for catalog governance. Trusted never bypasses badge/secret floors.</summary>
+public enum CatalogTier
+{
+    Trusted,
+    Community,
+}
+
+/// <summary>Recipe item route. Only <see cref="ProfilePath"/> is copied by the Slice-1 profile resolver.</summary>
+public enum RecipeItemKind
+{
+    ProfilePath,
+    MachineRoot,
+    ExportCmd,
+    WindowsEtc,
+    ManualTodo,
+}
+
+/// <summary>Closed export kinds. Recipes name data intent, never command strings.</summary>
+public enum ExportKind
+{
+    WifiProfiles,
+    RegistrySubtree,
+    WingetList,
+    NpmGlobalList,
+    PathDump,
+    ScheduledTasks,
+}
+
+public sealed record RecipeItemVerify(IReadOnlyList<string> Exists, int? MaxSizeMB);
+
+public enum InstallerSource
+{
+    Winget,
+    Npm,
+    MicrosoftStore,
+    ManualDownload,
+    ExistingInstaller,
+    Unknown,
+}
+
+public enum LicenseSource
+{
+    AccountLogin,
+    ProductKey,
+    LicenseFile,
+    Subscription,
+    None,
+    Unknown,
+}
+
+public sealed record LocalizedText(string? En, string? Tr);
+
+public sealed record MigrationRecipeMeta(
+    LocalizedText? UiWarning,
+    IReadOnlyList<string> ManualSteps,
+    IReadOnlyList<string> ManualTodo,
+    InstallerSource? InstallerSource,
+    LicenseSource? LicenseSource,
+    bool RequiresRelogin,
+    bool BackedUpButNotRestored,
+    bool SurvivesOnOtherDrive);
+
 /// <summary>The <c>detect</c> block: where the app's data lives and whether to bother at all.</summary>
 /// <param name="KnownFolder">The closed-enum root the app's data hangs off (F1).</param>
 /// <param name="Path">The relative path under <paramref name="KnownFolder"/>, e.g. <c>.claude</c> or <c>discord</c>.</param>
@@ -76,7 +158,16 @@ public sealed record RecipeDetect(KnownFolder KnownFolder, string Path, bool Exi
 /// <param name="Path">Path relative to the recipe's <see cref="RecipeDetect.KnownFolder"/> root.</param>
 /// <param name="Include">Optional include allow-list globs (relative to this item's path).</param>
 /// <param name="Exclude">Optional exclude globs (relative to this item's path).</param>
-public sealed record RecipeItem(string Path, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude);
+public sealed record RecipeItem(string Path, IReadOnlyList<string> Include, IReadOnlyList<string> Exclude)
+{
+    public RecipeItemKind Kind { get; init; } = RecipeItemKind.ProfilePath;
+    public string? LibraryDetector { get; init; }
+    public string? LauncherId { get; init; }
+    public ExportKind? ExportKind { get; init; }
+    public IReadOnlyList<string> ManualTodo { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> RequiresClosedProcesses { get; init; } = Array.Empty<string>();
+    public RecipeItemVerify? Verify { get; init; }
+}
 
 /// <summary>The restore META block (strategy/phase/preconditions). Slice 1: declarative only, no execution.</summary>
 /// <param name="Strategy">How to restore (F5 dik-eksen).</param>
@@ -165,4 +256,13 @@ public sealed record MigrationRecipe(
     /// exactly one gated install entry (<see cref="MigrationInstallProjector"/>).
     /// </summary>
     public RecipeInstall? Install { get; init; }
+
+    public string? WingetId { get; init; }
+    public IReadOnlyList<string> ProductCode { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> UpgradeCode { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> PackageFamilyName { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> InstallPathHint { get; init; } = Array.Empty<string>();
+    public RestoreTier RestoreTier { get; init; } = RestoreTier.ConfigCopy;
+    public MigrationRecipeMeta? MigrationMeta { get; init; }
+    public CatalogTier CatalogTier { get; init; } = CatalogTier.Trusted;
 }

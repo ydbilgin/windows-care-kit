@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using WindowsCareKit.Core.Modules.Install;
+using WindowsCareKit.Core.Modules.Migration.Detection;
 
 namespace WindowsCareKit.Core.Modules.Migration;
 
@@ -26,11 +27,13 @@ public static class MigrationRecipeLoader
     /// <summary>The oldest recipe schema this loader accepts (v1: no <c>install</c> block).</summary>
     public const int MinSupportedSchemaVersion = 1;
 
-    /// <summary>The newest recipe schema this loader accepts (v2: adds the optional <c>install</c> block).</summary>
-    public const int MaxSupportedSchemaVersion = 2;
+    /// <summary>The newest recipe schema this loader accepts (v3: detection join keys + honest restore tier/meta).</summary>
+    public const int MaxSupportedSchemaVersion = 3;
 
     /// <summary>The schema version at which the optional <c>install</c> block becomes a recognized root field.</summary>
     private const int InstallBlockSchemaVersion = 2;
+
+    private const int V3SchemaVersion = 3;
 
     /// <summary>Retained for source compatibility — the lowest version this loader supports.</summary>
     public const int SupportedSchemaVersion = MinSupportedSchemaVersion;
@@ -64,11 +67,19 @@ public static class MigrationRecipeLoader
                     $"unsupported schemaVersion {schemaVersion} (expected {MinSupportedSchemaVersion}..{MaxSupportedSchemaVersion})");
 
             // v1: the original allowed-root set (install is REJECTED as an unknown field). v2: install is allowed.
+            // v3: additive exact set for detection join keys + restoreTier + migrationMeta.
             // Building the set from the version keeps the strict "reject unknown field" guarantee version-exact —
-            // a v1 recipe smuggling `install` still fails closed.
-            string[] allowedRootFields = schemaVersion >= InstallBlockSchemaVersion
-                ? new[] { "schemaVersion", "id", "displayName", "category", "detect", "items", "exclude", "secretRule", "portabilityClass", "restore", "install" }
-                : new[] { "schemaVersion", "id", "displayName", "category", "detect", "items", "exclude", "secretRule", "portabilityClass", "restore" };
+            // a v1 recipe smuggling `install` or a v2 recipe smuggling `migrationMeta` still fails closed.
+            string[] v1Root =
+                ["schemaVersion", "id", "displayName", "category", "detect", "items", "exclude", "secretRule", "portabilityClass", "restore"];
+            string[] allowedRootFields = schemaVersion switch
+            {
+                1 => v1Root,
+                2 => [.. v1Root, "install"],
+                3 => [.. v1Root, "install", "wingetId", "productCode", "upgradeCode", "packageFamilyName",
+                    "installPathHint", "restoreTier", "migrationMeta", "catalogTier"],
+                _ => v1Root,
+            };
             RejectUnknownFields(root, "(root)", allowedRootFields);
 
             string id = RequireNonEmptyString(root, "id");
@@ -76,8 +87,8 @@ public static class MigrationRecipeLoader
             string displayName = RequireNonEmptyString(root, "displayName");
             string category = OptionalString(root, "category") ?? string.Empty;
 
-            RecipeDetect detect = ParseDetect(RequireObject(root, "detect"));
-            IReadOnlyList<RecipeItem> items = ParseItems(RequireArray(root, "items"), id);
+            RecipeDetect detect = ParseDetect(RequireObject(root, "detect"), schemaVersion);
+            IReadOnlyList<RecipeItem> items = ParseItems(RequireArray(root, "items"), id, schemaVersion);
             IReadOnlyList<string> exclude = ParseStringArray(root, "exclude");
             string secretRule = OptionalString(root, "secretRule") ?? "global";
             if (!string.Equals(secretRule, "global", StringComparison.OrdinalIgnoreCase))
@@ -90,11 +101,38 @@ public static class MigrationRecipeLoader
             RecipeInstall? install = root.TryGetProperty("install", out JsonElement installEl)
                 ? ParseInstall(installEl)
                 : null;
+            string? wingetId = OptionalString(root, "wingetId");
+            if (!string.IsNullOrWhiteSpace(wingetId) && !InstallPlanner.IsValidWingetId(wingetId))
+                throw new RecipeValidationException($"wingetId '{wingetId}' is not a valid winget package id");
+            IReadOnlyList<string> productCode = ParseGuidArray(root, "productCode");
+            IReadOnlyList<string> upgradeCode = ParseGuidArray(root, "upgradeCode");
+            IReadOnlyList<string> packageFamilyName = ParseStringArray(root, "packageFamilyName");
+            IReadOnlyList<string> installPathHint = ParseStringArray(root, "installPathHint");
+            RestoreTier restoreTier = schemaVersion >= V3SchemaVersion
+                ? ParseRestoreTier(RequireNonEmptyString(root, "restoreTier"))
+                : RestoreTier.ConfigCopy;
+            MigrationRecipeMeta? migrationMeta = root.TryGetProperty("migrationMeta", out JsonElement metaEl)
+                ? ParseMigrationMeta(metaEl)
+                : null;
+            CatalogTier catalogTier = root.TryGetProperty("catalogTier", out _)
+                ? ParseCatalogTier(RequireNonEmptyString(root, "catalogTier"))
+                : CatalogTier.Trusted;
+
+            if (MustForceInventoryOnly(portability, detect, items))
+                restoreTier = RestoreTier.InventoryOnly;
 
             return new MigrationRecipe(
                 schemaVersion, id, displayName, category, detect, items, exclude, secretRule, portability, restore)
             {
                 Install = install,
+                WingetId = wingetId,
+                ProductCode = productCode,
+                UpgradeCode = upgradeCode,
+                PackageFamilyName = packageFamilyName,
+                InstallPathHint = installPathHint,
+                RestoreTier = restoreTier,
+                MigrationMeta = migrationMeta,
+                CatalogTier = catalogTier,
             };
         }
     }
@@ -135,25 +173,46 @@ public static class MigrationRecipeLoader
             throw new RecipeValidationException($"recipe id '{id}' uses a reserved Windows device name ('{stem}')");
     }
 
-    private static RecipeDetect ParseDetect(JsonElement el)
+    private static RecipeDetect ParseDetect(JsonElement el, int schemaVersion)
     {
         RejectUnknownFields(el, "detect", "knownFolder", "path", "exists");
-        KnownFolder kf = ParseKnownFolder(RequireNonEmptyString(el, "knownFolder"));
+        KnownFolder kf = ParseKnownFolder(RequireNonEmptyString(el, "knownFolder"), schemaVersion);
         string path = RequireNonEmptyString(el, "path");
         bool exists = el.TryGetProperty("exists", out JsonElement e) ? RequireBool(e, "detect.exists") : true;
         return new RecipeDetect(kf, path, exists);
     }
 
-    private static IReadOnlyList<RecipeItem> ParseItems(JsonElement arr, string recipeId)
+    private static IReadOnlyList<RecipeItem> ParseItems(JsonElement arr, string recipeId, int schemaVersion)
     {
         var list = new List<RecipeItem>();
         foreach (JsonElement el in arr.EnumerateArray())
         {
             if (el.ValueKind != JsonValueKind.Object)
                 throw new RecipeValidationException("each item must be a JSON object");
-            RejectUnknownFields(el, "items[]", "path", "include", "exclude");
+            string[] allowedItemFields = schemaVersion >= V3SchemaVersion
+                ? ["path", "include", "exclude", "kind", "libraryDetector", "launcherId", "exportKind",
+                    "manualTodo", "requiresClosedProcesses", "verify"]
+                : ["path", "include", "exclude"];
+            RejectUnknownFields(el, "items[]", allowedItemFields);
             string path = RequireNonEmptyString(el, "path");
-            list.Add(new RecipeItem(path, ParseStringArray(el, "include"), ParseStringArray(el, "exclude")));
+            RecipeItemKind kind = el.TryGetProperty("kind", out _)
+                ? ParseItemKind(RequireNonEmptyString(el, "kind"))
+                : RecipeItemKind.ProfilePath;
+            ExportKind? exportKind = el.TryGetProperty("exportKind", out _)
+                ? ParseExportKind(RequireNonEmptyString(el, "exportKind"))
+                : null;
+            if (kind == RecipeItemKind.ExportCmd && exportKind is null)
+                throw new RecipeValidationException("items[] kind 'exportCmd' requires exportKind");
+            list.Add(new RecipeItem(path, ParseStringArray(el, "include"), ParseStringArray(el, "exclude"))
+            {
+                Kind = kind,
+                LibraryDetector = OptionalString(el, "libraryDetector"),
+                LauncherId = OptionalString(el, "launcherId"),
+                ExportKind = exportKind,
+                ManualTodo = ParseStringArray(el, "manualTodo"),
+                RequiresClosedProcesses = ParseStringArray(el, "requiresClosedProcesses"),
+                Verify = el.TryGetProperty("verify", out JsonElement verifyEl) ? ParseVerify(verifyEl) : null,
+            });
         }
         if (list.Count == 0)
             throw new RecipeValidationException($"recipe '{recipeId}' has no items");
@@ -224,15 +283,71 @@ public static class MigrationRecipeLoader
         return new RecipeInstall(method, wingetId, npmPackage, manualUrl, requiresAdmin, rebootExpected);
     }
 
+    private static RecipeItemVerify ParseVerify(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Object)
+            throw new RecipeValidationException("field 'verify' must be a JSON object");
+        RejectUnknownFields(el, "verify", "exists", "maxSizeMB");
+        int? maxSize = null;
+        if (el.TryGetProperty("maxSizeMB", out JsonElement maxEl))
+        {
+            if (maxEl.ValueKind != JsonValueKind.Number || !maxEl.TryGetInt32(out int parsed) || parsed < 0)
+                throw new RecipeValidationException("field 'verify.maxSizeMB' must be a non-negative integer");
+            maxSize = parsed;
+        }
+        return new RecipeItemVerify(ParseStringArray(el, "exists"), maxSize);
+    }
+
+    private static MigrationRecipeMeta ParseMigrationMeta(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Object)
+            throw new RecipeValidationException("field 'migrationMeta' must be a JSON object");
+
+        RejectUnknownFields(el, "migrationMeta", "uiWarning", "manualSteps", "manualTodo",
+            "installerSource", "licenseSource", "requiresRelogin", "backedUpButNotRestored", "survivesOnOtherDrive");
+
+        return new MigrationRecipeMeta(
+            UiWarning: el.TryGetProperty("uiWarning", out JsonElement warnEl) ? ParseLocalizedText(warnEl) : null,
+            ManualSteps: ParseStringArray(el, "manualSteps"),
+            ManualTodo: ParseStringArray(el, "manualTodo"),
+            InstallerSource: el.TryGetProperty("installerSource", out _) ? ParseInstallerSource(RequireNonEmptyString(el, "installerSource")) : null,
+            LicenseSource: el.TryGetProperty("licenseSource", out _) ? ParseLicenseSource(RequireNonEmptyString(el, "licenseSource")) : null,
+            RequiresRelogin: el.TryGetProperty("requiresRelogin", out JsonElement relogin) && RequireBool(relogin, "migrationMeta.requiresRelogin"),
+            BackedUpButNotRestored: el.TryGetProperty("backedUpButNotRestored", out JsonElement backed) && RequireBool(backed, "migrationMeta.backedUpButNotRestored"),
+            SurvivesOnOtherDrive: el.TryGetProperty("survivesOnOtherDrive", out JsonElement survives) && RequireBool(survives, "migrationMeta.survivesOnOtherDrive"));
+    }
+
+    private static LocalizedText ParseLocalizedText(JsonElement el)
+    {
+        if (el.ValueKind == JsonValueKind.String)
+        {
+            string? s = el.GetString();
+            return new LocalizedText(s, s);
+        }
+
+        if (el.ValueKind != JsonValueKind.Object)
+            throw new RecipeValidationException("field 'uiWarning' must be a string or object");
+        RejectUnknownFields(el, "uiWarning", "en", "tr");
+        return new LocalizedText(OptionalString(el, "en"), OptionalString(el, "tr"));
+    }
+
     // ---- enum parsing (fail-closed) --------------------------------------------------------
 
-    private static KnownFolder ParseKnownFolder(string s) => s.ToLowerInvariant() switch
+    private static KnownFolder ParseKnownFolder(string s, int schemaVersion)
     {
-        "userprofile" => KnownFolder.UserProfile,
-        "appdata" => KnownFolder.AppData,
-        "localappdata" => KnownFolder.LocalAppData,
-        _ => throw new RecipeValidationException($"unknown knownFolder '{s}'"),
-    };
+        string key = s.ToLowerInvariant();
+        return key switch
+        {
+            "userprofile" => KnownFolder.UserProfile,
+            "appdata" => KnownFolder.AppData,
+            "localappdata" => KnownFolder.LocalAppData,
+            "programdata" when schemaVersion >= V3SchemaVersion => KnownFolder.ProgramData,
+            "programfiles" when schemaVersion >= V3SchemaVersion => KnownFolder.ProgramFiles,
+            "programfilesx86" or "programfiles-x86" when schemaVersion >= V3SchemaVersion => KnownFolder.ProgramFilesX86,
+            "windowsetc" or "windows-etc" when schemaVersion >= V3SchemaVersion => KnownFolder.WindowsEtc,
+            _ => throw new RecipeValidationException($"unknown knownFolder '{s}'"),
+        };
+    }
 
     private static PortabilityClass ParsePortability(string s) => s.ToLowerInvariant() switch
     {
@@ -266,6 +381,64 @@ public static class MigrationRecipeLoader
         "install-npm" => RecipeInstallMethod.Npm,
         "install-url-manual" => RecipeInstallMethod.UrlManual,
         _ => throw new RecipeValidationException($"unknown install.method '{s}'"),
+    };
+
+    private static RestoreTier ParseRestoreTier(string s) => s.ToLowerInvariant() switch
+    {
+        "inventoryonly" or "inventory-only" => RestoreTier.InventoryOnly,
+        "configcopy" or "config-copy" => RestoreTier.ConfigCopy,
+        "mergeafterinstall" or "merge-after-install" => RestoreTier.MergeAfterInstall,
+        _ => throw new RecipeValidationException($"unknown restoreTier '{s}'"),
+    };
+
+    private static CatalogTier ParseCatalogTier(string s) => s.ToLowerInvariant() switch
+    {
+        "trusted" => CatalogTier.Trusted,
+        "community" => CatalogTier.Community,
+        _ => throw new RecipeValidationException($"unknown catalogTier '{s}'"),
+    };
+
+    private static RecipeItemKind ParseItemKind(string s) => s.ToLowerInvariant() switch
+    {
+        "profilepath" or "profile-path" => RecipeItemKind.ProfilePath,
+        "machineroot" or "machine-root" => RecipeItemKind.MachineRoot,
+        "exportcmd" or "export-cmd" => RecipeItemKind.ExportCmd,
+        "windowsetc" or "windows-etc" => RecipeItemKind.WindowsEtc,
+        "manualtodo" or "manual-todo" => RecipeItemKind.ManualTodo,
+        _ => throw new RecipeValidationException($"unknown items[].kind '{s}'"),
+    };
+
+    private static ExportKind ParseExportKind(string s) => s.ToLowerInvariant() switch
+    {
+        "wifiprofiles" or "wifi-profiles" => ExportKind.WifiProfiles,
+        "registrysubtree" or "registry-subtree" => ExportKind.RegistrySubtree,
+        "wingetlist" or "winget-list" => ExportKind.WingetList,
+        "npmgloballist" or "npm-global-list" => ExportKind.NpmGlobalList,
+        "pathdump" or "path-dump" => ExportKind.PathDump,
+        "scheduledtasks" or "scheduled-tasks" => ExportKind.ScheduledTasks,
+        _ => throw new RecipeValidationException($"unknown exportKind '{s}'"),
+    };
+
+    private static InstallerSource ParseInstallerSource(string s) => s.ToLowerInvariant() switch
+    {
+        "winget" => InstallerSource.Winget,
+        "npm" => InstallerSource.Npm,
+        "microsoftstore" or "microsoft-store" => InstallerSource.MicrosoftStore,
+        "manualdownload" or "manual-download" => InstallerSource.ManualDownload,
+        "existinginstaller" or "existing-installer" => InstallerSource.ExistingInstaller,
+        "unknown" => InstallerSource.Unknown,
+        _ => throw new RecipeValidationException($"unknown installerSource '{s}'"),
+    };
+
+    private static LicenseSource ParseLicenseSource(string s) => s.ToLowerInvariant() switch
+    {
+        "accountlogin" or "account-login" => LicenseSource.AccountLogin,
+        "productkey" or "product-key" => LicenseSource.ProductKey,
+        "licensefile" or "license-file" => LicenseSource.LicenseFile,
+        "subscription" => LicenseSource.Subscription,
+        "none" => LicenseSource.None,
+        "unknown" => LicenseSource.Unknown,
+        _ => throw new RecipeValidationException($"unknown licenseSource '{s}'"),
     };
 
     // ---- field helpers ---------------------------------------------------------------------
@@ -340,4 +513,24 @@ public static class MigrationRecipeLoader
         }
         return list;
     }
+
+    private static IReadOnlyList<string> ParseGuidArray(JsonElement parent, string name)
+    {
+        IReadOnlyList<string> values = ParseStringArray(parent, name);
+        foreach (string value in values)
+            if (ProgramJoinKeys.TryProductCode(value) is null)
+                throw new RecipeValidationException($"field '{name}' contains an invalid GUID '{value}'");
+        return values.Select(v => v.ToLowerInvariant()).ToArray();
+    }
+
+    private static bool MustForceInventoryOnly(
+        PortabilityClass portability,
+        RecipeDetect detect,
+        IReadOnlyList<RecipeItem> items)
+        => portability == PortabilityClass.MachineLocked
+           || !IsProfileFolder(detect.KnownFolder)
+           || items.Any(i => i.Kind is RecipeItemKind.MachineRoot or RecipeItemKind.WindowsEtc or RecipeItemKind.ExportCmd or RecipeItemKind.ManualTodo);
+
+    private static bool IsProfileFolder(KnownFolder folder)
+        => folder is KnownFolder.UserProfile or KnownFolder.AppData or KnownFolder.LocalAppData;
 }

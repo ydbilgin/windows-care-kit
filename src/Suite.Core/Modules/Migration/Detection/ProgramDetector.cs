@@ -5,9 +5,13 @@ namespace WindowsCareKit.Core.Modules.Migration.Detection;
 /// </summary>
 /// <param name="Programs">Deduped, sorted program list.</param>
 /// <param name="SourceReports">One report per source that was invoked, in enumeration order.</param>
+/// <param name="LaunchableWithoutInstallRecordCount">
+/// B-5 recall oracle: App-Paths/Start-Menu launch targets that have no Registry/MSI/AppX install record.
+/// </param>
 public sealed record DetectionResult(
     IReadOnlyList<DiscoveredProgram> Programs,
-    IReadOnlyList<ProgramSourceReport> SourceReports);
+    IReadOnlyList<ProgramSourceReport> SourceReports,
+    int LaunchableWithoutInstallRecordCount = 0);
 
 /// <summary>
 /// Orchestrates one or more <see cref="IProgramSource"/> instances: enumerates each in constructor
@@ -37,6 +41,20 @@ public sealed class ProgramDetector
         }
 
         var merged = ProgramDedupLayer.Merge(allPrograms);
-        return new DetectionResult(merged, reports);
+        int launchableWithoutInstallRecord = merged.Count(IsLaunchableWithoutInstallRecord);
+        return new DetectionResult(merged, reports, launchableWithoutInstallRecord);
+    }
+
+    private static bool IsLaunchableWithoutInstallRecord(DiscoveredProgram program)
+    {
+        bool isLaunchable =
+            program.Sources.Contains(ProgramSourceKind.AppPaths)
+            || program.Sources.Contains(ProgramSourceKind.StartMenu);
+        bool hasInstallRecord =
+            program.Sources.Contains(ProgramSourceKind.RegistryUninstall)
+            || program.Sources.Contains(ProgramSourceKind.Msi)
+            || program.Sources.Contains(ProgramSourceKind.Appx)
+            || !string.IsNullOrWhiteSpace(program.ReinstallId);
+        return isLaunchable && !hasInstallRecord;
     }
 }

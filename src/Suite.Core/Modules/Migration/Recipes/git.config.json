@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "id": "git.config",
   "displayName": "Git (.gitconfig)",
   "category": "dev-tools",
@@ -10,9 +10,25 @@
   "exclude": [],
   "secretRule": "global",
   "portabilityClass": "profile-relative",
-  "restore": {
-    "strategy": "merge-after-install",
-    "phase": "configWrite",
-    "preconditions": []
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "Git.Git" },
+  "wingetId": "Git.Git",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Git"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies Git config only; SSH keys and credential stores are intentionally excluded.",
+      "tr": "Yalnizca Git ayarini kopyalar; SSH anahtarlari ve kimlik depolari bilerek haric tutulur."
+    },
+    "manualTodo": ["Recreate credentials or SSH keys manually if needed."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
   }
 }

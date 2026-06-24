@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "id": "microsoft.edge",
+  "displayName": "Microsoft Edge",
+  "category": "browsers",
+  "detect": { "knownFolder": "LocalAppData", "path": "Microsoft/Edge/User Data", "exists": true },
+  "items": [
+    { "path": "Microsoft/Edge/User Data/Default/Preferences", "requiresClosedProcesses": ["msedge.exe"] },
+    { "path": "Microsoft/Edge/User Data/Default/Bookmarks", "requiresClosedProcesses": ["msedge.exe"] }
+  ],
+  "exclude": ["Cookies", "Login Data", "Network", "Local State", "Safe Browsing*", "Cache", "Code Cache", "GPUCache"],
+  "secretRule": "global",
+  "portabilityClass": "machine-locked",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Microsoft.Edge" },
+  "wingetId": "Microsoft.Edge",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Microsoft Edge", "Edge"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Passwords, cookies, and sessions are machine-locked; use Microsoft account sync or manual export.",
+      "tr": "Parola, cookie ve oturumlar makineye kilitlidir; Microsoft hesap sync veya manuel export kullan."
+    },
+    "manualTodo": ["Enable browser sync or export passwords before formatting."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

@@ -84,8 +84,7 @@ public class MigrationRecipeLoaderTests
         Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
     }
 
-    // Critic fix #2: v2 is now a SUPPORTED schema version (it adds the optional install block), so it must LOAD.
-    // The unsupported-version assertion moved to a version BELOW the floor (v0) and ABOVE the ceiling (v3).
+    // v2 is supported for install; v3 is supported for detection join keys + restore tier/meta.
     [Fact]
     public void Loads_schema_version_2()
     {
@@ -97,12 +96,153 @@ public class MigrationRecipeLoaderTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(3)]
+    [InlineData(4)]
     public void Rejects_unsupported_schema_version(int unsupported)
     {
         string json = Valid.Replace("\"schemaVersion\": 1", $"\"schemaVersion\": {unsupported}");
         var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
         Assert.Contains("schemaVersion", ex.Message);
+    }
+
+    [Fact]
+    public void V2_rejects_v3_root_fields()
+    {
+        string json = Valid.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 2")
+            .Replace("\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }",
+                "\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }, \"migrationMeta\": { \"requiresRelogin\": true }");
+
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+        Assert.Contains("migrationMeta", ex.Message);
+    }
+
+    [Fact]
+    public void V3_accepts_join_keys_restore_tier_meta_and_item_fields()
+    {
+        const string json = """
+        {
+          "schemaVersion": 3,
+          "id": "contoso.app",
+          "displayName": "Contoso App",
+          "category": "utilities",
+          "detect": { "knownFolder": "AppData", "path": "Contoso", "exists": true },
+          "items": [
+            {
+              "path": "Contoso/settings.json",
+              "include": ["settings.json"],
+              "exclude": [],
+              "requiresClosedProcesses": ["contoso.exe"],
+              "verify": { "exists": ["settings.json"], "maxSizeMB": 25 }
+            }
+          ],
+          "exclude": [],
+          "secretRule": "global",
+          "portabilityClass": "profile-relative",
+          "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": [] },
+          "install": { "method": "install-winget", "wingetId": "Contoso.App" },
+          "wingetId": "Contoso.App",
+          "productCode": ["{11111111-2222-3333-4444-555555555555}"],
+          "upgradeCode": ["{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}"],
+          "packageFamilyName": ["Contoso.App_abc123"],
+          "installPathHint": ["Contoso App"],
+          "restoreTier": "merge-after-install",
+          "catalogTier": "trusted",
+          "migrationMeta": {
+            "uiWarning": { "en": "Backs up settings only.", "tr": "Yalnizca ayarlari yedekler." },
+            "manualSteps": ["Sign in again"],
+            "manualTodo": ["Export secrets manually"],
+            "installerSource": "winget",
+            "licenseSource": "account-login",
+            "requiresRelogin": true,
+            "backedUpButNotRestored": false,
+            "survivesOnOtherDrive": false
+          }
+        }
+        """;
+
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(json);
+
+        Assert.Equal(3, recipe.SchemaVersion);
+        Assert.Equal(RestoreTier.MergeAfterInstall, recipe.RestoreTier);
+        Assert.Equal("Contoso.App", recipe.WingetId);
+        Assert.Equal("contoso.app_abc123", recipe.PackageFamilyName.Single().ToLowerInvariant());
+        Assert.Equal("Contoso App", recipe.InstallPathHint.Single());
+        Assert.Equal(CatalogTier.Trusted, recipe.CatalogTier);
+        Assert.Equal(["process-closed:contoso.exe"], RecipeToBackupEntry.Bridge(new ResolvedRecipe(
+            recipe,
+            true,
+            [new ResolvedRecipeItem(@"C:\Users\a\AppData\Roaming\Contoso\settings.json", "migration/contoso.app/Contoso/settings.json", recipe.Items[0].Include, recipe.Items[0].Exclude, recipe.Items[0].Path, recipe.Items[0].RequiresClosedProcesses)],
+            [])).Single().Meta.Preconditions);
+        Assert.Equal(25, recipe.Items[0].Verify!.MaxSizeMB);
+        Assert.Equal("Backs up settings only.", recipe.MigrationMeta!.UiWarning!.En);
+        Assert.True(recipe.MigrationMeta.RequiresRelogin);
+    }
+
+    [Fact]
+    public void V3_forces_inventory_only_for_machine_locked_recipe()
+    {
+        string json = Valid
+            .Replace("\"schemaVersion\": 1", "\"schemaVersion\": 3")
+            .Replace("\"profile-relative\"", "\"machine-locked\"")
+            .Replace("\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }",
+                "\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }, \"restoreTier\": \"merge-after-install\"");
+
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(json);
+        Assert.Equal(RestoreTier.InventoryOnly, recipe.RestoreTier);
+    }
+
+    [Fact]
+    public void V3_forces_inventory_only_for_machine_root_item()
+    {
+        const string json = """
+        {
+          "schemaVersion": 3,
+          "id": "steam",
+          "displayName": "Steam",
+          "category": "games",
+          "detect": { "knownFolder": "AppData", "path": "Steam", "exists": false },
+          "items": [
+            { "kind": "machineRoot", "path": "steam-library", "libraryDetector": "steam", "launcherId": "Steam" }
+          ],
+          "exclude": [],
+          "secretRule": "global",
+          "portabilityClass": "partial",
+          "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": [] },
+          "restoreTier": "merge-after-install"
+        }
+        """;
+
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(json);
+        Assert.Equal(RestoreTier.InventoryOnly, recipe.RestoreTier);
+        Assert.Equal(RecipeItemKind.MachineRoot, recipe.Items.Single().Kind);
+    }
+
+    [Fact]
+    public void V3_export_item_uses_closed_kind_not_command_string()
+    {
+        const string json = """
+        {
+          "schemaVersion": 3,
+          "id": "windows.path",
+          "displayName": "PATH dump",
+          "category": "system",
+          "detect": { "knownFolder": "UserProfile", "path": ".", "exists": false },
+          "items": [
+            { "kind": "exportCmd", "path": "path-dump", "exportKind": "PathDump" }
+          ],
+          "exclude": [],
+          "secretRule": "global",
+          "portabilityClass": "partial",
+          "restore": { "strategy": "config-write", "phase": "configWrite", "preconditions": [] },
+          "restoreTier": "inventory-only"
+        }
+        """;
+
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(json);
+        Assert.Equal(ExportKind.PathDump, recipe.Items.Single().ExportKind);
+
+        string bad = json.Replace("\"exportKind\": \"PathDump\"", "\"command\": \"reg export HKCU\\\\Software x.reg\"");
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(bad));
+        Assert.Contains("command", ex.Message);
     }
 
     [Fact]
@@ -326,9 +466,8 @@ public class MigrationRecipeLoaderTests
         Assert.NotEmpty(recipes);
         Assert.All(recipes, r => Assert.NotEmpty(r.Id));
 
-        // Critic fix #5: extend (do NOT duplicate) this test with the v2/install assertions. The shipped seeds
-        // are all v1 and carry NO install block — proving v1 still loads and that v1 never grows an install spec.
-        Assert.All(recipes, r => Assert.Equal(1, r.SchemaVersion));
-        Assert.All(recipes, r => Assert.Null(r.Install));
+        Assert.All(recipes, r => Assert.Equal(3, r.SchemaVersion));
+        Assert.Contains(recipes, r => r.Install is not null);
+        Assert.All(recipes, r => Assert.NotNull(r.MigrationMeta?.UiWarning));
     }
 }

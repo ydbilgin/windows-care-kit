@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using WindowsCareKit.Core.Modules.Uninstall;
 using CoreView = WindowsCareKit.Core.Planning.RegistryView;
+using CoreHive = WindowsCareKit.Core.Planning.RegistryHive;
 
 namespace WindowsCareKit.Win32;
 
@@ -11,28 +12,32 @@ namespace WindowsCareKit.Win32;
 public sealed class Win32InstalledAppReader : IInstalledAppReader
 {
     private const string UninstallPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
+    private readonly IRegistryProbe _registry;
+
+    public Win32InstalledAppReader()
+        : this(new Win32RegistryProbe())
+    {
+    }
+
+    public Win32InstalledAppReader(IRegistryProbe registry)
+        => _registry = registry ?? throw new ArgumentNullException(nameof(registry));
 
     public IReadOnlyList<InstalledApp> ReadAll()
     {
         var apps = new List<InstalledApp>();
-        ReadFrom(RegistryHive.LocalMachine, RegistryView.Registry64, InstalledAppSource.MachineWide64, apps);
-        ReadFrom(RegistryHive.LocalMachine, RegistryView.Registry32, InstalledAppSource.MachineWide32, apps);
-        ReadFrom(RegistryHive.CurrentUser, RegistryView.Registry64, InstalledAppSource.CurrentUser, apps);
+        ReadFrom(CoreHive.LocalMachine, CoreView.Registry64, InstalledAppSource.MachineWide64, apps);
+        ReadFrom(CoreHive.LocalMachine, CoreView.Registry32, InstalledAppSource.MachineWide32, apps);
+        ReadFrom(CoreHive.CurrentUser, CoreView.Registry64, InstalledAppSource.CurrentUser, apps);
         return apps;
     }
 
-    private static void ReadFrom(RegistryHive hive, RegistryView view, InstalledAppSource source, List<InstalledApp> sink)
+    private void ReadFrom(CoreHive hive, CoreView view, InstalledAppSource source, List<InstalledApp> sink)
     {
         try
         {
-            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
-            using var uninstall = baseKey.OpenSubKey(UninstallPath, writable: false);
-            if (uninstall is null)
-                return;
-
-            foreach (string subName in uninstall.GetSubKeyNames())
+            foreach (string subName in _registry.GetSubKeyNames(hive, view, UninstallPath))
             {
-                InstalledApp? app = TryReadEntry(uninstall, subName, source);
+                InstalledApp? app = TryReadEntry(hive, view, subName, source);
                 if (app is not null)
                     sink.Add(app);
             }
@@ -43,32 +48,32 @@ public sealed class Win32InstalledAppReader : IInstalledAppReader
         }
     }
 
-    private static InstalledApp? TryReadEntry(RegistryKey uninstall, string subName, InstalledAppSource source)
+    private InstalledApp? TryReadEntry(CoreHive hive, CoreView view, string subName, InstalledAppSource source)
     {
         try
         {
-            using var key = uninstall.OpenSubKey(subName, writable: false);
+            RegistryKeySnapshot? key = _registry.ReadKey(hive, view, $@"{UninstallPath}\{subName}");
             if (key is null)
                 return null;
 
-            string? displayName = key.GetValue("DisplayName") as string;
+            string? displayName = key.GetString("DisplayName");
             if (string.IsNullOrWhiteSpace(displayName))
                 return null; // entries without a display name are not user-facing programs
 
             return new InstalledApp
             {
                 DisplayName = displayName.Trim(),
-                Publisher = (key.GetValue("Publisher") as string)?.Trim(),
-                DisplayVersion = (key.GetValue("DisplayVersion") as string)?.Trim(),
-                InstallLocation = NormalizeNullable(key.GetValue("InstallLocation") as string),
-                UninstallString = (key.GetValue("UninstallString") as string)?.Trim(),
-                QuietUninstallString = (key.GetValue("QuietUninstallString") as string)?.Trim(),
+                Publisher = key.GetString("Publisher"),
+                DisplayVersion = key.GetString("DisplayVersion"),
+                InstallLocation = NormalizeNullable(key.GetString("InstallLocation")),
+                UninstallString = key.GetString("UninstallString"),
+                QuietUninstallString = key.GetString("QuietUninstallString"),
                 RegistryKeyName = subName,
                 Source = source,
-                IsSystemComponent = IsTruthy(key.GetValue("SystemComponent")),
+                IsSystemComponent = key.IsTruthy("SystemComponent"),
                 // Cheap registry values — vendor-reported figures, never a disk scan (spec "Sahip kararları").
-                EstimatedSizeKb = ReadDword(key, "EstimatedSize"),
-                InstallDate = InstalledApp.ParseInstallDate(key.GetValue("InstallDate") as string),
+                EstimatedSizeKb = key.GetDword("EstimatedSize"),
+                InstallDate = InstalledApp.ParseInstallDate(key.GetString("InstallDate")),
             };
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
@@ -79,17 +84,6 @@ public sealed class Win32InstalledAppReader : IInstalledAppReader
 
     private static string? NormalizeNullable(string? s)
         => string.IsNullOrWhiteSpace(s) ? null : s.Trim().TrimEnd('\\');
-
-    private static bool IsTruthy(object? value)
-        => value is int i && i != 0;
-
-    /// <summary>
-    /// Reads a REG_DWORD value as a non-negative int, or null when absent. EstimatedSize is stored as a DWORD;
-    /// when the registry surfaces it as a (possibly negative) int we treat negatives as absent rather than
-    /// reinterpreting the bit pattern — vendor sizes that large are not meaningful for display.
-    /// </summary>
-    private static int? ReadDword(RegistryKey key, string name)
-        => key.GetValue(name) is int i && i >= 0 ? i : null;
 
     /// <summary>The Core <see cref="CoreView"/> equivalent of the given app, for callers that need it.</summary>
     public static CoreView ViewOf(InstalledApp app) => app.View;
