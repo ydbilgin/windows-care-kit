@@ -55,7 +55,8 @@ public sealed class Win32StartMenuShortcutReader : IStartMenuShortcutReader
             if (shellLink is not IPersistFile persist)
                 return null;
 
-            persist.Load(linkPath, 0);
+            int loadHr = persist.Load(linkPath, 0);
+            Marshal.ThrowExceptionForHR(loadHr);
             var path = new StringBuilder(32768);
             shellLink.GetPath(path, path.Capacity, IntPtr.Zero, 0);
             string result = path.ToString();
@@ -111,11 +112,13 @@ public sealed class Win32StartMenuShortcutReader : IStartMenuShortcutReader
     [Guid("0000010b-0000-0000-C000-000000000046")]
     private interface IPersistFile
     {
-        void GetClassID(out Guid pClassID);
-        void IsDirty();
-        void Load([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, uint dwMode);
-        void Save([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, bool fRemember);
-        void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
-        void GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string ppszFileName);
+        // The reader only calls Load. Preserve every HRESULT so unused vtable members cannot acquire
+        // exception-translating signatures that misdescribe the native COM contract.
+        [PreserveSig] int GetClassID(out Guid pClassID);
+        [PreserveSig] int IsDirty();
+        [PreserveSig] int Load([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, uint dwMode);
+        [PreserveSig] int Save([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, bool fRemember);
+        [PreserveSig] int SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
+        [PreserveSig] int GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string ppszFileName);
     }
 }
