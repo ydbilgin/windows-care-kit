@@ -48,7 +48,22 @@ public sealed class RestoreStateStore : IRestoreStateStore
                 .Select(e => new RestoreEntryState(e.EntryId!, e.Status))
                 .ToArray();
 
-            return new RestoreState(dto.PlanHash ?? string.Empty, dto.StartedUtc, dto.UpdatedUtc, entries);
+            var journal = (dto.Journal ?? new List<JournalDto>())
+                .Where(e => !string.IsNullOrWhiteSpace(e.EntryId) && !string.IsNullOrWhiteSpace(e.TargetPath))
+                .Select(e => new RestoreJournalEntry(
+                    e.EntryId!,
+                    e.TargetPath!,
+                    NullIfBlank(e.BakPath),
+                    NullIfBlank(e.ShaBefore),
+                    NullIfBlank(e.ShaAfter),
+                    e.AppliedUtc))
+                .ToArray();
+
+            return new RestoreState(dto.PlanHash ?? string.Empty, dto.StartedUtc, dto.UpdatedUtc, entries)
+            {
+                PackageSha = dto.PackageSha ?? string.Empty,
+                Journal = journal,
+            };
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -68,9 +83,19 @@ public sealed class RestoreStateStore : IRestoreStateStore
         var dto = new StateDto
         {
             PlanHash = state.PlanHash,
+            PackageSha = state.PackageSha,
             StartedUtc = state.StartedUtc,
             UpdatedUtc = state.UpdatedUtc,
             Entries = state.Entries.Select(e => new EntryDto { EntryId = e.EntryId, Status = e.Status }).ToList(),
+            Journal = state.Journal.Select(e => new JournalDto
+            {
+                EntryId = e.EntryId,
+                TargetPath = e.TargetPath,
+                BakPath = e.BakPath,
+                ShaBefore = e.ShaBefore,
+                ShaAfter = e.ShaAfter,
+                AppliedUtc = e.AppliedUtc,
+            }).ToList(),
         };
 
         string json = JsonSerializer.Serialize(dto, JsonOptions);
@@ -82,9 +107,11 @@ public sealed class RestoreStateStore : IRestoreStateStore
     private sealed class StateDto
     {
         public string? PlanHash { get; set; }
+        public string? PackageSha { get; set; }
         public DateTime StartedUtc { get; set; }
         public DateTime UpdatedUtc { get; set; }
         public List<EntryDto>? Entries { get; set; }
+        public List<JournalDto>? Journal { get; set; }
     }
 
     private sealed class EntryDto
@@ -92,4 +119,17 @@ public sealed class RestoreStateStore : IRestoreStateStore
         public string? EntryId { get; set; }
         public RestoreEntryStatus Status { get; set; }
     }
+
+    private sealed class JournalDto
+    {
+        public string? EntryId { get; set; }
+        public string? TargetPath { get; set; }
+        public string? BakPath { get; set; }
+        public string? ShaBefore { get; set; }
+        public string? ShaAfter { get; set; }
+        public DateTime AppliedUtc { get; set; }
+    }
+
+    private static string? NullIfBlank(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 }

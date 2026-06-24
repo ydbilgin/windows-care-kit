@@ -31,7 +31,17 @@ public sealed record MigrationRestoreTarget(
     RestorePhase RestorePhase,
     IReadOnlyList<string> Preconditions,
     PortabilityClass PortabilityClass,
-    string Sha256);
+    string Sha256)
+{
+    /// <summary>
+    /// Recipe-carried restore eligibility. Additive for old package manifests: absent values load as the
+    /// legacy unspecified tier, while v3 packages carry the catalog's explicit value.
+    /// </summary>
+    public RestoreTier RestoreTier { get; init; } = RestoreTier.Unspecified;
+
+    /// <summary>Recipe-carried honesty/manual guidance rendered by the restore success/report model.</summary>
+    public MigrationRecipeMeta? MigrationMeta { get; init; }
+}
 
 /// <summary>
 /// The restore-manifest written to <c>migration-manifest.json</c> at the package root: the schema version and

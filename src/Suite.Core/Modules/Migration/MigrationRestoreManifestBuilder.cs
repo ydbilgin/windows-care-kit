@@ -51,7 +51,11 @@ public static class MigrationRestoreManifestBuilder
             RestorePhase: meta.RestorePhase,
             Preconditions: meta.Preconditions,
             PortabilityClass: meta.PortabilityClass,
-            Sha256: (sha256 ?? string.Empty).ToLowerInvariant());
+            Sha256: (sha256 ?? string.Empty).ToLowerInvariant())
+        {
+            RestoreTier = recipe.RestoreTier,
+            MigrationMeta = recipe.MigrationMeta,
+        };
     }
 
     /// <summary>

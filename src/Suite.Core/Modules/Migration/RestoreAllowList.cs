@@ -26,4 +26,11 @@ public static class RestoreAllowList
     /// <summary>True when this recipe's configs may be restored by the Slice 2 file-placement runner.</summary>
     public static bool IsAllowed(string? recipeId)
         => !string.IsNullOrWhiteSpace(recipeId) && AllowedRecipeIds.Contains(recipeId.Trim());
+
+    /// <summary>
+    /// Compatibility for old package manifests that predate <c>MigrationRestoreTarget.RestoreTier</c>. New
+    /// manifests carry recipe data; only legacy/unspecified targets consult this tiny set.
+    /// </summary>
+    public static RestoreTier LegacyTierFor(string? recipeId)
+        => IsAllowed(recipeId) ? RestoreTier.ConfigCopy : RestoreTier.InventoryOnly;
 }

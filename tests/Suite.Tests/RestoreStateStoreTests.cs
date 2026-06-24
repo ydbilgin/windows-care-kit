@@ -42,6 +42,44 @@ public class RestoreStateStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_then_load_roundtrips_package_sha_and_restore_journal()
+    {
+        var applied = T0.AddMinutes(5);
+        var state = (RestoreState.Empty with { PlanHash = "abc", StartedUtc = T0, UpdatedUtc = T0 })
+            .WithPackageSha("package-sha", T0)
+            .WithJournalEntry(new RestoreJournalEntry(
+                EntryId: "git.config#0",
+                TargetPath: @"C:\Users\bob\.gitconfig",
+                BakPath: @"C:\Users\bob\.gitconfig.bak.1",
+                ShaBefore: "before",
+                ShaAfter: "after",
+                AppliedUtc: applied));
+
+        _store.Save(_dir, state);
+        RestoreState loaded = _store.Load(_dir);
+
+        Assert.Equal("package-sha", loaded.PackageSha);
+        RestoreJournalEntry entry = Assert.Single(loaded.Journal);
+        Assert.Equal("git.config#0", entry.EntryId);
+        Assert.Equal(@"C:\Users\bob\.gitconfig.bak.1", entry.BakPath);
+        Assert.Equal(applied, entry.AppliedUtc);
+    }
+
+    [Fact]
+    public void RestoreJournal_builds_reverse_order_undo_plan_for_entries_with_bak()
+    {
+        var state = RestoreState.Empty
+            .WithJournalEntry(new RestoreJournalEntry("a", @"C:\target\a", @"C:\target\a.bak", "old-a", "new-a", T0))
+            .WithJournalEntry(new RestoreJournalEntry("b", @"C:\target\b", null, null, "new-b", T0.AddMinutes(1)))
+            .WithJournalEntry(new RestoreJournalEntry("c", @"C:\target\c", @"C:\target\c.bak", "old-c", "new-c", T0.AddMinutes(2)));
+
+        RestoreUndoPlan plan = RestoreJournal.BuildUndoPlan(state);
+
+        Assert.Equal(new[] { "c", "a" }, plan.Steps.Select(s => s.EntryId).ToArray());
+        Assert.All(plan.Steps, s => Assert.EndsWith(".bak", s.BakPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void FirstUnfinished_points_at_the_resume_entry()
     {
         var state = RestoreState.Empty
