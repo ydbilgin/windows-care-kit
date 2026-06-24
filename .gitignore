@@ -81,3 +81,5 @@ docs/screenshots/_capture/
 ## ──────────────────────────────────────────────────────────────
 Thumbs.db
 desktop.ini
+.tmp/
+/_process/
