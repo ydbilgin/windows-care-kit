@@ -33,4 +33,10 @@ public sealed record MigrationItemMeta(
     /// existing construction sites compile unchanged.</para>
     /// </summary>
     public bool HasExcludedSecret { get; init; }
+
+    /// <summary>
+    /// M2.5 honesty floor: true when bounded content inspection found a machine/user binding, a conservative
+    /// credential-store signature, or could not classify the file safely. This can only downgrade a badge.
+    /// </summary>
+    public bool HasMachineBoundContent { get; init; }
 }

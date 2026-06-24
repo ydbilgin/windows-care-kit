@@ -24,6 +24,42 @@ public class RecipeToBackupEntryTests
         .AddDir(@"C:\Users\alice\.claude\projects")
         .AddFile(@"C:\Users\alice\.claude\CLAUDE.md");
 
+    private sealed class FixedContentProbe(ContentSignature signature) : IContentSignatureProbe
+    {
+        public ContentSignature ProbeFile(string path) => signature;
+    }
+
+    private sealed class ThrowingContentProbe : IContentSignatureProbe
+    {
+        public ContentSignature ProbeFile(string path) => throw new IOException("synthetic read failure");
+    }
+
+    [Fact]
+    public void Content_probe_signal_is_carried_into_meta_and_downgrades_badge()
+    {
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/CLAUDE.md"));
+        ResolvedRecipe resolved = MigrationTestData.Resolver(Fs()).Resolve(recipe);
+        var probe = new FixedContentProbe(new ContentSignature { HasSidBinding = true, BytesInspected = 64 });
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(resolved, probe));
+
+        Assert.True(bridged.Meta.HasMachineBoundContent);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Throwing_content_probe_fails_closed()
+    {
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/CLAUDE.md"));
+        ResolvedRecipe resolved = MigrationTestData.Resolver(Fs()).Resolve(recipe);
+
+        BridgedMigrationItem bridged =
+            Assert.Single(RecipeToBackupEntry.Bridge(resolved, new ThrowingContentProbe()));
+
+        Assert.True(bridged.Meta.HasMachineBoundContent);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
     [Fact]
     public void Bridges_only_sandbox_passing_items_into_entries()
     {
@@ -135,10 +171,26 @@ public class RecipeToBackupEntryTests
         var recipe = Recipe(PortabilityClass.ProfileRelative,
             Item(".claude/projects", include: new[] { "**/memory/**" }));
 
-        var bridged = Assert.Single(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(Fs()).Resolve(recipe)));
+        var cleanProbe = new FixedContentProbe(new ContentSignature { BytesInspected = 32 });
+        var bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(Fs()).Resolve(recipe),
+            cleanProbe));
 
         Assert.False(bridged.Meta.HasExcludedSecret);
+        Assert.False(bridged.Meta.HasMachineBoundContent);
         Assert.True(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Missing_content_probe_is_uncertain_and_fails_closed()
+    {
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/CLAUDE.md"));
+
+        BridgedMigrationItem bridged =
+            Assert.Single(RecipeToBackupEntry.Bridge(MigrationTestData.Resolver(Fs()).Resolve(recipe)));
+
+        Assert.True(bridged.Meta.HasMachineBoundContent);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
     }
 
     [Fact]

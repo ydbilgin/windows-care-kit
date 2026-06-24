@@ -36,7 +36,7 @@ public static class PortabilityBadge
 {
     /// <summary>Back-compat overload: no declared-secret signal (equivalent to <c>hasExcludedSecret: false</c>).</summary>
     public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions)
-        => Compute(cls, hasPreconditions, hasExcludedSecret: false);
+        => Compute(cls, hasPreconditions, hasExcludedSecret: false, hasMachineBoundContent: false);
 
     /// <summary>
     /// PURE badge computation with the B-1 secret fail-safe as a FIRST-CLASS input (decision §3A / critic#1-#2).
@@ -45,8 +45,21 @@ public static class PortabilityBadge
     /// <c>MayClaimWorks == false</c> — the green "works" claim can never be drawn over an item whose declared
     /// content includes a pruned secret. The override is here, in the pure function, so no UI layer can fork it.
     /// </summary>
-    public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions, bool hasExcludedSecret) => cls switch
+    public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions, bool hasExcludedSecret)
+        => Compute(cls, hasPreconditions, hasExcludedSecret, hasMachineBoundContent: false);
+
+    /// <summary>
+    /// PURE badge computation with both B-1 floors. Content evidence is stronger than an optimistic declaration
+    /// and yields a machine-locked badge. Catalog tier and UI code cannot bypass this function.
+    /// </summary>
+    public static PortabilityBadgeResult Compute(
+        PortabilityClass cls,
+        bool hasPreconditions,
+        bool hasExcludedSecret,
+        bool hasMachineBoundContent) => cls switch
     {
+        PortabilityClass.ProfileRelative when hasMachineBoundContent
+            => new PortabilityBadgeResult(BadgeKind.MachineLocked, "❌", MayClaimWorks: false),
         // B-1: a declared secret on an otherwise-portable item can never be presented as a confident "works".
         PortabilityClass.ProfileRelative when hasExcludedSecret
             => new PortabilityBadgeResult(BadgeKind.Partial, "⚠️", MayClaimWorks: false),
@@ -66,6 +79,10 @@ public static class PortabilityBadge
     public static PortabilityBadgeResult Compute(MigrationItemMeta meta)
     {
         ArgumentNullException.ThrowIfNull(meta);
-        return Compute(meta.PortabilityClass, meta.Preconditions.Count > 0, meta.HasExcludedSecret);
+        return Compute(
+            meta.PortabilityClass,
+            meta.Preconditions.Count > 0,
+            meta.HasExcludedSecret,
+            meta.HasMachineBoundContent);
     }
 }

@@ -24,6 +24,16 @@ public class MigrationRecipeLoaderTests
     }
     """;
 
+    private static string V3FromValid(string extraRootField = "")
+    {
+        string suffix = string.IsNullOrEmpty(extraRootField) ? string.Empty : ", " + extraRootField;
+        return Valid
+            .Replace("\"schemaVersion\": 1", "\"schemaVersion\": 3")
+            .Replace(
+                "\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }",
+                "\"restore\": { \"strategy\": \"merge-after-install\", \"phase\": \"configWrite\", \"preconditions\": [\"process-closed\"] }, \"restoreTier\": \"config-copy\"" + suffix);
+    }
+
     [Fact]
     public void Loads_a_valid_recipe()
     {
@@ -113,6 +123,40 @@ public class MigrationRecipeLoaderTests
 
         var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
         Assert.Contains("migrationMeta", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(1, "\"wingetId\": \"Contoso.App\"")]
+    [InlineData(1, "\"restoreTier\": \"config-copy\"")]
+    [InlineData(1, "\"catalogTier\": \"trusted\"")]
+    [InlineData(2, "\"installPathHint\": [\"Contoso\"]")]
+    [InlineData(2, "\"packageFamilyName\": [\"Contoso_abc\"]")]
+    [InlineData(2, "\"migrationMeta\": { \"requiresRelogin\": true }")]
+    public void Older_schema_versions_reject_v3_only_root_fields(int schemaVersion, string field)
+    {
+        string json = Valid
+            .Replace("\"schemaVersion\": 1", $"\"schemaVersion\": {schemaVersion}")
+            .Replace(
+                "\"category\": \"dev-tools\",",
+                "\"category\": \"dev-tools\", " + field + ",");
+
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    [Theory]
+    [InlineData(1, "\"kind\": \"profilePath\", ")]
+    [InlineData(1, "\"requiresClosedProcesses\": [\"app.exe\"], ")]
+    [InlineData(2, "\"verify\": { \"maxSizeMB\": 1 }, ")]
+    [InlineData(2, "\"manualTodo\": [\"manual\"], ")]
+    public void Older_schema_versions_reject_v3_only_item_fields(int schemaVersion, string field)
+    {
+        string json = Valid
+            .Replace("\"schemaVersion\": 1", $"\"schemaVersion\": {schemaVersion}")
+            .Replace(
+                "{ \"path\": \".claude/CLAUDE.md\" }",
+                "{ " + field + "\"path\": \".claude/CLAUDE.md\" }");
+
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
     }
 
     [Fact]
@@ -214,6 +258,66 @@ public class MigrationRecipeLoaderTests
         MigrationRecipe recipe = MigrationRecipeLoader.Load(json);
         Assert.Equal(RestoreTier.InventoryOnly, recipe.RestoreTier);
         Assert.Equal(RecipeItemKind.MachineRoot, recipe.Items.Single().Kind);
+    }
+
+    [Fact]
+    public void V3_forces_inventory_only_for_non_profile_known_folder()
+    {
+        string json = V3FromValid()
+            .Replace("\"knownFolder\": \"UserProfile\"", "\"knownFolder\": \"ProgramData\"");
+
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(json);
+
+        Assert.Equal(RestoreTier.InventoryOnly, recipe.RestoreTier);
+    }
+
+    [Theory]
+    [InlineData("\"restoreTier\": \"teleport\"")]
+    [InlineData("\"catalogTier\": \"owner\"")]
+    [InlineData("\"migrationMeta\": { \"installerSource\": \"powershell\" }")]
+    public void V3_rejects_unknown_new_enum_values(string replacementField)
+    {
+        string json = replacementField.StartsWith("\"restoreTier\"", StringComparison.Ordinal)
+            ? V3FromValid().Replace("\"restoreTier\": \"config-copy\"", replacementField)
+            : V3FromValid(replacementField);
+
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    [Theory]
+    [InlineData("C:\\\\Users\\\\alice\\\\App")]
+    [InlineData("\\\\\\\\server\\\\share\\\\App")]
+    [InlineData("../App")]
+    [InlineData("%LOCALAPPDATA%/App")]
+    public void V3_rejects_absolute_or_escaping_install_path_hints(string hint)
+    {
+        string json = V3FromValid($"\"installPathHint\": [\"{hint}\"]");
+
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    [Theory]
+    [InlineData("../secret")]
+    [InlineData("C:\\\\Windows\\\\secret")]
+    [InlineData("\\\\\\\\server\\\\share\\\\secret")]
+    [InlineData("%APPDATA%/secret")]
+    public void Loader_rejects_item_paths_that_escape_the_declared_root(string path)
+    {
+        string json = V3FromValid()
+            .Replace("\"path\": \".claude/CLAUDE.md\"", $"\"path\": \"{path}\"");
+
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    [Fact]
+    public void Machine_root_item_requires_detector_and_launcher_id()
+    {
+        string json = V3FromValid()
+            .Replace(
+                "{ \"path\": \".claude/CLAUDE.md\" }",
+                "{ \"kind\": \"machineRoot\", \"path\": \"library\" }");
+
+        Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
     }
 
     [Fact]

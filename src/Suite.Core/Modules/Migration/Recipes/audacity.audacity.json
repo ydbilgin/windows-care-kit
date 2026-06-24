@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "audacity.audacity",
+  "displayName": "Audacity",
+  "category": "media",
+  "detect": { "knownFolder": "AppData", "path": "audacity", "exists": true },
+  "items": [
+    { "path": "audacity", "exclude": ["SessionData/**", "AutoSave/**"], "requiresClosedProcesses": ["Audacity.exe"] }
+  ],
+  "exclude": ["**/*.aup3", "**/*.autosave"],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Audacity.Audacity" },
+  "wingetId": "Audacity.Audacity",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Audacity"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies Audacity preferences and presets, not projects or temporary recovery sessions.",
+      "tr": "Audacity tercihleri ve on ayarlari kopyalanir; projeler ve gecici kurtarma oturumlari kopyalanmaz."
+    },
+    "manualTodo": ["EN: Back up .aup3 project files separately.", "TR: .aup3 proje dosyalarini ayrica yedekleyin."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

@@ -193,6 +193,29 @@ public sealed class MigrationSelectionLogicTests
     }
 
     [Fact]
+    public void Wrong_profile_warning_and_other_user_scope_are_both_non_vacuous()
+    {
+        var otherUser = new DiscoveredProgram
+        {
+            Id = "other-user-app",
+            DisplayName = "Other user app",
+            NormalizedName = "other user app",
+            Scope = ProgramScope.OtherUserNotEnumerable,
+            Sources = [ProgramSourceKind.Msi],
+        };
+        var detection = new DetectionResult(
+            [otherUser],
+            [new ProgramSourceReport(ProgramSourceKind.Msi, ProgramSourceStatus.Ok, 1)]);
+
+        ScanReadyGate gate = ScanReadyGate.Complete(detection, @"C:\Users\admin");
+
+        Assert.False(gate.CanSelect);
+        Assert.Equal("admin", gate.ProfileName);
+        Assert.Contains("different user", gate.ConfirmationEn, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(detection.Programs, p => p.Scope == ProgramScope.OtherUserNotEnumerable);
+    }
+
+    [Fact]
     public void Coverage_keeps_app_reinstall_config_restore_and_detection_as_three_integer_ratios()
     {
         MigrationSelectionCandidate automatic = Candidate("automatic", "games") with

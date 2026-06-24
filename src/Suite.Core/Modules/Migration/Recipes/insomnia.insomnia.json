@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "insomnia.insomnia",
+  "displayName": "Insomnia",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "AppData", "path": "Insomnia", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "insomnia-sync-export-note", "manualTodo": ["EN: Sign in and sync, or export projects without environment secrets.", "TR: Giris yapip senkronlayin veya projeleri ortam sirlari olmadan disari aktarin."] }
+  ],
+  "exclude": ["**/Local Storage/**", "**/IndexedDB/**", "**/Cookies", "**/Session Storage/**", "**/*.db", "**/*.sqlite", "**/keytar/**"],
+  "secretRule": "global",
+  "portabilityClass": "machine-locked",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "Insomnia.Insomnia" },
+  "wingetId": "Insomnia.Insomnia",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Insomnia"],
+  "restoreTier": "inventory-only",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Insomnia local databases can contain API credentials, tokens, cookies, and encrypted account state. WCK records sync/export guidance instead of copying the store.",
+      "tr": "Insomnia yerel veritabanlari API kimlik bilgileri, tokenlar, cookie'ler ve sifreli hesap durumu icerebilir. WCK depoyu kopyalamak yerine senkron/disari-aktarma yonlendirmesi kaydeder."
+    },
+    "manualTodo": ["EN: Remove or rotate environment secrets before exporting projects.", "TR: Projeleri disari aktarmadan once ortam sirlarini kaldirin veya dondurun."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

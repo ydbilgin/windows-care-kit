@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "inkscape.inkscape",
+  "displayName": "Inkscape",
+  "category": "graphics",
+  "detect": { "knownFolder": "AppData", "path": "inkscape", "exists": true },
+  "items": [
+    { "path": "inkscape", "exclude": ["cache/**"], "requiresClosedProcesses": ["inkscape.exe"] }
+  ],
+  "exclude": ["**/recently-used.xbel"],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Inkscape.Inkscape" },
+  "wingetId": "Inkscape.Inkscape",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Inkscape"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies Inkscape preferences, templates, extensions, palettes, and user resources; caches and recent-file history are excluded.",
+      "tr": "Inkscape tercihleri, sablonlar, eklentiler, paletler ve kullanici kaynaklari kopyalanir; onbellek ve son-dosya gecmisi haric tutulur."
+    },
+    "manualTodo": ["EN: Reinstall external extensions that depend on separate runtimes.", "TR: Ayri calisma zamani isteyen harici eklentileri yeniden kurun."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

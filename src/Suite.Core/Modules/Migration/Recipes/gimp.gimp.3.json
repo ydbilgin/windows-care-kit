@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "gimp.gimp.3",
+  "displayName": "GIMP 3",
+  "category": "graphics",
+  "detect": { "knownFolder": "AppData", "path": "GIMP/3.0", "exists": true },
+  "items": [
+    { "path": "GIMP/3.0", "exclude": ["tmp/**"], "requiresClosedProcesses": ["gimp-3.0.exe"] }
+  ],
+  "exclude": ["**/cache/**", "**/thumbnails/**"],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "GIMP.GIMP.3" },
+  "wingetId": "GIMP.GIMP.3",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["GIMP 3", "GIMP"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies the GIMP 3 user profile, plug-in settings, brushes, and presets; caches are excluded.",
+      "tr": "GIMP 3 kullanici profili, eklenti ayarlari, fircalar ve on ayarlar kopyalanir; onbellekler haric tutulur."
+    },
+    "manualTodo": ["EN: Reinstall external plug-in binaries separately.", "TR: Harici eklenti ikililerini ayrica yeniden kurun."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

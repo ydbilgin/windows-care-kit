@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "putty.putty",
+  "displayName": "PuTTY",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "UserProfile", "path": ".", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "putty-export-note", "manualTodo": ["EN: Export sessions/host keys manually and move private keys through encrypted backup.", "TR: Oturumlari/host anahtarlarini elle disari aktarin; ozel anahtarlari sifreli yedekle tasiyin."] }
+  ],
+  "exclude": ["**/*.ppk", "**/*.pem", "**/*.key"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "config-write", "phase": "configWrite", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "PuTTY.PuTTY" },
+  "wingetId": "PuTTY.PuTTY",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["PuTTY"],
+  "restoreTier": "inventory-only",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "PuTTY sessions and host keys are registry-backed, while private keys may be stored anywhere. Automatic copy would overclaim completeness and is disabled.",
+      "tr": "PuTTY oturumlari ve host anahtarlari kayit-defteri tabanlidir; ozel anahtarlar herhangi bir yerde olabilir. Otomatik kopya tamamlanmislik iddiasi yaratacagi icin devre disidir."
+    },
+    "manualTodo": ["EN: Export only the required PuTTY registry subtree and verify every referenced key file.", "TR: Yalnizca gerekli PuTTY kayit-defteri alt agacini disari aktarin ve basvurulan her anahtar dosyasini dogrulayin."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

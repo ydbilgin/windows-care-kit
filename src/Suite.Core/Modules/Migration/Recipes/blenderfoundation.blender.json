@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "blenderfoundation.blender",
+  "displayName": "Blender",
+  "category": "graphics",
+  "detect": { "knownFolder": "AppData", "path": "Blender Foundation/Blender", "exists": true },
+  "items": [
+    { "path": "Blender Foundation/Blender", "exclude": ["**/cache/**", "**/temp/**"], "requiresClosedProcesses": ["blender.exe"] }
+  ],
+  "exclude": ["**/recent-files.txt"],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "BlenderFoundation.Blender" },
+  "wingetId": "BlenderFoundation.Blender",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Blender Foundation/Blender", "Blender"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies per-version Blender preferences, startup files, scripts, and add-ons. External assets and binary dependencies are not included.",
+      "tr": "Surum bazli Blender tercihleri, baslangic dosyalari, betikler ve eklentiler kopyalanir. Harici varliklar ve ikili bagimliliklar dahil degildir."
+    },
+    "manualTodo": ["EN: Back up project files and external asset libraries separately.", "TR: Proje dosyalarini ve harici varlik kitapliklarini ayrica yedekleyin."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

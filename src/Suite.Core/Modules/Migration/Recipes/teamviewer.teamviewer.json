@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "teamviewer.teamviewer",
+  "displayName": "TeamViewer",
+  "category": "remote-access",
+  "detect": { "knownFolder": "AppData", "path": "TeamViewer", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "teamviewer-reenroll-note", "manualTodo": ["EN: Reinstall, sign in, and reassign the new device.", "TR: Yeniden kurun, giris yapin ve yeni cihazi yeniden atayin."] }
+  ],
+  "exclude": ["**/*.log", "**/Connections_incoming.txt", "**/Connections.txt"],
+  "secretRule": "global",
+  "portabilityClass": "machine-locked",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "TeamViewer.TeamViewer" },
+  "wingetId": "TeamViewer.TeamViewer",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["TeamViewer"],
+  "restoreTier": "inventory-only",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "TeamViewer device identity, assignment, trust state, and unattended-access credentials are machine-bound and are not copied.",
+      "tr": "TeamViewer cihaz kimligi, atama, guven durumu ve katilimsiz erisim kimlik bilgileri makineye baglidir ve kopyalanmaz."
+    },
+    "manualTodo": ["EN: Verify account access and note device-assignment policy before formatting.", "TR: Format oncesi hesap erisimini dogrulayin ve cihaz-atama politikasini not edin."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

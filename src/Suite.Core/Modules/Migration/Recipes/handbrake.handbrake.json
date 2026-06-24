@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "handbrake.handbrake",
+  "displayName": "HandBrake",
+  "category": "media",
+  "detect": { "knownFolder": "AppData", "path": "HandBrake", "exists": true },
+  "items": [
+    { "path": "HandBrake", "exclude": ["logs/**"], "requiresClosedProcesses": ["HandBrake.exe"] }
+  ],
+  "exclude": ["**/*.log"],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "HandBrake.HandBrake" },
+  "wingetId": "HandBrake.HandBrake",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["HandBrake"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies HandBrake preferences, presets, and queue-related configuration; logs and source media are excluded.",
+      "tr": "HandBrake tercihleri, on ayarlari ve kuyruk yapilandirmasi kopyalanir; gunlukler ve kaynak medya haric tutulur."
+    },
+    "manualTodo": ["EN: Keep source media and completed encodes in your normal file backup.", "TR: Kaynak medya ve tamamlanan kodlamalari normal dosya yedeginizde tutun."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}
