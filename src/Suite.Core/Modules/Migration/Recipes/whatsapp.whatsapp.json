@@ -17,7 +17,7 @@
   "upgradeCode": [],
   "packageFamilyName": ["5319275A.WhatsAppDesktop_cv1g1gvanyjgm"],
   "installPathHint": ["WhatsApp"],
-  "restoreTier": "merge-after-install",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {

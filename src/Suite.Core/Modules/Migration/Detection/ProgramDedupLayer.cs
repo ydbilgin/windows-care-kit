@@ -69,6 +69,13 @@ public static class ProgramDedupLayer
             .ThenBy(MinSourceOrdinal)
             .ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Id, StringComparer.Ordinal)
+            .ThenBy(p => p.Publisher ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Version ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.InstallLocation ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.ProductCode ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.PackageFamilyName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.ReinstallId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.NormalizedName, StringComparer.Ordinal)
             .ToList();
 
         // Field-level merge across all records in the group.

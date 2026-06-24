@@ -144,6 +144,44 @@ public sealed class M1bProgramSourceTests
     }
 
     [Fact]
+    public void Dedup_same_source_value_conflicts_have_a_stable_tie_break()
+    {
+        DiscoveredProgram zulu = Program("Same", ProgramSourceKind.AppPaths, installPathLeaf: "same", version: "9")
+            with { Publisher = "Zulu" };
+        DiscoveredProgram alpha = Program("Same", ProgramSourceKind.AppPaths, installPathLeaf: "same", version: "1")
+            with { Publisher = "Alpha" };
+
+        DiscoveredProgram forward = Assert.Single(ProgramDedupLayer.Merge([zulu, alpha]));
+        DiscoveredProgram reverse = Assert.Single(ProgramDedupLayer.Merge([alpha, zulu]));
+
+        Assert.Equal(forward.DisplayName, reverse.DisplayName);
+        Assert.Equal(forward.Publisher, reverse.Publisher);
+        Assert.Equal(forward.Version, reverse.Version);
+        Assert.Equal(forward.InstallLocation, reverse.InstallLocation);
+        Assert.Equal(forward.InstallPathLeaf, reverse.InstallPathLeaf);
+        Assert.Equal(forward.Sources, reverse.Sources);
+        Assert.Equal("Alpha", forward.Publisher);
+        Assert.Equal("1", forward.Version);
+    }
+
+    [Fact]
+    public void Recall_oracle_dedups_app_paths_and_start_menu_for_the_same_unregistered_binary()
+    {
+        var appPath = Program("Portable", ProgramSourceKind.AppPaths, installPathLeaf: "portable");
+        var startMenu = Program("Portable Shortcut", ProgramSourceKind.StartMenu, installPathLeaf: "portable");
+        var detector = new ProgramDetector([
+            new FakeProgramSource(ProgramSourceKind.AppPaths, [appPath]),
+            new FakeProgramSource(ProgramSourceKind.StartMenu, [startMenu]),
+        ]);
+
+        DetectionResult result = detector.Detect();
+
+        Assert.Single(result.Programs);
+        Assert.Equal(1, result.LaunchableWithoutInstallRecordCount);
+        Assert.Equal([ProgramSourceKind.AppPaths, ProgramSourceKind.StartMenu], result.Programs[0].Sources);
+    }
+
+    [Fact]
     public void Win32InstalledAppReader_reads_through_registry_probe()
     {
         var registry = new FakeRegistryProbe();

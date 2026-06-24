@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "keepassxcteam.keepassxc",
+  "displayName": "KeePassXC",
+  "category": "security",
+  "detect": { "knownFolder": "AppData", "path": "keepassxc", "exists": true },
+  "items": [
+    { "path": "keepassxc", "include": ["keepassxc.ini", "keepassxc.ini.bak"], "requiresClosedProcesses": ["KeePassXC.exe"] }
+  ],
+  "exclude": ["**/*.kdbx", "**/*.key", "**/*.keyx", "**/ssh-agent.sock"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "KeePassXCTeam.KeePassXC" },
+  "wingetId": "KeePassXCTeam.KeePassXC",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["KeePassXC"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Only KeePassXC preferences are copied. Password databases (.kdbx), key files, and hardware-token setup are excluded from automatic migration.",
+      "tr": "Yalnizca KeePassXC tercihleri kopyalanir. Parola veritabanlari (.kdbx), anahtar dosyalari ve donanim-token kurulumu otomatik tasimadan haric tutulur."
+    },
+    "manualTodo": ["EN: Copy each verified .kdbx vault and required key file using your trusted encrypted backup or sync method.", "TR: Dogrulanmis her .kdbx kasasini ve gerekli anahtar dosyasini guvenilir sifreli yedek/senkron yonteminizle tasiyin."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

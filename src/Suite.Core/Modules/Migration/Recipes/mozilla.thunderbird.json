@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 3,
+  "id": "mozilla.thunderbird",
+  "displayName": "Mozilla Thunderbird",
+  "category": "communication",
+  "detect": { "knownFolder": "AppData", "path": "Thunderbird", "exists": true },
+  "items": [
+    { "path": "Thunderbird/profiles.ini", "requiresClosedProcesses": ["thunderbird.exe"] },
+    {
+      "path": "Thunderbird/Profiles",
+      "include": ["**/prefs.js", "**/user.js", "**/abook.sqlite", "**/history.sqlite", "**/Mail/**", "**/ImapMail/**", "**/extensions/**"],
+      "requiresClosedProcesses": ["thunderbird.exe"]
+    }
+  ],
+  "exclude": ["**/key4.db", "**/logins.json", "**/cert9.db", "**/pkcs11.txt", "**/cookies.sqlite", "**/sessionstore.jsonlz4", "**/cache2/**", "**/startupCache/**"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Mozilla.Thunderbird" },
+  "wingetId": "Mozilla.Thunderbird",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Mozilla Thunderbird", "Thunderbird"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Mail, address books, extensions, and preferences are copied. Password/key stores and active sessions are excluded and accounts may need repair.",
+      "tr": "Postalar, adres defterleri, eklentiler ve tercihler kopyalanir. Parola/anahtar depolari ve etkin oturumlar haric tutulur; hesaplar onarim isteyebilir."
+    },
+    "manualTodo": ["EN: Record account settings and verify offline mail before formatting.", "TR: Format oncesi hesap ayarlarini kaydedin ve cevrimdisi postalarin tam oldugunu dogrulayin."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

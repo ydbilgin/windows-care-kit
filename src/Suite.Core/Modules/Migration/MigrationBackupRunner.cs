@@ -104,6 +104,7 @@ public sealed class MigrationBackupRunner
     private readonly MigrationRestoreManifestStore _store;
     private readonly ISafetyGate _gate;
     private readonly MigrationInstallManifestStore _installStore;
+    private readonly IContentSignatureProbe? _contentSignatureProbe;
 
     public MigrationBackupRunner(
         RecipeResolver resolver,
@@ -112,7 +113,8 @@ public sealed class MigrationBackupRunner
         IFileSystem fs,
         MigrationRestoreManifestStore store,
         ISafetyGate gate,
-        MigrationInstallManifestStore? installStore = null)
+        MigrationInstallManifestStore? installStore = null,
+        IContentSignatureProbe? contentSignatureProbe = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
@@ -123,6 +125,7 @@ public sealed class MigrationBackupRunner
         // Optional so the existing 6-arg construction sites (tests) compile unchanged; defaulted to the real
         // strict store. The projector is pure/static, so it is not a ctor dependency.
         _installStore = installStore ?? new MigrationInstallManifestStore();
+        _contentSignatureProbe = contentSignatureProbe;
     }
 
     /// <summary>
@@ -167,7 +170,8 @@ public sealed class MigrationBackupRunner
             foreach (RecipeItemSkip s in resolved.Skipped)
                 skipped.Add(s);
 
-            IReadOnlyList<BridgedMigrationItem> bridged = RecipeToBackupEntry.Bridge(resolved);
+            IReadOnlyList<BridgedMigrationItem> bridged =
+                RecipeToBackupEntry.Bridge(resolved, _contentSignatureProbe);
 
             // bridged[k] and resolved.Items[k] are the SAME source list in the SAME order (the bridge maps 1:1
             // over resolved.Items), so this index is skip-proof — and we read RecipePath, never recipe.Items.

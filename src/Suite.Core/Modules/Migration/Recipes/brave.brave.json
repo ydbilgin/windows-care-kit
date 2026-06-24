@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 3,
+  "id": "brave.brave",
+  "displayName": "Brave Browser",
+  "category": "browsers",
+  "detect": { "knownFolder": "LocalAppData", "path": "BraveSoftware/Brave-Browser/User Data", "exists": true },
+  "items": [
+    {
+      "path": "BraveSoftware/Brave-Browser/User Data",
+      "include": ["Local State", "Default/Preferences", "Default/Secure Preferences", "Default/Bookmarks", "Default/Bookmarks.bak", "Default/Extensions/**"],
+      "requiresClosedProcesses": ["brave.exe"]
+    }
+  ],
+  "exclude": ["**/Login Data", "**/Login Data For Account", "**/Cookies", "**/Network/**", "**/Local Storage/**", "**/Session Storage/**", "**/IndexedDB/**", "**/Web Data", "**/History", "**/Cache/**", "**/Code Cache/**", "**/GPUCache/**"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Brave.Brave" },
+  "wingetId": "Brave.Brave",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["BraveSoftware/Brave-Browser", "Brave"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Bookmarks and selected preferences are portable. Passwords, cookies, tokens, sessions, and local web storage are excluded.",
+      "tr": "Yer imleri ve secili tercihler tasinabilir. Parolalar, cookie'ler, tokenlar, oturumlar ve yerel web depolari haric tutulur."
+    },
+    "manualTodo": ["EN: Enable Brave Sync or export bookmarks/passwords before formatting.", "TR: Format oncesi Brave Sync'i etkinlestirin veya yer imleri/parolalari disari aktarın."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

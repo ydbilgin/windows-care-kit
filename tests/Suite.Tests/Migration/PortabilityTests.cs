@@ -100,6 +100,30 @@ public class PortabilityTests
     }
 
     [Fact]
+    public void Unknown_named_synthetic_dpapi_blob_can_never_claim_works()
+    {
+        byte[] syntheticUnknownNamedBlob =
+        [
+            0x01, 0x00, 0x00, 0x00,
+            0xD0, 0x8C, 0x9D, 0xDF, 0x01, 0x15, 0xD1, 0x11,
+            0x8C, 0x7A, 0x00, 0xC0, 0x4F, 0xC2, 0x97, 0xEB,
+        ];
+        ContentSignature signature = ContentSignatureClassifier.Classify(syntheticUnknownNamedBlob);
+        var meta = new MigrationItemMeta("trusted.recipe", "trusted.recipe#0", PortabilityClass.ProfileRelative,
+            RestoreStrategy.MergeAfterInstall, RestorePhase.ConfigWrite, Array.Empty<string>())
+        {
+            HasExcludedSecret = false,
+            HasMachineBoundContent = signature.HasMachineBoundContent,
+        };
+
+        PortabilityBadgeResult badge = PortabilityBadge.Compute(meta);
+
+        Assert.True(signature.HasDpapiBlob);
+        Assert.Equal(BadgeKind.MachineLocked, badge.Kind);
+        Assert.False(badge.MayClaimWorks);
+    }
+
+    [Fact]
     public void Back_compat_two_arg_overload_is_unchanged()
     {
         // The legacy (cls, hasPreconditions) overload must behave exactly as before (no secret signal).

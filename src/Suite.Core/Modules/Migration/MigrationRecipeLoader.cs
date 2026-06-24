@@ -108,6 +108,8 @@ public static class MigrationRecipeLoader
             IReadOnlyList<string> upgradeCode = ParseGuidArray(root, "upgradeCode");
             IReadOnlyList<string> packageFamilyName = ParseStringArray(root, "packageFamilyName");
             IReadOnlyList<string> installPathHint = ParseStringArray(root, "installPathHint");
+            foreach (string hint in installPathHint)
+                ValidateRelativePath(hint, "installPathHint[]");
             RestoreTier restoreTier = schemaVersion >= V3SchemaVersion
                 ? ParseRestoreTier(RequireNonEmptyString(root, "restoreTier"))
                 : RestoreTier.ConfigCopy;
@@ -178,6 +180,7 @@ public static class MigrationRecipeLoader
         RejectUnknownFields(el, "detect", "knownFolder", "path", "exists");
         KnownFolder kf = ParseKnownFolder(RequireNonEmptyString(el, "knownFolder"), schemaVersion);
         string path = RequireNonEmptyString(el, "path");
+        ValidateRelativePath(path, "detect.path");
         bool exists = el.TryGetProperty("exists", out JsonElement e) ? RequireBool(e, "detect.exists") : true;
         return new RecipeDetect(kf, path, exists);
     }
@@ -195,21 +198,30 @@ public static class MigrationRecipeLoader
                 : ["path", "include", "exclude"];
             RejectUnknownFields(el, "items[]", allowedItemFields);
             string path = RequireNonEmptyString(el, "path");
+            ValidateRelativePath(path, "items[].path");
             RecipeItemKind kind = el.TryGetProperty("kind", out _)
                 ? ParseItemKind(RequireNonEmptyString(el, "kind"))
                 : RecipeItemKind.ProfilePath;
             ExportKind? exportKind = el.TryGetProperty("exportKind", out _)
                 ? ParseExportKind(RequireNonEmptyString(el, "exportKind"))
                 : null;
+            string? libraryDetector = OptionalString(el, "libraryDetector");
+            string? launcherId = OptionalString(el, "launcherId");
+            IReadOnlyList<string> manualTodo = ParseStringArray(el, "manualTodo");
             if (kind == RecipeItemKind.ExportCmd && exportKind is null)
                 throw new RecipeValidationException("items[] kind 'exportCmd' requires exportKind");
+            if (kind == RecipeItemKind.MachineRoot
+                && (string.IsNullOrWhiteSpace(libraryDetector) || string.IsNullOrWhiteSpace(launcherId)))
+                throw new RecipeValidationException("items[] kind 'machineRoot' requires libraryDetector and launcherId");
+            if (kind == RecipeItemKind.ManualTodo && manualTodo.Count == 0)
+                throw new RecipeValidationException("items[] kind 'manualTodo' requires manualTodo");
             list.Add(new RecipeItem(path, ParseStringArray(el, "include"), ParseStringArray(el, "exclude"))
             {
                 Kind = kind,
-                LibraryDetector = OptionalString(el, "libraryDetector"),
-                LauncherId = OptionalString(el, "launcherId"),
+                LibraryDetector = libraryDetector,
+                LauncherId = launcherId,
                 ExportKind = exportKind,
-                ManualTodo = ParseStringArray(el, "manualTodo"),
+                ManualTodo = manualTodo,
                 RequiresClosedProcesses = ParseStringArray(el, "requiresClosedProcesses"),
                 Verify = el.TryGetProperty("verify", out JsonElement verifyEl) ? ParseVerify(verifyEl) : null,
             });
@@ -521,6 +533,21 @@ public static class MigrationRecipeLoader
             if (ProgramJoinKeys.TryProductCode(value) is null)
                 throw new RecipeValidationException($"field '{name}' contains an invalid GUID '{value}'");
         return values.Select(v => v.ToLowerInvariant()).ToArray();
+    }
+
+    private static void ValidateRelativePath(string value, string field)
+    {
+        string normalized = value.Replace('\\', '/');
+        if (normalized.StartsWith("/", StringComparison.Ordinal)
+            || normalized.StartsWith("//", StringComparison.Ordinal)
+            || (normalized.Length >= 2 && char.IsAsciiLetter(normalized[0]) && normalized[1] == ':')
+            || normalized.Contains('%', StringComparison.Ordinal)
+            || normalized.Split('/', StringSplitOptions.None).Any(segment => segment == "..")
+            || normalized.Any(char.IsControl))
+        {
+            throw new RecipeValidationException(
+                $"field '{field}' must be a relative path with no root, environment token, parent traversal, or control character");
+        }
     }
 
     private static bool MustForceInventoryOnly(

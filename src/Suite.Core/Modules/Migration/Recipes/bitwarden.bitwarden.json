@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "bitwarden.bitwarden",
+  "displayName": "Bitwarden",
+  "category": "security",
+  "detect": { "knownFolder": "AppData", "path": "Bitwarden", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "bitwarden-sync-note", "manualTodo": ["EN: Reinstall and sign in to sync the vault.", "TR: Kasayi senkronlamak icin yeniden kurup giris yapin."] }
+  ],
+  "exclude": ["**/data.json", "**/Local Storage/**", "**/IndexedDB/**", "**/Cookies", "**/Session Storage/**"],
+  "secretRule": "global",
+  "portabilityClass": "machine-locked",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "Bitwarden.Bitwarden" },
+  "wingetId": "Bitwarden.Bitwarden",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Bitwarden"],
+  "restoreTier": "inventory-only",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "The local Bitwarden vault cache, device keys, tokens, and session data are not treated as portable. WCK records reinstall/sign-in guidance only.",
+      "tr": "Yerel Bitwarden kasa onbellegi, cihaz anahtarlari, tokenlar ve oturum verisi tasinabilir sayilmaz. WCK yalnizca yeniden kurulum/giris yonlendirmesi kaydeder."
+    },
+    "manualTodo": ["EN: Confirm vault sync and emergency access before formatting; export only if your security policy permits.", "TR: Format oncesi kasa senkronunu ve acil erisimi dogrulayin; yalnizca guvenlik politikaniz izin veriyorsa disari aktarin."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

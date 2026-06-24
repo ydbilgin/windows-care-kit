@@ -10,7 +10,7 @@ public class BuiltinRecipeSourceTests
     public void All_seed_recipes_load_and_validate()
     {
         IReadOnlyList<MigrationRecipe> recipes = BuiltinRecipeSource.LoadAll();
-        Assert.Equal(24, recipes.Count);
+        Assert.Equal(40, recipes.Count);
         Assert.All(recipes, r =>
         {
             Assert.Equal(3, r.SchemaVersion);
@@ -186,5 +186,89 @@ public class BuiltinRecipeSourceTests
         Assert.Equal("Python.Python.3.14", python.Install!.WingetId);
         Assert.False(python.Install.RequiresAdmin);
         Assert.Equal(KnownFolder.AppData, python.Detect.KnownFolder);
+    }
+
+    [Fact]
+    public void M25_catalog_expansion_contains_all_sixteen_apps_with_reinstall_mappings()
+    {
+        string[] ids =
+        [
+            "agilebits.1password",
+            "anydesk.anydesk",
+            "audacity.audacity",
+            "bitwarden.bitwarden",
+            "blenderfoundation.blender",
+            "brave.brave",
+            "gimp.gimp.3",
+            "handbrake.handbrake",
+            "inkscape.inkscape",
+            "insomnia.insomnia",
+            "keepassxcteam.keepassxc",
+            "mozilla.thunderbird",
+            "opera.opera",
+            "putty.putty",
+            "teamviewer.teamviewer",
+            "winscp.winscp",
+        ];
+
+        var recipes = BuiltinRecipeSource.LoadAll().Where(r => ids.Contains(r.Id)).ToList();
+
+        Assert.Equal(ids.Length, recipes.Count);
+        Assert.All(recipes, recipe =>
+        {
+            Assert.Equal(CatalogTier.Trusted, recipe.CatalogTier);
+            Assert.NotEmpty(recipe.InstallPathHint);
+            Assert.NotNull(recipe.Install);
+            Assert.Equal(RecipeInstallMethod.Winget, recipe.Install!.Method);
+            Assert.False(string.IsNullOrWhiteSpace(recipe.WingetId));
+            Assert.False(Path.IsPathRooted(recipe.Detect.Path));
+            Assert.All(recipe.Items, item => Assert.False(Path.IsPathRooted(item.Path)));
+            Assert.False(string.IsNullOrWhiteSpace(recipe.MigrationMeta!.UiWarning!.En));
+            Assert.False(string.IsNullOrWhiteSpace(recipe.MigrationMeta.UiWarning.Tr));
+        });
+    }
+
+    [Fact]
+    public void Credential_and_remote_access_recipes_are_non_green_with_bilingual_manual_todos()
+    {
+        string[] ids =
+        [
+            "agilebits.1password",
+            "anydesk.anydesk",
+            "bitwarden.bitwarden",
+            "brave.brave",
+            "insomnia.insomnia",
+            "keepassxcteam.keepassxc",
+            "mozilla.thunderbird",
+            "opera.opera",
+            "putty.putty",
+            "teamviewer.teamviewer",
+            "winscp.winscp",
+        ];
+
+        var recipes = BuiltinRecipeSource.LoadAll().Where(r => ids.Contains(r.Id)).ToList();
+
+        Assert.Equal(ids.Length, recipes.Count);
+        Assert.All(recipes, recipe =>
+        {
+            Assert.False(PortabilityBadge.Compute(recipe.PortabilityClass, false).MayClaimWorks);
+            Assert.Contains(recipe.MigrationMeta!.ManualTodo, value => value.StartsWith("EN:", StringComparison.Ordinal));
+            Assert.Contains(recipe.MigrationMeta.ManualTodo, value => value.StartsWith("TR:", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
+    public void Password_manager_and_session_recipes_exclude_secret_leaf_types()
+    {
+        IReadOnlyList<MigrationRecipe> recipes = BuiltinRecipeSource.LoadAll();
+        MigrationRecipe keepass = recipes.Single(r => r.Id == "keepassxcteam.keepassxc");
+        MigrationRecipe winscp = recipes.Single(r => r.Id == "winscp.winscp");
+        MigrationRecipe putty = recipes.Single(r => r.Id == "putty.putty");
+
+        Assert.Contains(keepass.Exclude, value => value.Contains("*.kdbx", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(keepass.Exclude, value => value.Contains("*.keyx", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(winscp.Exclude, value => value.Contains("*.ppk", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(putty.Exclude, value => value.Contains("*.ppk", StringComparison.OrdinalIgnoreCase));
+        Assert.All(new[] { winscp, putty }, recipe => Assert.Equal(RestoreTier.InventoryOnly, recipe.RestoreTier));
     }
 }

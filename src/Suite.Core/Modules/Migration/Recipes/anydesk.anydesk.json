@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "anydesk.anydesk",
+  "displayName": "AnyDesk",
+  "category": "remote-access",
+  "detect": { "knownFolder": "AppData", "path": "AnyDesk", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "anydesk-reenroll-note", "manualTodo": ["EN: Reinstall and re-enroll unattended access.", "TR: Yeniden kurun ve katilimsiz erisimi yeniden tanimlayin."] }
+  ],
+  "exclude": ["**/service.conf", "**/system.conf", "**/user.conf", "**/*.trace", "**/*.log"],
+  "secretRule": "global",
+  "portabilityClass": "machine-locked",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "AnyDesk.AnyDesk" },
+  "wingetId": "AnyDesk.AnyDesk",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["AnyDesk"],
+  "restoreTier": "inventory-only",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "AnyDesk identity, unattended-access credentials, and service configuration are machine-bound and are not copied.",
+      "tr": "AnyDesk kimligi, katilimsiz erisim kimlik bilgileri ve servis yapilandirmasi makineye baglidir ve kopyalanmaz."
+    },
+    "manualTodo": ["EN: Record the device assignment and recovery method, then configure a new unattended-access credential after reinstall.", "TR: Cihaz atamasini ve kurtarma yontemini kaydedin; yeniden kurulumdan sonra yeni katilimsiz erisim bilgisi olusturun."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

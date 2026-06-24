@@ -22,7 +22,9 @@ public sealed record BridgedMigrationItem(BackupEntry Entry, MigrationItemMeta M
 public static class RecipeToBackupEntry
 {
     /// <summary>Bridge every sandbox-passing item of <paramref name="resolved"/> into entry + meta pairs.</summary>
-    public static IReadOnlyList<BridgedMigrationItem> Bridge(ResolvedRecipe resolved)
+    public static IReadOnlyList<BridgedMigrationItem> Bridge(
+        ResolvedRecipe resolved,
+        IContentSignatureProbe? contentSignatureProbe = null)
     {
         ArgumentNullException.ThrowIfNull(resolved);
         if (!resolved.DetectMatched || resolved.Items.Count == 0)
@@ -80,6 +82,23 @@ public static class RecipeToBackupEntry
             };
 
             IReadOnlyList<string> preconditions = MergePreconditions(recipe.Restore.Preconditions, item.RequiresClosedProcesses);
+            // No probe is itself uncertainty. A caller must provide an explicit benign classification before
+            // a profile-relative item may retain a green badge; otherwise the M2.5 floor fails closed.
+            bool hasMachineBoundContent = contentSignatureProbe is null;
+            if (contentSignatureProbe is not null)
+            {
+                try
+                {
+                    hasMachineBoundContent = contentSignatureProbe.ProbeFile(item.AbsoluteSource).HasMachineBoundContent;
+                }
+                catch
+                {
+                    // A custom probe must not be able to fail open. Production Win32 also returns an
+                    // inconclusive signature on errors, but the bridge enforces the honesty floor itself.
+                    hasMachineBoundContent = true;
+                }
+            }
+
             var meta = new MigrationItemMeta(
                 RecipeId: recipe.Id,
                 EntryId: entryId,
@@ -89,6 +108,7 @@ public static class RecipeToBackupEntry
                 Preconditions: preconditions)
             {
                 HasExcludedSecret = hasExcludedSecret,
+                HasMachineBoundContent = hasMachineBoundContent,
             };
 
             result.Add(new BridgedMigrationItem(entry, meta));

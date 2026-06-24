@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "winscp.winscp",
+  "displayName": "WinSCP",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "UserProfile", "path": ".", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "winscp-export-note", "manualTodo": ["EN: Export configuration without stored passwords and copy private keys separately.", "TR: Yapilandirmayi kayitli parolalar olmadan disari aktarin; ozel anahtarlari ayrica tasiyin."] }
+  ],
+  "exclude": ["**/*.ppk", "**/*.pem", "**/*.key", "**/WinSCP.ini"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "config-write", "phase": "configWrite", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "WinSCP.WinSCP" },
+  "wingetId": "WinSCP.WinSCP",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["WinSCP"],
+  "restoreTier": "inventory-only",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "WinSCP sessions usually live in the registry or a portable INI and may reference private keys and stored credentials. WCK does not copy them automatically.",
+      "tr": "WinSCP oturumlari genellikle kayit defterinde veya tasinabilir INI'de bulunur ve ozel anahtar/kayitli kimlik bilgilerine basvurabilir. WCK bunlari otomatik kopyalamaz."
+    },
+    "manualTodo": ["EN: Use WinSCP's export workflow with passwords excluded, then restore keys from a trusted encrypted backup.", "TR: WinSCP disari aktarma akisini parolalari haric tutarak kullanin; anahtarlari guvenilir sifreli yedekten geri yukleyin."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

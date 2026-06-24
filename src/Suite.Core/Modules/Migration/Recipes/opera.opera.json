@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 3,
+  "id": "opera.opera",
+  "displayName": "Opera",
+  "category": "browsers",
+  "detect": { "knownFolder": "AppData", "path": "Opera Software/Opera Stable", "exists": true },
+  "items": [
+    {
+      "path": "Opera Software/Opera Stable",
+      "include": ["Preferences", "Secure Preferences", "Bookmarks", "Bookmarks.bak", "Extensions/**"],
+      "requiresClosedProcesses": ["opera.exe"]
+    }
+  ],
+  "exclude": ["Login Data", "Cookies", "Network/**", "Local Storage/**", "Session Storage/**", "IndexedDB/**", "Web Data", "History", "Cache/**", "Code Cache/**", "GPUCache/**"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Opera.Opera" },
+  "wingetId": "Opera.Opera",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Opera", "Opera Software"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Selected preferences and bookmarks are copied; password, cookie, token, session, and local-storage databases are excluded.",
+      "tr": "Secili tercihler ve yer imleri kopyalanir; parola, cookie, token, oturum ve yerel-depo veritabanlari haric tutulur."
+    },
+    "manualTodo": ["EN: Turn on Opera Sync or export bookmarks/passwords before formatting.", "TR: Format oncesi Opera Sync'i acin veya yer imleri/parolalari disari aktarın."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}
