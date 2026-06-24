@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "zoom.zoom",
+  "displayName": "Zoom Workplace",
+  "category": "communication",
+  "detect": { "knownFolder": "AppData", "path": "Zoom", "exists": true },
+  "items": [
+    { "path": "Zoom/data/Zoom.us.ini", "requiresClosedProcesses": ["Zoom.exe"] }
+  ],
+  "exclude": ["Zoom/logs", "Zoom/data/ConfAvatar", "Zoom/data/Emojis", "Zoom/data/WebviewCache"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Zoom.Zoom" },
+  "wingetId": "Zoom.Zoom",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Zoom", "Zoom Workplace"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies a limited Zoom preference file only. Account sessions, meeting tokens, and cached meeting data are not carried.",
+      "tr": "Yalnizca sinirli bir Zoom tercih dosyasi kopyalanir. Hesap oturumlari, toplanti tokenlari ve onbellek verisi tasinmaz."
+    },
+    "manualTodo": ["Sign in again and recheck audio, camera, and virtual-background settings."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

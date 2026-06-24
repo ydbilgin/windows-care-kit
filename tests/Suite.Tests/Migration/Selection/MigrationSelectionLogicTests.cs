@@ -69,6 +69,25 @@ public sealed class MigrationSelectionLogicTests
     }
 
     [Fact]
+    public void Smart_default_factor_three_uses_unique_or_non_regenerable_semantics()
+    {
+        MigrationSelectionCandidate candidate = Candidate("unique-but-regenerable", "projects") with
+        {
+            HasCloudBackup = false,
+            IsOnSystemDrive = true,
+            IsUnique = true,
+            IsRegenerable = true,
+        };
+        MigrationBadgePresentation badge = MigrationBadgePresenter.Derive(
+            candidate.Meta, candidate.RestoreTier, candidate.IsRegenerable);
+
+        SmartDefaultDecision result = SmartDefaultScorer.Score(candidate, badge);
+
+        Assert.Equal(3, result.IrreplaceabilityScore);
+        Assert.Equal(SmartDefaultKind.On, result.Kind);
+    }
+
+    [Fact]
     public void Partial_and_machine_locked_buckets_are_never_prechecked()
     {
         MigrationSelectionCandidate candidate = Candidate("locked", "security") with
@@ -174,26 +193,54 @@ public sealed class MigrationSelectionLogicTests
     }
 
     [Fact]
-    public void Coverage_keeps_config_restore_and_detection_as_two_integer_ratios()
+    public void Coverage_keeps_app_reinstall_config_restore_and_detection_as_three_integer_ratios()
     {
-        MigrationSelectionCandidate available = Candidate("available", "games") with
+        MigrationSelectionCandidate automatic = Candidate("automatic", "games") with
         {
+            InstallMethod = RecipeInstallMethod.Winget,
             RestoreTier = RestoreTier.ConfigCopy,
             HasInstallRecord = true,
         };
-        MigrationSelectionCandidate manual = Candidate("manual", "games") with
+        MigrationSelectionCandidate npm = Candidate("npm", "games") with
         {
+            InstallMethod = RecipeInstallMethod.Npm,
             RestoreTier = RestoreTier.InventoryOnly,
             HasInstallRecord = false,
         };
-        IReadOnlyList<MigrationSelectionGroup> groups = MigrationSelectionBuilder.Build([available, manual]);
+        MigrationSelectionCandidate manualDownload = Candidate("manual-download", "games") with
+        {
+            InstallMethod = RecipeInstallMethod.UrlManual,
+            RestoreTier = RestoreTier.ConfigCopy,
+            HasInstallRecord = true,
+        };
+        MigrationSelectionCandidate configOnly = Candidate("config-only", "games") with
+        {
+            InstallMethod = null,
+            RestoreTier = RestoreTier.ConfigCopy,
+            HasInstallRecord = true,
+        };
+        MigrationSelectionCandidate inventoryOnly = Candidate("inventory-only", "games") with
+        {
+            InstallMethod = null,
+            RestoreTier = RestoreTier.InventoryOnly,
+            HasInstallRecord = true,
+        };
+        MigrationSelectionCandidate uncovered = Candidate("uncovered", "games") with
+        {
+            InstallMethod = null,
+            RestoreTier = RestoreTier.InventoryOnly,
+            HasInstallRecord = false,
+        };
+        IReadOnlyList<MigrationSelectionGroup> groups = MigrationSelectionBuilder.Build(
+            [automatic, npm, manualDownload, configOnly, inventoryOnly, uncovered]);
 
         CategoryCoverage games = MigrationCoverageCalculator.ByCategory(groups)
             .Single(c => c.Category == MigrationCategory.GameSaves);
 
-        Assert.Equal(new CoverageRatio(1, 2), games.ConfigRestoreAvailable);
-        Assert.Equal(new CoverageRatio(1, 2), games.DetectionCoverage);
-        Assert.Equal("1/2", games.ConfigRestoreAvailable.ToString());
+        Assert.Equal(new CoverageRatio(2, 6), games.AppReinstallAvailable);
+        Assert.Equal(new CoverageRatio(3, 6), games.ConfigRestoreAvailable);
+        Assert.Equal(new CoverageRatio(4, 6), games.DetectionCoverage);
+        Assert.Equal("2/6", games.AppReinstallAvailable.ToString());
     }
 
     [Fact]

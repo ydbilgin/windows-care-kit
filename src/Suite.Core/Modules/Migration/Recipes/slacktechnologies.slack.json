@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "id": "slacktechnologies.slack",
+  "displayName": "Slack",
+  "category": "communication",
+  "detect": { "knownFolder": "AppData", "path": "Slack", "exists": true },
+  "items": [
+    { "path": "Slack/Preferences", "requiresClosedProcesses": ["slack.exe"] },
+    { "path": "Slack/storage/slack-settings", "requiresClosedProcesses": ["slack.exe"] }
+  ],
+  "exclude": ["Slack/Cache", "Slack/Code Cache", "Slack/GPUCache", "Slack/Cookies", "Slack/Local Storage", "Slack/Session Storage", "Slack/IndexedDB", "Slack/blob_storage"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "SlackTechnologies.Slack" },
+  "wingetId": "SlackTechnologies.Slack",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Slack"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies visible preferences only. Slack sessions, cookies, and token-bearing browser stores are excluded and are not portable.",
+      "tr": "Yalnizca gorunur tercihler kopyalanir. Slack oturumlari, cookie'ler ve token icerebilen tarayici depolari haric tutulur ve tasinabilir degildir."
+    },
+    "manualTodo": ["Sign in to every Slack workspace again after reinstall."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

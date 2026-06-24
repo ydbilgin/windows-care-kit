@@ -27,6 +27,7 @@ public static class SmartDefaultScorer
         int score =
             (candidate.HasCloudBackup ? 0 : 1)
             + (candidate.IsOnSystemDrive ? 1 : 0)
+            // §D.3 "unique/non-regenerable" is intentionally OR: either property earns factor 3.
             + (candidate.IsUnique || !candidate.IsRegenerable ? 1 : 0);
 
         if (candidate.OneDriveRedirectedSyncOff)

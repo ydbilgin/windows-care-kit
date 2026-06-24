@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "whatsapp.whatsapp",
+  "displayName": "WhatsApp",
+  "category": "communication",
+  "detect": { "knownFolder": "LocalAppData", "path": "Packages/5319275A.WhatsAppDesktop_cv1g1gvanyjgm/LocalState", "exists": false },
+  "items": [
+    { "kind": "manualTodo", "path": "whatsapp-relink-note", "manualTodo": ["Relink this PC from WhatsApp on the phone after reinstall."] }
+  ],
+  "exclude": [],
+  "secretRule": "global",
+  "portabilityClass": "machine-locked",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "9NKSQGP7F2NH" },
+  "wingetId": "9NKSQGP7F2NH",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": ["5319275A.WhatsAppDesktop_cv1g1gvanyjgm"],
+  "installPathHint": ["WhatsApp"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "WhatsApp device identity, encryption keys, and session data are machine-bound. WCK records a reinstall/relink step and does not copy them.",
+      "tr": "WhatsApp cihaz kimligi, sifreleme anahtarlari ve oturum verisi makineye baglidir. WCK yeniden kurulum/baglama adimini kaydeder; bunlari kopyalamaz."
+    },
+    "manualTodo": ["Install WhatsApp and relink the new PC from the phone."],
+    "installerSource": "microsoft-store",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

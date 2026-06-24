@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "postman.postman",
+  "displayName": "Postman",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "AppData", "path": "Postman", "exists": true },
+  "items": [
+    { "path": "Postman/Preferences", "requiresClosedProcesses": ["Postman.exe"] }
+  ],
+  "exclude": ["Postman/Cookies", "Postman/Local Storage", "Postman/Session Storage", "Postman/IndexedDB", "Postman/blob_storage", "Postman/Cache", "Postman/Code Cache", "Postman/GPUCache"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Postman.Postman" },
+  "wingetId": "Postman.Postman",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Postman"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies lightweight preferences only. Local workspaces, cookies, environment secrets, and account sessions are not treated as portable.",
+      "tr": "Yalnizca hafif tercihler kopyalanir. Yerel calisma alanlari, cookie'ler, ortam sirlari ve hesap oturumlari tasinabilir sayilmaz."
+    },
+    "manualTodo": ["Sign in and sync workspaces, then recreate local secrets from a trusted source."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

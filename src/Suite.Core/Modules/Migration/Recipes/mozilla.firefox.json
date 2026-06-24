@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 3,
+  "id": "mozilla.firefox",
+  "displayName": "Mozilla Firefox",
+  "category": "browsers",
+  "detect": { "knownFolder": "AppData", "path": "Mozilla/Firefox", "exists": true },
+  "items": [
+    { "path": "Mozilla/Firefox/profiles.ini", "requiresClosedProcesses": ["firefox.exe"] },
+    {
+      "path": "Mozilla/Firefox/Profiles",
+      "include": ["**/prefs.js", "**/user.js", "**/places.sqlite", "**/bookmarkbackups/**", "**/extensions/**"],
+      "requiresClosedProcesses": ["firefox.exe"]
+    }
+  ],
+  "exclude": ["**/key4.db", "**/logins.json", "**/cookies.sqlite", "**/sessionstore-backups/**", "**/cache2/**", "**/startupCache/**", "**/storage/default/**"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Mozilla.Firefox" },
+  "wingetId": "Mozilla.Firefox",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Mozilla Firefox", "Firefox"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Settings and bookmarks are portable, but the Firefox password store depends on key4.db and may also depend on a primary password. Passwords and sessions are excluded.",
+      "tr": "Ayarlar ve yer imleri tasinabilir; Firefox parola deposu key4.db ve varsa ana parolaya baglidir. Parolalar ve oturumlar haric tutulur."
+    },
+    "manualTodo": ["Enable Firefox Sync or export passwords before formatting, then sign in again after reinstall."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}
