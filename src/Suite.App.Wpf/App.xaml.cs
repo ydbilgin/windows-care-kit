@@ -10,6 +10,7 @@ using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Install;
+using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
@@ -81,8 +82,11 @@ public partial class App : Application
         s.AddSingleton<IExecutor>(sp => sp.GetRequiredService<GatedExecutor>());
 
         // Uninstall module (read-only readers + probe + per-user AppX remover).
+        s.AddSingleton<IRegistryProbe, Win32RegistryProbe>();
         s.AddSingleton<IInstalledAppReader, Win32InstalledAppReader>();
         s.AddSingleton<IAppxReader, Win32AppxReader>();
+        s.AddSingleton<IMsiCatalog, Win32MsiCatalog>();
+        s.AddSingleton<IStartMenuShortcutReader, Win32StartMenuShortcutReader>();
         s.AddSingleton<ILeftoverProbe, Win32LeftoverProbe>();
         s.AddSingleton<IAppxRemover>(sp => new Win32AppxRemover(sp.GetRequiredService<ExecutionLog>()));
         // Restore-point capability probe (PR-5): availability = SR enabled on the system drive AND elevated

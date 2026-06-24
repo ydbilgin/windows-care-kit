@@ -19,7 +19,8 @@ public sealed record ResolvedRecipeItem(
     string TargetRelative,
     IReadOnlyList<string> Include,
     IReadOnlyList<string> Exclude,
-    string RecipePath);
+    string RecipePath,
+    IReadOnlyList<string> RequiresClosedProcesses);
 
 /// <summary>One item the sandbox refused, plus the human reason (for the report / tests).</summary>
 public sealed record RecipeItemSkip(string ItemPath, string Reason);
@@ -90,6 +91,12 @@ public sealed class RecipeResolver
 
         foreach (RecipeItem item in recipe.Items)
         {
+            if (item.Kind != RecipeItemKind.ProfilePath || !IsProfileFolder(recipe.Detect.KnownFolder))
+            {
+                skipped.Add(new RecipeItemSkip(item.Path, "inventory-only item kind is not copied by the profile resolver"));
+                continue;
+            }
+
             // (2) token-expand + lexical containment
             string lexical;
             try
@@ -130,7 +137,7 @@ public sealed class RecipeResolver
             // Carry the declared item path (normalized forward-slash, trimmed) so the backup runner never has to
             // index back into the recipe's (superset) item list to recover it — skip-proof by construction.
             string recipePath = item.Path.Replace('\\', '/').Trim('/');
-            items.Add(new ResolvedRecipeItem(canonical, targetRelative, item.Include, exclude, recipePath));
+            items.Add(new ResolvedRecipeItem(canonical, targetRelative, item.Include, exclude, recipePath, item.RequiresClosedProcesses));
         }
 
         return new ResolvedRecipe(recipe, true, items, skipped);
@@ -152,4 +159,7 @@ public sealed class RecipeResolver
         merged.AddRange(item);
         return merged;
     }
+
+    private static bool IsProfileFolder(KnownFolder folder)
+        => folder is KnownFolder.UserProfile or KnownFolder.AppData or KnownFolder.LocalAppData;
 }

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 3,
+  "id": "obsproject.obsstudio",
+  "displayName": "OBS Studio",
+  "category": "media",
+  "detect": { "knownFolder": "AppData", "path": "obs-studio", "exists": true },
+  "items": [
+    { "path": "obs-studio/basic/profiles", "requiresClosedProcesses": ["obs64.exe"] },
+    { "path": "obs-studio/basic/scenes", "requiresClosedProcesses": ["obs64.exe"] },
+    { "path": "obs-studio/global.ini", "requiresClosedProcesses": ["obs64.exe"] }
+  ],
+  "exclude": ["logs", "crashes", "plugin_config/obs-browser/Cache"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "OBSProject.OBSStudio" },
+  "wingetId": "OBSProject.OBSStudio",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["OBS Studio", "OBS"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies scenes/profiles; plugin binaries and capture devices may need reinstall or reselect.",
+      "tr": "Scene/profil kopyalar; plugin binary ve capture cihazlari yeniden kurulum/secim isteyebilir."
+    },
+    "manualTodo": ["Reinstall OBS plugins and reselect capture devices if missing."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

@@ -41,6 +41,28 @@ public static partial class ProgramJoinKeys
             : null;
     }
 
+    /// <summary>Normalize AppX package-family names for deterministic exact joins.</summary>
+    public static string? PackageFamilyName(string? packageFamilyName)
+    {
+        if (string.IsNullOrWhiteSpace(packageFamilyName))
+            return null;
+        return packageFamilyName.Trim().ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Best-effort fallback for tests/fakes that only carry a package full name:
+    /// <c>Name_version_arch_resource_publisher</c> → <c>Name_publisher</c>.
+    /// </summary>
+    public static string? PackageFamilyNameFromFullName(string? packageFullName)
+    {
+        if (string.IsNullOrWhiteSpace(packageFullName))
+            return null;
+        string[] parts = packageFullName.Split('_', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+            return PackageFamilyName(packageFullName);
+        return PackageFamilyName($"{parts[0]}_{parts[^1]}");
+    }
+
     /// <summary>
     /// Tier-4 join key (B.6 / B.7): NFKC-normalize → invariant casefold → collapse interior whitespace →
     /// strip architecture/edition tokens → strip trailing version suffix → trim.

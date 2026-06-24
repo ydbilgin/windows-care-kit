@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "id": "qbittorrent.qbittorrent",
+  "displayName": "qBittorrent",
+  "category": "utilities",
+  "detect": { "knownFolder": "AppData", "path": "qBittorrent", "exists": true },
+  "items": [
+    { "path": "qBittorrent/qBittorrent.ini", "requiresClosedProcesses": ["qbittorrent.exe"] },
+    { "path": "qBittorrent/rss", "requiresClosedProcesses": ["qbittorrent.exe"] }
+  ],
+  "exclude": ["logs"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "qBittorrent.qBittorrent" },
+  "wingetId": "qBittorrent.qBittorrent",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["qBittorrent"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies settings/RSS only; active torrent data paths may need manual recheck.",
+      "tr": "Yalnizca ayar/RSS kopyalar; aktif torrent veri yollari manuel kontrol isteyebilir."
+    },
+    "manualTodo": ["Verify download paths before resuming torrents."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": true
+  }
+}

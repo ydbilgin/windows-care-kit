@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "telegram.telegramdesktop",
+  "displayName": "Telegram Desktop",
+  "category": "communication",
+  "detect": { "knownFolder": "AppData", "path": "Telegram Desktop", "exists": true },
+  "items": [
+    { "path": "Telegram Desktop/tdata/settingss", "requiresClosedProcesses": ["Telegram.exe"] }
+  ],
+  "exclude": ["tdata/D877F783D5D3EF8C*", "tdata/key_*", "tdata/temp", "tdata/user_data"],
+  "secretRule": "global",
+  "portabilityClass": "machine-locked",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Telegram.TelegramDesktop" },
+  "wingetId": "Telegram.TelegramDesktop",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Telegram Desktop", "Telegram"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Telegram auth data is not treated as portable; expect to sign in again.",
+      "tr": "Telegram auth verisi tasinabilir sayilmaz; tekrar giris yapmayi bekle."
+    },
+    "manualTodo": ["Sign in again and verify active sessions."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": true,
+    "survivesOnOtherDrive": false
+  }
+}

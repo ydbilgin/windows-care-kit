@@ -1,23 +1,35 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "id": "discord",
   "displayName": "Discord",
   "category": "communication",
   "detect": { "knownFolder": "AppData", "path": "discord", "exists": true },
   "items": [
-    { "path": "discord/settings.json" },
-    { "path": "discord/quotes.json" }
+    { "path": "discord/settings.json", "requiresClosedProcesses": ["Discord.exe"] },
+    { "path": "discord/quotes.json", "requiresClosedProcesses": ["Discord.exe"] }
   ],
-  "exclude": [
-    "*Cache*",
-    "blob_storage",
-    "GPUCache"
-  ],
+  "exclude": ["*Cache*", "blob_storage", "GPUCache", "Local Storage", "Session Storage"],
   "secretRule": "global",
-  "portabilityClass": "profile-relative",
-  "restore": {
-    "strategy": "merge-after-install",
-    "phase": "configWrite",
-    "preconditions": ["process-closed"]
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Discord.Discord" },
+  "wingetId": "Discord.Discord",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Discord"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Only visible settings are copied; tokens and sessions are not portable. Sign in again.",
+      "tr": "Yalnizca gorunur ayarlar kopyalanir; token ve oturumlar tasinabilir degil. Tekrar giris yap."
+    },
+    "manualTodo": ["Sign in again after reinstall."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
   }
 }

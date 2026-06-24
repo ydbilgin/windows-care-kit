@@ -1,26 +1,36 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "id": "anthropic.claude-code",
   "displayName": "Claude Code",
   "category": "dev-tools",
   "detect": { "knownFolder": "UserProfile", "path": ".claude", "exists": true },
   "items": [
-    { "path": ".claude/CLAUDE.md" },
-    { "path": ".claude/settings.json" },
-    { "path": ".claude/projects", "include": ["**/memory/**", "**/*.md"] },
-    { "path": ".claude/skills" }
+    { "path": ".claude/CLAUDE.md", "requiresClosedProcesses": ["node.exe"] },
+    { "path": ".claude/settings.json", "requiresClosedProcesses": ["node.exe"] },
+    { "path": ".claude/projects", "include": ["**/memory/**", "**/*.md"], "requiresClosedProcesses": ["node.exe"] },
+    { "path": ".claude/skills", "requiresClosedProcesses": ["node.exe"] }
   ],
-  "exclude": [
-    "*Cache*",
-    "shell-snapshots",
-    "todos",
-    "node_modules"
-  ],
+  "exclude": ["*Cache*", "shell-snapshots", "todos", "node_modules"],
   "secretRule": "global",
   "portabilityClass": "profile-relative",
-  "restore": {
-    "strategy": "merge-after-install",
-    "phase": "configWrite",
-    "preconditions": ["process-closed"]
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-npm", "npmPackage": "@anthropic-ai/claude-code" },
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["claude-code"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Backs up prompts, settings, memories, and skills; sign in again after reinstall.",
+      "tr": "Prompt, ayar, hafiza ve skill dosyalarini yedekler; yeniden kurulumdan sonra tekrar giris yap."
+    },
+    "manualTodo": ["Sign in again if the CLI asks for authentication."],
+    "installerSource": "npm",
+    "licenseSource": "account-login",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
   }
 }

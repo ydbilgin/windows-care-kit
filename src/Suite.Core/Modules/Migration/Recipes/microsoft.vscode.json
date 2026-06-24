@@ -1,19 +1,36 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "id": "microsoft.vscode",
   "displayName": "Visual Studio Code",
   "category": "dev-tools",
   "detect": { "knownFolder": "AppData", "path": "Code/User", "exists": true },
   "items": [
-    { "path": "Code/User/settings.json" },
-    { "path": "Code/User/keybindings.json" }
+    { "path": "Code/User/settings.json", "requiresClosedProcesses": ["Code.exe"] },
+    { "path": "Code/User/keybindings.json", "requiresClosedProcesses": ["Code.exe"] },
+    { "path": "Code/User/snippets", "requiresClosedProcesses": ["Code.exe"] }
   ],
   "exclude": [],
   "secretRule": "global",
   "portabilityClass": "profile-relative",
-  "restore": {
-    "strategy": "merge-after-install",
-    "phase": "configWrite",
-    "preconditions": ["process-closed"]
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Microsoft.VisualStudioCode" },
+  "wingetId": "Microsoft.VisualStudioCode",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Microsoft VS Code", "VS Code", "Code"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies user settings, keybindings, and snippets; extensions may need reinstall or sync.",
+      "tr": "Kullanici ayarlari, kisayollar ve snippet'lar kopyalanir; eklentiler yeniden kurulum veya sync isteyebilir."
+    },
+    "manualTodo": ["Use Settings Sync or reinstall extensions if they are missing."],
+    "installerSource": "winget",
+    "licenseSource": "account-login",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
   }
 }
