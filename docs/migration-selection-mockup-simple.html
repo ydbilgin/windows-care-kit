@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>WCK — Formatlamadan önce neyi saklayalım?</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --ink:#1d2433; --soft:#5b6678; --faint:#8a93a6;
+    --line:#e3e8f2; --line2:#d2d9e8;
+    --brand:#2f6df6; --brand-ink:#ffffff;
+    --green:#1f9d57; --green-bg:#e7f7ee; --green-line:#bfe8d0;
+    --amber:#b7791f; --amber-bg:#fdf3e2; --amber-line:#f0dcb4;
+    --red:#c5453b; --red-bg:#fdecea; --red-line:#f4c9c4;
+    font-family:"Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;}
+  .wrap{width:min(880px,calc(100% - 32px));margin:0 auto;}
+
+  /* ---- header ---- */
+  header{background:linear-gradient(180deg,#eaf0fe,#f4f6fb);border-bottom:1px solid var(--line);}
+  .eyebrow{color:var(--brand);font-weight:700;font-size:.82rem;letter-spacing:.04em;}
+  h1{margin:.25rem 0 .4rem;font-size:1.85rem;line-height:1.15;letter-spacing:-.02em;}
+  .lede{margin:0;color:var(--soft);font-size:1.05rem;max-width:60ch;}
+  .promise{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0 4px;}
+  .promise div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:.95rem;}
+  .promise .yes b{color:var(--green);} .promise .no b{color:var(--red);}
+  .promise small{display:block;color:var(--faint);margin-top:3px;font-size:.82rem;}
+  .header-pad{padding:26px 0 22px;}
+
+  /* ---- scan card (per-source health ALWAYS visible) ---- */
+  .scan-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:20px 0;}
+  .scan-line{font-size:.98rem;} .scan-line .ok{color:var(--green);font-weight:700;}
+  .scan-warn{margin-top:9px;background:var(--amber-bg);border:1px solid var(--amber-line);border-radius:9px;
+    padding:9px 12px;color:#8a5a12;font-size:.92rem;font-weight:600;}
+  .scan-warn .lnk{color:var(--brand);cursor:pointer;font-weight:600;text-decoration:underline;}
+  .scan-card details{margin-top:10px;}
+  .scan-card summary{cursor:pointer;color:var(--brand);font-weight:600;font-size:.9rem;}
+  .scan-card .src{margin-top:8px;color:var(--soft);font-size:.9rem;line-height:1.85;}
+  .scan-card .src div{display:flex;gap:7px;}
+
+  /* ---- legend ---- */
+  .legend{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 6px;}
+  .key{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);
+    border-radius:999px;padding:6px 13px;font-size:.9rem;font-weight:600;}
+  .dot{width:11px;height:11px;border-radius:50%;flex:none;}
+  .dot.g{background:var(--green);} .dot.a{background:var(--amber);} .dot.r{background:var(--red);}
+  .key small{color:var(--faint);font-weight:500;}
+
+  /* ---- groups ---- */
+  h2.sec{font-size:1.05rem;margin:26px 0 12px;color:var(--soft);font-weight:650;}
+  .group{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden;}
+  .group summary{display:flex;align-items:center;gap:13px;padding:15px 18px;cursor:pointer;list-style:none;}
+  .group summary::-webkit-details-marker{display:none;}
+  .chev{color:var(--faint);font-size:1.2rem;transition:transform .18s;flex:none;}
+  .group[open] .chev{transform:rotate(90deg);}
+  .gcheck{width:20px;height:20px;accent-color:var(--brand);flex:none;}
+  .gtitle{font-weight:700;font-size:1.05rem;}
+  .gsub{display:block;color:var(--faint);font-weight:500;font-size:.85rem;margin-top:1px;}
+  .gcount{margin-left:auto;color:var(--faint);font-size:.85rem;white-space:nowrap;}
+  .rows{border-top:1px solid var(--line);}
+  .row{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;border-bottom:1px solid var(--line);}
+  .row:last-child{border-bottom:0;}
+  .row:hover{background:#f8faff;}
+  .row input{width:20px;height:20px;margin-top:2px;accent-color:var(--brand);flex:none;}
+  .row.locked input{accent-color:var(--red);}
+  .rmain{flex:1;min-width:0;}
+  .rname{font-weight:650;}
+  .rwhat{color:var(--soft);font-size:.92rem;margin-top:2px;}
+  .pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 12px;
+    font-size:.82rem;font-weight:700;white-space:nowrap;flex:none;margin-top:1px;}
+  .pill.g{color:var(--green);background:var(--green-bg);border:1px solid var(--green-line);}
+  .pill.a{color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-line);}
+  .pill.r{color:var(--red);background:var(--red-bg);border:1px solid var(--red-line);}
+  .row.forced{background:var(--red-bg);}
+  .forced-note{color:var(--red);font-weight:700;font-size:.8rem;margin-top:3px;}
+
+  /* ---- footer ---- */
+  .footer{position:sticky;bottom:0;background:rgba(255,255,255,.97);border-top:1px solid var(--line2);
+    box-shadow:0 -10px 30px rgba(30,40,70,.07);margin-top:30px;}
+  .footer-in{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 0;}
+  .count{font-weight:750;font-size:1.05rem;}
+  .count small{display:block;color:var(--faint);font-weight:500;font-size:.82rem;}
+  .btn{margin-left:auto;background:var(--brand);color:var(--brand-ink);border:0;border-radius:11px;
+    padding:13px 22px;font-size:1rem;font-weight:700;cursor:pointer;}
+  .btn:hover{background:#255fde;}
+  .btn.ghost{margin-left:0;background:transparent;color:var(--soft);border:1px solid var(--line2);}
+  .btn.ghost:hover{background:#eef2fb;}
+  .note{padding:0 0 18px;color:var(--faint);font-size:.85rem;}
+  .cmd{margin:0 0 28px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px 16px;}
+  .cmd summary{cursor:pointer;color:var(--brand);font-weight:650;padding:11px 0;}
+  .cmd-body{color:var(--soft);font-size:.92rem;padding-bottom:14px;}
+  .cmd pre{margin:10px 0 0;background:#0f1830;color:#cfe0ff;border-radius:9px;padding:13px 15px;
+    font:.82rem/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-pad">
+      <div class="eyebrow">Windows Care Kit · Yedekleme</div>
+      <h1>Formatlamadan önce neyi saklayalım?</h1>
+      <p class="lede">Bilgisayarını taradık. Yeni bilgisayarına taşımak istediklerini işaretle — gerisini biz paketleriz. Her satırda <b>sana ne olacağını dürüstçe</b> yazıyoruz.</p>
+      <div class="promise">
+        <div class="yes"><b>✓ Taşıyabildiklerimiz:</b> dosyaların, ayarların, oyun kayıtların ve "hangi programları kur" listesi.<small>Yeni PC'ye götürdüğünde yerine koyarız.</small></div>
+        <div class="no"><b>✗ Taşıyamadıklarımız:</b> programların kendisi ve bu bilgisayara kilitli parolalar.<small>Bunları yeni PC'de yeniden kurar / yeniden giriş yaparsın — listesini veririz.</small></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="scan-card">
+      <div class="scan-line"><span class="ok">✅ Tarama bitti</span> — bilgisayarında <b>316 program</b> bulundu, <b>15 tanesini</b> tanıdık. Tanımadıklarımızı aşağıda "❓" altında listeledik; <b>hiçbirini gizlemedik</b>.</div>
+      <div class="scan-warn">⚠️ 5 tarama kaynağından <b>1'i tam okunamadı</b> — birkaç program bu listede görünmüyor olabilir. <span class="lnk" onclick="this.closest('.scan-card').querySelector('details').open=true">neyin eksik olduğunu gör</span></div>
+      <details>
+        <summary>Tarama kaynakları ve hesap</summary>
+        <div class="src">
+          <div>🟢 Yüklü programlar (kayıt defteri) — 142 okundu</div>
+          <div>🟢 Mağaza uygulamaları — 144 okundu</div>
+          <div>🟢 Başlat menüsü — 97 okundu</div>
+          <div>🟢 Kurulum kataloğu — 71 okundu</div>
+          <div>🟡 Program konumları — 2 kayıt okunamadı (erişim engeli); o programlar listede eksik olabilir</div>
+          <div style="margin-top:8px">Hepsi yalnızca <b>okundu</b>, hiçbir şey değiştirilmedi. Hesabın: <b>C:\Users\demo</b> — doğru hesaptasın.</div>
+        </div>
+      </details>
+    </div>
+
+    <div class="legend">
+      <span class="key"><span class="dot g"></span>Taşınır <small>yeni PC'de çalışır</small></span>
+      <span class="key"><span class="dot a"></span>Kısmen <small>taşınır ama bir adım/uyarı var</small></span>
+      <span class="key"><span class="dot r"></span>Taşınamaz <small>sadece liste, elle yaparsın</small></span>
+    </div>
+
+    <h2 class="sec">En kritik olanlar üstte. İstemediklerinin işaretini kaldır.</h2>
+
+    <section id="grid">
+      <!-- 1 -->
+      <details class="group" open data-group>
+        <summary>
+          <span class="chev">›</span>
+          <input class="gcheck" type="checkbox" onclick="event.stopPropagation()">
+          <span><span class="gtitle">📁 Kişisel dosyaların</span><span class="gsub">Silinirse bir daha geri getirilemez — en önemlisi</span></span>
+          <span class="gcount">2 öğe · 1.2 GB</span>
+        </summary>
+        <div class="rows">
+          <label class="row">
+            <input class="ic" type="checkbox" checked data-rec="1" data-size="820000000">
+            <span class="rmain"><span class="rname">Projeler klasörün</span><div class="rwhat">Üzerinde çalıştığın işler. Format bunu siler.</div></span>
+            <span class="pill g">🟢 Taşınır</span>
+          </label>
+          <label class="row forced">
+            <input class="ic" type="checkbox" checked disabled data-rec="1" data-size="410000000">
+            <span class="rmain"><span class="rname">Belgeler klasörün</span><div class="rwhat">OneDrive'a bağlı görünüyor ama buluta yüklenmemiş — format silerse geri gelmez.</div><div class="forced-note">⚠ Veri kaybını önlemek için otomatik seçili bırakıldı</div></span>
+            <span class="pill r">🔴 Riskli</span>
+          </label>
+        </div>
+      </details>
+
+      <!-- 2 -->
+      <details class="group" open data-group>
+        <summary>
+          <span class="chev">›</span>
+          <input class="gcheck" type="checkbox" onclick="event.stopPropagation()">
+          <span><span class="gtitle">🎮 Oyun kayıtların</span><span class="gsub">İlerlemen — buluta kaydetmeyen oyunlar</span></span>
+          <span class="gcount">1 öğe · 176 MB</span>
+        </summary>
+        <div class="rows">
+          <label class="row">
+            <input class="ic" type="checkbox" checked data-rec="1" data-size="176000000">
+            <span class="rmain"><span class="rname">Tek oyunculu oyun ilerlemesi</span><div class="rwhat">Bu oyun buluta kaydetmiyor, sadece bu PC'de duruyor.</div></span>
+            <span class="pill g">🟢 Taşınır</span>
+          </label>
+        </div>
+      </details>
+
+      <!-- 3 -->
+      <details class="group" open data-group>
+        <summary>
+          <span class="chev">›</span>
+          <input class="gcheck" type="checkbox" onclick="event.stopPropagation()">
+          <span><span class="gtitle">⚙️ Program ayarların</span><span class="gsub">Ayarlar taşınır — programları yeni PC'de yeniden kurarsın</span></span>
+          <span class="gcount">2 öğe · 3 MB</span>
+        </summary>
+        <div class="rows">
+          <label class="row">
+            <input class="ic" type="checkbox" checked data-rec="1" data-size="3000000">
+            <span class="rmain"><span class="rname">VS Code ayarların</span><div class="rwhat">Tema, kısayollar ve eklenti ayarların. (VS Code'u yeni PC'de kurunca yerine konur.)</div></span>
+            <span class="pill a">🟡 Kurulumdan sonra</span>
+          </label>
+          <label class="row">
+            <input class="ic" type="checkbox" checked data-rec="1" data-size="4000">
+            <span class="rmain"><span class="rname">Git ayarın</span><div class="rwhat">Adın, e-postan ve tercihlerin.</div></span>
+            <span class="pill g">🟢 Taşınır</span>
+          </label>
+        </div>
+      </details>
+
+      <!-- 4 -->
+      <details class="group" open data-group>
+        <summary>
+          <span class="chev">›</span>
+          <input class="gcheck" type="checkbox" onclick="event.stopPropagation()">
+          <span><span class="gtitle">🔐 Parolalar ve hesaplar</span><span class="gsub">Bu bilgisayara kilitli — taşınamaz, yeniden giriş yaparsın</span></span>
+          <span class="gcount">2 öğe · elle</span>
+        </summary>
+        <div class="rows">
+          <label class="row locked">
+            <input class="ic" type="checkbox" disabled>
+            <span class="rmain"><span class="rname">Tarayıcıda kayıtlı parolalar</span><div class="rwhat">Güvenlik gereği bu PC'ye kilitli; kopyalansa bile yeni PC'de çalışmaz. Tarayıcı senkronu ya da parola dışa-aktarımı kullan.</div></span>
+            <span class="pill r">🔴 Taşınamaz</span>
+          </label>
+          <label class="row locked">
+            <input class="ic" type="checkbox" disabled>
+            <span class="rmain"><span class="rname">Windows'ta kayıtlı hesap girişleri</span><div class="rwhat">Yeni PC'de bir kez yeniden giriş yapman gerekir. Listesini sana veririz.</div></span>
+            <span class="pill r">🔴 Taşınamaz</span>
+          </label>
+        </div>
+      </details>
+
+      <!-- 5 -->
+      <details class="group" data-group>
+        <summary>
+          <span class="chev">›</span>
+          <input class="gcheck" type="checkbox" onclick="event.stopPropagation()">
+          <span><span class="gtitle">🌐 Tarayıcı</span><span class="gsub">Yer imlerin taşınır, parolalar taşınmaz</span></span>
+          <span class="gcount">1 öğe · 320 KB</span>
+        </summary>
+        <div class="rows">
+          <label class="row">
+            <input class="ic" type="checkbox" checked data-rec="1" data-size="320000">
+            <span class="rmain"><span class="rname">Yer imlerin (favoriler)</span><div class="rwhat">Tarayıcı kapalıyken kopyalanır.</div></span>
+            <span class="pill a">🟡 Tarayıcıyı kapat</span>
+          </label>
+        </div>
+      </details>
+
+      <!-- 6 -->
+      <details class="group" data-group>
+        <summary>
+          <span class="chev">›</span>
+          <input class="gcheck" type="checkbox" onclick="event.stopPropagation()">
+          <span><span class="gtitle">❓ Tanımadıklarımız</span><span class="gsub">Bunları biz seçmedik — istersen sen ekle</span></span>
+          <span class="gcount">1 öğe · 2.3 GB</span>
+        </summary>
+        <div class="rows">
+          <label class="row">
+            <input class="ic" type="checkbox" data-size="2300000000">
+            <span class="rmain"><span class="rname">"ResearchVault" klasörü</span><div class="rwhat">Ne olduğunu bilemedik. İçine bak, gerekiyorsa işaretle.</div></span>
+            <span class="pill a">🟡 Sen karar ver</span>
+          </label>
+        </div>
+      </details>
+    </section>
+
+    <p class="note">🔴 Taşınamayan her şey için, yedekleme bitince <b>"yeni PC'de elle yapılacaklar" listesi</b> veririz — hiçbir şeyi sessizce atlamayız.</p>
+
+    <details class="cmd">
+      <summary>Yedeklemeden önce: tam olarak ne yapılacağını gör</summary>
+      <div class="cmd-body">
+        Hiçbir şey gizli değil. Seçtiğin her klasör/dosya için çalıştırılacak <b>kesin komutu</b> önce sana gösteririz — onaylamadan hiçbir şey kopyalanmaz:
+        <pre>robocopy "C:\Users\demo\Projects" "E:\WCK\PERSONAL\Projects" /E /COPY:DAT /R:1 /W:1 /XJ
+Copy-Item "C:\Users\demo\.gitconfig" "E:\WCK\DEV\.gitconfig"</pre>
+      </div>
+    </details>
+  </main>
+
+  <div class="footer">
+    <div class="wrap footer-in">
+      <button class="btn ghost" id="recBtn" type="button">Önerilenlere dön</button>
+      <div class="count"><span id="cnt">0 öğe seçili</span><small id="sz">0 MB</small></div>
+      <button class="btn" type="button">Seçilenleri Yedekle →</button>
+    </div>
+  </div>
+
+<script>
+  const ics=()=>[...document.querySelectorAll('.ic')];
+  function fmt(b){ if(b>=1e9)return (b/1e9).toFixed(1)+' GB'; if(b>=1e6)return Math.round(b/1e6)+' MB'; if(b>=1e3)return Math.round(b/1e3)+' KB'; return b+' B';}
+  function upGroup(g){const gc=g.querySelector('.gcheck');const cs=[...g.querySelectorAll('.ic')].filter(c=>!c.disabled);
+    const n=cs.filter(c=>c.checked).length; gc.checked=cs.length>0&&n===cs.length; gc.indeterminate=n>0&&n<cs.length;}
+  function up(){let n=0,sz=0; ics().forEach(c=>{if(c.checked){n++;sz+=+(c.dataset.size||0);}});
+    document.querySelectorAll('[data-group]').forEach(upGroup);
+    document.getElementById('cnt').textContent=n+' öğe seçili';
+    document.getElementById('sz').textContent='Toplam '+fmt(sz);}
+  document.querySelectorAll('[data-group]').forEach(g=>{const gc=g.querySelector('.gcheck');
+    gc.addEventListener('change',()=>{g.querySelectorAll('.ic').forEach(c=>{if(!c.disabled)c.checked=gc.checked;});up();});});
+  document.addEventListener('change',e=>{if(e.target.classList.contains('ic'))up();});
+  document.getElementById('recBtn').addEventListener('click',()=>{ics().forEach(c=>{if(!c.disabled)c.checked=c.dataset.rec==='1';});up();});
+  up();
+</script>
+</body>
+</html>
