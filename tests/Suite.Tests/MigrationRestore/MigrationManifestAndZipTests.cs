@@ -38,6 +38,85 @@ public class MigrationManifestAndZipTests
         finally { System.IO.Directory.Delete(dir, recursive: true); }
     }
 
+    [Fact]
+    public void Manifest_round_trips_restore_tier_and_manual_metadata()
+    {
+        string dir = TempDir();
+        try
+        {
+            var target = new MigrationRestoreTarget("manual.app", "manual.app#0", KnownFolder.UserProfile,
+                "prefs.json", "migration/manual.app/prefs.json", RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite,
+                System.Array.Empty<string>(), PortabilityClass.ProfileRelative, "sha")
+            {
+                RestoreTier = RestoreTier.InventoryOnly,
+                MigrationMeta = new MigrationRecipeMeta(
+                    UiWarning: new LocalizedText("Manual warning", "Manuel uyari"),
+                    ManualSteps: System.Array.Empty<string>(),
+                    ManualTodo: new[] { "EN: do this by hand. TR: bunu elle yap." },
+                    InstallerSource: InstallerSource.Winget,
+                    LicenseSource: LicenseSource.AccountLogin,
+                    RequiresRelogin: true,
+                    BackedUpButNotRestored: true,
+                    SurvivesOnOtherDrive: false),
+            };
+
+            var store = new MigrationRestoreManifestStore();
+            store.Save(dir, new MigrationRestoreManifest(1, new[] { target }));
+            MigrationRestoreTarget loaded = Assert.Single(store.Load(dir).Targets);
+
+            Assert.Equal(RestoreTier.InventoryOnly, loaded.RestoreTier);
+            Assert.NotNull(loaded.MigrationMeta);
+            Assert.True(loaded.MigrationMeta!.RequiresRelogin);
+            Assert.Contains("TR:", loaded.MigrationMeta.ManualTodo.Single());
+        }
+        finally { System.IO.Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void ManifestBuilder_propagates_recipe_restore_tier_to_target()
+    {
+        var recipe = new MigrationRecipe(
+            SchemaVersion: 3,
+            Id: "inventory.app",
+            DisplayName: "Inventory App",
+            Category: "test",
+            Detect: new RecipeDetect(KnownFolder.UserProfile, "prefs.json", Exists: true),
+            Items: new[] { new RecipeItem("prefs.json", System.Array.Empty<string>(), System.Array.Empty<string>()) },
+            Exclude: System.Array.Empty<string>(),
+            SecretRule: "global",
+            PortabilityClass: PortabilityClass.ProfileRelative,
+            Restore: new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, System.Array.Empty<string>()))
+        {
+            RestoreTier = RestoreTier.InventoryOnly,
+            MigrationMeta = new MigrationRecipeMeta(
+                UiWarning: null,
+                ManualSteps: System.Array.Empty<string>(),
+                ManualTodo: new[] { "Manual step" },
+                InstallerSource: null,
+                LicenseSource: null,
+                RequiresRelogin: false,
+                BackedUpButNotRestored: true,
+                SurvivesOnOtherDrive: false),
+        };
+        var meta = new MigrationItemMeta(
+            RecipeId: recipe.Id,
+            EntryId: "inventory.app#0",
+            PortabilityClass: PortabilityClass.ProfileRelative,
+            RestoreStrategy: RestoreStrategy.ConfigWrite,
+            RestorePhase: RestorePhase.ConfigWrite,
+            Preconditions: System.Array.Empty<string>());
+
+        MigrationRestoreTarget? maybeTarget = MigrationRestoreManifestBuilder.BuildTarget(
+            recipe, meta, KnownFolder.UserProfile, "prefs.json", "migration/inventory.app/prefs.json", "ABCDEF");
+        Assert.NotNull(maybeTarget);
+        MigrationRestoreTarget target = maybeTarget!;
+
+        Assert.Equal(RestoreTier.InventoryOnly, target.RestoreTier);
+        Assert.Equal("abcdef", target.Sha256);
+        Assert.NotNull(target.MigrationMeta);
+        Assert.True(target.MigrationMeta!.BackedUpButNotRestored);
+    }
+
     [Theory]
     [InlineData("../../escape.cfg")]   // traversal
     [InlineData(@"C:\abs.cfg")]        // absolute / drive-qualified

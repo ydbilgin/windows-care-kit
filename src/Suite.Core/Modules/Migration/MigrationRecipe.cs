@@ -81,6 +81,8 @@ public enum RestorePhase
 /// <summary>Honest restore capability tier for v3 recipes. It gates claims; Slice 1 does not execute restores.</summary>
 public enum RestoreTier
 {
+    /// <summary>Only for legacy restore manifests that predate the manifest restoreTier field.</summary>
+    Unspecified = 0,
     InventoryOnly,
     ConfigCopy,
     MergeAfterInstall,

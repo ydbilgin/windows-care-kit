@@ -10,8 +10,12 @@ public enum RestoreSkipReason
 {
     /// <summary>F4: machine-locked / partial portability — BLOCKED before planning, never written.</summary>
     MachineLocked,
-    /// <summary>F2: the recipe is not on the Slice 2 inner-path-clean allow-list (inner-path rebind is Slice 3).</summary>
+    /// <summary>Legacy Slice-2 reason retained for old UI/report compatibility; M4 uses <see cref="InventoryOnly"/>.</summary>
     NotAllowListed,
+    /// <summary>F0/F1: restoreTier says inventory/manual only — list it honestly, never write it.</summary>
+    InventoryOnly,
+    /// <summary>F0/F4: non-profile roots are inventory/manual only and cannot self-promote to writes.</summary>
+    NonProfileRoot,
     /// <summary>Slice 2 executes only single-file ConfigWrite-class strategies; others are deferred.</summary>
     UnsupportedStrategy,
     /// <summary>The packaged source bytes are missing from the package.</summary>
@@ -36,7 +40,22 @@ public sealed record RestoreSkip(MigrationRestoreTarget Target, RestoreSkipReaso
 public sealed record MigrationRestorePlanResult(
     OperationPlan Plan,
     IReadOnlyList<RestoreSkip> Skipped,
-    IReadOnlyDictionary<string, string> ActionEntryIds);
+    IReadOnlyDictionary<string, string> ActionEntryIds)
+{
+    /// <summary>Restore action id → target, for pure report/success-screen classification.</summary>
+    public IReadOnlyDictionary<string, MigrationRestoreTarget> RestoreActionTargets { get; init; }
+        = new Dictionary<string, MigrationRestoreTarget>(StringComparer.Ordinal);
+
+    /// <summary>Reinstall action id → install entry, for pure report/success-screen classification.</summary>
+    public IReadOnlyDictionary<string, InstallEntry> InstallActionEntries { get; init; }
+        = new Dictionary<string, InstallEntry>(StringComparer.Ordinal);
+
+    /// <summary>Install planner skips when a package install manifest was supplied.</summary>
+    public IReadOnlyList<InstallSkip> InstallSkipped { get; init; } = Array.Empty<InstallSkip>();
+
+    /// <summary>Manual-after install checklist entries when a package install manifest was supplied.</summary>
+    public IReadOnlyList<InstallEntry> InstallManualChecklist { get; init; } = Array.Empty<InstallEntry>();
+}
 
 /// <summary>
 /// The migration RESTORE planner (decision §B). It reads a package's <c>migration-manifest.json</c> and turns
@@ -79,7 +98,9 @@ public sealed class MigrationRestoreRunner
         MigrationRestoreManifest manifest,
         string packageDirectory,
         RestoreState state,
-        DateTime utc)
+        DateTime utc,
+        InstallManifest? installManifest = null,
+        InstallPlanner? installPlanner = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentException.ThrowIfNullOrWhiteSpace(packageDirectory);
@@ -88,8 +109,35 @@ public sealed class MigrationRestoreRunner
         var actions = new List<PlannedAction>();
         var skipped = new List<RestoreSkip>();
         var actionEntryIds = new Dictionary<string, string>();
+        var restoreActionTargets = new Dictionary<string, MigrationRestoreTarget>(StringComparer.Ordinal);
+        var installActionEntries = new Dictionary<string, InstallEntry>(StringComparer.Ordinal);
+        IReadOnlyList<InstallSkip> installSkipped = Array.Empty<InstallSkip>();
+        IReadOnlyList<InstallEntry> installManualChecklist = Array.Empty<InstallEntry>();
 
-        foreach (MigrationRestoreTarget target in manifest.Targets ?? Array.Empty<MigrationRestoreTarget>())
+        if (installManifest is not null)
+        {
+            if (installPlanner is null)
+                throw new ArgumentNullException(nameof(installPlanner), "An InstallPlanner is required when an install manifest is supplied.");
+
+            InstallPlanResult installPlan = installPlanner.BuildPlan(installManifest, state, utc);
+            installSkipped = installPlan.Skipped;
+            installManualChecklist = installPlan.ManualChecklist;
+            foreach (PlannedAction installAction in installPlan.Plan.Actions)
+            {
+                actions.Add(installAction);
+                if (installPlan.ActionEntryIds.TryGetValue(installAction.Id, out string? installEntryId))
+                {
+                    actionEntryIds[installAction.Id] = installEntryId;
+                    InstallEntry? entry = installManifest.Entries
+                        .FirstOrDefault(e => string.Equals(e.Id, installEntryId, StringComparison.OrdinalIgnoreCase));
+                    if (entry is not null)
+                        installActionEntries[installAction.Id] = entry;
+                }
+            }
+        }
+
+        foreach (MigrationRestoreTarget target in RestoreRunbook.OrderTargets(
+                     manifest.Targets ?? Array.Empty<MigrationRestoreTarget>()))
         {
             // 0) Resume: a completed entry is skipped without re-planning.
             if (state.IsDone(target.EntryId))
@@ -107,23 +155,41 @@ public sealed class MigrationRestoreRunner
                 continue;
             }
 
-            // 2) F2 allow-list: only inner-path-clean recipes are restored by file-placement in Slice 2.
-            if (!RestoreAllowList.IsAllowed(target.RecipeId))
+            // 2) F0/F4 cap: non-profile roots are inventory/manual only, even if a package was tampered to
+            //    claim a higher restoreTier. The loader caps recipe data; the runner keeps the execution-path
+            //    double block.
+            if (!IsProfileFolder(target.KnownFolder))
             {
-                skipped.Add(new RestoreSkip(target, RestoreSkipReason.NotAllowListed,
-                    "Not on the Slice 2 allow-list (in-file path/SID rebind is Slice 3)"));
+                skipped.Add(new RestoreSkip(target, RestoreSkipReason.NonProfileRoot,
+                    "EN: Non-profile data is listed for manual restore/re-add only; no file write is planned. TR: Profil disi veri yalnizca elle geri ekleme/listedir; dosya yazma planlanmaz."));
                 continue;
             }
 
-            // 3) Slice 2 executes only ConfigWrite-class single-file strategies.
+            RestoreTier effectiveTier = EffectiveRestoreTier(target);
+
+            // 3) F0 restoreTier gate: catalog data, not a hardcoded recipe-id allow-list, decides config-copy
+            //    eligibility for new manifests. Legacy manifests with no tier fall back to the old tiny set.
+            if (effectiveTier < RestoreTier.ConfigCopy)
+            {
+                RestoreSkipReason reason = target.RestoreTier == RestoreTier.Unspecified
+                    ? RestoreSkipReason.NotAllowListed
+                    : RestoreSkipReason.InventoryOnly;
+                skipped.Add(new RestoreSkip(target, reason,
+                    reason == RestoreSkipReason.NotAllowListed
+                        ? "EN: Legacy package target is not in the old inner-path-clean restore set; list it manually. TR: Eski paket hedefi eski ic-yol-temiz geri yukleme listesinde degil; elle listeleyin."
+                        : "EN: Inventory/manual-only item; it was backed up or detected but cannot be safely restored automatically. TR: Envanter/manuel kalem; yedeklendi veya tespit edildi ama guvenle otomatik geri yuklenemez."));
+                continue;
+            }
+
+            // 4) M4 executes ConfigWrite/MergeAfterInstall-class single-file strategies only.
             if (target.RestoreStrategy is not (RestoreStrategy.ConfigWrite or RestoreStrategy.MergeAfterInstall))
             {
                 skipped.Add(new RestoreSkip(target, RestoreSkipReason.UnsupportedStrategy,
-                    $"Strategy {target.RestoreStrategy} is not executed in Slice 2"));
+                    $"Strategy {target.RestoreStrategy} is not executed by the M4 file-placement runner"));
                 continue;
             }
 
-            // 4) Typed rebind: recompute the destination on the TARGET machine from the closed KnownFolder +
+            // 5) Typed rebind: recompute the destination on the TARGET machine from the closed KnownFolder +
             //    normalized relative path. Any escape/traversal/unknown-token is rejected here, before the gate.
             string destination;
             try
@@ -136,7 +202,7 @@ public sealed class MigrationRestoreRunner
                 continue;
             }
 
-            // 5) The packaged source bytes must exist in the package.
+            // 6) The packaged source bytes must exist in the package.
             string source = Path.GetFullPath(Path.Combine(
                 packageDirectory, target.PackageRelativeSource.Replace('/', Path.DirectorySeparatorChar)));
             if (!File.Exists(source))
@@ -146,7 +212,7 @@ public sealed class MigrationRestoreRunner
                 continue;
             }
 
-            // 6) Build the typed action (.bak-backed, atomic merge at execution time).
+            // 7) Build the typed action (.bak-backed, atomic merge at execution time).
             var action = new RestoreMergeAction
             {
                 Source = source,
@@ -158,7 +224,7 @@ public sealed class MigrationRestoreRunner
                 Undo = UndoCapability.Partial,
             };
 
-            // 7) Gate every action — a blocked one is reported, never planned (the gate independently confirms
+            // 8) Gate every action — a blocked one is reported, never planned (the gate independently confirms
             //    the destination is inside the current/target profile and not a protected tree).
             SafetyVerdict verdict = _gate.Evaluate(action);
             if (!verdict.Allowed)
@@ -169,9 +235,24 @@ public sealed class MigrationRestoreRunner
 
             actions.Add(action);
             actionEntryIds[action.Id] = target.EntryId;
+            restoreActionTargets[action.Id] = target;
         }
 
         var plan = new OperationPlan("Restore migrated settings", "migration-restore", actions, utc);
-        return new MigrationRestorePlanResult(plan, skipped, actionEntryIds);
+        return new MigrationRestorePlanResult(plan, skipped, actionEntryIds)
+        {
+            RestoreActionTargets = restoreActionTargets,
+            InstallActionEntries = installActionEntries,
+            InstallSkipped = installSkipped,
+            InstallManualChecklist = installManualChecklist,
+        };
     }
+
+    private static bool IsProfileFolder(KnownFolder folder)
+        => folder is KnownFolder.UserProfile or KnownFolder.AppData or KnownFolder.LocalAppData;
+
+    private static RestoreTier EffectiveRestoreTier(MigrationRestoreTarget target)
+        => target.RestoreTier == RestoreTier.Unspecified
+            ? RestoreAllowList.LegacyTierFor(target.RecipeId)
+            : target.RestoreTier;
 }
