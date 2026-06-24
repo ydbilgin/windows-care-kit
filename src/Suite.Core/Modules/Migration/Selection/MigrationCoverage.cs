@@ -10,6 +10,7 @@ public sealed record CoverageRatio(int Available, int Total)
 
 public sealed record CategoryCoverage(
     MigrationCategory Category,
+    CoverageRatio AppReinstallAvailable,
     CoverageRatio ConfigRestoreAvailable,
     CoverageRatio DetectionCoverage);
 
@@ -29,11 +30,14 @@ public static class MigrationCoverageCalculator
         return groups.Select(group =>
         {
             int total = group.Items.Count;
+            int appReinstall = group.Items.Count(item =>
+                item.Candidate.InstallMethod is RecipeInstallMethod.Winget or RecipeInstallMethod.Npm);
             int configRestore = group.Items.Count(item =>
                 item.Candidate.RestoreTier >= RestoreTier.ConfigCopy);
             int detectedWithRecord = group.Items.Count(item => item.Candidate.HasInstallRecord);
             return new CategoryCoverage(
                 group.Category,
+                new CoverageRatio(appReinstall, total),
                 new CoverageRatio(configRestore, total),
                 new CoverageRatio(detectedWithRecord, total));
         }).ToArray();

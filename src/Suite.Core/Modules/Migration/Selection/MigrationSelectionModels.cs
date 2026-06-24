@@ -56,6 +56,7 @@ public sealed record MigrationSelectionCandidate
     public bool IsRecognized { get; init; } = true;
     public bool OneDriveRedirectedSyncOff { get; init; }
     public bool HasInstallRecord { get; init; } = true;
+    public RecipeInstallMethod? InstallMethod { get; init; }
 
     public bool BackedUpButNotRestored { get; init; }
     public bool RequiresRelogin { get; init; }

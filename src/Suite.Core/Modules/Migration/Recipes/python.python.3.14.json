@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 3,
+  "id": "python.python.3.14",
+  "displayName": "Python 3.14 (per-user)",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "AppData", "path": "pip", "exists": true },
+  "items": [
+    { "path": "pip/pip.ini" }
+  ],
+  "exclude": [],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "Python.Python.3.14", "requiresAdmin": false },
+  "wingetId": "Python.Python.3.14",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["Python314", "Python 3.14"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies per-user pip configuration only. Virtual environments, interpreters, and installed packages must be recreated.",
+      "tr": "Yalnizca kullanici bazli pip ayari kopyalanir. Sanal ortamlar, yorumlayicilar ve kurulu paketler yeniden olusturulmalidir."
+    },
+    "manualTodo": ["Save project requirement files separately and recreate virtual environments after reinstall."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

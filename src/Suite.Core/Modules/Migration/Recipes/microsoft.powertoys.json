@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 3,
+  "id": "microsoft.powertoys",
+  "displayName": "Microsoft PowerToys",
+  "category": "utilities",
+  "detect": { "knownFolder": "LocalAppData", "path": "Microsoft/PowerToys", "exists": true },
+  "items": [
+    { "path": "Microsoft/PowerToys/settings.json", "requiresClosedProcesses": ["PowerToys.exe"] },
+    { "path": "Microsoft/PowerToys/FancyZones", "requiresClosedProcesses": ["PowerToys.exe"] },
+    { "path": "Microsoft/PowerToys/Keyboard Manager", "requiresClosedProcesses": ["PowerToys.exe"] },
+    { "path": "Microsoft/PowerToys/PowerToys Run", "requiresClosedProcesses": ["PowerToys.exe"] }
+  ],
+  "exclude": ["**/Logs/**", "**/Cache/**", "**/Updates/**", "**/CrashReports/**"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "Microsoft.PowerToys" },
+  "wingetId": "Microsoft.PowerToys",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["PowerToys"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies core PowerToys settings and selected module layouts. Hardware-, monitor-, or path-specific values may need adjustment.",
+      "tr": "Temel PowerToys ayarlari ve secili modul duzenleri kopyalanir. Donanim, monitor veya yol bazli degerler ayar isteyebilir."
+    },
+    "manualTodo": ["Review FancyZones layouts and Keyboard Manager targets on the new hardware."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

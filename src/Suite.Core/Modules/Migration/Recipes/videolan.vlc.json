@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "id": "videolan.vlc",
+  "displayName": "VLC media player",
+  "category": "media",
+  "detect": { "knownFolder": "AppData", "path": "vlc", "exists": true },
+  "items": [
+    { "path": "vlc/vlcrc", "requiresClosedProcesses": ["vlc.exe"] },
+    { "path": "vlc/ml.xspf", "requiresClosedProcesses": ["vlc.exe"] }
+  ],
+  "exclude": ["vlc/crashdump", "vlc/art"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "VideoLAN.VLC" },
+  "wingetId": "VideoLAN.VLC",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["VideoLAN VLC", "VLC"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies VLC preferences and media-library metadata. Library entries can contain old absolute media paths and may need repair.",
+      "tr": "VLC tercihleri ve medya kutuphanesi metadatasi kopyalanir. Kutuphane kayitlari eski mutlak medya yollarini icerebilir ve duzeltme isteyebilir."
+    },
+    "manualTodo": ["Review media-library locations if drive letters or folder names changed."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": true
+  }
+}

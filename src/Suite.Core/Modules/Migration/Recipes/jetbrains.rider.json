@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 3,
+  "id": "jetbrains.rider",
+  "displayName": "JetBrains Rider",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "AppData", "path": "JetBrains", "exists": true },
+  "items": [
+    {
+      "path": "JetBrains",
+      "include": ["Rider*/options/**", "Rider*/keymaps/**", "Rider*/templates/**", "Rider*/codestyles/**"],
+      "requiresClosedProcesses": ["rider64.exe"]
+    }
+  ],
+  "exclude": ["**/plugins/**", "**/system/**", "**/log/**", "**/caches/**"],
+  "secretRule": "global",
+  "portabilityClass": "partial",
+  "restore": { "strategy": "merge-after-install", "phase": "firstRunSeed", "preconditions": ["process-closed"] },
+  "install": { "method": "install-winget", "wingetId": "JetBrains.Rider" },
+  "wingetId": "JetBrains.Rider",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["JetBrains Rider", "Rider"],
+  "restoreTier": "merge-after-install",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies versioned Rider preferences, keymaps, templates, and code styles. Plugins, account state, and licenses are not carried.",
+      "tr": "Surumlu Rider tercihleri, kisayollar, sablonlar ve kod stilleri kopyalanir. Plugin, hesap durumu ve lisanslar tasinmaz."
+    },
+    "manualTodo": ["Sign in to the JetBrains account again and reinstall missing plugins."],
+    "installerSource": "winget",
+    "licenseSource": "subscription",
+    "requiresRelogin": true,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

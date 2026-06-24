@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "id": "openjs.nodejs.lts",
+  "displayName": "Node.js LTS",
+  "category": "dev-tools",
+  "detect": { "knownFolder": "UserProfile", "path": ".node_repl_history", "exists": false },
+  "items": [
+    { "path": ".node_repl_history" },
+    { "path": ".npm-init.js" }
+  ],
+  "exclude": [],
+  "secretRule": "global",
+  "portabilityClass": "profile-relative",
+  "restore": { "strategy": "merge-after-install", "phase": "configWrite", "preconditions": [] },
+  "install": { "method": "install-winget", "wingetId": "OpenJS.NodeJS.LTS" },
+  "wingetId": "OpenJS.NodeJS.LTS",
+  "productCode": [],
+  "upgradeCode": [],
+  "packageFamilyName": [],
+  "installPathHint": ["nodejs", "Node.js"],
+  "restoreTier": "config-copy",
+  "catalogTier": "trusted",
+  "migrationMeta": {
+    "uiWarning": {
+      "en": "Copies REPL history and an optional npm init script only. Global packages and credential-bearing npm configuration are not copied.",
+      "tr": "Yalnizca REPL gecmisi ve varsa npm init betigi kopyalanir. Global paketler ve kimlik bilgisi icerebilen npm ayari kopyalanmaz."
+    },
+    "manualTodo": ["Reinstall required global packages and recreate npm authentication without copying old credentials."],
+    "installerSource": "winget",
+    "licenseSource": "none",
+    "requiresRelogin": false,
+    "backedUpButNotRestored": false,
+    "survivesOnOtherDrive": false
+  }
+}

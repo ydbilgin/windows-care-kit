@@ -10,7 +10,7 @@ public class BuiltinRecipeSourceTests
     public void All_seed_recipes_load_and_validate()
     {
         IReadOnlyList<MigrationRecipe> recipes = BuiltinRecipeSource.LoadAll();
-        Assert.NotEmpty(recipes);
+        Assert.Equal(24, recipes.Count);
         Assert.All(recipes, r =>
         {
             Assert.Equal(3, r.SchemaVersion);
@@ -38,6 +38,16 @@ public class BuiltinRecipeSourceTests
         Assert.Contains("obsproject.obsstudio", ids);
         Assert.Contains("spotify.spotify", ids);
         Assert.Contains("libreoffice.libreoffice", ids);
+        Assert.Contains("mozilla.firefox", ids);
+        Assert.Contains("jetbrains.rider", ids);
+        Assert.Contains("python.python.3.14", ids);
+        Assert.Contains("openjs.nodejs.lts", ids);
+        Assert.Contains("videolan.vlc", ids);
+        Assert.Contains("slacktechnologies.slack", ids);
+        Assert.Contains("zoom.zoom", ids);
+        Assert.Contains("microsoft.powertoys", ids);
+        Assert.Contains("postman.postman", ids);
+        Assert.Contains("whatsapp.whatsapp", ids);
     }
 
     [Fact]
@@ -95,5 +105,86 @@ public class BuiltinRecipeSourceTests
         RecipeItem item = Assert.Single(steam.Items);
         Assert.Equal(RecipeItemKind.MachineRoot, item.Kind);
         Assert.Equal("steam", item.LibraryDetector);
+    }
+
+    [Fact]
+    public void Added_catalog_recipes_are_trusted_profile_rooted_and_have_automatic_reinstall_mappings()
+    {
+        string[] addedIds =
+        [
+            "mozilla.firefox",
+            "jetbrains.rider",
+            "python.python.3.14",
+            "openjs.nodejs.lts",
+            "videolan.vlc",
+            "slacktechnologies.slack",
+            "zoom.zoom",
+            "microsoft.powertoys",
+            "postman.postman",
+            "whatsapp.whatsapp",
+        ];
+        var added = BuiltinRecipeSource.LoadAll().Where(r => addedIds.Contains(r.Id)).ToList();
+
+        Assert.Equal(addedIds.Length, added.Count);
+        Assert.All(added, recipe =>
+        {
+            Assert.Equal(CatalogTier.Trusted, recipe.CatalogTier);
+            Assert.Contains(recipe.Detect.KnownFolder,
+                new[] { KnownFolder.UserProfile, KnownFolder.AppData, KnownFolder.LocalAppData });
+            Assert.False(Path.IsPathRooted(recipe.Detect.Path));
+            Assert.NotEmpty(recipe.InstallPathHint);
+            Assert.NotNull(recipe.Install);
+            Assert.Contains(recipe.Install!.Method,
+                new[] { RecipeInstallMethod.Winget, RecipeInstallMethod.Npm });
+            Assert.All(recipe.Items, item => Assert.False(Path.IsPathRooted(item.Path)));
+        });
+    }
+
+    [Fact]
+    public void Added_secret_bearing_apps_have_honest_non_green_warnings_and_manual_steps()
+    {
+        string[] secretBearingIds =
+        [
+            "mozilla.firefox",
+            "slacktechnologies.slack",
+            "zoom.zoom",
+            "postman.postman",
+            "whatsapp.whatsapp",
+        ];
+        var recipes = BuiltinRecipeSource.LoadAll().Where(r => secretBearingIds.Contains(r.Id)).ToList();
+
+        Assert.Equal(secretBearingIds.Length, recipes.Count);
+        Assert.All(recipes, recipe =>
+        {
+            Assert.False(PortabilityBadge.Compute(recipe.PortabilityClass, hasPreconditions: false).MayClaimWorks);
+            Assert.NotEmpty(recipe.MigrationMeta!.ManualTodo);
+            Assert.False(string.IsNullOrWhiteSpace(recipe.MigrationMeta.UiWarning!.En));
+            Assert.False(string.IsNullOrWhiteSpace(recipe.MigrationMeta.UiWarning.Tr));
+        });
+    }
+
+    [Fact]
+    public void Firefox_excludes_password_store_and_whatsapp_is_inventory_only()
+    {
+        IReadOnlyList<MigrationRecipe> recipes = BuiltinRecipeSource.LoadAll();
+        MigrationRecipe firefox = recipes.Single(r => r.Id == "mozilla.firefox");
+        MigrationRecipe whatsapp = recipes.Single(r => r.Id == "whatsapp.whatsapp");
+
+        Assert.Contains(firefox.Exclude, value => value.Contains("key4.db", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(firefox.Exclude, value => value.Contains("logins.json", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(PortabilityClass.Partial, firefox.PortabilityClass);
+
+        Assert.Equal(PortabilityClass.MachineLocked, whatsapp.PortabilityClass);
+        Assert.Equal(RestoreTier.InventoryOnly, whatsapp.RestoreTier);
+    }
+
+    [Fact]
+    public void Python_recipe_keeps_per_user_install_non_elevated()
+    {
+        MigrationRecipe python = BuiltinRecipeSource.LoadAll().Single(r => r.Id == "python.python.3.14");
+
+        Assert.Equal("Python.Python.3.14", python.Install!.WingetId);
+        Assert.False(python.Install.RequiresAdmin);
+        Assert.Equal(KnownFolder.AppData, python.Detect.KnownFolder);
     }
 }
