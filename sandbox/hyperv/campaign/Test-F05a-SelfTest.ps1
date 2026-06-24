@@ -133,6 +133,100 @@ Windows Registry Editor Version 5.00
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Dir 'cell-manifest.json') -Encoding UTF8
 }
 
+function New-GoodPersonaBUninstallEvidence {
+    param([string] $Dir)
+    $runStartUtc = (Get-Date).ToUniversalTime().AddSeconds(-5)
+    $before = Join-Path $Dir 'before'; $after = Join-Path $Dir 'after'
+    New-Item -ItemType Directory -Force -Path $Dir,$before,$after | Out-Null
+
+    $regBefore = @'
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\qBittorrent]
+"DisplayName"="qBittorrent"
+"InstallLocation"="C:\\Program Files\\qBittorrent\\"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{CHROME-PERSONA-B}]
+"DisplayName"="Google Chrome"
+'@
+    $regAfter = @'
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\qBittorrent]
+"DisplayName"="qBittorrent"
+"InstallLocation"=""
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{CHROME-PERSONA-B}]
+"DisplayName"="Google Chrome"
+'@
+    Set-Content -LiteralPath (Join-Path $before 'uninstall-registry.reg') -Value $regBefore -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $after  'uninstall-registry.reg') -Value $regAfter  -Encoding UTF8
+
+    @(
+        [pscustomobject]@{ Path = 'C:\Program Files\qBittorrent\qbittorrent.exe'; Sha256 = 'C1B2C3D4E5F600000000000000000000000000000000000000000000000000CC' }
+        [pscustomobject]@{ Path = 'C:\WCK-Persona\seed-manifest-persona-b.json'; Sha256 = 'D1B2C3D4E5F600000000000000000000000000000000000000000000000000DD' }
+    ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $before 'dir-hashes.json') -Encoding UTF8
+    @(
+        [pscustomobject]@{ Path = 'C:\WCK-Persona\seed-manifest-persona-b.json'; Sha256 = 'D1B2C3D4E5F600000000000000000000000000000000000000000000000000DD' }
+    ) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $after 'dir-hashes.json') -Encoding UTF8
+
+    [ordered]@{
+        generated = (Get-Date).ToUniversalTime().ToString('o')
+        pass = $true
+        verdict = 'PASS'
+        executeSet = @()
+        unprovenExecutions = @()
+        branchMismatch = @()
+        focus = @(
+            [ordered]@{ targetId = 'qbittorrent'; found = $true; classification = 'MANUAL' }
+            [ordered]@{ targetId = 'chrome-enterprise'; found = $true; classification = 'ALLOW'; silentCapable = $false }
+        )
+        executions = @()
+    } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Dir 'uninstall-e2e-evidence.json') -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $Dir 'uninstall-e2e-result.txt') -Value 'PASS' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $Dir 'harness-exitcode.txt') -Value '0' -Encoding UTF8
+
+    [ordered]@{
+        persona = 'B'
+        apps = @(
+            [ordered]@{ id = 'qbittorrent'; action = 'installed' }
+            [ordered]@{ id = 'chrome-enterprise'; action = 'installed' }
+            [ordered]@{ id = 'steam'; action = 'synthetic-seed' }
+            [ordered]@{ id = 'discord'; action = 'synthetic-seed' }
+            [ordered]@{ id = 'spotify'; action = 'synthetic-seed' }
+        )
+    } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Dir 'persona-seed-manifest.json') -Encoding UTF8
+    [ordered]@{
+        persona = 'B'
+        generatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+        apps = @(
+            [ordered]@{ appId = 'qbittorrent'; source = 'real-installed'; seedAction = 'installed'; uninstallScope = 'required-not-executed-manual-witness' }
+            [ordered]@{ appId = 'chrome-enterprise'; source = 'real-installed'; seedAction = 'installed'; uninstallScope = 'required-not-executed-unattended-decline' }
+            [ordered]@{ appId = 'steam'; source = 'synthetic-seed'; seedAction = 'synthetic-seed'; uninstallScope = 'uninstall-out-of-scope' }
+            [ordered]@{ appId = 'discord'; source = 'synthetic-seed'; seedAction = 'synthetic-seed'; uninstallScope = 'uninstall-out-of-scope' }
+            [ordered]@{ appId = 'spotify'; source = 'synthetic-seed'; seedAction = 'synthetic-seed'; uninstallScope = 'uninstall-out-of-scope' }
+        )
+    } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Dir 'persona-b-disposition.json') -Encoding UTF8
+
+    @{ state = 'Off'; checkpoint = 'baseline-clean' } | ConvertTo-Json |
+        Set-Content -LiteralPath (Join-Path $Dir 'vm-final-state.json') -Encoding UTF8
+
+    $afterUtc = $runStartUtc.AddSeconds(2).ToString('o')
+    $resetUtc = $runStartUtc.AddSeconds(2.3).ToString('o')
+    @{
+        runId        = 'run-20260624-bbbb2222'
+        vmName       = 'WCK-E2E'
+        persona      = 'B'
+        module       = 'Uninstall'
+        checkpoint   = 'baseline-clean'
+        campaignGuid = $fakeGuid
+        runStartUtc     = $runStartUtc.ToString('o')
+        generatedUtc     = (Get-Date).ToUniversalTime().ToString('o')
+        afterSnapshotUtc = $afterUtc
+        resetUtc         = $resetUtc
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Dir 'cell-manifest.json') -Encoding UTF8
+}
+
 function New-CommonCellManifest {
     param([string] $Dir, [string] $Module)
     $runStartUtc = (Get-Date).ToUniversalTime().AddSeconds(-5)
@@ -197,6 +291,56 @@ function New-GoodMigrationEvidence {
     Set-Content -LiteralPath (Join-Path $Dir 'migration-e2e-summary.txt') -Value '=== PASS ===' -Encoding UTF8
     @{ state = 'Off'; checkpoint = 'baseline-clean' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Dir 'vm-final-state.json') -Encoding UTF8
     New-CommonCellManifest -Dir $Dir -Module 'Migration'
+}
+
+function New-GoodPersonaBMigrationEvidence {
+    param([string] $Dir)
+    $before = Join-Path $Dir 'before'; $after = Join-Path $Dir 'after'
+    $pkg = Join-Path $Dir 'pkg'
+    New-Item -ItemType Directory -Force -Path $Dir,$before,$after,$pkg | Out-Null
+    Set-Content -LiteralPath (Join-Path $before 'dir-hashes.json') -Value '[]' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $after 'dir-hashes.json') -Value '[]' -Encoding UTF8
+
+    $discordDir = Join-Path $pkg 'discord'
+    $launcherDir = Join-Path $pkg 'launcher'
+    New-Item -ItemType Directory -Force -Path $discordDir,$launcherDir | Out-Null
+    Set-Content -LiteralPath (Join-Path $discordDir 'Local State') -Value '{ "tokens": ["synthetic-discord-token-do-not-restore"] }' -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $launcherDir 'libraryfolders.vdf') -Value '"libraryfolders" { "0" { "path" "F:\\fake-steam" } }' -Encoding ascii
+    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+    $zipPath = Join-Path $Dir 'migration-export.zip'
+    if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($pkg, $zipPath)
+    Remove-Item -LiteralPath $pkg -Recurse -Force
+
+    [ordered]@{
+        pass = $true
+        persona = 'B'
+        failReason = $null
+        generatedAt = (Get-Date).ToUniversalTime().ToString('o')
+        restorePlanSkips = @(
+            [ordered]@{ recipeId = 'discord'; relativePath = 'Local State'; reason = 'NotAllowListed'; note = 'machine-bound token store backed up but restore deferred' }
+        )
+        backupProofs = @(
+            [ordered]@{ recipeId = 'discord'; relativePath = 'discord/Local State'; bytes = 54; sha256 = '3333333333333333333333333333333333333333333333333333333333333333' }
+            [ordered]@{ recipeId = 'launcher'; relativePath = 'launcher/libraryfolders.vdf'; bytes = 51; sha256 = '4444444444444444444444444444444444444444444444444444444444444444' }
+        )
+        honestDispositions = @(
+            [ordered]@{ recipeId = 'discord'; disposition = 'NotAllowListed'; warning = 'token-store restore basarili iddiasi yok' }
+            [ordered]@{ recipeId = 'launcher'; disposition = 're-add-only'; warning = 'sadece re-add' }
+            [ordered]@{ recipeId = 'chrome-abe'; disposition = 'sync-only'; warning = 'restore-edilemez, sync' }
+        )
+        verifications = @(
+            [ordered]@{ recipeId = 'discord'; relativePath = 'Local State'; skipped = $true; skipReason = 'NotAllowListed: machine-bound restore deferred'; shaMatch = $null; destExists = $null; manifestSha = '3333333333333333333333333333333333333333333333333333333333333333'; restoredSha = $null; destPath = $null }
+            [ordered]@{ recipeId = 'launcher'; relativePath = 'libraryfolders.vdf'; skipped = $true; skipReason = 're-add-only: launcher path must be re-added'; shaMatch = $null; destExists = $null; manifestSha = '4444444444444444444444444444444444444444444444444444444444444444'; restoredSha = $null; destPath = $null }
+        )
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Dir 'migration-e2e-evidence.json') -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $Dir 'migration-e2e-summary.txt') -Value '=== PASS: Persona-B honest warnings emitted ===' -Encoding UTF8
+    @{ state = 'Off'; checkpoint = 'baseline-clean' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Dir 'vm-final-state.json') -Encoding UTF8
+    New-CommonCellManifest -Dir $Dir -Module 'Migration'
+    $mPath = Join-Path $Dir 'cell-manifest.json'
+    $m = Get-Content -LiteralPath $mPath -Raw | ConvertFrom-Json
+    $m.persona = 'B'
+    $m | ConvertTo-Json | Set-Content -LiteralPath $mPath -Encoding UTF8
 }
 
 function New-GoodCleanEvidence {
@@ -436,6 +580,12 @@ $rv = Test-WckCampaignEvidence -EvidenceDir $good -HostUsername '___no_such_user
 $detailA = if ($rv.Pass) { "digest=$($rv.Digest.Substring(0,12))..." } else { "reasons: $($rv.Reasons -join ' | ')" }
 Record 'verify.a well-formed FRESH evidence -> Pass=true' ($rv.Pass -eq $true) $detailA
 
+$goodPersonaB = Join-Path $scratch 'persona-b-uninstall-good'
+New-GoodPersonaBUninstallEvidence -Dir $goodPersonaB
+$rvB = Test-WckCampaignEvidence -EvidenceDir $goodPersonaB -HostUsername '___no_such_user___'
+$detailB = if ($rvB.Pass) { "digest=$($rvB.Digest.Substring(0,12))..." } else { "reasons: $($rvB.Reasons -join ' | ')" }
+Record 'verify.persona-b Chrome-present + qBittorrent-present honest-decline -> Pass=true' ($rvB.Pass -eq $true) $detailB
+
 # Helper to build a broken variant from the good fixture, mutate it, and expect Pass=false.
 function Test-Broken {
     param([string] $Name, [scriptblock] $Mutate)
@@ -446,6 +596,61 @@ function Test-Broken {
     $expected = ($r.Pass -eq $false)
     $reason = if ($r.Reasons.Count) { $r.Reasons[0] } else { '(no reason!)' }
     Record ("verify.broken $Name -> Pass=false") $expected $reason
+}
+
+function Test-BrokenPersonaB {
+    param([string] $Name, [scriptblock] $Mutate)
+    $dir = Join-Path $scratch ("persona-b-broken-" + ($Name -replace '[^a-zA-Z0-9]','_'))
+    New-GoodPersonaBUninstallEvidence -Dir $dir
+    & $Mutate $dir
+    $r = Test-WckCampaignEvidence -EvidenceDir $dir -HostUsername '___no_such_user___'
+    $expected = ($r.Pass -eq $false)
+    $reason = if ($r.Reasons.Count) { $r.Reasons[0] } else { '(no reason!)' }
+    Record ("verify.persona-b broken $Name -> Pass=false") $expected $reason
+}
+
+Test-BrokenPersonaB 'qbittorrent-absent' {
+    param($d)
+    $afterReg = Join-Path $d 'after/uninstall-registry.reg'
+    $text = Get-Content -LiteralPath $afterReg -Raw
+    $text = $text -replace '(?ms)\r?\n?\[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\qBittorrent\]\r?\n"DisplayName"="qBittorrent"\r?\n"InstallLocation"=""\r?\n?', "`r`n"
+    Set-Content -LiteralPath $afterReg -Value $text -Encoding UTF8
+}
+
+Test-BrokenPersonaB 'chrome-absent' {
+    param($d)
+    $afterReg = Join-Path $d 'after/uninstall-registry.reg'
+    $text = Get-Content -LiteralPath $afterReg -Raw
+    $text = $text -replace '(?ms)\r?\n?\[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\\{CHROME-PERSONA-B\}\]\r?\n"DisplayName"="Google Chrome"\r?\n?', "`r`n"
+    Set-Content -LiteralPath $afterReg -Value $text -Encoding UTF8
+}
+
+Test-BrokenPersonaB 'chrome-removed-success-claim' {
+    param($d)
+    $p = Join-Path $d 'uninstall-e2e-evidence.json'
+    $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+    $j.executions = @([pscustomobject]@{ targetId = 'chrome-enterprise'; skipped = $false; removedFromRegistry = $true; detail = 'claimed removed' })
+    $j | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $p -Encoding UTF8
+}
+
+Test-BrokenPersonaB 'chrome-manual-claim' {
+    param($d)
+    $p = Join-Path $d 'uninstall-e2e-evidence.json'
+    $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+    foreach ($f in $j.focus) {
+        if ($f.targetId -eq 'chrome-enterprise') { $f.classification = 'MANUAL' }
+    }
+    $j | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $p -Encoding UTF8
+}
+
+Test-BrokenPersonaB 'synthetic-app-claimed-real-installed' {
+    param($d)
+    $p = Join-Path $d 'persona-b-disposition.json'
+    $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+    foreach ($a in $j.apps) {
+        if ($a.appId -eq 'discord') { $a.source = 'real-installed' }
+    }
+    $j | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $p -Encoding UTF8
 }
 
 # (b1) registry NOT gone: AFTER snapshot still lists git
@@ -640,6 +845,12 @@ $rMig = Test-WckCampaignEvidence -EvidenceDir $goodMig -HostUsername '___no_such
 $detailMig = if ($rMig.Pass) { "digest=$($rMig.Digest.Substring(0,12))..." } else { "reasons: $($rMig.Reasons -join ' | ')" }
 Record 'f2.migration well-formed evidence -> Pass=true' ($rMig.Pass -eq $true) $detailMig
 
+$goodMigB = Join-Path $scratch 'migration-persona-b-good'
+New-GoodPersonaBMigrationEvidence -Dir $goodMigB
+$rMigB = Test-WckCampaignEvidence -EvidenceDir $goodMigB -HostUsername '___no_such_user___'
+$detailMigB = if ($rMigB.Pass) { "digest=$($rMigB.Digest.Substring(0,12))..." } else { "reasons: $($rMigB.Reasons -join ' | ')" }
+Record 'f2.migration persona-b honest-warning evidence -> Pass=true' ($rMigB.Pass -eq $true) $detailMigB
+
 function Test-BrokenMigration {
     param([string] $Name, [scriptblock] $Mutate)
     $dir = Join-Path $scratch ("migration-broken-" + ($Name -replace '[^a-zA-Z0-9]','_'))
@@ -651,6 +862,17 @@ function Test-BrokenMigration {
     Record ("f2.migration broken $Name -> Pass=false") $expected $reason
 }
 
+function Test-BrokenPersonaBMigration {
+    param([string] $Name, [scriptblock] $Mutate)
+    $dir = Join-Path $scratch ("migration-persona-b-broken-" + ($Name -replace '[^a-zA-Z0-9]','_'))
+    New-GoodPersonaBMigrationEvidence -Dir $dir
+    & $Mutate $dir
+    $r = Test-WckCampaignEvidence -EvidenceDir $dir -HostUsername '___no_such_user___'
+    $expected = ($r.Pass -eq $false)
+    $reason = if ($r.Reasons.Count) { $r.Reasons[0] } else { '(no reason!)' }
+    Record ("f2.migration persona-b broken $Name -> Pass=false") $expected $reason
+}
+
 Test-BrokenMigration 'restore-SHA-mismatch' {
     param($d)
     $p = Join-Path $d 'migration-e2e-evidence.json'
@@ -660,6 +882,42 @@ Test-BrokenMigration 'restore-SHA-mismatch' {
             $v.shaMatch = $false
             $v.restoredSha = '9999999999999999999999999999999999999999999999999999999999999999'
         }
+    }
+    ($j | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $p -Encoding UTF8
+}
+
+Test-BrokenPersonaBMigration 'discord-token-restore-success-claim' {
+    param($d)
+    $p = Join-Path $d 'migration-e2e-evidence.json'
+    $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+    $j.verifications += [pscustomobject]@{
+        recipeId = 'discord'
+        relativePath = 'Local State'
+        skipped = $false
+        skipReason = $null
+        shaMatch = $true
+        destExists = $true
+        manifestSha = '3333333333333333333333333333333333333333333333333333333333333333'
+        restoredSha = '3333333333333333333333333333333333333333333333333333333333333333'
+        destPath = 'C:\MigE2E\B\AppData\Roaming\discord\Local State'
+    }
+    $j | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $p -Encoding UTF8
+}
+
+Test-BrokenMigration 'discord-token-restore-success-claim' {
+    param($d)
+    $p = Join-Path $d 'migration-e2e-evidence.json'
+    $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+    $j.verifications += [pscustomobject]@{
+        recipeId = 'discord'
+        relativePath = 'Local State'
+        skipped = $false
+        skipReason = $null
+        shaMatch = $true
+        destExists = $true
+        manifestSha = '3333333333333333333333333333333333333333333333333333333333333333'
+        restoredSha = '3333333333333333333333333333333333333333333333333333333333333333'
+        destPath = 'C:\MigE2E\B\AppData\Roaming\discord\Local State'
     }
     ($j | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $p -Encoding UTF8
 }
@@ -780,6 +1038,11 @@ try {
         if ($expectedScripts[$m] -ne $spec.GuestScript) { throw "$m script mismatch: $($spec.GuestScript)" }
         if ($m -eq 'Install' -and $spec.LiveExec) { throw "Install must not be live-exec" }
         if ($m -ne 'Install' -and -not $spec.LiveExec) { throw "$m should live-exec" }
+    }
+    $specB = Get-WckCampaignModuleSpec -Module Uninstall -Persona B
+    if ($specB.GuestScript -ne 'guest-run-persona-b.ps1') { throw "Persona-B uninstall script mismatch: $($specB.GuestScript)" }
+    if (@($specB.TargetDirs | Where-Object { $_ -match 'qBittorrent|Google\\Chrome|WCK-Persona' }).Count -lt 3) {
+        throw "Persona-B target dirs do not include qBittorrent/Chrome/persona seed paths"
     }
 }
 catch { $dispatchOk = $false; $dispatchDetail = $_.Exception.Message }

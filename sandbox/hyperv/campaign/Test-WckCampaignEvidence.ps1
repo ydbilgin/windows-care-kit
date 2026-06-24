@@ -196,11 +196,156 @@ function Test-WckRegEntryMatchesTarget {
 
 function Find-WckRegEntriesForTarget {
     param(
-        [Parameter(Mandatory)] [object[]] $Entries,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Entries,
         [Parameter(Mandatory)] $Target
     )
 
     return @($Entries | Where-Object { Test-WckRegEntryMatchesTarget -Entry $_ -Target $Target })
+}
+
+function Get-WckUninstallRegistryTargets {
+    param([Parameter(Mandatory)] [ValidateSet('A','B')] [string] $Persona)
+
+    if ($Persona -eq 'B') {
+        return @(
+            [pscustomobject]@{
+                Id = 'qbittorrent'
+                Role = 'required-not-executed'
+                KeyNames = @('qBittorrent')
+                KeyRegexes = @('^qBittorrent')
+                DisplayNames = @('qBittorrent')
+                DisplayNameRegexes = @('^qBittorrent( .*)?$')
+            }
+            [pscustomobject]@{
+                Id = 'chrome-enterprise'
+                Role = 'required-not-executed'
+                KeyNames = @()
+                KeyRegexes = @()
+                DisplayNames = @('Google Chrome')
+                DisplayNameRegexes = @('^Google Chrome( Enterprise)?$')
+            }
+        )
+    }
+
+    return @(
+        [pscustomobject]@{
+            Id = 'git'
+            Role = 'executed'
+            KeyNames = @('Git_is1')
+            KeyRegexes = @()
+            DisplayNames = @('Git')
+            DisplayNameRegexes = @()
+        }
+        [pscustomobject]@{
+            Id = 'vscode'
+            Role = 'executed'
+            KeyNames = @('{771FD6B0-FA20-440A-A002-3B3BAC16DC50}_is1')
+            KeyRegexes = @()
+            DisplayNames = @('Microsoft Visual Studio Code', 'Microsoft Visual Studio Code (User)')
+            DisplayNameRegexes = @()
+        }
+        [pscustomobject]@{
+            Id = '7zip'
+            Role = 'required-not-executed'
+            KeyNames = @()
+            KeyRegexes = @('^\{23170F69-40C1-2702-24[0-9]{2}-000001000000\}$')
+            DisplayNames = @()
+            DisplayNameRegexes = @('^7-Zip [0-9][0-9.]* \(x64( edition)?\)$')
+        }
+        [pscustomobject]@{
+            Id = 'notepadpp'
+            Role = 'required-not-executed'
+            KeyNames = @('Notepad++')
+            KeyRegexes = @()
+            DisplayNames = @('Notepad++ (64-bit x64)')
+            DisplayNameRegexes = @()
+        }
+    )
+}
+
+function Test-WckPersonaBUninstallDisposition {
+    param(
+        [Parameter(Mandatory)] $Disposition,
+        [AllowNull()] $SeedManifest,
+        [Parameter(Mandatory)] $Evidence,
+        [Parameter(Mandatory)] [object[]] $Focus,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Executions,
+        [System.Collections.Generic.List[string]] $Reasons
+    )
+
+    if ([string](Get-WckJsonValue $Disposition 'persona') -ne 'B') {
+        $Reasons.Add("Persona-B disposition persona mismatch")
+    }
+    $apps = @((Get-WckJsonValue $Disposition 'apps') | Where-Object { $_ })
+    foreach ($id in 'qbittorrent','chrome-enterprise','steam','discord','spotify') {
+        $hit = $apps | Where-Object { [string]::Equals([string](Get-WckJsonValue $_ 'appId'), $id, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+        if (-not $hit) { $Reasons.Add("Persona-B disposition missing app '$id'"); continue }
+        $source = [string](Get-WckJsonValue $hit 'source')
+        if ($id -in @('steam','discord','spotify')) {
+            if ($source -ne 'synthetic-seed') {
+                $Reasons.Add("Persona-B synthetic app '$id' claimed source '$source' (expected synthetic-seed)")
+            }
+        } elseif ($source -ne 'real-installed') {
+            $Reasons.Add("Persona-B real app '$id' claimed source '$source' (expected real-installed)")
+        }
+    }
+
+    if ($SeedManifest) {
+        $seedApps = @((Get-WckJsonValue $SeedManifest 'apps') | Where-Object { $_ })
+        foreach ($id in 'steam','discord','spotify') {
+            $seedHit = $seedApps | Where-Object { [string]::Equals([string](Get-WckJsonValue $_ 'id'), $id, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+            if (-not $seedHit -or [string](Get-WckJsonValue $seedHit 'action') -ne 'synthetic-seed') {
+                $Reasons.Add("Persona-B seed manifest does not mark '$id' as synthetic-seed")
+            }
+        }
+    }
+
+    $qbFocus = $Focus | Where-Object { [string]::Equals([string]$_.targetId, 'qbittorrent', [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+    if (-not $qbFocus -or -not (Get-StrictJsonBool $qbFocus 'found' 'focus[qbittorrent]')) {
+        $Reasons.Add("Persona-B qBittorrent focus missing/not found")
+    }
+    $chromeFocus = $Focus | Where-Object { [string]::Equals([string]$_.targetId, 'chrome-enterprise', [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+    if (-not $chromeFocus -or -not (Get-StrictJsonBool $chromeFocus 'found' 'focus[chrome-enterprise]')) {
+        $Reasons.Add("Persona-B Chrome focus missing/not found")
+    }
+    if ($qbFocus -and [string](Get-WckJsonValue $qbFocus 'classification') -ne 'MANUAL') {
+        $Reasons.Add("Persona-B qBittorrent must classify as MANUAL")
+    }
+    if ($chromeFocus -and [string](Get-WckJsonValue $chromeFocus 'classification') -ne 'ALLOW') {
+        $Reasons.Add("Persona-B Chrome must classify as ALLOW")
+    }
+    if ($chromeFocus) {
+        $silentCapable = Get-WckJsonValue $chromeFocus 'silentCapable'
+        if ($silentCapable -isnot [bool] -or $silentCapable) {
+            $Reasons.Add("Persona-B Chrome must be an unattended decline witness (silentCapable=false)")
+        }
+    }
+    $qbExec = $Executions | Where-Object { [string]::Equals([string]$_.targetId, 'qbittorrent', [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+    if ($qbExec) {
+        $Reasons.Add("Persona-B qBittorrent must be manual witness and not executed")
+    }
+    $chromeExec = $Executions | Where-Object { [string]::Equals([string]$_.targetId, 'chrome-enterprise', [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+    if ($chromeExec) {
+        $chromeSkipped = Get-StrictJsonBool $chromeExec 'skipped' 'executions[chrome-enterprise]'
+        $chromeRemoved = Get-StrictJsonBool $chromeExec 'removedFromRegistry' 'executions[chrome-enterprise]'
+        $detail = [string](Get-WckJsonValue $chromeExec 'detail')
+        if (-not $chromeSkipped -or $chromeRemoved -or $detail -notmatch 'no silent switch|would block unattended') {
+            $Reasons.Add("Persona-B Chrome execution entry must be skipped for no silent switch and not removed")
+        }
+    } else {
+        $executeSet = @((Get-WckJsonValue $Evidence 'executeSet') | Where-Object { $_ })
+        if ($executeSet.Count -gt 0) {
+            $Reasons.Add("Persona-B executeSet must be empty unless Chrome is explicitly skipped")
+        }
+    }
+
+    $unproven = @((Get-WckJsonValue $Evidence 'unprovenExecutions') | Where-Object { $_ })
+    foreach ($u in $unproven) {
+        $s = [string]$u
+        if ($s -notmatch 'chrome-enterprise' -or $s -notmatch 'no silent switch|would block unattended') {
+            $Reasons.Add("Persona-B unproven execution is not the expected Chrome no-silent-switch decline: $s")
+        }
+    }
 }
 
 function Test-WckCampaignEvidence {
@@ -267,11 +412,14 @@ function Test-WckCampaignEvidence {
         }
 
         $module = if ($manifest.PSObject.Properties.Match('module').Count) { [string]$manifest.module } else { '' }
+        $persona = if ($manifest.PSObject.Properties.Match('persona').Count) { [string]$manifest.persona } else { '' }
         $beforeReg = $null
         $afterReg = $null
         $ueJson = $null
         $ueResult = $null
         $exitPath = $null
+        $personaSeedJson = $null
+        $personaDispositionJson = $null
         $migJson = $null
         $migSummary = $null
         $migZip = $null
@@ -287,6 +435,11 @@ function Test-WckCampaignEvidence {
                 $ueResult  = Join-Path $EvidenceDir 'uninstall-e2e-result.txt'
                 $exitPath  = Join-Path $EvidenceDir 'harness-exitcode.txt'
                 $requiredFiles += @($beforeReg, $afterReg, $ueJson, $ueResult, $exitPath)
+                if ($persona -eq 'B') {
+                    $personaSeedJson = Join-Path $EvidenceDir 'persona-seed-manifest.json'
+                    $personaDispositionJson = Join-Path $EvidenceDir 'persona-b-disposition.json'
+                    $requiredFiles += @($personaSeedJson, $personaDispositionJson)
+                }
             }
             'Migration' {
                 $migJson    = Join-Path $EvidenceDir 'migration-e2e-evidence.json'
@@ -314,15 +467,22 @@ function Test-WckCampaignEvidence {
         $ue = $null
         $mig = $null
         $clean = $null
+        $personaSeed = $null
+        $personaDisposition = $null
         $final = Read-Json $finalState 'vm-final-state'
         $beforeHashes = Read-Json $beforeHash 'before/dir-hashes'
         $afterHashes  = Read-Json $afterHash  'after/dir-hashes'
         if ($module -eq 'Uninstall') { $ue = Read-Json $ueJson 'uninstall-e2e-evidence' }
+        if ($module -eq 'Uninstall' -and $persona -eq 'B') {
+            $personaSeed = Read-Json $personaSeedJson 'persona-seed-manifest'
+            $personaDisposition = Read-Json $personaDispositionJson 'persona-b-disposition'
+        }
         if ($module -eq 'Migration') { $mig = Read-Json $migJson 'migration-e2e-evidence' }
         if ($module -eq 'Clean')     { $clean = Read-Json $cleanJson 'clean-e2e-evidence' }
 
         if ($null -eq $final -or
             ($module -eq 'Uninstall' -and $null -eq $ue) -or
+            ($module -eq 'Uninstall' -and $persona -eq 'B' -and ($null -eq $personaSeed -or $null -eq $personaDisposition)) -or
             ($module -eq 'Migration' -and $null -eq $mig) -or
             ($module -eq 'Clean' -and $null -eq $clean)) {
             # Without these we cannot run the structural checks; fail now.
@@ -341,8 +501,8 @@ function Test-WckCampaignEvidence {
                 $reasons.Add("cell-manifest runId is not a well-formed unique id: '$($manifest.runId)'")
             }
         }
-        if ($manifest.PSObject.Properties.Match('persona').Count -and ([string]$manifest.persona -ne 'A')) {
-            $reasons.Add("cell-manifest persona expected 'A', got '$($manifest.persona)'")
+        if ($manifest.PSObject.Properties.Match('persona').Count -and (@('A','B') -notcontains [string]$manifest.persona)) {
+            $reasons.Add("cell-manifest persona expected one of [A, B], got '$($manifest.persona)'")
         }
         if ($manifest.PSObject.Properties.Match('module').Count -and (@('Uninstall','Migration','Clean') -notcontains [string]$manifest.module)) {
             $reasons.Add("cell-manifest module expected one of [Uninstall, Migration, Clean], got '$($manifest.module)'")
@@ -435,41 +595,8 @@ function Test-WckCampaignEvidence {
         if ($module -eq 'Uninstall') {
             # --- CHECK 2 (ground truth): AFTER registry witness for Uninstall -------------------
             $afterRegText = Get-Content -LiteralPath $afterReg -Raw
-            $afterRegEntries = ConvertFrom-WckRegExport -Text $afterRegText
-            $registryTargets = @(
-            [pscustomobject]@{
-                Id = 'git'
-                Role = 'executed'
-                KeyNames = @('Git_is1')
-                KeyRegexes = @()
-                DisplayNames = @('Git')
-                DisplayNameRegexes = @()
-            }
-            [pscustomobject]@{
-                Id = 'vscode'
-                Role = 'executed'
-                KeyNames = @('{771FD6B0-FA20-440A-A002-3B3BAC16DC50}_is1')
-                KeyRegexes = @()
-                DisplayNames = @('Microsoft Visual Studio Code', 'Microsoft Visual Studio Code (User)')
-                DisplayNameRegexes = @()
-            }
-            [pscustomobject]@{
-                Id = '7zip'
-                Role = 'required-not-executed'
-                KeyNames = @()
-                KeyRegexes = @('^\{23170F69-40C1-2702-24[0-9]{2}-000001000000\}$')
-                DisplayNames = @()
-                DisplayNameRegexes = @('^7-Zip [0-9][0-9.]* \(x64( edition)?\)$')
-            }
-            [pscustomobject]@{
-                Id = 'notepadpp'
-                Role = 'required-not-executed'
-                KeyNames = @('Notepad++')
-                KeyRegexes = @()
-                DisplayNames = @('Notepad++ (64-bit x64)')
-                DisplayNameRegexes = @()
-            }
-        )
+            $afterRegEntries = @((ConvertFrom-WckRegExport -Text $afterRegText) | Where-Object { $_ })
+            $registryTargets = Get-WckUninstallRegistryTargets -Persona ($(if ($persona -eq 'B') { 'B' } else { 'A' }))
         $executeTargets = @($registryTargets | Where-Object { $_.Role -eq 'executed' })
         foreach ($t in $executeTargets) {
             $hits = @(Find-WckRegEntriesForTarget -Entries $afterRegEntries -Target $t)
@@ -510,23 +637,27 @@ function Test-WckCampaignEvidence {
             $reasons.Add("harness JSON branchMismatch not empty: $((@($ue.branchMismatch) | ConvertTo-Json -Compress -Depth 4))")
         }
 
-        # --- CHECK 5 (negative control): a protected/absent app must NOT be green ------------
-        $negControls = @(
-            @{ Id = '7zip';      Allowed = @('BLOCK') },
-            @{ Id = 'notepadpp'; Allowed = @('MANUAL') }
-        )
-        $sawNonGreen = $false
-        foreach ($n in $negControls) {
-            $f = $focus | Where-Object { $_.targetId -eq $n.Id } | Select-Object -First 1
-            if (-not $f) { $reasons.Add("negative-control focus entry missing for '$($n.Id)'"); continue }
-            if ($n.Allowed -notcontains [string]$f.classification) {
-                $reasons.Add("negative control NOT discriminating: '$($n.Id)' classification '$($f.classification)' expected one of [$($n.Allowed -join ',')]")
-            } else {
-                $sawNonGreen = $true
+        if ($persona -eq 'A') {
+            # --- CHECK 5 (negative control): a protected/absent app must NOT be green --------
+            $negControls = @(
+                @{ Id = '7zip';      Allowed = @('BLOCK') },
+                @{ Id = 'notepadpp'; Allowed = @('MANUAL') }
+            )
+            $sawNonGreen = $false
+            foreach ($n in $negControls) {
+                $f = $focus | Where-Object { $_.targetId -eq $n.Id } | Select-Object -First 1
+                if (-not $f) { $reasons.Add("negative-control focus entry missing for '$($n.Id)'"); continue }
+                if ($n.Allowed -notcontains [string]$f.classification) {
+                    $reasons.Add("negative control NOT discriminating: '$($n.Id)' classification '$($f.classification)' expected one of [$($n.Allowed -join ',')]")
+                } else {
+                    $sawNonGreen = $true
+                }
             }
-        }
-        if (-not $sawNonGreen) {
-            $reasons.Add("suite is all-green (no discriminating negative control) — refusing to pass")
+            if (-not $sawNonGreen) {
+                $reasons.Add("suite is all-green (no discriminating negative control) — refusing to pass")
+            }
+        } elseif ($persona -eq 'B') {
+            Test-WckPersonaBUninstallDisposition -Disposition $personaDisposition -SeedManifest $personaSeed -Evidence $ue -Focus $focus -Executions $execs -Reasons $reasons
         }
 
         # --- CHECK 4: JSON verdict == process exit code -------------------------------------
@@ -574,13 +705,6 @@ function Test-WckCampaignEvidence {
                 $shaMatch = Get-WckJsonValue $_ 'shaMatch'
                 ($skipped -is [bool]) -and (-not $skipped) -and ($shaMatch -is [bool]) -and $shaMatch
             })
-            if ($matched.Count -lt 2) {
-                $reasons.Add("migration SHA-match gate FAIL: restoredShaMatches=$($matched.Count), expected >= 2")
-            }
-            foreach ($recipe in 'git.config','anthropic.claude-code') {
-                $hit = $matched | Where-Object { [string]::Equals([string](Get-WckJsonValue $_ 'recipeId'), $recipe, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
-                if (-not $hit) { $reasons.Add("migration SHA-match gate FAIL: required restored recipe missing: $recipe") }
-            }
 
             $restoreSkips = @((Get-WckJsonValue $mig 'restorePlanSkips') | Where-Object { $_ })
             $discordSkip = $restoreSkips | Where-Object {
@@ -595,17 +719,48 @@ function Test-WckCampaignEvidence {
                 $reasons.Add("migration honest-defer gate FAIL: Discord appears as restored SHA-match")
             }
 
-            $corroborated = 0
-            foreach ($m in $matched) {
-                $dest = [string](Get-WckJsonValue $m 'destPath')
-                $sha = [string](Get-WckJsonValue $m 'restoredSha')
-                if ([string]::IsNullOrWhiteSpace($sha)) { $sha = [string](Get-WckJsonValue $m 'manifestSha') }
-                $afterHas = Test-WckHashSnapshotContains -Hashes $afterArr -Path $dest -Sha256 $sha
-                $beforeHas = Test-WckHashSnapshotContains -Hashes $beforeArr -Path $dest -Sha256 $sha
-                if ($afterHas -and -not $beforeHas) { $corroborated++ }
-            }
-            if ($corroborated -lt 2) {
-                $reasons.Add("migration second-channel dir-hash FAIL: corroborated restore targets=$corroborated, expected >= 2 with before-absent/after-present")
+            if ($persona -eq 'B') {
+                $backupProofs = @((Get-WckJsonValue $mig 'backupProofs') | Where-Object { $_ })
+                foreach ($recipe in 'discord','launcher') {
+                    $proof = $backupProofs | Where-Object { [string]::Equals([string](Get-WckJsonValue $_ 'recipeId'), $recipe, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+                    if (-not $proof) { $reasons.Add("Persona-B migration backup proof missing: $recipe"); continue }
+                    $bytes = Get-WckJsonValue $proof 'bytes'
+                    if ($bytes -isnot [long] -and $bytes -isnot [int]) { $reasons.Add("Persona-B migration backup proof '$recipe' bytes is not numeric"); continue }
+                    if ([int64]$bytes -lt 1) { $reasons.Add("Persona-B migration backup proof '$recipe' has no real bytes") }
+                }
+
+                $honest = @((Get-WckJsonValue $mig 'honestDispositions') | Where-Object { $_ })
+                $launcher = $honest | Where-Object {
+                    [string]::Equals([string](Get-WckJsonValue $_ 'recipeId'), 'launcher', [System.StringComparison]::OrdinalIgnoreCase) -and
+                    ([string](Get-WckJsonValue $_ 'warning') -match 'sadece re-add')
+                } | Select-Object -First 1
+                if (-not $launcher) { $reasons.Add("Persona-B migration honesty FAIL: launcher re-add warning missing") }
+                $chrome = $honest | Where-Object {
+                    [string]::Equals([string](Get-WckJsonValue $_ 'recipeId'), 'chrome-abe', [System.StringComparison]::OrdinalIgnoreCase) -and
+                    ([string](Get-WckJsonValue $_ 'warning') -match 'restore-edilemez|sync')
+                } | Select-Object -First 1
+                if (-not $chrome) { $reasons.Add("Persona-B migration honesty FAIL: Chrome ABE sync/restore warning missing") }
+            } else {
+                if ($matched.Count -lt 2) {
+                    $reasons.Add("migration SHA-match gate FAIL: restoredShaMatches=$($matched.Count), expected >= 2")
+                }
+                foreach ($recipe in 'git.config','anthropic.claude-code') {
+                    $hit = $matched | Where-Object { [string]::Equals([string](Get-WckJsonValue $_ 'recipeId'), $recipe, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+                    if (-not $hit) { $reasons.Add("migration SHA-match gate FAIL: required restored recipe missing: $recipe") }
+                }
+
+                $corroborated = 0
+                foreach ($m in $matched) {
+                    $dest = [string](Get-WckJsonValue $m 'destPath')
+                    $sha = [string](Get-WckJsonValue $m 'restoredSha')
+                    if ([string]::IsNullOrWhiteSpace($sha)) { $sha = [string](Get-WckJsonValue $m 'manifestSha') }
+                    $afterHas = Test-WckHashSnapshotContains -Hashes $afterArr -Path $dest -Sha256 $sha
+                    $beforeHas = Test-WckHashSnapshotContains -Hashes $beforeArr -Path $dest -Sha256 $sha
+                    if ($afterHas -and -not $beforeHas) { $corroborated++ }
+                }
+                if ($corroborated -lt 2) {
+                    $reasons.Add("migration second-channel dir-hash FAIL: corroborated restore targets=$corroborated, expected >= 2 with before-absent/after-present")
+                }
             }
 
             Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
@@ -613,11 +768,20 @@ function Test-WckCampaignEvidence {
             try {
                 $zip = [System.IO.Compression.ZipFile]::OpenRead($migZip)
                 $entryNames = @($zip.Entries | ForEach-Object { $_.FullName.Replace('\','/') })
-                if (-not ($entryNames | Where-Object { $_ -match '(^|/)SKILL\.md$' } | Select-Object -First 1)) {
-                    $reasons.Add("migration zip gate FAIL: required positive entry **/SKILL.md missing")
-                }
-                if (-not ($entryNames | Where-Object { $_ -match '(^|/)note\.md$' } | Select-Object -First 1)) {
-                    $reasons.Add("migration zip gate FAIL: required positive entry **/note.md missing")
+                if ($persona -eq 'B') {
+                    if (-not ($entryNames | Where-Object { $_ -eq 'discord/Local State' } | Select-Object -First 1)) {
+                        $reasons.Add("Persona-B migration zip gate FAIL: discord/Local State backup missing")
+                    }
+                    if (-not ($entryNames | Where-Object { $_ -eq 'launcher/libraryfolders.vdf' } | Select-Object -First 1)) {
+                        $reasons.Add("Persona-B migration zip gate FAIL: launcher/libraryfolders.vdf backup missing")
+                    }
+                } else {
+                    if (-not ($entryNames | Where-Object { $_ -match '(^|/)SKILL\.md$' } | Select-Object -First 1)) {
+                        $reasons.Add("migration zip gate FAIL: required positive entry **/SKILL.md missing")
+                    }
+                    if (-not ($entryNames | Where-Object { $_ -match '(^|/)note\.md$' } | Select-Object -First 1)) {
+                        $reasons.Add("migration zip gate FAIL: required positive entry **/note.md missing")
+                    }
                 }
                 $blockedLeafNames = @('id_rsa','app.secret','blob.dat','temp.dat','2026-06-21.snap','todo.txt','f_000001','data_0')
                 foreach ($entry in $zip.Entries) {

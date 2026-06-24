@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 5.1
 <#
 .SYNOPSIS
     Applies a synthetic WCK campaign persona manifest inside a disposable guest.

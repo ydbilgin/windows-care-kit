@@ -105,6 +105,12 @@ internal static class Program
 
         new("notepadpp", "Notepad++", Array.Empty<string>(),
             "NSIS machine-wide, no InstallLocation → MANUAL fallback", ExpectedOutcome.Manual),
+
+        new("qbittorrent", "qBittorrent", Array.Empty<string>(),
+            "Persona-B NSIS machine-wide, no InstallLocation → MANUAL witness", ExpectedOutcome.Manual),
+
+        new("chrome-enterprise", "Google Chrome", Array.Empty<string>(),
+            "Persona-B Chrome MSI → ALLOW, but unattended run declines without a silent switch", ExpectedOutcome.AllowMsiPin),
     };
 
     internal static int Main(string[] args)
@@ -291,7 +297,7 @@ internal static class Program
         }
         else
         {
-            verdict = "EVAL-PASS";
+            verdict = "PASS";
             exitCode = ExitOk;
         }
 
@@ -349,9 +355,10 @@ internal static class Program
         string classification = v.Allowed ? "ALLOW" : "BLOCK";
         bool isMsi = string.Equals(Path.GetFileName(cmd.FileName), "msiexec.exe", StringComparison.OrdinalIgnoreCase);
 
+        bool isMsiUninstallVerb = isMsi && cmd.Arguments.Any(a => a.StartsWith("/X", StringComparison.OrdinalIgnoreCase));
         bool branchOk = t.Expected switch
         {
-            ExpectedOutcome.AllowMsiPin => v.Allowed && isMsi && cmd.RequiresElevation,
+            ExpectedOutcome.AllowMsiPin => v.Allowed && isMsiUninstallVerb && cmd.RequiresElevation,
             ExpectedOutcome.AllowAnchored => v.Allowed && !isMsi && cmd.RequiresElevation && cmd.AllowedExecutableRoot is { Length: > 0 },
             ExpectedOutcome.AllowNonElevated => v.Allowed && !isMsi && !cmd.RequiresElevation,
             ExpectedOutcome.Block => !v.Allowed, // planner built a plan, gate refused it (e.g. msiexec /I verb)

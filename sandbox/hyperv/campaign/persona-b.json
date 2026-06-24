@@ -6,13 +6,13 @@
       "id": "qbittorrent",
       "installer": "F:\\WCK-VM\\installers\\qbittorrent.exe",
       "kind": "nsis",
-      "uninstallExpectation": "ALLOW-anchored"
+      "uninstallExpectation": "MANUAL"
     },
     {
       "id": "chrome-enterprise",
-      "installer": "F:\\WCK-VM\\installers\\GoogleChromeStandaloneEnterprise64.msi",
+      "installer": "F:\\WCK-VM\\installers\\chrome_enterprise.msi",
       "kind": "msi",
-      "uninstallExpectation": "MANUAL"
+      "uninstallExpectation": "ALLOW"
     },
     {
       "id": "steam",
@@ -41,8 +41,8 @@
     },
     {
       "type": "launcher-layout",
-      "path": "F:\\fake-steam\\steamapps\\libraryfolders.vdf",
-      "syntheticContent": "\"libraryfolders\"\n{\n  \"0\"\n  {\n    \"path\" \"F:\\\\fake-steam\"\n  }\n}\n"
+      "path": "C:\\WCK-Persona\\fake-other-drive\\steam\\steamapps\\libraryfolders.vdf",
+      "syntheticContent": "\"libraryfolders\"\n{\n  \"0\"\n  {\n    \"path\" \"C:\\\\WCK-Persona\\\\fake-other-drive\\\\steam\"\n  }\n}\n"
     },
     {
       "type": "launcher-layout",

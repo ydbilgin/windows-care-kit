@@ -30,6 +30,7 @@ param(
     [string] $Checkpoint   = 'baseline-clean',
     [string] $InstallersDir = 'F:\WCK-VM\installers',
     [string] $HarnessDir   = 'C:\WCK-UninstallStaging\harness',
+    [string] $GuestRunScript,
     [string] $OutputDir    = 'C:\WCK-UninstallOutput',
     [int]    $ReadyTimeoutMin = 10,
     [switch] $Publish,
@@ -47,6 +48,10 @@ param(
 $ErrorActionPreference = 'Stop'
 function Step([string]$m){ Write-Host "==> $m" -ForegroundColor Cyan }
 function Info([string]$m){ Write-Host "    $m" -ForegroundColor DarkGray }
+
+if ([string]::IsNullOrWhiteSpace($GuestRunScript)) {
+    $GuestRunScript = Join-Path $PSScriptRoot 'guest-run.ps1'
+}
 
 # FIX-D: in campaign mode the marker guard MUST already be in scope (dot-sourced by the
 # cell-runner). Assert it before any delegated force-op; load it directly as a fallback.
@@ -101,6 +106,7 @@ if ($Publish -or -not (Test-Path (Join-Path $HarnessDir 'UninstallE2E.exe'))) {
     if ($LASTEXITCODE -ne 0) { throw "Harness publish failed ($LASTEXITCODE)." }
 }
 if (-not (Test-Path (Join-Path $InstallersDir '7z.msi'))) { throw "Installers not found in $InstallersDir (run the host pre-download)." }
+if (-not (Test-Path -LiteralPath $GuestRunScript -PathType Leaf)) { throw "GuestRunScript not found: $GuestRunScript" }
 
 # clean host output dir (default path only, or empty)
 if (Test-Path $OutputDir) {
@@ -154,10 +160,10 @@ try {
         }
         Copy-Item -Path (Join-Path $HarnessDir '*')   -Destination 'C:\WCK-Input\harness'    -ToSession $session -Recurse -Force
         Copy-Item -Path (Join-Path $InstallersDir '*') -Destination 'C:\WCK-Input\installers' -ToSession $session -Recurse -Force
-        Copy-Item -Path (Join-Path $PSScriptRoot 'guest-run.ps1') -Destination 'C:\WCK-Input\guest-run.ps1' -ToSession $session -Force
+        Copy-Item -Path $GuestRunScript -Destination 'C:\WCK-Input\guest-run.ps1' -ToSession $session -Force
 
         # --- 4. run inside the guest ---
-        Step "Running guest-run.ps1 inside the guest (install 4 KINDs + uninstall git,vscode)..."
+        Step "Running $(Split-Path $GuestRunScript -Leaf) inside the guest..."
         $runResult = Invoke-Command -Session $session -ScriptBlock {
             # Fresh Win11 blocks unsigned .ps1 by default; allow for THIS process only.
             Set-ExecutionPolicy -Scope Process Bypass -Force -ErrorAction SilentlyContinue

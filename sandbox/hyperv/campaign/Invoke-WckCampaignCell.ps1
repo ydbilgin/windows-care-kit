@@ -78,14 +78,31 @@ function New-WckGuestCredential {
 
 function Get-WckCampaignModuleSpec {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [ValidateSet('Uninstall','Migration','Clean','Install')] [string] $Module)
+    param(
+        [Parameter(Mandatory)] [ValidateSet('Uninstall','Migration','Clean','Install')] [string] $Module,
+        [ValidateSet('A','B')] [string] $Persona = 'A'
+    )
 
     switch ($Module) {
         'Uninstall' {
+            $guestScript = if ($Persona -eq 'B') { 'guest-run-persona-b.ps1' } else { 'guest-run.ps1' }
+            $targetDirs = if ($Persona -eq 'B') {
+                @(
+                    'C:\Program Files\qBittorrent',
+                    'C:\Program Files\Google\Chrome',
+                    'C:\Program Files (x86)\Google\Chrome',
+                    'C:\WCK-Persona',
+                    'C:\Users\wck\AppData\Roaming\discord',
+                    'C:\Users\wck\AppData\Local\Google\Chrome',
+                    'F:\fake-steam'
+                )
+            } else {
+                @('C:\Program Files\Git', 'C:\Program Files\Microsoft VS Code', 'C:\Users\wck\AppData\Local\Programs\Microsoft VS Code')
+            }
             [pscustomobject]@{
                 Module = 'Uninstall'
-                GuestScript = 'guest-run.ps1'
-                GuestScriptSource = (Join-Path $PSScriptRoot '..\guest-run.ps1')
+                GuestScript = $guestScript
+                GuestScriptSource = (Join-Path $PSScriptRoot ("..\{0}" -f $guestScript))
                 GuestWorkDir = 'C:\WCK-Input'
                 GuestOutput = 'C:\WCK-Output'
                 # Uninstall delegates publish to Invoke-WckUninstallRun.ps1 (-Publish); no pre-published
@@ -93,8 +110,8 @@ function Get-WckCampaignModuleSpec {
                 HostHarnessDir = $null
                 HarnessExe = $null
                 HarnessProject = $null
-                HostEvidenceNames = @('uninstall-e2e-evidence.json','uninstall-e2e-result.txt','harness-exitcode.txt')
-                TargetDirs = @('C:\Program Files\Git', 'C:\Program Files\Microsoft VS Code', 'C:\Users\wck\AppData\Local\Programs\Microsoft VS Code')
+                HostEvidenceNames = @('uninstall-e2e-evidence.json','uninstall-e2e-result.txt','harness-exitcode.txt','persona-seed-manifest.json','persona-b-disposition.json')
+                TargetDirs = $targetDirs
                 RegistryKeys = @(
                     'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
                     'HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
@@ -105,17 +122,23 @@ function Get-WckCampaignModuleSpec {
             }
         }
         'Migration' {
+            $guestScript = if ($Persona -eq 'B') { 'migration-guest-run-persona-b.ps1' } else { 'migration-guest-run.ps1' }
+            $targetDirs = if ($Persona -eq 'B') {
+                @('C:\MigE2E\B', 'C:\WCK-Persona', 'F:\fake-steam')
+            } else {
+                @('C:\MigE2E\B')
+            }
             [pscustomobject]@{
                 Module = 'Migration'
-                GuestScript = 'migration-guest-run.ps1'
-                GuestScriptSource = (Join-Path $PSScriptRoot '..\migration-guest-run.ps1')
+                GuestScript = $guestScript
+                GuestScriptSource = (Join-Path $PSScriptRoot ("..\{0}" -f $guestScript))
                 GuestWorkDir = 'C:\WCK-MigE2E'
                 GuestOutput = 'C:\WCK-MigOutput'
                 HostHarnessDir = 'F:\WCK-VM\harness\mig'
                 HarnessExe = 'MigrationE2E.exe'
                 HarnessProject = 'tools\MigrationE2E\MigrationE2E.csproj'
                 HostEvidenceNames = @('migration-e2e-summary.txt','migration-e2e-evidence.json','migration-export.zip')
-                TargetDirs = @('C:\MigE2E\B')
+                TargetDirs = $targetDirs
                 RegistryKeys = @()
                 RegistrySnapshotFile = $null
                 VerifyWithUninstallVerifier = $false
@@ -251,6 +274,58 @@ function Write-WckDirHashesJson {
     ConvertTo-Json -InputObject $arr -Depth 4 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
+function Invoke-WckPersonaBSeed {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $VMName,
+        [Parameter(Mandatory)] [pscredential] $Credential
+    )
+
+    Step "Persona-B seed phase (Initialize-WckPersona over PSDirect)..."
+    $hostManifest = Join-Path $PSScriptRoot 'persona-b.json'
+    $hostInit = Join-Path $PSScriptRoot 'Initialize-WckPersona.ps1'
+    $installerRoot = 'F:\WCK-VM\installers'
+    $requiredInstallers = @('qbittorrent.exe','chrome_enterprise.msi')
+    foreach ($name in $requiredInstallers) {
+        $p = Join-Path $installerRoot $name
+        if (-not (Test-Path -LiteralPath $p -PathType Leaf)) {
+            throw "Persona-B required offline installer missing: $p"
+        }
+    }
+
+    $session = New-PSSession -VMName $VMName -Credential $Credential
+    try {
+        Invoke-Command -Session $session -ScriptBlock {
+            Remove-Item 'C:\WCK-Persona\input' -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force -Path 'C:\WCK-Persona\input\installers' | Out-Null
+        }
+        Copy-Item -LiteralPath $hostInit -Destination 'C:\WCK-Persona\input\Initialize-WckPersona.ps1' -ToSession $session -Force
+        Copy-Item -LiteralPath $hostManifest -Destination 'C:\WCK-Persona\input\persona-b.host.json' -ToSession $session -Force
+        foreach ($name in $requiredInstallers) {
+            Copy-Item -LiteralPath (Join-Path $installerRoot $name) -Destination ("C:\WCK-Persona\input\installers\{0}" -f $name) -ToSession $session -Force
+        }
+        $seedResult = Invoke-Command -Session $session -ScriptBlock {
+            $manifest = Get-Content -LiteralPath 'C:\WCK-Persona\input\persona-b.host.json' -Raw | ConvertFrom-Json -ErrorAction Stop
+            foreach ($app in @($manifest.apps)) {
+                switch ([string]$app.id) {
+                    'qbittorrent' { $app.installer = 'C:\WCK-Persona\input\installers\qbittorrent.exe' }
+                    'chrome-enterprise' { $app.installer = 'C:\WCK-Persona\input\installers\chrome_enterprise.msi' }
+                }
+            }
+            $guestManifest = 'C:\WCK-Persona\input\persona-b.json'
+            $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $guestManifest -Encoding UTF8
+            Set-ExecutionPolicy -Scope Process Bypass -Force -ErrorAction SilentlyContinue
+            & 'C:\WCK-Persona\input\Initialize-WckPersona.ps1' -Persona B -Manifest $guestManifest -StateRoot 'C:\WCK-Persona'
+        }
+        $realApps = @($seedResult.apps | Where-Object { $_.id -in @('qbittorrent','chrome-enterprise') -and $_.action -in @('installed','noop') })
+        if ($realApps.Count -lt 2) {
+            throw "Persona-B seed did not prove both real app dispositions."
+        }
+        Info "Persona-B seed complete: $((@($seedResult.apps) | ForEach-Object { "$($_.id)=$($_.action)" }) -join ', ')"
+    }
+    finally { Remove-PSSession $session -ErrorAction SilentlyContinue }
+}
+
 function Invoke-WckCampaignCell {
     [CmdletBinding()]
     param(
@@ -288,7 +363,7 @@ function Invoke-WckCampaignCell {
 
     $cred = New-WckGuestCredential -GuestPassword $GuestPassword
 
-    $moduleSpec = Get-WckCampaignModuleSpec -Module $Module
+    $moduleSpec = Get-WckCampaignModuleSpec -Module $Module -Persona $Persona
     Assert-WckCampaignHarness -ModuleSpec $moduleSpec -Publish:$Publish
 
     # Registry hives + target dirs the second channel snapshots.
@@ -394,6 +469,10 @@ function Invoke-WckCampaignCell {
         }
         if (-not $up) { throw "Guest not ready within $ReadyTimeoutMin min." }
 
+        if ($Persona -eq 'B') {
+            Invoke-WckPersonaBSeed -VMName $VMName -Credential $cred
+        }
+
         if ($Module -eq 'Clean') {
             Initialize-WckCleanSecondChannelWitness
         }
@@ -417,6 +496,7 @@ function Invoke-WckCampaignCell {
                     SkipInitialRestore = $true
                     Campaign           = $true
                 }
+                if ($Persona -eq 'B') { $innerArgs.GuestRunScript = [string]$moduleSpec.GuestScriptSource }
                 if ($Publish) { $innerArgs.Publish = $true }
                 if ($GuestPassword) { $innerArgs.GuestPassword = $GuestPassword }
                 & "$PSScriptRoot\..\Invoke-WckUninstallRun.ps1" @innerArgs
