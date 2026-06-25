@@ -5,7 +5,7 @@ using WindowsCareKit.App.Mvvm;
 
 namespace WindowsCareKit.App.ViewModels;
 
-/// <summary>The shell: the navigation rail, the selected content, and the language toggle.</summary>
+/// <summary>The shell: the navigation rail, the selected content, and the language selector.</summary>
 public sealed class MainViewModel : ObservableObject
 {
     private NavItem _selectedNav = null!;
@@ -56,4 +56,27 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public object CurrentContent => _selectedNav.Content;
+
+    /// <summary>
+    /// Opens a module by its short key (e.g. "migration" → the nav.migration tab). Used by the
+    /// <c>--screen</c> startup deep-link so a specific screen can be shown on launch (handy for
+    /// per-module screenshots and demos). Unknown keys are ignored; the default tab stays selected.
+    /// </summary>
+    public bool SelectNavByKey(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return false;
+
+        string nameKey = "nav." + key.Trim().ToLowerInvariant();
+        foreach (NavItem item in Nav)
+        {
+            if (item.NameKey.Equals(nameKey, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectedNav = item;
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
