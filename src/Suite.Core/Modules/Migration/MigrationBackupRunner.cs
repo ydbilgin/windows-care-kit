@@ -71,6 +71,17 @@ public sealed record MigrationBackupRunResult(
     IReadOnlyList<RecipeItemSkip> FinalizationSkips);
 
 /// <summary>
+/// Injectable seam for the single production migration-capture path. Production resolves this to
+/// <see cref="MigrationBackupRunner"/>; tests may substitute a recording implementation without introducing
+/// another copy implementation.
+/// </summary>
+public interface IMigrationBackupRunner
+{
+    MigrationBackupPlanResult BuildPlan(IEnumerable<MigrationRecipe> recipes, string packageDir, DateTime utc);
+    MigrationBackupRunResult Run(MigrationBackupPlanResult plan, string approvedPlanHash, string packageDir);
+}
+
+/// <summary>
 /// The PRODUCTION migration BACKUP orchestrator (decision §FINAL DESIGN). It resolves each recipe through the
 /// real sandbox, bridges the passing items to <c>BackupEntry</c> values, and projects them into copy actions
 /// whose destinations are inside the chosen package directory. The copy runs through the gated execution seam
@@ -95,7 +106,7 @@ public sealed record MigrationBackupRunResult(
 /// back them up = permanent data loss); the portability class rides on every restore target so the RESTORE
 /// runner — and only it — blocks placing them. There is NO portability block here.</para>
 /// </summary>
-public sealed class MigrationBackupRunner
+public sealed class MigrationBackupRunner : IMigrationBackupRunner
 {
     private readonly RecipeResolver _resolver;
     private readonly IBackupExecutor _executor;
