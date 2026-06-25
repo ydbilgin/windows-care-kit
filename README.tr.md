@@ -99,8 +99,10 @@ yeniden bağlanamayan ayarları manuel veya ertelenmiş olarak sınıflandırır
 başarılı bir otomatik geri yükleme gibi gösterilmez. Önizleme neyin tespit edildiğini, neyin uygun
 olduğunu ve nelerin hâlâ manuel iş gerektirdiğini açıklar.
 
-**Bugün mevcut:** WPF Migration ekranında 40-app recipe-tabanlı tespit + dürüst önizleme.
-**Tek-tık canlı restore execution henüz bağlı değil, Restore butonu disabled.**
+**Bugün mevcut:** WPF Migration ekranında recipe-tabanlı tespit, seçim ve **canlı yakalama (capture)** —
+bir yedek klasörü seç, dry-run planı onayla, seçilen ayarlar aynı güvenlik-kapılı yedekleme motoruyla
+oraya kopyalanır (makineye-kilitli öğeler dürüstçe gösterilir, asla sahte-başarı yok). **Yeni makinede
+geri yükleme akışı (ayarları temiz kuruluma yerine yazma) sonraki slice'tır ve bu build'de henüz yok.**
 
 ---
 

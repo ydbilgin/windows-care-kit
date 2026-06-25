@@ -98,9 +98,11 @@ reliably on another machine as manual or deferred. They are never shown as a suc
 restore. The preview explains what was detected, what is eligible, and what still requires manual
 work.
 
-**Available today:** recipe-based detection, selection, and the honest restore preview in the WPF
-Migration screen. **One-click live restore execution is still being finalized and is not yet
-connected; the Restore button remains disabled.**
+**Available today:** recipe-based detection, selection, and **live capture** in the WPF Migration
+screen — pick a backup folder, approve the dry-run plan, and the selected settings are copied there
+through the same safety-gated backup engine (machine-locked items are surfaced honestly, never
+faked). **The new-machine restore flow (writing settings back into place on a fresh install) is the
+next slice and is not in this build yet.**
 
 ---
 
