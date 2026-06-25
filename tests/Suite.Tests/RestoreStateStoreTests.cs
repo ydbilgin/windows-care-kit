@@ -63,6 +63,7 @@ public class RestoreStateStoreTests : IDisposable
         Assert.Equal("git.config#0", entry.EntryId);
         Assert.Equal(@"C:\Users\bob\.gitconfig.bak.1", entry.BakPath);
         Assert.Equal(applied, entry.AppliedUtc);
+        Assert.False(File.Exists(_store.PathFor(_dir) + ".wcktmp"));
     }
 
     [Fact]

@@ -73,12 +73,20 @@ public sealed class CopyAdapter : ICopyAdapter
         // destination parent → junction between then and now, redirecting the write into a protected tree.
         GuardDestinationNotReparse(dest);
 
+        if (!string.IsNullOrWhiteSpace(action.BakPath))
+            GuardBakPathIsDestinationSibling(dest, action.BakPath!);
+
         string? destDir = Path.GetDirectoryName(LongPath(dest));
         if (!string.IsNullOrEmpty(destDir))
             Directory.CreateDirectory(destDir);
 
         if (action.CreateBak && File.Exists(dest))
-            BackupToUniqueBak(dest);
+        {
+            if (!string.IsNullOrWhiteSpace(action.BakPath))
+                BackupToExactBak(dest, action.BakPath!);
+            else
+                BackupToUniqueBak(dest);
+        }
 
         // F3 (crash-atomic restore): never write the live config in place. A direct File.Copy(overwrite)
         // onto the destination leaves a half-written / corrupt config if the process is killed mid-copy.
@@ -121,6 +129,59 @@ public sealed class CopyAdapter : ICopyAdapter
                 // each attempt creates a brand-new uniquely-named .bak.
                 Thread.Sleep(RetryDelay);
             }
+        }
+    }
+
+    /// <summary>
+    /// Deterministic journaled backup mode: the caller owns the exact path, and this method either creates
+    /// that file with <see cref="FileMode.CreateNew"/> or fails. It never retries with an alternate name; an
+    /// existing file is a collision that must surface to the orchestrator instead of silently orphaning undo.
+    /// Retries are reserved for transient sharing violations only.
+    /// </summary>
+    private static void BackupToExactBak(string dest, string bak)
+    {
+        string longDest = LongPath(dest);
+        string longBak = LongPath(bak);
+
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                using var src = new FileStream(longDest, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var bakStream = new FileStream(longBak, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                src.CopyTo(bakStream);
+                return;
+            }
+            catch (IOException ex) when (attempt < MaxRetries && IsSharingViolation(ex))
+            {
+                Thread.Sleep(RetryDelay);
+            }
+        }
+    }
+
+    private static bool IsSharingViolation(IOException ex)
+    {
+        int code = ex.HResult & 0xFFFF;
+        return code is 32 or 33;
+    }
+
+    private static void GuardBakPathIsDestinationSibling(string destination, string bakPath)
+    {
+        string destFull = Path.GetFullPath(destination);
+        string bakFull = Path.GetFullPath(bakPath);
+        string? destDir = Path.GetDirectoryName(destFull);
+        string? bakDir = Path.GetDirectoryName(bakFull);
+
+        // Same-directory AND a "<dest>.bak." prefix — parity with RestoreUndoActionBuilder.IsExpectedBakSibling
+        // so the write-side adapter is fail-closed on its own: a caller-supplied BakPath can only ever name a
+        // sibling .bak of THIS destination, never an unrelated real file in the same dir (defence in depth even
+        // though the production seam always derives "<dest>.bak.{entryId}.{token}" and CreateNew cannot clobber).
+        if (string.IsNullOrWhiteSpace(destDir)
+            || string.IsNullOrWhiteSpace(bakDir)
+            || !string.Equals(destDir, bakDir, StringComparison.OrdinalIgnoreCase)
+            || !bakFull.StartsWith(destFull + ".bak.", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Restore .bak path must be a \"<destination>.bak.*\" sibling of the destination.", nameof(bakPath));
         }
     }
 
