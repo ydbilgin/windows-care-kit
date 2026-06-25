@@ -39,13 +39,18 @@
                                VerticalAlignment="Center" Margin="11,0,0,0" />
                 </StackPanel>
                 <!-- Language selector: scales to every lang/*.json (English first). -->
-                <ComboBox Grid.Column="3" VerticalAlignment="Center" MinWidth="104"
+                <ComboBox Grid.Column="3" VerticalAlignment="Center" MinWidth="116"
                           VerticalContentAlignment="Center" FontSize="11.5"
                           ToolTip="{Binding I18n[common.language]}"
                           ItemsSource="{Binding I18n.AvailableLanguages}"
-                          DisplayMemberPath="DisplayName"
                           SelectedValuePath="Code"
-                          SelectedValue="{Binding I18n.SelectedCulture, Mode=TwoWay}" />
+                          SelectedValue="{Binding I18n.SelectedCulture, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </Grid>
         </Border>
 
