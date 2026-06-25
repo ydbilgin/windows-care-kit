@@ -4,11 +4,9 @@ using System.Text.Json.Serialization;
 namespace WindowsCareKit.Core.Modules.Install;
 
 /// <summary>
-/// JSON-backed <see cref="IRestoreStateStore"/> writing <c>.kurulum_state.json</c>. It uses only
-/// <c>File.ReadAllText</c>/<c>File.WriteAllText</c> and <c>Directory.CreateDirectory</c> — none of which
-/// are on the banned list (only delete/move/registry/process are). It never deletes or moves, so it
-/// cannot use a temp-then-rename atomic swap; it writes the file directly (a corrupt/partial write on
-/// crash is recovered as <see cref="RestoreState.Empty"/> on the next load, which fails safe to "start over").
+/// JSON-backed <see cref="IRestoreStateStore"/> writing <c>.kurulum_state.json</c>. Saves use a sibling temp
+/// file and <see cref="File.Replace(string,string,string?)"/> so a crash cannot lose an existing journal.
+/// First writes create an empty placeholder and replace it, mirroring the copy adapter's atomic write pattern.
 /// </summary>
 public sealed class RestoreStateStore : IRestoreStateStore
 {
@@ -99,7 +97,22 @@ public sealed class RestoreStateStore : IRestoreStateStore
         };
 
         string json = JsonSerializer.Serialize(dto, JsonOptions);
-        File.WriteAllText(PathFor(stateDirectory), json);
+        AtomicWrite(PathFor(stateDirectory), json);
+    }
+
+    private static void AtomicWrite(string path, string json)
+    {
+        string? dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        string staging = path + ".wcktmp";
+        File.WriteAllText(staging, json);
+
+        if (!File.Exists(path))
+            using (File.Create(path)) { }
+
+        File.Replace(staging, path, destinationBackupFileName: null);
     }
 
     // ---- JSON DTOs ----

@@ -87,6 +87,110 @@ public class CopyAdapterTests
     }
 
     [Fact]
+    public void Merge_with_BakPath_backs_up_to_the_exact_requested_path()
+    {
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "new.cfg");
+            string dst = Path.Combine(root, "live.cfg");
+            string bak = Path.Combine(root, "live.cfg.bak.entry.run");
+            File.WriteAllText(src, "NEW");
+            File.WriteAllText(dst, "OLD");
+
+            new CopyAdapter().Merge(new RestoreMergeAction
+            {
+                Source = src,
+                Destination = dst,
+                BakPath = bak,
+                Description = "merge",
+                Reason = "t",
+            });
+
+            Assert.Equal("NEW", File.ReadAllText(dst));
+            Assert.Equal("OLD", File.ReadAllText(bak));
+            Assert.Equal(new[] { bak }, Directory.GetFiles(root, "live.cfg.bak.*"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Merge_with_BakPath_collision_throws_without_random_fallback()
+    {
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "new.cfg");
+            string dst = Path.Combine(root, "live.cfg");
+            string bak = Path.Combine(root, "live.cfg.bak.entry.run");
+            File.WriteAllText(src, "NEW");
+            File.WriteAllText(dst, "OLD");
+            File.WriteAllText(bak, "EXISTING");
+
+            Assert.Throws<IOException>(() => new CopyAdapter().Merge(new RestoreMergeAction
+            {
+                Source = src,
+                Destination = dst,
+                BakPath = bak,
+                Description = "merge",
+                Reason = "t",
+            }));
+
+            Assert.Equal("OLD", File.ReadAllText(dst));
+            Assert.Equal("EXISTING", File.ReadAllText(bak));
+            Assert.Equal(new[] { bak }, Directory.GetFiles(root, "live.cfg.bak.*"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Merge_with_non_sibling_BakPath_throws()
+    {
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "new.cfg");
+            string dst = Path.Combine(root, "live.cfg");
+            string other = Path.Combine(root, "other");
+            Directory.CreateDirectory(other);
+            File.WriteAllText(src, "NEW");
+            File.WriteAllText(dst, "OLD");
+
+            Assert.Throws<ArgumentException>(() => new CopyAdapter().Merge(new RestoreMergeAction
+            {
+                Source = src,
+                Destination = dst,
+                BakPath = Path.Combine(other, "live.cfg.bak.entry.run"),
+                Description = "merge",
+                Reason = "t",
+            }));
+
+            Assert.Equal("OLD", File.ReadAllText(dst));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void BakPath_does_not_change_restore_merge_signature_or_plan_hash()
+    {
+        var a = new RestoreMergeAction
+        {
+            Source = @"C:\Users\bob\pkg\a.cfg",
+            Destination = @"C:\Users\bob\a.cfg",
+            BakPath = @"C:\Users\bob\a.cfg.bak.one",
+            Description = "merge",
+            Reason = "t",
+        };
+        var b = a with { BakPath = @"C:\Users\bob\a.cfg.bak.two" };
+
+        Assert.Equal(a.TargetSignature(), b.TargetSignature());
+
+        var p1 = new OperationPlan("restore", "migration-restore", new[] { a }, DateTime.UnixEpoch);
+        var p2 = new OperationPlan("restore", "migration-restore", new[] { b }, DateTime.UnixEpoch.AddDays(1));
+        Assert.Equal(p1.ComputeHash(), p2.ComputeHash());
+    }
+
+    [Fact]
     public void Merge_without_an_existing_destination_just_writes_the_source()
     {
         string root = TempDir();

@@ -222,6 +222,14 @@ public sealed record RestoreMergeAction : PlannedAction
     public required string Source { get; init; }
     public required string Destination { get; init; }
     public bool CreateBak { get; init; } = true;
+
+    /// <summary>
+    /// Caller-assigned backup path for journaled restore/undo. It is deliberately excluded from
+    /// <see cref="TargetSignature"/>: the gate/hash authorize the source, destination, risk, and undo shape;
+    /// the backup file is execution output constrained by the adapter to be a destination sibling.
+    /// </summary>
+    public string? BakPath { get; init; }
+
     public override string Kind => "restore.merge";
     public override string TargetSignature()
         => $"{Kind}|{Source.ToLowerInvariant()}=>{Destination.ToLowerInvariant()}|bak={CreateBak}";
