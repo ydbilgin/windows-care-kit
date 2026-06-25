@@ -28,7 +28,6 @@ public sealed class MainViewModel : ObservableObject
             new(i18n, "nav.settings", "", new PlaceholderViewModel(i18n, "nav.settings"), isSettings: true),
         };
 
-        ToggleLanguageCommand = new RelayCommand(() => I18n.Toggle());
         DismissFirstRunCommand = new RelayCommand(() => ShowFirstRun = false);
         SelectedNav = Nav[0];
     }
@@ -37,7 +36,6 @@ public sealed class MainViewModel : ObservableObject
     public UninstallViewModel Uninstall { get; }
     public MigrationViewModel Migration { get; }
     public ObservableCollection<NavItem> Nav { get; }
-    public ICommand ToggleLanguageCommand { get; }
     public ICommand DismissFirstRunCommand { get; }
 
     private bool _showFirstRun = true;

@@ -1,4 +1,6 @@
 {
+  "meta.languageName": "Türkçe",
+
   "app.title": "Windows Care Kit",
   "app.tagline": "Temiz kaldır · temizle · format öncesi yedekle · yeniden kur",
 
@@ -15,7 +17,7 @@
   "nav.migration.desc": "Yeni bilgisayara taşınacakları seç",
   "nav.install.desc": "Format sonrası geri yükle",
 
-  "common.languageToggle": "EN",
+  "common.language": "Dil",
   "common.refresh": "Yenile",
   "common.search": "Program ara…",
 

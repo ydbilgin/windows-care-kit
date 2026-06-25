@@ -13,7 +13,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Row 1: quiet brand strip (logo + wordmark + tagline + language toggle) -->
+        <!-- Row 1: quiet brand strip (logo + wordmark + tagline + language selector) -->
         <Border Grid.Row="0" Background="{StaticResource Bg.Panel}" BorderBrush="#221D14"
                 BorderThickness="0,0,0,1" Padding="18,0" Height="44">
             <Grid>
@@ -38,10 +38,14 @@
                     <TextBlock Text="{Binding I18n[app.tagline]}" Style="{StaticResource Faint}"
                                VerticalAlignment="Center" Margin="11,0,0,0" />
                 </StackPanel>
-                <Button Grid.Column="3" VerticalAlignment="Center"
-                        Style="{StaticResource GhostButton}" Padding="9,3" FontWeight="Normal" FontSize="11.5"
-                        Content="{Binding I18n[common.languageToggle]}"
-                        Command="{Binding ToggleLanguageCommand}" />
+                <!-- Language selector: scales to every lang/*.json (English first). -->
+                <ComboBox Grid.Column="3" VerticalAlignment="Center" MinWidth="104"
+                          VerticalContentAlignment="Center" FontSize="11.5"
+                          ToolTip="{Binding I18n[common.language]}"
+                          ItemsSource="{Binding I18n.AvailableLanguages}"
+                          DisplayMemberPath="DisplayName"
+                          SelectedValuePath="Code"
+                          SelectedValue="{Binding I18n.SelectedCulture, Mode=TwoWay}" />
             </Grid>
         </Border>
 

@@ -1,4 +1,6 @@
 {
+  "meta.languageName": "English",
+
   "app.title": "Windows Care Kit",
   "app.tagline": "Uninstall cleanly · clean up · back up before you format · reinstall",
 
@@ -15,7 +17,7 @@
   "nav.migration.desc": "Choose what moves to the new PC",
   "nav.install.desc": "Restore after a format",
 
-  "common.languageToggle": "TR",
+  "common.language": "Language",
   "common.refresh": "Refresh",
   "common.search": "Search programs…",
 
