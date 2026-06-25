@@ -24,6 +24,7 @@
   "installPathHint": ["Mozilla Firefox", "Firefox"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Settings and bookmarks are portable, but the Firefox password store depends on key4.db and may also depend on a primary password. Passwords and sessions are excluded.",

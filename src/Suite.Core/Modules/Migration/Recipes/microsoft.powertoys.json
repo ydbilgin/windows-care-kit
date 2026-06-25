@@ -22,6 +22,7 @@
   "installPathHint": ["PowerToys"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies core PowerToys settings and selected module layouts. Hardware-, monitor-, or path-specific values may need adjustment.",

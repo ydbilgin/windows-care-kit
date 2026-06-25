@@ -19,6 +19,7 @@
   "installPathHint": ["AnyDesk"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "AnyDesk identity, unattended-access credentials, and service configuration are machine-bound and are not copied.",

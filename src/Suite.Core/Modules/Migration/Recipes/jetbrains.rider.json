@@ -23,6 +23,7 @@
   "installPathHint": ["JetBrains Rider", "Rider"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies versioned Rider preferences, keymaps, templates, and code styles. Plugins, account state, and licenses are not carried.",

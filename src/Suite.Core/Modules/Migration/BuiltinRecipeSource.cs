@@ -7,6 +7,8 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// recipes shipped as embedded JSON resources and validates each through the strict loader
 /// (<see cref="MigrationRecipeLoader"/>). Because the seeds are compiled into the assembly they cannot be
 /// tampered with on disk, and a malformed seed fails the build's tests rather than shipping silently.
+/// Built-in recipes declare <c>upstreamDataLicense: none</c> because they are WCK-authored app-data definitions,
+/// not bundled third-party corpus data.
 ///
 /// Slice 1 seeds: Claude Code, Discord, VS Code, .gitconfig. <c>.ssh</c> is intentionally deferred
 /// (critic fix F3 — key-leak risk until the secret-glob overlay matures).

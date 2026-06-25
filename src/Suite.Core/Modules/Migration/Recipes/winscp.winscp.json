@@ -19,6 +19,7 @@
   "installPathHint": ["WinSCP"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "WinSCP sessions usually live in the registry or a portable INI and may reference private keys and stored credentials. WCK does not copy them automatically.",

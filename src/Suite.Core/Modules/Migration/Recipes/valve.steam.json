@@ -19,6 +19,7 @@
   "installPathHint": ["Steam"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Steam libraries are inventory-only here; WCK records that they must be re-added, not copied.",

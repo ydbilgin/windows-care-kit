@@ -22,6 +22,7 @@
   "installPathHint": ["LibreOffice"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies LibreOffice user profile; extensions or Java-dependent features may need separate reinstall.",

@@ -21,6 +21,7 @@
   "installPathHint": ["Microsoft VS Code", "VS Code", "Code"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies user settings, keybindings, and snippets; extensions may need reinstall or sync.",

@@ -21,6 +21,7 @@
   "installPathHint": ["Notepad++"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies Notepad++ settings and plugin config; open documents/session state are not promised.",

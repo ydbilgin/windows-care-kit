@@ -20,6 +20,7 @@
   "installPathHint": ["Microsoft Edge", "Edge"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Passwords, cookies, and sessions are machine-locked; use Microsoft account sync or manual export.",

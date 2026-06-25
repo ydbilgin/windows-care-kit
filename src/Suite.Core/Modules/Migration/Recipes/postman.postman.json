@@ -19,6 +19,7 @@
   "installPathHint": ["Postman"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies lightweight preferences only. Local workspaces, cookies, environment secrets, and account sessions are not treated as portable.",

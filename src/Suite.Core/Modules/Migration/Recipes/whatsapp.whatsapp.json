@@ -19,6 +19,7 @@
   "installPathHint": ["WhatsApp"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "WhatsApp device identity, encryption keys, and session data are machine-bound. WCK records a reinstall/relink step and does not copy them.",

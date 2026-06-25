@@ -20,6 +20,7 @@
   "installPathHint": ["VideoLAN VLC", "VLC"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies VLC preferences and media-library metadata. Library entries can contain old absolute media paths and may need repair.",

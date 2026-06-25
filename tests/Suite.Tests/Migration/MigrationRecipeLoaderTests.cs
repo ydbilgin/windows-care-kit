@@ -129,6 +129,7 @@ public class MigrationRecipeLoaderTests
     [InlineData(1, "\"wingetId\": \"Contoso.App\"")]
     [InlineData(1, "\"restoreTier\": \"config-copy\"")]
     [InlineData(1, "\"catalogTier\": \"trusted\"")]
+    [InlineData(2, "\"upstreamDataLicense\": \"mit\"")]
     [InlineData(2, "\"installPathHint\": [\"Contoso\"]")]
     [InlineData(2, "\"packageFamilyName\": [\"Contoso_abc\"]")]
     [InlineData(2, "\"migrationMeta\": { \"requiresRelogin\": true }")]
@@ -190,6 +191,7 @@ public class MigrationRecipeLoaderTests
           "installPathHint": ["Contoso App"],
           "restoreTier": "merge-after-install",
           "catalogTier": "trusted",
+          "upstreamDataLicense": "mit",
           "migrationMeta": {
             "uiWarning": { "en": "Backs up settings only.", "tr": "Yalnizca ayarlari yedekler." },
             "manualSteps": ["Sign in again"],
@@ -211,6 +213,7 @@ public class MigrationRecipeLoaderTests
         Assert.Equal("contoso.app_abc123", recipe.PackageFamilyName.Single().ToLowerInvariant());
         Assert.Equal("Contoso App", recipe.InstallPathHint.Single());
         Assert.Equal(CatalogTier.Trusted, recipe.CatalogTier);
+        Assert.Equal(UpstreamDataLicense.Mit, recipe.UpstreamDataLicense);
         Assert.Equal(["process-closed:contoso.exe"], RecipeToBackupEntry.Bridge(new ResolvedRecipe(
             recipe,
             true,
@@ -274,14 +277,42 @@ public class MigrationRecipeLoaderTests
     [Theory]
     [InlineData("\"restoreTier\": \"teleport\"")]
     [InlineData("\"catalogTier\": \"owner\"")]
+    [InlineData("\"upstreamDataLicense\": \"public-domain-ish\"")]
     [InlineData("\"migrationMeta\": { \"installerSource\": \"powershell\" }")]
     public void V3_rejects_unknown_new_enum_values(string replacementField)
     {
         string json = replacementField.StartsWith("\"restoreTier\"", StringComparison.Ordinal)
             ? V3FromValid().Replace("\"restoreTier\": \"config-copy\"", replacementField)
+            : replacementField.StartsWith("\"upstreamDataLicense\"", StringComparison.Ordinal)
+                ? V3FromValid(replacementField)
             : V3FromValid(replacementField);
 
         Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    [Theory]
+    [InlineData("mit", UpstreamDataLicense.Mit)]
+    [InlineData("apache-2", UpstreamDataLicense.Apache2)]
+    [InlineData("bsd", UpstreamDataLicense.Bsd)]
+    [InlineData("gpl", UpstreamDataLicense.Gpl)]
+    [InlineData("cc-by", UpstreamDataLicense.CcBy)]
+    [InlineData("cc-by-nc-sa", UpstreamDataLicense.CcByNcSa)]
+    [InlineData("proprietary", UpstreamDataLicense.Proprietary)]
+    [InlineData("none", UpstreamDataLicense.None)]
+    [InlineData("unknown", UpstreamDataLicense.Unknown)]
+    public void V3_loads_closed_upstream_data_license_values(string wireValue, UpstreamDataLicense expected)
+    {
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(V3FromValid($"\"upstreamDataLicense\": \"{wireValue}\""));
+
+        Assert.Equal(expected, recipe.UpstreamDataLicense);
+    }
+
+    [Fact]
+    public void V3_defaults_absent_upstream_data_license_to_unknown()
+    {
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(V3FromValid());
+
+        Assert.Equal(UpstreamDataLicense.Unknown, recipe.UpstreamDataLicense);
     }
 
     [Theory]

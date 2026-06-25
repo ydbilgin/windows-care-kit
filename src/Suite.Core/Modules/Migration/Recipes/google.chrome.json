@@ -20,6 +20,7 @@
   "installPathHint": ["Google Chrome", "Chrome"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Chrome app-bound encryption makes passwords, cookies, and sessions machine-locked; use sync or CSV export before format.",

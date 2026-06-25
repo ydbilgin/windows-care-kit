@@ -19,6 +19,7 @@
   "installPathHint": ["Git"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies Git config only; SSH keys and credential stores are intentionally excluded.",

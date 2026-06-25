@@ -19,6 +19,7 @@
   "installPathHint": ["KeePassXC"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Only KeePassXC preferences are copied. Password databases (.kdbx), key files, and hardware-token setup are excluded from automatic migration.",

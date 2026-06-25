@@ -19,6 +19,7 @@
   "installPathHint": ["PuTTY"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "PuTTY sessions and host keys are registry-backed, while private keys may be stored anywhere. Automatic copy would overclaim completeness and is disabled.",

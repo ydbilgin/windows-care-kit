@@ -21,6 +21,7 @@
   "installPathHint": ["OBS Studio", "OBS"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies scenes/profiles; plugin binaries and capture devices may need reinstall or reselect.",

@@ -20,6 +20,7 @@
   "installPathHint": ["Discord"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Only visible settings are copied; tokens and sessions are not portable. Sign in again.",

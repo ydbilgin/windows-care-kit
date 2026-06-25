@@ -20,6 +20,7 @@
   "installPathHint": ["nodejs", "Node.js"],
   "restoreTier": "config-copy",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies REPL history and an optional npm init script only. Global packages and credential-bearing npm configuration are not copied.",

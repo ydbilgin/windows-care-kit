@@ -19,6 +19,7 @@
   "installPathHint": ["Telegram Desktop", "Telegram"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Telegram auth data is not treated as portable; expect to sign in again.",

@@ -19,6 +19,7 @@
   "installPathHint": ["Zoom", "Zoom Workplace"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies a limited Zoom preference file only. Account sessions, meeting tokens, and cached meeting data are not carried.",
