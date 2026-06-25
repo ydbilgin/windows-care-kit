@@ -6,7 +6,7 @@
     elevated PSDirect context). Then reset the VM.
 
 .DESCRIPTION
-    This is the SAFE VM proof (council 2026-06-25: the destructive real-%USERPROFILE% mode was
+    This is the SAFE VM proof (security review 2026-06-25: the destructive real-%USERPROFILE% mode was
     REJECTED — net safety downgrade for marginal evidence). The selftest is fully host-safe: it
     self-seeds under a guest TEMP root and never touches the guest's real profile, so there is no
     real-folder-overwrite risk anywhere. The VM only gives "a real, separate Windows machine".

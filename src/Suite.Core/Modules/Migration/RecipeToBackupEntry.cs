@@ -45,7 +45,7 @@ public static class RecipeToBackupEntry
             excludes.AddRange(item.Exclude);
             excludes.AddRange(SecretGlobOverlay.Globs);
 
-            // B-1 (decision §3A; review cx#1/#2): aggregate the FULL name policy the copy engine enforces
+            // B-1 (decision §3A; review #1/#2): aggregate the FULL name policy the copy engine enforces
             // (fixed credential leaves + secret globs, via MigrationSecretFilter) over this item's DECLARED
             // secret surface — the item's own path leaf AND each include pattern's leaf (path-shaped patterns
             // such as `**/id_rsa` or `keys/*.pem` are reduced to their leaf first). A declared secret the engine

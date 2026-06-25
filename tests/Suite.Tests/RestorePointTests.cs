@@ -120,7 +120,7 @@ public class RestorePointTests
     [Fact]
     public void TierFor_restore_point_plus_official_uninstaller_IS_irreversible()
     {
-        // The destructive neighbor (Undo=None) drives Irreversible — exactly the cx goal preserved (UI §5).
+        // The destructive neighbor (Undo=None) drives Irreversible — exactly the review goal preserved (UI §5).
         var plan = new OperationPlan("rp+official", "uninstall",
             new PlannedAction[] { RestorePoint(), OfficialUninstaller() }, T0);
         Assert.Equal(ConfirmTier.Irreversible, ConfirmGateViewModel.TierFor(plan));
@@ -221,7 +221,7 @@ public class RestorePointTests
     [Fact]
     public void A_rogue_action_overriding_IsProtective_true_still_CANNOT_dodge_the_irreversible_tier()
     {
-        // STRONGEST abuse proof (cx PR-5 fix-verify hardening): TierFor's exemption is keyed to the EXACT
+        // STRONGEST abuse proof (review hardening): TierFor's exemption is keyed to the EXACT
         // protective TYPE (the closed IsTierExempt predicate), NOT the overridable IsProtective property. A
         // destructive action that wrongly overrides IsProtective => true stays in `driving` → escalates →
         // cannot self-exempt from the type-to-confirm tier, even via a rogue override.

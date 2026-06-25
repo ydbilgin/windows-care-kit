@@ -89,7 +89,7 @@ public interface IMigrationBackupRunner
 /// restore manifest is emitted POST-execution from what the sanctioned executor actually copied, so a guard
 /// here is always wired to the real write path, never just unit-tested in isolation.
 ///
-/// <para><b>Security invariants (decision §cx findings + critic fixes):</b></para>
+/// <para><b>Security invariants (decision §review findings + review fixes):</b></para>
 /// <list type="bullet">
 /// <item>The recipe <c>id</c> grammar is enforced at LOAD (<see cref="MigrationRecipeLoader"/>); here every copy
 /// destination is additionally proven contained in the normalized package root via

@@ -12,7 +12,7 @@ REM WHY ELEVATION: Tier B destructive tests (service create/delete, scheduled
 REM task, HKLM registry) need admin. Windows Sandbox's LogonCommand runs with a
 REM UAC-FILTERED (non-elevated) token, so without self-elevation those tests
 REM would silently skip/pass = FALSE confidence. We self-elevate and, if that
-REM fails, FAIL LOUDLY rather than report a vacuous green. (council critic, HIGH-1)
+REM fails, FAIL LOUDLY rather than report a vacuous green. (security review, HIGH-1)
 REM
 REM This file does nothing on its own: it only runs when the sandbox launches it.
 REM It is NEVER invoked by any build/test/CI step on the host.
@@ -84,7 +84,7 @@ REM xUnit prints a summary line "Passed: X, Skipped: Y, ...". Any destructive
 REM test that SKIPPED at runtime (should be 0 in an elevated sandbox) is a red flag.
 findstr /C:"Passed!" /C:"Failed!" /C:"Skipped" /C:"Passed:" "%OUT%\step4-console.log" > "%OUT%\step4-summary.txt" 2>nul
 
-REM --- (4) AUTHORITATIVE Tier B pass-gate (council critic FIX-2, 2026-06-20) ----
+REM --- (4) AUTHORITATIVE Tier B pass-gate (security review FIX-2, 2026-06-20) ----
 REM `dotnet test` RC=0 ALONE is NOT proof Tier B ran: a statically-SKIPPED
 REM [DisposableFact] also exits 0 (vacuous pass). step4-gate.ps1 parses the TRX
 REM and FAILS LOUDLY unless B1/B2/B3 each ran AND passed. Same script runs on the

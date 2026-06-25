@@ -94,7 +94,7 @@ internal static class CommandPolicy
     /// no <see cref="IPathCanonicalizer"/>, so it MUST NOT run the path-containment check (<see cref="IsPathUnder"/>)
     /// on the raw exe: a registry-stored 8.3 path like <c>C:\PROGRA~1\App\unins000.exe</c> with InstallLocation
     /// <c>C:\Program Files\App</c> would FALSELY fail containment and over-block, even though the GATE allows it after
-    /// 8.3 expansion (cx REJECT). So the planner returns null (→ manual fallback) ONLY when anchoring is impossible
+    /// 8.3 expansion (review finding). So the planner returns null (→ manual fallback) ONLY when anchoring is impossible
     /// regardless of expansion (no usable root AND not NSIS); the GATE stays the authoritative containment check on
     /// the EXPANDED path. The planner is therefore never STRICTER than the gate (no divergence / no over-block).
     /// </summary>

@@ -5,8 +5,8 @@ using WindowsCareKit.Core.Modules.Install;
 namespace WindowsCareKit.Core.Modules.Migration;
 
 /// <summary>
-/// STRICT JSON read/write for the package's self-describing <c>migration-install.json</c> (decision §cx finding 3
-/// + critic fix #3). The migration package is UNTRUSTED, so this loader is the opposite of the Kur module's
+/// STRICT JSON read/write for the package's self-describing <c>migration-install.json</c> (decision §review finding 3
+/// + review fix #3). The migration package is UNTRUSTED, so this loader is the opposite of the Kur module's
 /// PERMISSIVE <see cref="InstallManifestLoader"/> (which ignores schema version, silently skips incomplete
 /// entries, and returns <see cref="InstallManifest.Empty"/> on malformed JSON — correct for the user's OWN
 /// authored <c>90-kurulum.json</c>, WRONG for a package that could be tampered with):

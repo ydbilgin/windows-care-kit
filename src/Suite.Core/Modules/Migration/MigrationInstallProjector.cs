@@ -18,7 +18,7 @@ public sealed record MigrationInstallProjection(
 /// block into the Kur module's <see cref="InstallEntry"/> shape, so the migration BACKUP can emit a parallel,
 /// self-describing <c>migration-install.json</c> and restore can feed the EXISTING gated
 /// <see cref="InstallPlanner"/> — there is no second command-builder anywhere (decision §"reuse the whole
-/// InstallPlanner"). It emits ONE entry per recipe (decision §cx finding 2 — per-recipe, NOT per restore target),
+/// InstallPlanner"). It emits ONE entry per recipe (decision §review finding 2 — per-recipe, NOT per restore target),
 /// keyed <c>migration:{recipe.Id}:install</c>, with a deterministic restore order derived from the recipe order
 /// so the package's reinstall sequence is stable.
 ///
