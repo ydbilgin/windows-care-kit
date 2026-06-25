@@ -6,12 +6,9 @@
 
 *Open-source, ad-free, radically honest: it tells you what can't transfer instead of faking success. Covers the full format lifecycle: Uninstall · Clean · Backup · Reinstall.*
 
-<!-- BADGE PLACEHOLDER — buraya rozet gelecek: build status, latest release, license, downloads -->
 ![status](https://img.shields.io/badge/status-beta-orange) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
-<!-- Yukarıdaki rozetlerin gerçek release/CI linkleri repo açılınca eklenecek -->
 
-<!-- 📸 SCREENSHOT PLACEHOLDER #1 (HERO) — buraya ANA PENCERE ekran görüntüsü gelecek: shell + 4 modül kartı görünür -->
-> 📸 **[Screenshot: Ana pencere — 4 modüllü shell. Buraya ana ekranın görüntüsü gelecek.]**
+![Windows Care Kit — main window](docs/screenshots/_capture/01-sil.png)
 
 </div>
 
@@ -42,24 +39,25 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 
 ## 📸 Screenshots
 
-> *Screenshots will be added after the first visual pass of the GUI. The layout below reserves a spot for each module.*
-> *Ekran görüntüleri GUI ilk görsel turundan sonra eklenecek. Aşağıda her modül için yer ayrıldı.*
-
 **🗑️ Sil / Uninstall**
 
 ![Sil / Uninstall module — app inventory and dry-run removal plan](docs/screenshots/suite-sil.png)
 
-<!-- 📸 SCREENSHOT PLACEHOLDER #3 — buraya TEMİZLE (Clean) modülü ekran görüntüsü gelecek: junk tarama sonucu + başlangıç yöneticisi -->
-**🧹 Temizle / Clean** — *[Buraya junk tarama sonucu + başlangıç yöneticisi ekran görüntüsü gelecek]*
+**🧹 Temizle / Clean**
 
-<!-- 📸 SCREENSHOT PLACEHOLDER #4 — buraya YEDEKLE (Backup) modülü ekran görüntüsü gelecek: seçmeli yedek ağacı + boyut/rozetler -->
-**💾 Yedekle / Backup** — *[Buraya seçmeli yedek ağacı + boyut/risk rozetleri ekran görüntüsü gelecek]*
+![Temizle / Clean](docs/screenshots/_capture/02-temizle.png)
 
-<!-- 📸 SCREENSHOT PLACEHOLDER #5 — buraya KUR (Install) modülü ekran görüntüsü gelecek: format-sonrası kurulum/restore planı -->
-**📦 Kur / Install** — *[Buraya format-sonrası kurulum + restore planı ekran görüntüsü gelecek]*
+**💾 Yedekle / Backup**
 
-<!-- 📸 SCREENSHOT PLACEHOLDER #6 — buraya DRY-RUN/ONAY ekranı görüntüsü gelecek: bir yıkıcı işlem onaya sunulurken -->
-**🔒 Dry-run + onay ekranı** — *[Buraya bir yıkıcı işlemin onaya sunulduğu dry-run görüntüsü gelecek — güvenlik modelinin kalbi]*
+![Yedekle / Backup](docs/screenshots/_capture/03-yedekle.png)
+
+**📦 Kur / Install**
+
+![Kur / Install](docs/screenshots/_capture/m-kur.png)
+
+**🔒 Dry-run + approval**
+
+A verified screenshot will be added after the first visual pass.
 
 ---
 
@@ -91,22 +89,18 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 
 ### 💼 Format-migration (Settings Portability)
 
-Backs up an app's config before a Windows reformat and restores it to the correct place on
-a new profile — across all four built-in apps (Claude Code, Discord, VS Code, Git).
+The Migration screen uses a **recipe-based detection catalog covering 40 applications** to find
+portable settings and present a selectable, honest preview of what can be carried to a new Windows
+profile.
 
-**Honest deferral for machine-locked settings:** Discord's config is **backed up** (captured
-in the package and zip export), but its **restore is safely deferred** — Discord stores
-machine-specific values (window geometry, local paths, feature flags) that cannot be
-rebound automatically onto a different machine. Rather than silently copying stale config
-and claiming success, the tool surfaces this as `SKIPPED (not yet restorable)` and lets
-you compare your backed-up values manually. Full machine-aware rebinding is planned for
-a future release. This is the correct behavior: honest deferral, not a fake green result.
+**Honest deferral for machine-locked settings:** recipes classify settings that cannot be rebound
+reliably on another machine as manual or deferred. They are never shown as a successful automatic
+restore. The preview explains what was detected, what is eligible, and what still requires manual
+work.
 
-**What restores automatically vs. what's captured for later:** single-file configs auto-restore
-to the right place (e.g. Claude `CLAUDE.md` / `settings.json`, your `.gitconfig`, VS Code
-`settings.json`). Larger directory trees (e.g. Claude `projects/`, `skills/`, and memory) are
-**captured in your backup package** but their automatic restore is a future slice — they're
-safe in the zip today and can be copied back manually. No data is lost; nothing is overclaimed.
+**Available today:** recipe-based detection, selection, and the honest restore preview in the WPF
+Migration screen. **One-click live restore execution is still being finalized and is not yet
+connected; the Restore button remains disabled.**
 
 ---
 
@@ -125,10 +119,7 @@ This is the part most "cleaner" tools get wrong. Here it is the core design:
 
 ## ⬇️ Download & run
 
-> *Releases will appear on the GitHub **Releases** page once the repo is published.*
-> *Repo yayınlanınca sürümler GitHub **Releases** sayfasında olacak.*
-
-1. Download the latest **self-contained, single-file, portable ZIP** from [Releases](#) *(link repo açılınca eklenecek)*.
+1. Download the latest **self-contained, single-file, portable ZIP** from [Releases](https://github.com/ydbilgin/windows-care-kit/releases).
 2. **Verify the SHA256** of the ZIP against the value on the release page.
 3. Unzip and run — **no installer**, nothing written to system folders.
 
@@ -141,7 +132,7 @@ This is the part most "cleaner" tools get wrong. Here it is the core design:
 Requires the **.NET 10 SDK**.
 
 ```powershell
-git clone https://github.com/<owner>/windows-care-kit.git   # <-- gerçek repo yolu açılınca güncellenecek
+git clone https://github.com/ydbilgin/windows-care-kit.git
 cd windows-care-kit
 dotnet build WindowsCareKit.slnx -c Release
 dotnet test  WindowsCareKit.slnx
@@ -199,7 +190,7 @@ No telemetry, no analytics, no phone-home — the app never contacts a server on
 
 ## 🌍 Language
 
-UI ships in **English and Turkish (EN/TR)**. A full Turkish README (`README.tr.md`) is planned — *buraya Türkçe README linki gelecek.*
+UI ships in **English and Turkish (EN/TR)**. A full Turkish README (`README.tr.md`) is planned.
 
 ## 📄 License
 

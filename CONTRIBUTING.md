@@ -15,7 +15,7 @@ wrong file or leak a credential. This guide explains how to work within that mod
 ## Build & test
 
 ```powershell
-git clone https://github.com/<owner>/windows-care-kit.git
+git clone https://github.com/ydbilgin/windows-care-kit.git
 cd windows-care-kit
 dotnet build WindowsCareKit.slnx -c Debug
 dotnet test  tests/Suite.Tests/Suite.Tests.csproj -c Debug
