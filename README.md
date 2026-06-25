@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml) ![status](https://img.shields.io/badge/status-beta-orange) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
 
-![Windows Care Kit — main window](docs/screenshots/_capture/01-sil.png)
+![Windows Care Kit — main window](docs/screenshots/01-uninstall.png)
 
 </div>
 
@@ -26,12 +26,13 @@ All four modules are **implemented**, the build is **clean (0 warnings / 0 error
 
 Windows Care Kit is **one native Windows app** that covers the whole **format / reinstall lifecycle** — the things you normally juggle across three or four separate (often ad-laden, opaque) tools. It is **open source, ad-free, telemetry-free, and auditable**, and it is **honest**: when something *can't* safely transfer (an encrypted password, a cloud-only save), the app tells you instead of pretending.
 
-| Module | TR | What it does |
-|---|---|---|
-| 🗑️ **Uninstall** | **Sil** | Remove classic + UWP apps, scan & clean leftovers, run the official uninstaller, per-user AppX removal |
-| 🧹 **Clean** | **Temizle** | Junk/temp cleanup (to Recycle Bin), startup manager, browser-extension inventory, empty Recycle Bin |
-| 💾 **Backup** | **Yedekle** | Manifest-driven backup of the *few things you can't just re-download* before a format |
-| 📦 **Install** | **Kur** | Reinstall apps via winget/npm after a format, restore settings with a safe timestamped `.bak` merge |
+| Module | What it does |
+|---|---|
+| 🗑️ **Uninstall** | Remove classic + UWP apps, scan & clean leftovers, run the official uninstaller, per-user AppX removal |
+| 🧹 **Clean** | Junk/temp cleanup (to Recycle Bin), startup manager, browser-extension inventory, empty Recycle Bin |
+| 💾 **Backup** | Manifest-driven backup of the *few things you can't just re-download* before a format |
+| 📦 **Reinstall** | Reinstall apps via winget/npm after a format, restore settings with a safe timestamped `.bak` merge |
+| 💼 **Migration** | Detect portable app settings and choose what to carry to the new PC — honest about what can't transfer |
 
 **Who it's for:** gamers, AI/developer power-users, and everyday people who are about to reinstall Windows and don't want to lose what matters.
 
@@ -39,50 +40,50 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 
 ## 📸 Screenshots
 
-**🗑️ Sil / Uninstall**
+**💼 Migration — the honest part**
 
-![Sil / Uninstall module — app inventory and dry-run removal plan](docs/screenshots/suite-sil.png)
+![Migration — choose what to carry to the new PC, with an honest read-only scan of what can and can't transfer](docs/screenshots/04-migration.png)
 
-**🧹 Temizle / Clean**
+**🗑️ Uninstall**
 
-![Temizle / Clean](docs/screenshots/_capture/02-temizle.png)
+![Uninstall — installed-app inventory and dry-run removal plan](docs/screenshots/01-uninstall.png)
 
-**💾 Yedekle / Backup**
+**🧹 Clean**
 
-![Yedekle / Backup](docs/screenshots/_capture/03-yedekle.png)
+![Clean — junk/temp scan, startup manager, and a read-only browser-extension inventory](docs/screenshots/02-clean.png)
 
-**📦 Kur / Install**
+**💾 Backup**
 
-![Kur / Install](docs/screenshots/_capture/m-kur.png)
+![Backup — choose a folder outside the app, preview the plan; secrets are never copied](docs/screenshots/03-backup.png)
 
-**🔒 Dry-run + approval**
+**📦 Reinstall**
 
-A verified screenshot will be added after the first visual pass.
+![Reinstall — restore apps and settings after a format, in dependency order](docs/screenshots/05-reinstall.png)
 
 ---
 
 ## ✨ Features
 
-### 🗑️ Sil — Uninstall
+### 🗑️ Uninstall
 - Read-only inventory of installed **classic (Win32) and UWP/Store** apps.
 - Runs the app's **official uninstaller**, then a **leftover-cleanup wizard** for the files/registry keys it leaves behind.
 - **Per-user AppX removal** for Store apps.
 - Every removal: **dry-run preview → you approve → it runs** (never silent).
 
-### 🧹 Temizle — Clean
+### 🧹 Clean
 - **Junk / temp scan & clean** — removals go to the **Recycle Bin** (recoverable), not a hard delete.
 - **Startup manager** — see and disable what launches at boot.
 - **Empty Recycle Bin** — behind an explicit confirmation, and logged.
 - **Browser-extension inventory** — list what's installed, open its folder.
 
-### 💾 Yedekle — Backup
+### 💾 Backup
 - **Manifest-driven plan** for the irreplaceable stuff before a format.
 - **Tool / payload separation:** re-downloadable apps are **never copied** — only an *install list* is written, so your backup stays small.
 - **Secret-store exclusion is enforced:** browser cookies, saved passwords, token stores (`Login Data`, `Local State`, `key4.db`, …) are **not** copied into the backup.
 - Produces a human-readable **`RAPOR.md`** (report) and **`MANUAL_TODO.md`** (the things only *you* can do — e.g. re-login somewhere).
 - Your personal backup data lives **outside** the app, never in the repo.
 
-### 📦 Kur — Install / Restore
+### 📦 Reinstall / Restore
 - **winget / npm reinstall plan** with a sensible **restore order** and **checkpoint/resume**.
 - **Restore settings after install** — config files are merged **after** the app exists, with a timestamped **`.bak`** so nothing is blindly overwritten.
 - **Auth probe** — tells you where you'll need to log in again.
@@ -161,7 +162,7 @@ scoping, final review, and every merge.
 
 ## 🗺️ Roadmap
 
-**Built today (beta):** the four modules above, the safety gate + gated executor, EN/TR UI, automated test suite.
+**Built today (beta):** the four modules above, the safety gate + gated executor, a localizable UI with a language selector (English/Turkish), automated test suite.
 
 **Designed & planned (not in this build yet):** a richer Backup/Restore engine —
 - 🔎 **Auto-discovery catalog** of local app settings & dev/AI-CLI configs (Codex/Discord/VS Code…), with a checkbox selection screen + manual-path add.
@@ -192,7 +193,7 @@ No telemetry, no analytics, no phone-home — the app never contacts a server on
 
 ## 🌍 Language
 
-UI ships in **English and Turkish (EN/TR)**. See the [Türkçe README](README.tr.md).
+The app has a **built-in language selector** (top-right). It ships with **English** and **Turkish**, and the UI is fully localizable: adding a language is a data-only change — drop a translated `lang/<code>.json` (with a `meta.languageName` entry) next to the executable and it appears in the selector, no rebuild required. A [Turkish README](README.tr.md) is also available.
 
 ## 📄 License
 

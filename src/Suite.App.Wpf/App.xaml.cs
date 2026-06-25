@@ -38,7 +38,8 @@ public partial class App : Application
         i18n.Load(ResolveCulture(e.Args));
 
         var main = Services.GetRequiredService<MainViewModel>();
-        main.SelectNavByKey(ExtractOption(e.Args, "--screen")); // optional deep-link to a module
+        if (main.SelectNavByKey(ExtractOption(e.Args, "--screen")))
+            main.ShowFirstRun = false; // deep-linked to a module → skip the first-run modal (demo/screenshot mode)
         var window = new MainWindow { DataContext = main };
         window.Show();
 

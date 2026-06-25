@@ -10,7 +10,7 @@
 
 [![CI](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml) ![status](https://img.shields.io/badge/status-beta-orange) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
 
-![Windows Care Kit — ana pencere](docs/screenshots/_capture/01-sil.png)
+![Windows Care Kit — ana pencere](docs/screenshots/01-uninstall.png)
 
 </div>
 
@@ -41,25 +41,27 @@ Windows Care Kit, tüm **format / yeniden kurulum yaşam döngüsünü** kapsaya
 
 ## 📸 Ekran Görüntüleri
 
-**🗑️ Sil / Uninstall**
+> Uygulama arayüzü varsayılan olarak İngilizce'dir (sağ üstten dil seçilebilir); ekran görüntüleri İngilizce arayüzü gösterir.
 
-![Sil / Uninstall modülü — uygulama envanteri ve dry-run kaldırma planı](docs/screenshots/suite-sil.png)
+**💼 Taşıma (Migration) — dürüst kısım**
 
-**🧹 Temizle / Clean**
+![Taşıma — yeni bilgisayara neyin taşınacağını seç; neyin taşınabileceğini/taşınamayacağını salt-okunur tarama dürüstçe gösterir](docs/screenshots/04-migration.png)
 
-![Temizle / Clean](docs/screenshots/_capture/02-temizle.png)
+**🗑️ Sil (Uninstall)**
 
-**💾 Yedekle / Backup**
+![Sil — kurulu uygulama envanteri ve dry-run kaldırma planı](docs/screenshots/01-uninstall.png)
 
-![Yedekle / Backup](docs/screenshots/_capture/03-yedekle.png)
+**🧹 Temizle (Clean)**
 
-**📦 Kur / Install**
+![Temizle — junk/temp tarama, başlangıç yöneticisi ve salt-okunur tarayıcı eklenti envanteri](docs/screenshots/02-clean.png)
 
-![Kur / Install](docs/screenshots/_capture/m-kur.png)
+**💾 Yedekle (Backup)**
 
-**🔒 Dry-run + onay**
+![Yedekle — uygulama dışında bir klasör seç, planı önizle; sırlar asla kopyalanmaz](docs/screenshots/03-backup.png)
 
-İlk görsel kontrolden sonra doğrulanmış bir ekran görüntüsü eklenecek.
+**📦 Kur (Reinstall)**
+
+![Kur — format sonrası uygulama ve ayarları bağımlılık sırasına göre geri yükle](docs/screenshots/05-reinstall.png)
 
 ---
 
