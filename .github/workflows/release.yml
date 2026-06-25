@@ -71,6 +71,9 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $zipName = "WindowsCareKit-$tag-win-x64.zip"
 
+          # Debug symbols are not shipped to end users — drop them before packaging.
+          Remove-Item publish/win-x64/*.pdb -Force -ErrorAction SilentlyContinue
+
           # Compress the publish output directory into the zip.
           Compress-Archive -Path publish/win-x64/* -DestinationPath $zipName
 
@@ -89,27 +92,45 @@ jobs:
         # Uses the pre-installed gh CLI (available on all GitHub-hosted runners).
         # Authenticates via the built-in GITHUB_TOKEN — no PAT or hardcoded secret.
         # v0.x releases are marked --prerelease to signal beta status.
+        #
+        # Idempotent: if a release for this tag already exists (e.g. it was
+        # created manually before the tag was pushed), upload/refresh the asset
+        # instead of failing. This keeps the workflow green even when the
+        # release predates the workflow run.
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" "${{ env.ZIP_NAME }}" `
-            --title "Windows Care Kit ${{ github.ref_name }}" `
-            --prerelease `
-            --notes "## Windows Care Kit ${{ github.ref_name }}
+          $tag = "${{ github.ref_name }}"
+          $zip = "${{ env.ZIP_NAME }}"
+          # Notes are kept backtick-free on purpose so neither YAML nor the
+          # PowerShell here-string parser has to escape Markdown code fences.
+          $body = @"
+          ## Windows Care Kit $tag
 
           Portable self-contained build for Windows x64.
           No .NET runtime installation required.
 
           ### Download
-          Attach \`${{ env.ZIP_NAME }}\` from the assets below.
+          Attach the $zip asset from the assets below.
 
           ### SHA256 checksum
-          \`\`\`
-          ${{ env.SHA256 }}  ${{ env.ZIP_NAME }}
-          \`\`\`
+          ${{ env.SHA256 }}  $zip
+
+          Verify with: Get-FileHash <zip> -Algorithm SHA256
 
           > **BETA:** Real-world destructive operations are under supervised
           > testing. Review the safety model before use on a production machine.
 
-          See [CHANGELOG.md](https://github.com/ydbilgin/windows-care-kit/blob/master/CHANGELOG.md) for what is included in this release."
+          See the CHANGELOG (https://github.com/ydbilgin/windows-care-kit/blob/master/CHANGELOG.md) for what is included in this release.
+          "@
+
+          gh release view "$tag" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists — refreshing asset + notes."
+            gh release upload "$tag" "$zip" --clobber
+            gh release edit "$tag" --prerelease --notes "$body"
+          } else {
+            Write-Host "Creating release $tag."
+            gh release create "$tag" "$zip" --title "Windows Care Kit $tag" --prerelease --notes "$body"
+          }
