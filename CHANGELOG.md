@@ -18,8 +18,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Public launch polish** (2026-06-25)
   - General migration engine public framing: 40-recipe detection, honest
     restore/undo preview, and community-governed recipe expectations.
-  - WPF Migration screen documentation: read-only scan and honest preview are
-    available; one-click live restore remains pending.
+  - WPF Migration screen: read-only scan, honest selectable preview, and **live
+    capture** — pick a backup folder, approve the dry-run plan, and selected
+    settings are copied there through the existing safety-gated backup engine
+    (single execution path; machine-locked items surfaced honestly). The
+    new-machine restore flow is the next slice.
   - Public repository readiness: launch README updates, Turkish README,
     contribution templates, security issue routing, and `AGENTS.md` workflow
     guidance.
