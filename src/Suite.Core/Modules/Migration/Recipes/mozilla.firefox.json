@@ -22,7 +22,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["Mozilla Firefox", "Firefox"],
-  "restoreTier": "merge-after-install",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {

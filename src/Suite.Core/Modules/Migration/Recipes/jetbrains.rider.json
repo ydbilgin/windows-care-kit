@@ -21,7 +21,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["JetBrains Rider", "Rider"],
-  "restoreTier": "merge-after-install",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {

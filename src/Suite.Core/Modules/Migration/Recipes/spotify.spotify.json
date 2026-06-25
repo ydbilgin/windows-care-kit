@@ -17,7 +17,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["Spotify"],
-  "restoreTier": "config-copy",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {

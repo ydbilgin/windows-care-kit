@@ -19,7 +19,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["OBS Studio", "OBS"],
-  "restoreTier": "merge-after-install",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {

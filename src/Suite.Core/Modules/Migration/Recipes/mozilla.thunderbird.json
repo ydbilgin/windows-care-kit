@@ -22,7 +22,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["Mozilla Thunderbird", "Thunderbird"],
-  "restoreTier": "merge-after-install",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {
