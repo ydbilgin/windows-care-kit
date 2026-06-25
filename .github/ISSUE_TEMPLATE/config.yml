@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ydbilgin/windows-care-kit/blob/master/SECURITY.md
+    about: Please report vulnerabilities privately. Do not open a public issue for security problems.
