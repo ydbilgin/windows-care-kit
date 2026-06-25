@@ -47,7 +47,7 @@ public static class OfficialUninstallerPlanner
         // the NSIS carve-out), so an elevated uninstaller that can never anchor returns null → the wizard's manual
         // fallback (no broken/no-op auto action). We deliberately do NOT run the path-containment check here: the
         // planner has no IPathCanonicalizer, so containing the RAW exe would over-block a registry-stored 8.3 path
-        // (C:\PROGRA~1\App\unins000.exe) the gate WOULD allow after expansion (cx REJECT). The planner is thus
+        // (C:\PROGRA~1\App\unins000.exe) the gate WOULD allow after expansion (review finding). The planner is thus
         // never STRICTER than the gate. msiexec is System32-pinned and handled by the gate's System32 special-case.
         string? allowedRoot = CanonicalizeRoot(app.InstallLocation);
 

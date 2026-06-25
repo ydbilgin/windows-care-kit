@@ -384,7 +384,7 @@ public sealed class CopyAdapter : ICopyAdapter
         {
             // The hardened built-in superset is all EXACT leaves. An ExcludeLeaves entry containing '*' is a
             // LEAF GLOB (e.g. "*.key", "id_rsa*", "*Cache*") — split it out so a real secret/cache leaf is caught,
-            // not just a file literally named "*.key" (council critic F3/HIGH: ExcludeLeaves was exact-match only,
+            // not just a file literally named "*.key" (security review F3/HIGH: ExcludeLeaves was exact-match only,
             // which left the migration secret-glob overlay + recipe cache excludes inert at copy time).
             var leaves = new HashSet<string>(ForbiddenSourceLeaves, StringComparer.OrdinalIgnoreCase);
             var globs = new List<Regex>();

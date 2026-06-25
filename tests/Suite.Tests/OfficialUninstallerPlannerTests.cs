@@ -113,7 +113,7 @@ public class OfficialUninstallerPlannerTests
         Assert.True(TestData.Gate().Validate(plan!).AllAllowed);
     }
 
-    // ---- Command-policy PHASE 2 planner pre-flight (cx REJECT fix): EXPANSION-FREE "can this ever anchor?" ----
+    // ---- Command-policy PHASE 2 planner pre-flight (review fix): EXPANSION-FREE "can this ever anchor?" ----
     // The planner has no IPathCanonicalizer, so it must NOT run the gate's path-containment check on the RAW exe
     // (that over-blocks a registry-stored 8.3 short path the gate WOULD allow after 8.3 expansion). It returns null
     // (→ wizard manual fallback) ONLY when anchoring is impossible regardless of expansion (no usable InstallLocation
@@ -122,7 +122,7 @@ public class OfficialUninstallerPlannerTests
     [Fact]
     public void Phase2_elevated_uninstaller_with_an_8_3_short_path_is_not_over_blocked()
     {
-        // cx REJECT regression. Registry stores C:\PROGRA~1\App\unins000.exe (8.3); InstallLocation is the long
+        // Review regression. Registry stores C:\PROGRA~1\App\unins000.exe (8.3); InstallLocation is the long
         // form. The planner must BUILD the action (a usable root exists) and defer the contained-or-block decision
         // to the gate's expanded-path check — it must NOT over-block here.
         var app = TestData.App(source: InstalledAppSource.MachineWide64,

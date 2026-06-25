@@ -13,7 +13,7 @@
 
     Pass=$true is returned ONLY when EVERY one of the checks below holds. There is no path
     by which an exception is swallowed into Pass=$true: the function wraps its body in a
-    try/catch whose catch returns Pass=$false with the exception as a reason. cx/opus
+    try/catch whose catch returns Pass=$false with the exception as a reason. Review
     verdicts are signed ANNOTATIONS over the returned Digest — NOT the pass mechanism.
 
     Expected evidence layout under -EvidenceDir (written by Invoke-WckCampaignCell.ps1):

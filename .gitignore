@@ -47,7 +47,7 @@ TestResults/
 .ax_dispatch/
 .cx_dispatch_locks/
 
-## graphify knowledge graph — local AI-memory (queryable arch map), regenerated, not source
+## graphify knowledge graph — local generated arch map (regenerated, not source)
 graphify-out/
 .graphify_*
 

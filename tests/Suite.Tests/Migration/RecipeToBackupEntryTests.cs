@@ -196,7 +196,7 @@ public class RecipeToBackupEntryTests
     [Fact]
     public void Over_declared_fixed_credential_include_blocks_a_works_badge()
     {
-        // Review cx#1: a FIXED credential leaf (logins.json) is NOT a glob-overlay match but IS pruned by the
+        // Review #1: a FIXED credential leaf (logins.json) is NOT a glob-overlay match but IS pruned by the
         // copy engine — the badge must still downgrade. Non-vacuous: the old overlay-only aggregation missed this.
         var recipe = Recipe(PortabilityClass.ProfileRelative,
             Item(".claude/projects", include: new[] { "logins.json" }));
@@ -210,7 +210,7 @@ public class RecipeToBackupEntryTests
     [Fact]
     public void Path_shaped_secret_include_is_matched_by_its_leaf()
     {
-        // Review cx#2: a path-bearing include (**/id_rsa) is reduced to its leaf before the name policy runs.
+        // Review #2: a path-bearing include (**/id_rsa) is reduced to its leaf before the name policy runs.
         var recipe = Recipe(PortabilityClass.ProfileRelative,
             Item(".claude/projects", include: new[] { "**/id_rsa" }));
 
@@ -222,7 +222,7 @@ public class RecipeToBackupEntryTests
     [Fact]
     public void Item_whose_path_leaf_is_a_secret_blocks_a_works_badge()
     {
-        // Review cx#2: the declared item path can itself be the secret (empty include) — its leaf must be checked.
+        // Review #2: the declared item path can itself be the secret (empty include) — its leaf must be checked.
         var fs = new FakeRecipeFileSystem()
             .AddDir(@"C:\Users\alice\.claude")
             .AddFile(@"C:\Users\alice\.claude\id_rsa");

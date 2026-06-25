@@ -22,7 +22,7 @@ Such a job could check the TRX's *contents*, but it **cannot attest that the TRX
 tests in Windows Sandbox from the reviewed commit** — environment approval authenticates *approval*, not
 *execution*. A green check that does not prove what it appears to prove is exactly the kind of fake-green this
 project refuses. (Decision: `.planning/STAGING/DESTRUCTIVE-CI-AND-EXPORT-GATING_DECISION_2026-06-21.md`,
-reached via council + an adversarial critic.)
+reached via security review.)
 
 A self-hosted runner on a maintainer's machine is also rejected: it expands the trust/attack surface of a
 public repo and contradicts the disposable-only boundary. The **only** way to get genuine CI provenance would

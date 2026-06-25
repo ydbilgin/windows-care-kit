@@ -4,7 +4,7 @@
     Windows Care Kit (WCK) · Step 4 Tier B AUTHORITATIVE pass-gate.
 
 .DESCRIPTION
-    Closes the vacuous-pass hole (council critic FIX-2, 2026-06-20): a `dotnet test`
+    Closes the vacuous-pass hole (security review FIX-2, 2026-06-20): a `dotnet test`
     exit code of 0 is NOT sufficient proof that the Tier B destructive tests ran.
     A [DisposableFact] that is statically SKIPPED (because the disposable-machine
     opt-in did not take effect) still yields exit 0 — a green that proves nothing.

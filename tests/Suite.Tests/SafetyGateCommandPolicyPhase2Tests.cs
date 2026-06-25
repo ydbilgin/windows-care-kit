@@ -97,7 +97,7 @@ public class SafetyGateCommandPolicyPhase2Tests
     [Fact]
     public void Allows_elevated_official_uninstaller_at_an_8_3_short_path_after_expansion()
     {
-        // cx nit + divergence proof: the registry stores the exe as an 8.3 short path. The gate must EXPAND it
+        // Review finding + divergence proof: the registry stores the exe as an 8.3 short path. The gate must EXPAND it
         // (FakeCanonicalizer maps PROGRA~1 → Program Files) and THEN anchor-check, so the long-form InstallLocation
         // contains it → ALLOW. Non-vacuous: without the expansion, IsPathUnder(C:\PROGRA~1\App\..., C:\Program Files\App)
         // is false → block. Pairs with the planner test that the same 8.3 path is not over-blocked at preflight.

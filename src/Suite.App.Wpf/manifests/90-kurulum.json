@@ -158,7 +158,7 @@
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "Everything dosya arama. Varsayilan winget kurulumu makine geneli + Everything servisi kurar (UAC). Garantili user-scope/UAC'siz kurulum yok -> manual-after (council: supkede manual-after)."
+      "description": "Everything dosya arama. Varsayilan winget kurulumu makine geneli + Everything servisi kurar (UAC). Garantili user-scope/UAC'siz kurulum yok -> manual-after (review: manual-after)."
     },
     {
       "id": "install-memreduct",
@@ -194,7 +194,7 @@
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "Microsoft PowerToys. Varsayilan winget paketi makine geneli MSI (UAC). Garantili user-scope/UAC'siz kurulum yok -> manual-after (council: supkede manual-after)."
+      "description": "Microsoft PowerToys. Varsayilan winget paketi makine geneli MSI (UAC). Garantili user-scope/UAC'siz kurulum yok -> manual-after (review: manual-after)."
     },
     {
       "id": "install-blender",
@@ -230,7 +230,7 @@
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "MiKTeX (LaTeX dagitimi). Kurulum kapsami/UAC garantisi belirsiz, ilk-paket kurulumu uzun. Garantili user-scope/UAC'siz akis yok -> manual-after (council: supkede manual-after)."
+      "description": "MiKTeX (LaTeX dagitimi). Kurulum kapsami/UAC garantisi belirsiz, ilk-paket kurulumu uzun. Garantili user-scope/UAC'siz akis yok -> manual-after (review: manual-after)."
     },
     {
       "id": "install-nodejs-lts",

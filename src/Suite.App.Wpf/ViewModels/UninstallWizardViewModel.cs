@@ -711,7 +711,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
 
     /// <summary>
     /// The localized result-row text for a typed action — keyed by the action's shape/target, NOT the English
-    /// Core <see cref="PlannedAction.Description"/> (spec §4 / ax_pro + Claude-council i18n fix).
+    /// Core <see cref="PlannedAction.Description"/> (spec §4 / review i18n fix).
     /// </summary>
     private string DescribeResultRow(PlannedAction action) => action switch
     {

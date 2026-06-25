@@ -20,13 +20,13 @@ push over the VMBus, checkpoint reset, and no interactive UAC.
 | `guest-run.ps1` | inside the guest (pushed in) | — |
 | `Invoke-WckUninstallRun.ps1` | host, per run | **Hyper-V Administrators** (not full admin) |
 
-## Prerequisites (already satisfied / done by Claude)
+## Prerequisites (already satisfied / completed during setup)
 - `Microsoft-Hyper-V-All` enabled + rebooted (owner).
 - Eval ISO at `F:\WCK-VM\Win11-Ent-Eval-25H2-x64.iso` (verified SHA256, build 26200.6584).
 - Installers pre-downloaded to `F:\WCK-VM\installers\` (`7z.msi`, `git.exe`, `npp.exe`, `vscode.exe`).
 
 ## One-time setup (OWNER, elevated)
-The current Claude session is **not** elevated and **not** in *Hyper-V Administrators*,
+The current build/setup session is **not** elevated and **not** in *Hyper-V Administrators*,
 so it cannot create or drive a VM yet. Two things, both one-time:
 
 1. **Grant per-run autonomy** — add yourself to *Hyper-V Administrators* so the
@@ -37,7 +37,7 @@ so it cannot create or drive a VM yet. Two things, both one-time:
    Add-LocalGroupMember -Group $grp -Member 'ydbil'
    ```
    Group membership only applies to a **new logon session** → after this, **sign out
-   and back in** (no reboot needed), then restart Claude Code.
+   and back in** (no reboot needed), then restart your terminal/session.
 
 2. **Build the VM** (elevated PowerShell; ~15–30 min unattended install):
    ```powershell

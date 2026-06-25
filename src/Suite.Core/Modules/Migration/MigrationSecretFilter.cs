@@ -61,7 +61,7 @@ public static class MigrationSecretFilter
     /// True when a single declared LEAF name is a known secret under the FULL name policy the copy engine
     /// enforces — fixed credential leaves (<see cref="FixedCredentialLeaves"/>) PLUS the <see cref="SecretGlobOverlay"/>
     /// globs. This is the effective "would the engine prune this leaf?" predicate used by the B-1 bridge so the
-    /// badge signal matches copy-time pruning exactly (review cx#1/#2). Empty/blank leaf is never a secret.
+    /// badge signal matches copy-time pruning exactly (review #1/#2). Empty/blank leaf is never a secret.
     /// </summary>
     public static bool IsSecretLeafName(string leaf)
         => !string.IsNullOrEmpty(leaf) && !IsLeafAllowed(leaf, FixedCredentialLeaves);

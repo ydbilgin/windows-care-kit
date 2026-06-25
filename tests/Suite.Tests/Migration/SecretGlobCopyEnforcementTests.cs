@@ -6,7 +6,7 @@ using Xunit;
 namespace WindowsCareKit.Tests.Migration;
 
 /// <summary>
-/// END-TO-END proof that the migration secret-glob overlay (council critic F3) is enforced AT COPY TIME —
+/// END-TO-END proof that the migration secret-glob overlay (security review F3) is enforced AT COPY TIME —
 /// not merely present as strings in <c>BackupEntry.Exclude</c>. The real <see cref="CopyAdapter"/> is run over
 /// a tree of decoy secrets + a cache dir; only the benign config file may land in the package.
 ///
