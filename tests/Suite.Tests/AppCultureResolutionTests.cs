@@ -48,4 +48,30 @@ public sealed class AppCultureResolutionTests
     [InlineData("   ")]
     public void Unsupported_or_blank_override_is_ignored_and_os_decides(string bad)
         => Assert.Equal("en", TheApp.ResolveCulture(new[] { "--lang", bad }, envLang: bad, osTwoLetter: "en"));
+
+    // --- ExtractOption: the shared --name value / --name=value parser (backs --lang and --screen) ---
+
+    [Fact]
+    public void ExtractOption_reads_space_form()
+        => Assert.Equal("migration", TheApp.ExtractOption(new[] { "--screen", "migration" }, "--screen"));
+
+    [Fact]
+    public void ExtractOption_reads_equals_form()
+        => Assert.Equal("backup", TheApp.ExtractOption(new[] { "--screen=backup" }, "--screen"));
+
+    [Fact]
+    public void ExtractOption_is_case_insensitive_on_the_name()
+        => Assert.Equal("clean", TheApp.ExtractOption(new[] { "--SCREEN", "clean" }, "--screen"));
+
+    [Fact]
+    public void ExtractOption_returns_null_when_absent()
+        => Assert.Null(TheApp.ExtractOption(new[] { "--lang", "en" }, "--screen"));
+
+    [Fact]
+    public void ExtractOption_returns_null_when_name_is_last_token_without_value()
+        => Assert.Null(TheApp.ExtractOption(new[] { "--screen" }, "--screen"));
+
+    [Fact]
+    public void ExtractOption_takes_the_first_occurrence()
+        => Assert.Equal("install", TheApp.ExtractOption(new[] { "--screen", "install", "--screen", "clean" }, "--screen"));
 }

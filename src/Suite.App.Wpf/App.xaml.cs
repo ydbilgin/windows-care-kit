@@ -38,6 +38,7 @@ public partial class App : Application
         i18n.Load(ResolveCulture(e.Args));
 
         var main = Services.GetRequiredService<MainViewModel>();
+        main.SelectNavByKey(ExtractOption(e.Args, "--screen")); // optional deep-link to a module
         var window = new MainWindow { DataContext = main };
         window.Show();
 
@@ -65,14 +66,21 @@ public partial class App : Application
         return osTwoLetter.Equals("tr", StringComparison.OrdinalIgnoreCase) ? "tr" : "en";
     }
 
-    private static string? ExtractLangArg(string[] args)
+    private static string? ExtractLangArg(string[] args) => ExtractOption(args, "--lang");
+
+    /// <summary>
+    /// Reads a <c>--name value</c> or <c>--name=value</c> option from the argv (case-insensitive),
+    /// returning the first occurrence's value or <c>null</c>. Used for <c>--lang</c> and <c>--screen</c>.
+    /// </summary>
+    internal static string? ExtractOption(string[] args, string name)
     {
+        string eq = name + "=";
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
-            if (a.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase))
-                return a["--lang=".Length..];
-            if (a.Equals("--lang", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            if (a.StartsWith(eq, StringComparison.OrdinalIgnoreCase))
+                return a[eq.Length..];
+            if (a.Equals(name, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
                 return args[i + 1];
         }
         return null;
