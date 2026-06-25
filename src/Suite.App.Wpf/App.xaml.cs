@@ -125,6 +125,7 @@ public partial class App : Application
             ProfileRoots.ForCurrentUser,
             sp.GetRequiredService<IRecipeFileSystem>(),
             sp.GetRequiredService<IContentSignatureProbe>()));
+        s.AddSingleton<Func<IReadOnlyList<MigrationRecipe>>>(_ => BuiltinRecipeSource.LoadAll);
 
         // Backup module (manifest loader + env expander + planner + report writer).
         s.AddSingleton<IEnvironmentExpander, Win32EnvironmentExpander>();
@@ -141,6 +142,13 @@ public partial class App : Application
         s.AddSingleton<IIntegrityWriter, BackupIntegrityWriter>();
         s.AddSingleton<IBackupExecutor>(sp => new BackupExecutorAdapter(sp.GetRequiredService<GatedExecutor>()));
         s.AddSingleton<BackupRunner>();
+        s.AddSingleton(sp => new RecipeResolver(
+            new RecipePathResolver(ProfileRoots.ForCurrentUser()),
+            sp.GetRequiredService<IRecipeFileSystem>()));
+        s.AddSingleton<MigrationRestoreManifestStore>();
+        s.AddSingleton<MigrationInstallManifestStore>();
+        s.AddSingleton<MigrationBackupRunner>();
+        s.AddSingleton<IMigrationBackupRunner>(sp => sp.GetRequiredService<MigrationBackupRunner>());
 
         // Install/Restore (Kur) module (manifest loader + driver/auth guards + state store + planner).
         s.AddSingleton<IInstallManifestLoader, InstallManifestLoader>();

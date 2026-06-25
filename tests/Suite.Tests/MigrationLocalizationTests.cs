@@ -49,6 +49,39 @@ public sealed class MigrationLocalizationTests
         Assert.Empty(missingTurkish);
     }
 
+    [Fact]
+    public void Capture_keys_exist_in_both_languages_and_dead_restore_keys_are_removed()
+    {
+        string root = FindRepositoryRoot();
+        HashSet<string> english = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "en.json"));
+        HashSet<string> turkish = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "tr.json"));
+        string[] expected =
+        [
+            "migration.capture.title",
+            "migration.capture.destination",
+            "migration.capture.chooseFolder",
+            "migration.capture.buildPlan",
+            "migration.capture.approve",
+            "migration.capture.run",
+            "migration.capture.plan",
+            "migration.capture.skipped",
+            "migration.capture.results",
+            "migration.capture.resultSummary",
+            "migration.capture.outsideAppWarning",
+            "migration.capture.refused",
+        ];
+
+        Assert.All(expected, key =>
+        {
+            Assert.Contains(key, english);
+            Assert.Contains(key, turkish);
+        });
+        Assert.DoesNotContain("migration.button.restore", english);
+        Assert.DoesNotContain("migration.button.restore", turkish);
+        Assert.DoesNotContain("migration.restore.disabledHelper", english);
+        Assert.DoesNotContain("migration.restore.disabledHelper", turkish);
+    }
+
     private static bool IsMigrationKey(string key)
         => key.StartsWith("migration.", StringComparison.Ordinal)
            || key is "nav.migration" or "nav.migration.desc";

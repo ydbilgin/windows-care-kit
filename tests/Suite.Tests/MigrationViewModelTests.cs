@@ -1,9 +1,12 @@
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
+using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Migration.Selection;
+using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Safety;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -15,8 +18,9 @@ public sealed class MigrationViewModelTests
     {
         var scan = new FakeScanService(
             new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", []));
+        var runner = new RecordingMigrationBackupRunner();
 
-        var vm = new MigrationViewModel(new I18n(), scan);
+        var vm = new MigrationViewModel(new I18n(), scan, runner, () => Array.Empty<MigrationRecipe>());
 
         Assert.NotNull(vm);
         Assert.Equal(0, scan.CallCount);
@@ -134,7 +138,7 @@ public sealed class MigrationViewModelTests
     }
 
     [Fact]
-    public async Task StartScanAsync_uses_fake_once_populates_state_and_restore_stays_disabled()
+    public async Task StartScanAsync_uses_fake_once_and_populates_state()
     {
         MigrationSelectionCandidate candidate = Candidate("project", "projects");
         var scan = new FakeScanService(new MigrationScanResult(
@@ -144,7 +148,6 @@ public sealed class MigrationViewModelTests
         Assert.False(vm.IsScanComplete);
         Assert.False(vm.CanSelect);
         Assert.Empty(vm.Groups);
-        Assert.False(vm.CanRestoreExecute);
 
         await vm.StartScanAsync();
         await vm.StartScanAsync();
@@ -157,7 +160,159 @@ public sealed class MigrationViewModelTests
         Assert.Equal("✅", vm.Groups
             .Single(group => group.Category == MigrationCategory.IrreplaceablePersonal)
             .Items.Single().Badge.Glyph);
-        Assert.False(vm.CanRestoreExecute);
+    }
+
+    [Fact]
+    public async Task BuildCapturePlan_uses_exactly_the_distinct_selected_recipe_ids()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationRecipe recipeA = Recipe("recipe-a", "a.cfg");
+        MigrationRecipe recipeB = Recipe("recipe-b", "b.cfg");
+        MigrationRecipe recipeC = Recipe("recipe-c", "c.cfg");
+        MigrationViewModel vm = CreateVm(runner: runner, recipes: [recipeA, recipeB, recipeC]);
+        vm.LoadScan(Detection(2, 0), @"C:\Users\demo",
+        [
+            Candidate("a", "projects", "recipe-a"),
+            Candidate("b", "dev-tools", "recipe-b"),
+        ]);
+        vm.ConfirmProfileCommand.Execute(null);
+        vm.PackageDir = OutsideAppPackage();
+
+        await vm.BuildCapturePlanAsync();
+
+        Assert.Equal(["recipe-a", "recipe-b"], runner.LastRecipeIds);
+        Assert.Equal(2, vm.CapturePlanRows.Count);
+        Assert.True(vm.HasCapturePlan);
+        Assert.False(vm.CanRunCapture);
+    }
+
+    [Fact]
+    public async Task Partial_recipe_selection_shows_the_full_per_file_runner_plan_before_approval()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationRecipe recipe = Recipe("recipe-a", "selected.cfg", "other.cfg");
+        MigrationSelectionCandidate selected = Candidate("selected", "projects", "recipe-a");
+        MigrationSelectionCandidate optional = Candidate("optional", "projects", "recipe-a") with
+        {
+            HasCloudBackup = true,
+            IsOnSystemDrive = false,
+            IsUnique = false,
+            IsRegenerable = true,
+        };
+        MigrationViewModel vm = CreateVm(runner: runner, recipes: [recipe]);
+        vm.LoadScan(Detection(2, 0), @"C:\Users\demo", [selected, optional]);
+        vm.ConfirmProfileCommand.Execute(null);
+        Assert.Equal(1, vm.SelectedCount);
+        vm.PackageDir = OutsideAppPackage();
+
+        await vm.BuildCapturePlanAsync();
+
+        Assert.Equal(["recipe-a"], runner.LastRecipeIds);
+        Assert.Equal(2, vm.CapturePlanRows.Count);
+        Assert.Contains(vm.CapturePlanRows, row => row.Text.Contains("selected.cfg", StringComparison.Ordinal));
+        Assert.Contains(vm.CapturePlanRows, row => row.Text.Contains("other.cfg", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Capture_run_requires_approval_and_passes_the_previewed_plan_hash()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationViewModel vm = CreateCaptureVm(runner);
+
+        await vm.BuildCapturePlanAsync();
+        await vm.RunCaptureAsync();
+        Assert.Equal(0, runner.RunCount);
+        Assert.False(vm.CanRunCapture);
+
+        vm.IsPreviewApproved = true;
+        Assert.True(vm.CanRunCapture);
+        await vm.RunCaptureAsync();
+
+        Assert.Equal(1, runner.RunCount);
+        Assert.Equal(runner.LastPlan!.Plan.ComputeHash(), runner.LastApprovedHash);
+        Assert.True(vm.HasCaptureResults);
+    }
+
+    [Fact]
+    public async Task Runner_hash_refusal_is_surfaced_and_reports_no_copied_success()
+    {
+        var runner = new RecordingMigrationBackupRunner { RefuseAsHashMismatch = true };
+        MigrationViewModel vm = CreateCaptureVm(runner);
+        await vm.BuildCapturePlanAsync();
+        vm.IsPreviewApproved = true;
+
+        await vm.RunCaptureAsync();
+
+        Assert.Equal(1, runner.RunCount);
+        Assert.StartsWith("migration.capture.refused", vm.CaptureSummary, StringComparison.Ordinal);
+        Assert.Single(vm.CaptureResultRows);
+        Assert.Equal("SKIPPED", vm.CaptureResultRows[0].RiskText);
+    }
+
+    [Fact]
+    public async Task BuildCapturePlan_surfaces_honest_runner_skips()
+    {
+        var runner = new RecordingMigrationBackupRunner
+        {
+            PlanSkips = [new RecipeItemSkip("secret.db", "forbidden secret store")],
+        };
+        MigrationViewModel vm = CreateCaptureVm(runner);
+
+        await vm.BuildCapturePlanAsync();
+
+        PlanRow skip = Assert.Single(vm.CaptureSkippedRows);
+        Assert.Equal("secret.db", skip.Text);
+        Assert.Contains("forbidden secret", skip.Detail);
+    }
+
+    [Fact]
+    public async Task PackageDir_inside_app_is_rejected_before_runner_plan_build()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationViewModel vm = CreateCaptureVm(runner);
+        vm.PackageDir = Path.Combine(AppContext.BaseDirectory, "capture-package");
+
+        await vm.BuildCapturePlanAsync();
+
+        Assert.Equal(0, runner.BuildCount);
+        Assert.False(vm.HasCapturePlan);
+        Assert.Equal("migration.capture.outsideAppWarning", vm.PackageWarning);
+    }
+
+    [Fact]
+    public async Task Selection_change_invalidates_capture_plan_and_approval()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationViewModel vm = CreateCaptureVm(runner);
+        await vm.BuildCapturePlanAsync();
+        vm.IsPreviewApproved = true;
+        Assert.True(vm.CanRunCapture);
+
+        MigrationItemRow row = vm.Groups
+            .Single(group => group.Category == MigrationCategory.IrreplaceablePersonal).Items.Single();
+        vm.ToggleItemCommand.Execute(row);
+
+        Assert.False(vm.HasCapturePlan);
+        Assert.False(vm.IsPreviewApproved);
+        Assert.False(vm.CanRunCapture);
+    }
+
+    [Fact]
+    public async Task Destination_change_invalidates_capture_plan_and_approval()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationViewModel vm = CreateCaptureVm(runner);
+        await vm.BuildCapturePlanAsync();
+        vm.IsPreviewApproved = true;
+        Assert.True(vm.CanRunCapture);
+
+        // Re-pointing the backup destination must discard the plan approved for the OLD destination, so an
+        // approved-then-redirected capture can never run against a folder the user never saw a plan for.
+        vm.PackageDir = OutsideAppPackage();
+
+        Assert.False(vm.HasCapturePlan);
+        Assert.False(vm.IsPreviewApproved);
+        Assert.False(vm.CanRunCapture);
     }
 
     [Fact]
@@ -202,13 +357,19 @@ public sealed class MigrationViewModelTests
         => new("recipe", "entry", portability, RestoreStrategy.ConfigWrite,
             RestorePhase.ConfigWrite, Array.Empty<string>());
 
-    private static MigrationSelectionCandidate Candidate(string id, string category)
+    private static MigrationSelectionCandidate Candidate(string id, string category, string recipeId = "recipe")
         => new()
         {
             Id = id,
             DisplayName = id,
             RecipeCategory = category,
-            Meta = Meta(PortabilityClass.ProfileRelative),
+            Meta = new MigrationItemMeta(
+                recipeId,
+                id,
+                PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite,
+                RestorePhase.ConfigWrite,
+                Array.Empty<string>()),
             RestoreTier = RestoreTier.ConfigCopy,
             SourceKind = MigrationSourceKind.Directory,
             SourcePath = $@"C:\Users\demo\{id}",
@@ -236,9 +397,41 @@ public sealed class MigrationViewModelTests
             uncovered);
     }
 
-    private static MigrationViewModel CreateVm(IMigrationScanService? scan = null)
-        => new(new I18n(), scan ?? new FakeScanService(
-            new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", [])));
+    private static MigrationViewModel CreateVm(
+        IMigrationScanService? scan = null,
+        RecordingMigrationBackupRunner? runner = null,
+        IReadOnlyList<MigrationRecipe>? recipes = null)
+        => new(
+            new I18n(),
+            scan ?? new FakeScanService(new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", [])),
+            runner ?? new RecordingMigrationBackupRunner(),
+            () => recipes ?? Array.Empty<MigrationRecipe>());
+
+    private static MigrationViewModel CreateCaptureVm(RecordingMigrationBackupRunner runner)
+    {
+        MigrationRecipe recipe = Recipe("recipe-a", "settings.json");
+        MigrationViewModel vm = CreateVm(runner: runner, recipes: [recipe]);
+        vm.LoadScan(Detection(1, 0), @"C:\Users\demo", [Candidate("settings", "projects", "recipe-a")]);
+        vm.ConfirmProfileCommand.Execute(null);
+        vm.PackageDir = OutsideAppPackage();
+        return vm;
+    }
+
+    private static string OutsideAppPackage()
+        => Path.Combine(Path.GetTempPath(), "wck-migration-vm-" + Guid.NewGuid().ToString("N"));
+
+    private static MigrationRecipe Recipe(string id, params string[] itemPaths)
+        => new(
+            1,
+            id,
+            id,
+            "projects",
+            new RecipeDetect(KnownFolder.UserProfile, itemPaths[0], true),
+            itemPaths.Select(path => new RecipeItem(path, Array.Empty<string>(), Array.Empty<string>())).ToArray(),
+            Array.Empty<string>(),
+            "global",
+            PortabilityClass.ProfileRelative,
+            new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, Array.Empty<string>()));
 
     private sealed class FakeScanService(MigrationScanResult result) : IMigrationScanService
     {
@@ -281,6 +474,71 @@ public sealed class MigrationViewModelTests
                 wait.Wait(cancellationToken);
             }
             return result;
+        }
+    }
+
+    private sealed class RecordingMigrationBackupRunner : IMigrationBackupRunner
+    {
+        public int BuildCount { get; private set; }
+        public int RunCount { get; private set; }
+        public string[] LastRecipeIds { get; private set; } = [];
+        public MigrationBackupPlanResult? LastPlan { get; private set; }
+        public string? LastApprovedHash { get; private set; }
+        public IReadOnlyList<RecipeItemSkip> PlanSkips { get; init; } = Array.Empty<RecipeItemSkip>();
+        public bool RefuseAsHashMismatch { get; init; }
+
+        public MigrationBackupPlanResult BuildPlan(
+            IEnumerable<MigrationRecipe> recipes,
+            string packageDir,
+            DateTime utc)
+        {
+            BuildCount++;
+            MigrationRecipe[] selected = recipes.ToArray();
+            LastRecipeIds = selected.Select(recipe => recipe.Id).ToArray();
+            PlannedAction[] actions = selected
+                .SelectMany(recipe => recipe.Items.Select(item => (PlannedAction)new CopyAction
+                {
+                    Source = Path.Combine(@"C:\Users\demo", item.Path),
+                    Destination = Path.Combine(packageDir, recipe.Id, item.Path),
+                    Description = recipe.DisplayName,
+                    Reason = "migration backup",
+                    Risk = RiskLevel.Low,
+                    Undo = UndoCapability.None,
+                }))
+                .ToArray();
+            LastPlan = new MigrationBackupPlanResult(
+                new OperationPlan("Migration backup", "migration-backup", actions, utc),
+                PlanSkips);
+            return LastPlan;
+        }
+
+        public MigrationBackupRunResult Run(
+            MigrationBackupPlanResult plan,
+            string approvedPlanHash,
+            string packageDir)
+        {
+            RunCount++;
+            LastPlan = plan;
+            LastApprovedHash = approvedPlanHash;
+            bool authorized = !RefuseAsHashMismatch
+                              && string.Equals(plan.Plan.ComputeHash(), approvedPlanHash, StringComparison.Ordinal);
+            CopyFileOutcome[] outcomes = plan.Plan.Actions.OfType<CopyAction>()
+                .Select(action => new CopyFileOutcome(
+                    action.Id,
+                    action.Source,
+                    action.Destination,
+                    authorized,
+                    authorized ? null : CopySkipReason.Blocked,
+                    authorized ? "done" : "approved plan hash mismatch"))
+                .ToArray();
+            return new MigrationBackupRunResult(
+                authorized,
+                new CopySkipReport(outcomes),
+                new MigrationRestoreManifest(
+                    MigrationRestoreManifest.CurrentSchemaVersion,
+                    Array.Empty<MigrationRestoreTarget>()),
+                plan.SkippedItems,
+                Array.Empty<RecipeItemSkip>());
         }
     }
 }
