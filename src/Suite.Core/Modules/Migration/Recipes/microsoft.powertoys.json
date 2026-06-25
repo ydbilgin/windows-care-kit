@@ -20,7 +20,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["PowerToys"],
-  "restoreTier": "merge-after-install",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {

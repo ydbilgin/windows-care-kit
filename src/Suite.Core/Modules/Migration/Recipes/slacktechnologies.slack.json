@@ -18,7 +18,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["Slack"],
-  "restoreTier": "config-copy",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {

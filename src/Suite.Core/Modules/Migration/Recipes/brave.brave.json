@@ -21,7 +21,7 @@
   "upgradeCode": [],
   "packageFamilyName": [],
   "installPathHint": ["BraveSoftware/Brave-Browser", "Brave"],
-  "restoreTier": "config-copy",
+  "restoreTier": "inventory-only",
   "catalogTier": "trusted",
   "migrationMeta": {
     "uiWarning": {
