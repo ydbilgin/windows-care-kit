@@ -46,6 +46,8 @@ public sealed record MigrationSelectionCandidate
     public string? DestinationPath { get; init; }
     public MigrationSourceKind SourceKind { get; init; }
     public string WhatHappens { get; init; } = string.Empty;
+    public string? WhatHappensTr { get; init; }
+    public string? WhatHappensEn { get; init; }
     public long? SizeBytes { get; init; }
 
     public bool HasCloudBackup { get; init; }

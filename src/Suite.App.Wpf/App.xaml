@@ -27,6 +27,9 @@
             <DataTemplate DataType="{x:Type vm:InstallViewModel}">
                 <views:InstallView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:MigrationViewModel}">
+                <views:MigrationView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}">
                 <views:PlaceholderView />
             </DataTemplate>
