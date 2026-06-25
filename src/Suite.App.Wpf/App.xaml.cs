@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Security.Principal;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.Localization;
@@ -12,6 +13,7 @@ using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
+using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
@@ -105,6 +107,25 @@ public partial class App : Application
         s.AddSingleton<IBrowserExtensionInventory, Win32BrowserExtensionInventory>();
         s.AddSingleton<IRecycleBinService, Win32RecycleBinService>();
 
+        // Migration Slice-A: read-only sources are only enumerated when MainViewModel navigates to Migration.
+        // Construction stores seams only; no registry/filesystem scan and no restore service is wired.
+        s.AddSingleton<IRecipeFileSystem, Win32RecipeFileSystem>();
+        s.AddSingleton<IProgramSource>(sp => new RegistryUninstallSource(
+            sp.GetRequiredService<IInstalledAppReader>(), new Win32PathCanonicalizer()));
+        s.AddSingleton<IProgramSource>(_ => new MsiProductSource(
+            new Win32MsiCatalog(), new Win32PathCanonicalizer(), CurrentUserSid()));
+        s.AddSingleton<IProgramSource>(sp => new AppxProgramSource(
+            sp.GetRequiredService<IAppxReader>(), new Win32PathCanonicalizer()));
+        s.AddSingleton<IProgramSource>(sp => new AppPathsSource(
+            sp.GetRequiredService<IRegistryProbe>(), new Win32PathCanonicalizer()));
+        s.AddSingleton<IProgramSource>(sp => new StartMenuSource(
+            sp.GetRequiredService<IStartMenuShortcutReader>(), new Win32PathCanonicalizer()));
+        s.AddSingleton<IMigrationScanService>(sp => new MigrationScanService(
+            sp.GetServices<IProgramSource>(),
+            ProfileRoots.ForCurrentUser,
+            sp.GetRequiredService<IRecipeFileSystem>(),
+            sp.GetRequiredService<IContentSignatureProbe>()));
+
         // Backup module (manifest loader + env expander + planner + report writer).
         s.AddSingleton<IEnvironmentExpander, Win32EnvironmentExpander>();
         s.AddSingleton<IManifestLoader, ManifestLoader>();
@@ -139,7 +160,21 @@ public partial class App : Application
         s.AddSingleton<UninstallViewModel>();
         s.AddSingleton<CleanViewModel>();
         s.AddSingleton<BackupViewModel>();
+        s.AddSingleton<MigrationViewModel>();
         s.AddSingleton<InstallViewModel>();
         s.AddSingleton<MainViewModel>();
+    }
+
+    private static string? CurrentUserSid()
+    {
+        try
+        {
+            using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+            return identity.User?.Value;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

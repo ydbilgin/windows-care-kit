@@ -11,10 +11,11 @@ public sealed class MainViewModel : ObservableObject
     private NavItem _selectedNav = null!;
 
     public MainViewModel(I18n i18n, UninstallViewModel uninstall, CleanViewModel clean,
-        BackupViewModel backup, InstallViewModel install)
+        BackupViewModel backup, MigrationViewModel migration, InstallViewModel install)
     {
         I18n = i18n;
         Uninstall = uninstall;
+        Migration = migration;
 
         // Glyphs are Segoe MDL2 Assets / Segoe Fluent Icons code points (delete / clean / save / download / gear).
         Nav = new ObservableCollection<NavItem>
@@ -22,6 +23,7 @@ public sealed class MainViewModel : ObservableObject
             new(i18n, "nav.uninstall", "", uninstall, "nav.uninstall.desc"),
             new(i18n, "nav.clean", "", clean, "nav.clean.desc"),
             new(i18n, "nav.backup", "", backup, "nav.backup.desc"),
+            new(i18n, "nav.migration", "", migration, "nav.migration.desc"),
             new(i18n, "nav.install", "", install, "nav.install.desc"),
             new(i18n, "nav.settings", "", new PlaceholderViewModel(i18n, "nav.settings"), isSettings: true),
         };
@@ -33,6 +35,7 @@ public sealed class MainViewModel : ObservableObject
 
     public I18n I18n { get; }
     public UninstallViewModel Uninstall { get; }
+    public MigrationViewModel Migration { get; }
     public ObservableCollection<NavItem> Nav { get; }
     public ICommand ToggleLanguageCommand { get; }
     public ICommand DismissFirstRunCommand { get; }
@@ -46,7 +49,11 @@ public sealed class MainViewModel : ObservableObject
         set
         {
             if (SetField(ref _selectedNav, value))
+            {
                 OnPropertyChanged(nameof(CurrentContent));
+                if (ReferenceEquals(value.Content, Migration))
+                    _ = Migration.StartScanAsync();
+            }
         }
     }
 

@@ -1,6 +1,8 @@
+using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
+using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Migration.Selection;
 using Xunit;
 
@@ -9,9 +11,24 @@ namespace WindowsCareKit.Tests;
 public sealed class MigrationViewModelTests
 {
     [Fact]
+    public void Constructor_requires_injected_seams_and_does_not_scan()
+    {
+        var scan = new FakeScanService(
+            new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", []));
+
+        var vm = new MigrationViewModel(new I18n(), scan);
+
+        Assert.NotNull(vm);
+        Assert.Equal(0, scan.CallCount);
+        Assert.DoesNotContain(
+            typeof(MigrationViewModel).GetConstructors(),
+            constructor => constructor.GetParameters().Length == 0);
+    }
+
+    [Fact]
     public void LoadScan_runs_detection_badge_grouping_and_gate_flow_without_a_view()
     {
-        var vm = new MigrationViewModel();
+        MigrationViewModel vm = CreateVm();
         MigrationSelectionCandidate project = Candidate("project", "projects");
         MigrationSelectionCandidate locked = Candidate("browser-secret", "browsers") with
         {
@@ -40,7 +57,7 @@ public sealed class MigrationViewModelTests
     [Fact]
     public void Group_and_item_commands_preserve_three_state_and_forced_selection()
     {
-        var vm = new MigrationViewModel();
+        MigrationViewModel vm = CreateVm();
         MigrationSelectionCandidate optional = Candidate("optional", "personal") with
         {
             HasCloudBackup = true,
@@ -74,7 +91,7 @@ public sealed class MigrationViewModelTests
     [Fact]
     public void Preview_command_is_string_only_and_manual_todo_keeps_combined_honesty()
     {
-        var vm = new MigrationViewModel();
+        MigrationViewModel vm = CreateVm();
         MigrationSelectionCandidate candidate = Candidate("browser", "browsers") with
         {
             Meta = Meta(PortabilityClass.MachineLocked),
@@ -102,7 +119,7 @@ public sealed class MigrationViewModelTests
     [Fact]
     public void Selection_change_invalidates_stale_preview()
     {
-        var vm = new MigrationViewModel();
+        MigrationViewModel vm = CreateVm();
         vm.LoadScan(Detection(1, 0), @"C:\Users\demo", [Candidate("project", "projects")]);
         vm.ConfirmProfileCommand.Execute(null);
         vm.PreviewCommandsCommand.Execute(null);
@@ -114,6 +131,71 @@ public sealed class MigrationViewModelTests
 
         Assert.False(vm.HasCommandPreview);
         Assert.Empty(vm.CommandPreview);
+    }
+
+    [Fact]
+    public async Task StartScanAsync_uses_fake_once_populates_state_and_restore_stays_disabled()
+    {
+        MigrationSelectionCandidate candidate = Candidate("project", "projects");
+        var scan = new FakeScanService(new MigrationScanResult(
+            Detection(1, 0), @"C:\Users\demo", [candidate]));
+        MigrationViewModel vm = CreateVm(scan);
+
+        Assert.False(vm.IsScanComplete);
+        Assert.False(vm.CanSelect);
+        Assert.Empty(vm.Groups);
+        Assert.False(vm.CanRestoreExecute);
+
+        await vm.StartScanAsync();
+        await vm.StartScanAsync();
+
+        Assert.Equal(1, scan.CallCount);
+        Assert.True(vm.IsScanComplete);
+        Assert.True(vm.CanSelect);
+        Assert.Equal(8, vm.Groups.Count);
+        Assert.Equal(new CoverageRatio(1, 1), vm.Ceiling!.DetectionCoverage);
+        Assert.Equal("✅", vm.Groups
+            .Single(group => group.Category == MigrationCategory.IrreplaceablePersonal)
+            .Items.Single().Badge.Glyph);
+        Assert.False(vm.CanRestoreExecute);
+    }
+
+    [Fact]
+    public async Task StartScanAsync_is_reentrancy_safe_while_fake_scan_is_blocked()
+    {
+        using var release = new ManualResetEventSlim();
+        var scan = new BlockingScanService(
+            new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", []),
+            release);
+        MigrationViewModel vm = CreateVm(scan);
+
+        Task first = vm.StartScanAsync();
+        Assert.True(SpinWait.SpinUntil(() => scan.CallCount == 1, TimeSpan.FromSeconds(2)));
+        Task second = vm.StartScanAsync();
+
+        Assert.True(second.IsCompleted);
+        Assert.Equal(1, scan.CallCount);
+        release.Set();
+        await first;
+        Assert.False(vm.IsScanning);
+    }
+
+    [Fact]
+    public async Task Cancelled_scan_can_be_retried_after_cleanup()
+    {
+        var scan = new CancelThenSucceedScanService(
+            new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", []));
+        MigrationViewModel vm = CreateVm(scan);
+
+        Task first = vm.StartScanAsync();
+        Assert.True(SpinWait.SpinUntil(() => scan.CallCount == 1, TimeSpan.FromSeconds(2)));
+        vm.CancelScan();
+        await first;
+        await vm.StartScanAsync();
+
+        Assert.Equal(2, scan.CallCount);
+        Assert.True(vm.IsScanComplete);
+        Assert.False(vm.IsScanning);
     }
 
     private static MigrationItemMeta Meta(PortabilityClass portability)
@@ -152,5 +234,53 @@ public sealed class MigrationViewModelTests
             list,
             [new ProgramSourceReport(ProgramSourceKind.RegistryUninstall, ProgramSourceStatus.Ok, programs)],
             uncovered);
+    }
+
+    private static MigrationViewModel CreateVm(IMigrationScanService? scan = null)
+        => new(new I18n(), scan ?? new FakeScanService(
+            new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", [])));
+
+    private sealed class FakeScanService(MigrationScanResult result) : IMigrationScanService
+    {
+        public int CallCount { get; private set; }
+
+        public MigrationScanResult Scan(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CallCount++;
+            return result;
+        }
+    }
+
+    private sealed class BlockingScanService(
+        MigrationScanResult result,
+        ManualResetEventSlim release) : IMigrationScanService
+    {
+        private int _callCount;
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        public MigrationScanResult Scan(CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _callCount);
+            release.Wait(cancellationToken);
+            return result;
+        }
+    }
+
+    private sealed class CancelThenSucceedScanService(MigrationScanResult result) : IMigrationScanService
+    {
+        private int _callCount;
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        public MigrationScanResult Scan(CancellationToken cancellationToken = default)
+        {
+            int call = Interlocked.Increment(ref _callCount);
+            if (call == 1)
+            {
+                using var wait = new ManualResetEventSlim();
+                wait.Wait(cancellationToken);
+            }
+            return result;
+        }
     }
 }
