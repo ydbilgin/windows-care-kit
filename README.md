@@ -6,7 +6,7 @@
 
 *Open-source, ad-free, radically honest: it tells you what can't transfer instead of faking success. Covers the full format lifecycle: Uninstall · Clean · Backup · Reinstall.*
 
-![status](https://img.shields.io/badge/status-beta-orange) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
+[![CI](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml) ![status](https://img.shields.io/badge/status-beta-orange) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
 
 ![Windows Care Kit — main window](docs/screenshots/_capture/01-sil.png)
 
@@ -162,7 +162,7 @@ scoping, final review, and every merge.
 **Built today (beta):** the four modules above, the safety gate + gated executor, EN/TR UI, automated test suite.
 
 **Designed & planned (not in this build yet):** a richer Backup/Restore engine —
-- 🔎 **Auto-discovery catalog** of local app settings & dev/AI-CLI configs (Claude/Codex/Discord/VS Code…), with a checkbox selection screen + manual-path add.
+- 🔎 **Auto-discovery catalog** of local app settings & dev/AI-CLI configs (Codex/Discord/VS Code…), with a checkbox selection screen + manual-path add.
 - 🖥️ **Machine-aware restore** — abstracts the source/target machine (user profile, drive letters, known-folders) so a backup actually works on a *different* PC.
 - 💽 **Multi-drive scan** (not just C:), with cloud-redundancy detection (skip what Steam Cloud / OneDrive already holds).
 - 📋 **Package inventory** — capture *what's installed* in pip/npm/winget (the list, not the files) and reinstall it.
@@ -190,7 +190,7 @@ No telemetry, no analytics, no phone-home — the app never contacts a server on
 
 ## 🌍 Language
 
-UI ships in **English and Turkish (EN/TR)**. A full Turkish README (`README.tr.md`) is planned.
+UI ships in **English and Turkish (EN/TR)**. See the [Türkçe README](README.tr.md).
 
 ## 📄 License
 

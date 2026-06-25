@@ -1,5 +1,5 @@
 # Read-only CI for Windows Care Kit (WCK).
-# Private repo (personal account). This workflow ONLY checks out, builds and tests.
+# Public repo. This workflow ONLY checks out, builds and tests.
 # It never runs the app's destructive features (Delete/Clean/Backup/Install)
 # and never opens a Sandbox/VM. Destructive/integration runs are gated
 # below as a commented-out, manual + approval-protected stub.
