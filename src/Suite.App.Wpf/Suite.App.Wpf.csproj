@@ -28,6 +28,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Expose internal helpers (e.g. App.ResolveCulture) to the test project. -->
+    <InternalsVisibleTo Include="Suite.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- i18n string tables ship next to the exe. -->
     <Content Include="lang\en.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="lang\tr.json" CopyToOutputDirectory="PreserveNewest" />
