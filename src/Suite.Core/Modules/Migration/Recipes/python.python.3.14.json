@@ -19,6 +19,7 @@
   "installPathHint": ["Python314", "Python 3.14"],
   "restoreTier": "config-copy",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies per-user pip configuration only. Virtual environments, interpreters, and installed packages must be recreated.",

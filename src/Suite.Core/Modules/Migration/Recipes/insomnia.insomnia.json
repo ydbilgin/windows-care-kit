@@ -19,6 +19,7 @@
   "installPathHint": ["Insomnia"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Insomnia local databases can contain API credentials, tokens, cookies, and encrypted account state. WCK records sync/export guidance instead of copying the store.",

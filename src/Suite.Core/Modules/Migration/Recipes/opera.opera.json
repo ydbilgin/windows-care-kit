@@ -23,6 +23,7 @@
   "installPathHint": ["Opera", "Opera Software"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Selected preferences and bookmarks are copied; password, cookie, token, session, and local-storage databases are excluded.",

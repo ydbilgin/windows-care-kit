@@ -19,6 +19,7 @@
   "installPathHint": ["Spotify"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies lightweight preferences only; account session and downloads are not restored.",

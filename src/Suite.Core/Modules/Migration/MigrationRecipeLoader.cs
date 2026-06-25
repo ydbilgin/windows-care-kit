@@ -67,7 +67,7 @@ public static class MigrationRecipeLoader
                     $"unsupported schemaVersion {schemaVersion} (expected {MinSupportedSchemaVersion}..{MaxSupportedSchemaVersion})");
 
             // v1: the original allowed-root set (install is REJECTED as an unknown field). v2: install is allowed.
-            // v3: additive exact set for detection join keys + restoreTier + migrationMeta.
+            // v3: additive exact set for detection join keys, restoreTier, migrationMeta, and upstream provenance.
             // Building the set from the version keeps the strict "reject unknown field" guarantee version-exact —
             // a v1 recipe smuggling `install` or a v2 recipe smuggling `migrationMeta` still fails closed.
             string[] v1Root =
@@ -77,7 +77,7 @@ public static class MigrationRecipeLoader
                 1 => v1Root,
                 2 => [.. v1Root, "install"],
                 3 => [.. v1Root, "install", "wingetId", "productCode", "upgradeCode", "packageFamilyName",
-                    "installPathHint", "restoreTier", "migrationMeta", "catalogTier"],
+                    "installPathHint", "restoreTier", "migrationMeta", "catalogTier", "upstreamDataLicense"],
                 _ => v1Root,
             };
             RejectUnknownFields(root, "(root)", allowedRootFields);
@@ -119,6 +119,9 @@ public static class MigrationRecipeLoader
             CatalogTier catalogTier = root.TryGetProperty("catalogTier", out _)
                 ? ParseCatalogTier(RequireNonEmptyString(root, "catalogTier"))
                 : CatalogTier.Trusted;
+            UpstreamDataLicense upstreamDataLicense = root.TryGetProperty("upstreamDataLicense", out _)
+                ? ParseUpstreamDataLicense(RequireNonEmptyString(root, "upstreamDataLicense"))
+                : UpstreamDataLicense.Unknown;
 
             if (MustForceInventoryOnly(portability, detect, items))
                 restoreTier = RestoreTier.InventoryOnly;
@@ -135,6 +138,7 @@ public static class MigrationRecipeLoader
                 RestoreTier = restoreTier,
                 MigrationMeta = migrationMeta,
                 CatalogTier = catalogTier,
+                UpstreamDataLicense = upstreamDataLicense,
             };
         }
     }
@@ -408,6 +412,20 @@ public static class MigrationRecipeLoader
         "trusted" => CatalogTier.Trusted,
         "community" => CatalogTier.Community,
         _ => throw new RecipeValidationException($"unknown catalogTier '{s}'"),
+    };
+
+    private static UpstreamDataLicense ParseUpstreamDataLicense(string s) => s.ToLowerInvariant() switch
+    {
+        "mit" => UpstreamDataLicense.Mit,
+        "apache-2" => UpstreamDataLicense.Apache2,
+        "bsd" => UpstreamDataLicense.Bsd,
+        "gpl" => UpstreamDataLicense.Gpl,
+        "cc-by" => UpstreamDataLicense.CcBy,
+        "cc-by-nc-sa" => UpstreamDataLicense.CcByNcSa,
+        "proprietary" => UpstreamDataLicense.Proprietary,
+        "none" => UpstreamDataLicense.None,
+        "unknown" => UpstreamDataLicense.Unknown,
+        _ => throw new RecipeValidationException($"unknown upstreamDataLicense '{s}'"),
     };
 
     private static RecipeItemKind ParseItemKind(string s) => s.ToLowerInvariant() switch

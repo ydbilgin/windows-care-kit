@@ -19,6 +19,7 @@
   "installPathHint": ["Bitwarden"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "The local Bitwarden vault cache, device keys, tokens, and session data are not treated as portable. WCK records reinstall/sign-in guidance only.",

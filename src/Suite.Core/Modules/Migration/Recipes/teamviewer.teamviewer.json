@@ -19,6 +19,7 @@
   "installPathHint": ["TeamViewer"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "TeamViewer device identity, assignment, trust state, and unattended-access credentials are machine-bound and are not copied.",

@@ -23,6 +23,7 @@
   "installPathHint": ["BraveSoftware/Brave-Browser", "Brave"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Bookmarks and selected preferences are portable. Passwords, cookies, tokens, sessions, and local web storage are excluded.",

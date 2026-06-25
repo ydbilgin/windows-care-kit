@@ -17,6 +17,7 @@ public class BuiltinRecipeSourceTests
             Assert.NotEmpty(r.Id);
             Assert.NotEmpty(r.Items);
             Assert.NotNull(r.MigrationMeta?.UiWarning);
+            Assert.Equal(UpstreamDataLicense.None, r.UpstreamDataLicense);
         });
     }
 

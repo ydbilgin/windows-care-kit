@@ -19,6 +19,7 @@
   "installPathHint": ["Inkscape"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies Inkscape preferences, templates, extensions, palettes, and user resources; caches and recent-file history are excluded.",

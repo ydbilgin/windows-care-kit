@@ -24,6 +24,7 @@
   "installPathHint": ["Mozilla Thunderbird", "Thunderbird"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Mail, address books, extensions, and preferences are copied. Password/key stores and active sessions are excluded and accounts may need repair.",

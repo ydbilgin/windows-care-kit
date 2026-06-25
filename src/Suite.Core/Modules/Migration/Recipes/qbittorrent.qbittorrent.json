@@ -20,6 +20,7 @@
   "installPathHint": ["qBittorrent"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies settings/RSS only; active torrent data paths may need manual recheck.",

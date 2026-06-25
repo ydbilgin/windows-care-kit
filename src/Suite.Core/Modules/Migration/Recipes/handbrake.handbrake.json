@@ -19,6 +19,7 @@
   "installPathHint": ["HandBrake"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies HandBrake preferences, presets, and queue-related configuration; logs and source media are excluded.",

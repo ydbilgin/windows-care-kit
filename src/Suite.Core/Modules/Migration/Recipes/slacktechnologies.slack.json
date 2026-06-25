@@ -20,6 +20,7 @@
   "installPathHint": ["Slack"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies visible preferences only. Slack sessions, cookies, and token-bearing browser stores are excluded and are not portable.",

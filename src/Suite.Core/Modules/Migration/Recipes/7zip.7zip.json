@@ -19,6 +19,7 @@
   "installPathHint": ["7-Zip"],
   "restoreTier": "inventory-only",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Reinstall-only recipe; no personal app data is copied.",

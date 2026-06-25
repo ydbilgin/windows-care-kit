@@ -19,6 +19,7 @@
   "installPathHint": ["GIMP 3", "GIMP"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies the GIMP 3 user profile, plug-in settings, brushes, and presets; caches are excluded.",

@@ -95,6 +95,23 @@ public enum CatalogTier
     Community,
 }
 
+/// <summary>
+/// Closed provenance vocabulary for the upstream data used to author a recipe. Built-in WCK-authored recipes
+/// declare <see cref="None"/>; community/imported recipes with no declaration remain <see cref="Unknown"/>.
+/// </summary>
+public enum UpstreamDataLicense
+{
+    Mit,
+    Apache2,
+    Bsd,
+    Gpl,
+    CcBy,
+    CcByNcSa,
+    Proprietary,
+    None,
+    Unknown,
+}
+
 /// <summary>Recipe item route. Only <see cref="ProfilePath"/> is copied by the Slice-1 profile resolver.</summary>
 public enum RecipeItemKind
 {
@@ -267,4 +284,5 @@ public sealed record MigrationRecipe(
     public RestoreTier RestoreTier { get; init; } = RestoreTier.ConfigCopy;
     public MigrationRecipeMeta? MigrationMeta { get; init; }
     public CatalogTier CatalogTier { get; init; } = CatalogTier.Trusted;
+    public UpstreamDataLicense UpstreamDataLicense { get; init; } = UpstreamDataLicense.Unknown;
 }

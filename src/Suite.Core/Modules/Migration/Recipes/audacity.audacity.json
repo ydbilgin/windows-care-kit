@@ -19,6 +19,7 @@
   "installPathHint": ["Audacity"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies Audacity preferences and presets, not projects or temporary recovery sessions.",

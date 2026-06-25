@@ -21,6 +21,7 @@
   "installPathHint": ["claude-code"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Backs up prompts, settings, memories, and skills; sign in again after reinstall.",

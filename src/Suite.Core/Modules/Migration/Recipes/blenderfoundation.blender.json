@@ -19,6 +19,7 @@
   "installPathHint": ["Blender Foundation/Blender", "Blender"],
   "restoreTier": "merge-after-install",
   "catalogTier": "trusted",
+  "upstreamDataLicense": "none",
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies per-version Blender preferences, startup files, scripts, and add-ons. External assets and binary dependencies are not included.",
