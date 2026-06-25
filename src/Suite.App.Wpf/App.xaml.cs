@@ -35,13 +35,54 @@ public partial class App : Application
         Services = services.BuildServiceProvider();
 
         var i18n = Services.GetRequiredService<I18n>();
-        i18n.Load(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("tr", StringComparison.OrdinalIgnoreCase) ? "tr" : "en");
+        i18n.Load(ResolveCulture(e.Args));
 
         var main = Services.GetRequiredService<MainViewModel>();
         var window = new MainWindow { DataContext = main };
         window.Show();
 
         _ = main.Uninstall.LoadAsync(); // kick off the read-only inventory load
+    }
+
+    /// <summary>
+    /// Picks the UI language. An explicit <c>--lang en|tr</c> argument or the
+    /// <c>WCK_LANG</c> environment variable wins; otherwise English, unless the
+    /// OS UI culture is Turkish. Keeping the language overridable makes it
+    /// deterministic regardless of OS locale — useful for screenshots, demos,
+    /// and global users on a non-English Windows.
+    /// </summary>
+    internal static string ResolveCulture(string[] args)
+        => ResolveCulture(
+            args,
+            Environment.GetEnvironmentVariable("WCK_LANG"),
+            CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+
+    /// <summary>Pure, testable core of <see cref="ResolveCulture(string[])"/>.</summary>
+    internal static string ResolveCulture(string[] args, string? envLang, string osTwoLetter)
+    {
+        string? pick = Normalize(ExtractLangArg(args)) ?? Normalize(envLang);
+        if (pick is not null) return pick;
+        return osTwoLetter.Equals("tr", StringComparison.OrdinalIgnoreCase) ? "tr" : "en";
+    }
+
+    private static string? ExtractLangArg(string[] args)
+    {
+        for (int i = 0; i < args.Length; i++)
+        {
+            string a = args[i];
+            if (a.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase))
+                return a["--lang=".Length..];
+            if (a.Equals("--lang", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                return args[i + 1];
+        }
+        return null;
+    }
+
+    private static string? Normalize(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+        code = code.Trim().ToLowerInvariant();
+        return code is "en" or "tr" ? code : null;
     }
 
     private static void ConfigureServices(IServiceCollection s)

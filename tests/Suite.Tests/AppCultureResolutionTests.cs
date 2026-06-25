@@ -1,0 +1,51 @@
+using Xunit;
+using TheApp = WindowsCareKit.App.App;
+
+namespace WindowsCareKit.Tests;
+
+/// <summary>
+/// Covers <see cref="TheApp.ResolveCulture(string[], string?, string)"/> — the UI-language
+/// picker. The override chain (CLI <c>--lang</c> &gt; <c>WCK_LANG</c> &gt; OS culture) is
+/// what makes English screenshots deterministic on a non-English Windows.
+/// </summary>
+public sealed class AppCultureResolutionTests
+{
+    [Theory]
+    [InlineData("en")]
+    [InlineData("tr")]
+    public void Cli_lang_space_form_wins(string code)
+        => Assert.Equal(code, TheApp.ResolveCulture(new[] { "--lang", code }, envLang: null, osTwoLetter: "tr"));
+
+    [Theory]
+    [InlineData("--lang=en", "en")]
+    [InlineData("--lang=tr", "tr")]
+    [InlineData("--LANG=EN", "en")]
+    public void Cli_lang_equals_form_wins_case_insensitively(string arg, string expected)
+        => Assert.Equal(expected, TheApp.ResolveCulture(new[] { arg }, envLang: null, osTwoLetter: "tr"));
+
+    [Fact]
+    public void Cli_lang_overrides_env_and_os()
+        => Assert.Equal("en", TheApp.ResolveCulture(new[] { "--lang", "en" }, envLang: "tr", osTwoLetter: "tr"));
+
+    [Fact]
+    public void Env_wins_when_no_cli_arg()
+        => Assert.Equal("en", TheApp.ResolveCulture(Array.Empty<string>(), envLang: "EN", osTwoLetter: "tr"));
+
+    [Fact]
+    public void Turkish_os_falls_back_to_turkish()
+        => Assert.Equal("tr", TheApp.ResolveCulture(Array.Empty<string>(), envLang: null, osTwoLetter: "tr"));
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("fr")]
+    public void Non_turkish_os_falls_back_to_english(string os)
+        => Assert.Equal("en", TheApp.ResolveCulture(Array.Empty<string>(), envLang: null, osTwoLetter: os));
+
+    [Theory]
+    [InlineData("fr")]   // unsupported language code
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Unsupported_or_blank_override_is_ignored_and_os_decides(string bad)
+        => Assert.Equal("en", TheApp.ResolveCulture(new[] { "--lang", bad }, envLang: bad, osTwoLetter: "en"));
+}
