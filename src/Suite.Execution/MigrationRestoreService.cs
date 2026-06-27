@@ -9,7 +9,13 @@ public sealed record MigrationRestoreExecutionResult(
     MigrationRestorePlanResult PlanResult,
     ExecutionReport Execution,
     RestoreState State,
-    RestoreReport RestoreReport);
+    RestoreReport RestoreReport,
+    bool Authorized = true);
+
+public sealed record MigrationRestorePreviewResult(
+    MigrationRestorePlanResult PlanResult,
+    RestoreReport RestoreReport,
+    string PlanHash);
 
 public sealed record MigrationRestoreUndoResult(
     RestoreUndoActionBuildResult BuildResult,
@@ -43,7 +49,8 @@ public sealed class MigrationRestoreService
         DateTime utc,
         string? runToken = null,
         InstallManifest? installManifest = null,
-        InstallPlanner? installPlanner = null)
+        InstallPlanner? installPlanner = null,
+        string? approvedHash = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentException.ThrowIfNullOrWhiteSpace(packageDirectory);
@@ -55,9 +62,20 @@ public sealed class MigrationRestoreService
 
         string token = SanitizeFileToken(string.IsNullOrWhiteSpace(runToken) ? utc.Ticks.ToString("x") : runToken!);
         MigrationRestorePlanResult withBaks = AssignBakPaths(planned, token);
+        string planHash = withBaks.Plan.ComputeHash();
+        if (approvedHash is not null && !string.Equals(planHash, approvedHash, StringComparison.Ordinal))
+        {
+            return new MigrationRestoreExecutionResult(
+                withBaks,
+                new ExecutionReport(false, planHash, Array.Empty<ActionResult>()),
+                state,
+                EmptyRestoreReport(),
+                Authorized: false);
+        }
+
         IReadOnlyDictionary<string, MigrationRestoreActionSnapshot> snapshots = Snapshot(withBaks.Plan);
 
-        ExecutionReport report = _executor.ExecuteWithReport(withBaks.Plan, withBaks.Plan.ComputeHash());
+        ExecutionReport report = _executor.ExecuteWithReport(withBaks.Plan, planHash);
         RestoreState updated = EnsureStarted(state, report.PlanHash, utc);
         updated = ApplyStatuses(updated, report, withBaks.ActionEntryIds, utc);
         updated = MigrationRestoreJournalRecorder.Record(
@@ -70,6 +88,28 @@ public sealed class MigrationRestoreService
 
         _stateStore.Save(stateDirectory, updated);
         return new MigrationRestoreExecutionResult(withBaks, report, updated, RestoreReport.FromPlan(withBaks));
+    }
+
+    public MigrationRestorePreviewResult Preview(
+        MigrationRestoreManifest manifest,
+        string packageDirectory,
+        string stateDirectory,
+        DateTime utc,
+        InstallManifest? installManifest = null,
+        InstallPlanner? installPlanner = null)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stateDirectory);
+
+        RestoreState state = _stateStore.Load(stateDirectory);
+        MigrationRestorePlanResult planned = _runner.BuildPlan(
+            manifest, packageDirectory, state, utc, installManifest, installPlanner);
+
+        return new MigrationRestorePreviewResult(
+            planned,
+            RestoreReport.FromPlan(planned),
+            planned.Plan.ComputeHash());
     }
 
     public MigrationRestoreUndoResult Undo(RestoreState state, DateTime utc)
@@ -207,6 +247,12 @@ public sealed class MigrationRestoreService
             ActionStatus.Blocked => MigrationRestoreActionStatus.Blocked,
             _ => MigrationRestoreActionStatus.NotRun,
         });
+
+    private static RestoreReport EmptyRestoreReport()
+        => new(
+            Array.Empty<RestoreReportEntry>(),
+            Array.Empty<RestoreReportEntry>(),
+            Array.Empty<RestoreReportEntry>());
 
     private static string Sha256File(string path)
     {

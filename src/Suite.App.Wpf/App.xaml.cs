@@ -158,7 +158,7 @@ public partial class App : Application
         s.AddSingleton<IRecycleBinService, Win32RecycleBinService>();
 
         // Migration Slice-A: read-only sources are only enumerated when MainViewModel navigates to Migration.
-        // Construction stores seams only; no registry/filesystem scan and no restore service is wired.
+        // Construction stores seams only; no registry/filesystem scan or restore run happens at startup.
         s.AddSingleton<IRecipeFileSystem, Win32RecipeFileSystem>();
         s.AddSingleton<IProgramSource>(sp => new RegistryUninstallSource(
             sp.GetRequiredService<IInstalledAppReader>(), new Win32PathCanonicalizer()));
@@ -206,6 +206,12 @@ public partial class App : Application
         s.AddSingleton<IDriverGuard, Win32DriverGuard>();
         s.AddSingleton<IRestoreStateStore, RestoreStateStore>();
         s.AddSingleton<InstallPlanner>();
+        s.AddSingleton<MigrationRestoreService>(sp => new MigrationRestoreService(
+            new MigrationRestoreRunner(
+                new RecipePathResolver(ProfileRoots.ForCurrentUser()),
+                sp.GetRequiredService<ISafetyGate>()),
+            sp.GetRequiredService<GatedExecutor>(),
+            sp.GetRequiredService<IRestoreStateStore>()));
         // Host-safe EXPORT slice (Step 3): the plan writer + the thin runner that projects a built plan into
         // install_plan.json (the writer re-gates the payload root). The IInstallExecutor seam is declared in Core
         // but intentionally NOT wired here — execute mode is Step 4, so the runner's optional executor stays null
@@ -219,6 +225,7 @@ public partial class App : Application
         s.AddSingleton<CleanViewModel>();
         s.AddSingleton<BackupViewModel>();
         s.AddSingleton<MigrationViewModel>();
+        s.AddSingleton<RestoreViewModel>();
         s.AddSingleton<InstallViewModel>();
         s.AddSingleton<MainViewModel>();
     }

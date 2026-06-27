@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Selection;
 using Xunit;
@@ -41,6 +42,8 @@ public sealed class MigrationLocalizationTests
             expected.Add($"migration.group.{category}.title");
             expected.Add($"migration.group.{category}.subtitle");
         }
+        foreach (RestoreDisposition disposition in Enum.GetValues<RestoreDisposition>())
+            expected.Add($"migration.restore.disposition.{disposition}");
 
         string[] missingEnglish = expected.Where(key => !english.Contains(key)).Order().ToArray();
         string[] missingTurkish = expected.Where(key => !turkish.Contains(key)).Order().ToArray();
@@ -82,9 +85,64 @@ public sealed class MigrationLocalizationTests
         Assert.DoesNotContain("migration.restore.disabledHelper", turkish);
     }
 
+    [Fact]
+    public void Restore_screen_keys_exist_in_both_languages()
+    {
+        string root = FindRepositoryRoot();
+        HashSet<string> english = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "en.json"));
+        HashSet<string> turkish = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "tr.json"));
+        string[] expected =
+        [
+            "nav.restore",
+            "nav.restore.desc",
+            "migration.restore.eyebrow",
+            "migration.restore.title",
+            "migration.restore.subtitle",
+            "migration.restore.packageFolder",
+            "migration.restore.packageHint",
+            "migration.restore.chooseFolder",
+            "migration.restore.buildPlan",
+            "migration.restore.stateFolder",
+            "migration.restore.invalidPackageWarning",
+            "migration.restore.noManifestWarning",
+            "migration.restore.note.title",
+            "migration.restore.note.body",
+            "migration.restore.plan",
+            "migration.restore.planHint",
+            "migration.restore.approve",
+            "migration.restore.run",
+            "migration.restore.planRows",
+            "migration.restore.skipped",
+            "migration.restore.dispositions",
+            "migration.restore.disposition.Restored",
+            "migration.restore.disposition.ReinstallEnqueued",
+            "migration.restore.disposition.Manual",
+            "migration.restore.results",
+            "migration.restore.undo.title",
+            "migration.restore.undo.body",
+            "migration.restore.undo.run",
+            "migration.restore.previewSummary",
+            "migration.restore.resultSummary",
+            "migration.restore.undoSummary",
+            "migration.restore.refused",
+            "migration.restore.status.skipped",
+            "migration.restore.status.Done",
+            "migration.restore.status.Blocked",
+            "migration.restore.status.Failed",
+            "migration.restore.status.NotRun",
+            "migration.restore.status.rejected",
+        ];
+
+        Assert.All(expected, key =>
+        {
+            Assert.Contains(key, english);
+            Assert.Contains(key, turkish);
+        });
+    }
+
     private static bool IsMigrationKey(string key)
         => key.StartsWith("migration.", StringComparison.Ordinal)
-           || key is "nav.migration" or "nav.migration.desc";
+           || key is "nav.migration" or "nav.migration.desc" or "nav.restore" or "nav.restore.desc";
 
     private static HashSet<string> ReadKeys(string path)
     {

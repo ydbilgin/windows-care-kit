@@ -10,6 +10,73 @@ public class MigrationRestoreServiceTests
     private static readonly DateTime T0 = new(2026, 6, 25, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public void Preview_is_side_effect_free_and_hash_authorizes_restore()
+    {
+        var fx = Setup("service-preview");
+        try
+        {
+            string destination = Path.Combine(fx.Profile, ".gitconfig");
+            File.WriteAllText(destination, "OLD");
+            IReadOnlyDictionary<string, string> before = SnapshotFiles(fx.Root);
+
+            MigrationRestorePreviewResult preview = fx.Service.Preview(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0);
+
+            Assert.Equal(before, SnapshotFiles(fx.Root));
+            Assert.Equal(preview.PlanResult.Plan.ComputeHash(), preview.PlanHash);
+            Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+            Assert.Empty(Directory.EnumerateFiles(fx.Root, "*.bak.*", SearchOption.AllDirectories));
+            Assert.Single(preview.RestoreReport.Restored);
+
+            MigrationRestoreExecutionResult restored = fx.Service.Restore(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0,
+                approvedHash: preview.PlanHash);
+
+            Assert.True(restored.Authorized);
+            Assert.True(restored.Execution.Authorized);
+            Assert.Equal(preview.PlanHash, restored.Execution.PlanHash);
+            Assert.Equal("NEW", File.ReadAllText(destination));
+        }
+        finally { Directory.Delete(fx.Root, recursive: true); }
+    }
+
+    [Fact]
+    public void Restore_with_tampered_approved_hash_refuses_before_mutation()
+    {
+        var fx = Setup("service-refused");
+        try
+        {
+            string destination = Path.Combine(fx.Profile, ".gitconfig");
+            File.WriteAllText(destination, "OLD");
+
+            MigrationRestoreExecutionResult result = fx.Service.Restore(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0,
+                approvedHash: "tampered");
+
+            Assert.False(result.Authorized);
+            Assert.False(result.Execution.Authorized);
+            Assert.Empty(result.Execution.Results);
+            Assert.Equal("OLD", File.ReadAllText(destination));
+            Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+            Assert.Empty(Directory.EnumerateFiles(fx.Root, "*.bak.*", SearchOption.AllDirectories));
+            Assert.Empty(result.State.Journal);
+            Assert.Empty(result.RestoreReport.Restored);
+            Assert.Empty(result.RestoreReport.ReinstallEnqueued);
+            Assert.Empty(result.RestoreReport.Manual);
+        }
+        finally { Directory.Delete(fx.Root, recursive: true); }
+    }
+
+    [Fact]
     public void Restore_over_preexisting_file_records_non_null_BakPath()
     {
         var fx = Setup("service-restore");
@@ -90,6 +157,14 @@ public class MigrationRestoreServiceTests
                 RestoreTier = RestoreTier.ConfigCopy,
             },
         });
+
+    private static IReadOnlyDictionary<string, string> SnapshotFiles(string root)
+        => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                path => Path.GetRelativePath(root, path),
+                File.ReadAllText,
+                StringComparer.OrdinalIgnoreCase);
 
     private sealed record Fixture(string Root, string Package, string Profile, string StateDir, MigrationRestoreService Service);
 }

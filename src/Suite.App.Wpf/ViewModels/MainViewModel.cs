@@ -11,19 +11,21 @@ public sealed class MainViewModel : ObservableObject
     private NavItem _selectedNav = null!;
 
     public MainViewModel(I18n i18n, UninstallViewModel uninstall, CleanViewModel clean,
-        BackupViewModel backup, MigrationViewModel migration, InstallViewModel install)
+        BackupViewModel backup, MigrationViewModel migration, RestoreViewModel restore, InstallViewModel install)
     {
         I18n = i18n;
         Uninstall = uninstall;
         Migration = migration;
+        Restore = restore;
 
-        // Glyphs are Segoe MDL2 Assets / Segoe Fluent Icons code points (delete / clean / save / download / gear).
+        // Glyphs are Segoe MDL2 Assets / Segoe Fluent Icons code points (delete / clean / save / migrate / restore / download / gear).
         Nav = new ObservableCollection<NavItem>
         {
             new(i18n, "nav.uninstall", "", uninstall, "nav.uninstall.desc"),
             new(i18n, "nav.clean", "", clean, "nav.clean.desc"),
             new(i18n, "nav.backup", "", backup, "nav.backup.desc"),
             new(i18n, "nav.migration", "", migration, "nav.migration.desc"),
+            new(i18n, "nav.restore", "", restore, "nav.restore.desc"),
             new(i18n, "nav.install", "", install, "nav.install.desc"),
             new(i18n, "nav.settings", "", new PlaceholderViewModel(i18n, "nav.settings"), isSettings: true),
         };
@@ -35,6 +37,7 @@ public sealed class MainViewModel : ObservableObject
     public I18n I18n { get; }
     public UninstallViewModel Uninstall { get; }
     public MigrationViewModel Migration { get; }
+    public RestoreViewModel Restore { get; }
     public ObservableCollection<NavItem> Nav { get; }
     public ICommand DismissFirstRunCommand { get; }
 

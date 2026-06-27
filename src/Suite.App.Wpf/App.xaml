@@ -30,6 +30,9 @@
             <DataTemplate DataType="{x:Type vm:MigrationViewModel}">
                 <views:MigrationView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:RestoreViewModel}">
+                <views:RestoreView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}">
                 <views:PlaceholderView />
             </DataTemplate>
