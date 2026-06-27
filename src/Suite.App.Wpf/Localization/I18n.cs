@@ -21,12 +21,18 @@ public sealed class I18n : ObservableObject
     /// <summary>Flat key whose value is the language's own display name (e.g. "English", "Türkçe").</summary>
     private const string DisplayNameKey = "meta.languageName";
 
+    private readonly string _langDir;
     private Dictionary<string, string> _map = new();
     private string _culture = "en";
 
-    public I18n()
+    public I18n() : this(DefaultLangDir)
     {
-        AvailableLanguages = EnumerateLanguages(LangDir);
+    }
+
+    internal I18n(string langDir)
+    {
+        _langDir = langDir;
+        AvailableLanguages = EnumerateLanguages(_langDir);
     }
 
     /// <summary>Languages found under <c>lang/</c>; English first, then alphabetical by display name.</summary>
@@ -64,33 +70,49 @@ public sealed class I18n : ObservableObject
 
     public void Load(string culture)
     {
-        string path = Path.Combine(LangDir, culture + ".json");
-        if (!File.Exists(path))
+        culture = string.IsNullOrWhiteSpace(culture) ? "en" : culture.Trim().ToLowerInvariant();
+        Dictionary<string, string> merged = ReadMap(Path.Combine(_langDir, "en.json"));
+
+        if (culture != "en")
         {
-            culture = "en";
-            path = Path.Combine(LangDir, "en.json");
+            string overlayPath = Path.Combine(_langDir, culture + ".json");
+            if (File.Exists(overlayPath))
+            {
+                foreach ((string key, string value) in ReadMap(overlayPath))
+                    merged[key] = value;
+            }
+            else
+            {
+                culture = "en";
+            }
         }
 
-        try
-        {
-            string json = File.ReadAllText(path);
-            _map = JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
-            // meta.* entries (e.g. the language's own display name) describe the file, not the UI —
-            // keep the live string table to bindable UI strings only.
-            foreach (string metaKey in _map.Keys.Where(k => k.StartsWith("meta.", StringComparison.Ordinal)).ToList())
-                _map.Remove(metaKey);
-        }
-        catch (Exception)
-        {
-            _map = new();
-        }
+        // meta.* entries (e.g. the language's own display name) describe the file, not the UI —
+        // keep the live string table to bindable UI strings only.
+        foreach (string metaKey in merged.Keys.Where(k => k.StartsWith("meta.", StringComparison.Ordinal)).ToList())
+            merged.Remove(metaKey);
+
+        _map = merged;
 
         Culture = culture;
         Raise(nameof(SelectedCulture)); // keep the selector in sync after programmatic loads
         Raise("Item[]");                // refresh every indexer binding
     }
 
-    private static string LangDir => Path.Combine(AppContext.BaseDirectory, "lang");
+    private static string DefaultLangDir => Path.Combine(AppContext.BaseDirectory, "lang");
+
+    private static Dictionary<string, string> ReadMap(string path)
+    {
+        try
+        {
+            string json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
+        }
+        catch (Exception)
+        {
+            return new();
+        }
+    }
 
     /// <summary>
     /// Discovers the languages available in <paramref name="langDir"/>. Each <c>*.json</c> file is one

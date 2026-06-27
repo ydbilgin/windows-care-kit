@@ -9,28 +9,35 @@ namespace WindowsCareKit.Tests;
 public sealed class MigrationLocalizationTests
 {
     [Fact]
-    public void English_and_turkish_migration_keys_have_exact_parity()
+    public void Non_english_language_files_do_not_define_keys_missing_from_english()
     {
-        string root = FindRepositoryRoot();
-        HashSet<string> english = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "en.json"));
-        HashSet<string> turkish = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "tr.json"));
+        string langDir = LangDir();
+        HashSet<string> english = ReadKeys(Path.Combine(langDir, "en.json"));
+        var orphanKeys = new List<string>();
 
-        string[] enMigration = english.Where(IsMigrationKey).Order().ToArray();
-        string[] trMigration = turkish.Where(IsMigrationKey).Order().ToArray();
+        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
+        {
+            string code = Path.GetFileNameWithoutExtension(file);
+            if (code.Equals("en", StringComparison.OrdinalIgnoreCase))
+                continue;
 
-        Assert.NotEmpty(enMigration);
-        Assert.Equal(enMigration, trMigration);
+            // meta.* keys are file-descriptive (e.g. meta.languageName), not UI content — a language
+            // may carry its own without it being an "orphan" against English.
+            foreach (string key in ReadKeys(file).Except(english)
+                         .Where(k => !k.StartsWith("meta.", StringComparison.Ordinal)).Order())
+                orphanKeys.Add($"{code}:{key}");
+        }
+
+        Assert.Empty(orphanKeys);
     }
 
-    // Parity alone (above) would still pass if a key were missing from BOTH files (auditor MINOR-1). The runtime
+    // Orphan checks alone would still pass if a key were missing from every file. The runtime
     // builds these keys dynamically from enum values (MigrationSourceRow.Text, the group headers), so a new enum
-    // member would silently render its raw key. Assert every enum-derived key actually exists in BOTH lang files.
+    // member would silently render its raw key. Assert every enum-derived key actually exists in the English base.
     [Fact]
-    public void Every_enum_derived_migration_key_exists_in_both_languages()
+    public void Every_enum_derived_migration_key_exists_in_english()
     {
-        string root = FindRepositoryRoot();
-        HashSet<string> english = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "en.json"));
-        HashSet<string> turkish = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "tr.json"));
+        HashSet<string> english = ReadKeys(Path.Combine(LangDir(), "en.json"));
 
         var expected = new List<string>();
         foreach (ProgramSourceKind kind in Enum.GetValues<ProgramSourceKind>())
@@ -46,18 +53,15 @@ public sealed class MigrationLocalizationTests
             expected.Add($"migration.restore.disposition.{disposition}");
 
         string[] missingEnglish = expected.Where(key => !english.Contains(key)).Order().ToArray();
-        string[] missingTurkish = expected.Where(key => !turkish.Contains(key)).Order().ToArray();
 
         Assert.Empty(missingEnglish);
-        Assert.Empty(missingTurkish);
     }
 
     [Fact]
-    public void Capture_keys_exist_in_both_languages_and_dead_restore_keys_are_removed()
+    public void Capture_keys_exist_in_english_and_dead_restore_keys_are_removed()
     {
-        string root = FindRepositoryRoot();
-        HashSet<string> english = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "en.json"));
-        HashSet<string> turkish = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "tr.json"));
+        string langDir = LangDir();
+        HashSet<string> english = ReadKeys(Path.Combine(langDir, "en.json"));
         string[] expected =
         [
             "migration.capture.title",
@@ -74,23 +78,20 @@ public sealed class MigrationLocalizationTests
             "migration.capture.refused",
         ];
 
-        Assert.All(expected, key =>
+        Assert.All(expected, key => Assert.Contains(key, english));
+
+        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
         {
-            Assert.Contains(key, english);
-            Assert.Contains(key, turkish);
-        });
-        Assert.DoesNotContain("migration.button.restore", english);
-        Assert.DoesNotContain("migration.button.restore", turkish);
-        Assert.DoesNotContain("migration.restore.disabledHelper", english);
-        Assert.DoesNotContain("migration.restore.disabledHelper", turkish);
+            HashSet<string> keys = ReadKeys(file);
+            Assert.DoesNotContain("migration.button.restore", keys);
+            Assert.DoesNotContain("migration.restore.disabledHelper", keys);
+        }
     }
 
     [Fact]
-    public void Restore_screen_keys_exist_in_both_languages()
+    public void Restore_screen_keys_exist_in_english()
     {
-        string root = FindRepositoryRoot();
-        HashSet<string> english = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "en.json"));
-        HashSet<string> turkish = ReadKeys(Path.Combine(root, "src", "Suite.App.Wpf", "lang", "tr.json"));
+        HashSet<string> english = ReadKeys(Path.Combine(LangDir(), "en.json"));
         string[] expected =
         [
             "nav.restore",
@@ -133,16 +134,8 @@ public sealed class MigrationLocalizationTests
             "migration.restore.status.rejected",
         ];
 
-        Assert.All(expected, key =>
-        {
-            Assert.Contains(key, english);
-            Assert.Contains(key, turkish);
-        });
+        Assert.All(expected, key => Assert.Contains(key, english));
     }
-
-    private static bool IsMigrationKey(string key)
-        => key.StartsWith("migration.", StringComparison.Ordinal)
-           || key is "nav.migration" or "nav.migration.desc" or "nav.restore" or "nav.restore.desc";
 
     private static HashSet<string> ReadKeys(string path)
     {
@@ -151,6 +144,9 @@ public sealed class MigrationLocalizationTests
             .Select(property => property.Name)
             .ToHashSet(StringComparer.Ordinal);
     }
+
+    private static string LangDir()
+        => Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "lang");
 
     private static string FindRepositoryRoot()
     {

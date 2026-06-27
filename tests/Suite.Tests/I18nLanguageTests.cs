@@ -100,6 +100,63 @@ public sealed class I18nLanguageTests
         Assert.Equal("en", langs[0].Code); // English presented first in the selector
     }
 
+    [Fact]
+    public void Load_partial_language_uses_english_fallback_for_missing_keys()
+    {
+        string dir = NewLangDir();
+        WriteLang(
+            dir,
+            "en",
+            "English",
+            ("shared.key", "English shared"),
+            ("english.only", "English fallback"));
+        WriteLang(
+            dir,
+            "xx",
+            "Example",
+            ("shared.key", "XX override"));
+
+        var i18n = new I18n(dir);
+
+        i18n.Load("xx");
+
+        Assert.Equal("xx", i18n.Culture);
+        Assert.Equal("XX override", i18n["shared.key"]);
+        Assert.Equal("English fallback", i18n["english.only"]);
+        Assert.Equal("missing.in.both", i18n["missing.in.both"]);
+        // meta.* is file-descriptive, stripped from the UI map — it must never leak as a bound string.
+        Assert.Equal("meta.languageName", i18n["meta.languageName"]);
+    }
+
+    [Fact]
+    public void Load_english_uses_english_base()
+    {
+        string dir = NewLangDir();
+        WriteLang(dir, "en", "English", ("app.title", "Windows Care Kit"));
+        WriteLang(dir, "xx", "Example", ("app.title", "Example title"));
+
+        var i18n = new I18n(dir);
+
+        i18n.Load("en");
+
+        Assert.Equal("en", i18n.Culture);
+        Assert.Equal("Windows Care Kit", i18n["app.title"]);
+    }
+
+    [Fact]
+    public void Load_missing_language_file_falls_back_to_english()
+    {
+        string dir = NewLangDir();
+        WriteLang(dir, "en", "English", ("app.title", "Windows Care Kit"));
+
+        var i18n = new I18n(dir);
+
+        i18n.Load("zz");
+
+        Assert.Equal("en", i18n.Culture);
+        Assert.Equal("Windows Care Kit", i18n["app.title"]);
+    }
+
     private static string FindRepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

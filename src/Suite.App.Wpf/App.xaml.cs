@@ -48,9 +48,8 @@ public partial class App : Application
 
     /// <summary>
     /// Picks the UI language. An explicit <c>--lang en|tr</c> argument or the
-    /// <c>WCK_LANG</c> environment variable wins; otherwise English, unless the
-    /// OS UI culture is Turkish. Keeping the language overridable makes it
-    /// deterministic regardless of OS locale — useful for screenshots, demos,
+    /// <c>WCK_LANG</c> environment variable wins; otherwise English, regardless of
+    /// OS UI culture. Keeping the language overridable makes it deterministic for screenshots, demos,
     /// and global users on a non-English Windows.
     /// </summary>
     internal static string ResolveCulture(string[] args)
@@ -62,9 +61,11 @@ public partial class App : Application
     /// <summary>Pure, testable core of <see cref="ResolveCulture(string[])"/>.</summary>
     internal static string ResolveCulture(string[] args, string? envLang, string osTwoLetter)
     {
+        // osTwoLetter is retained for signature/back-compat only; OS locale no longer affects the
+        // default — with no --lang/WCK_LANG override the UI language is always English.
         string? pick = Normalize(ExtractLangArg(args)) ?? Normalize(envLang);
         if (pick is not null) return pick;
-        return osTwoLetter.Equals("tr", StringComparison.OrdinalIgnoreCase) ? "tr" : "en";
+        return "en";
     }
 
     private static string? ExtractLangArg(string[] args) => ExtractOption(args, "--lang");

@@ -5,8 +5,7 @@ namespace WindowsCareKit.Tests;
 
 /// <summary>
 /// Covers <see cref="TheApp.ResolveCulture(string[], string?, string)"/> — the UI-language
-/// picker. The override chain (CLI <c>--lang</c> &gt; <c>WCK_LANG</c> &gt; OS culture) is
-/// what makes English screenshots deterministic on a non-English Windows.
+/// picker. The override chain is CLI <c>--lang</c> &gt; <c>WCK_LANG</c> &gt; English default.
 /// </summary>
 public sealed class AppCultureResolutionTests
 {
@@ -27,27 +26,29 @@ public sealed class AppCultureResolutionTests
     public void Cli_lang_overrides_env_and_os()
         => Assert.Equal("en", TheApp.ResolveCulture(new[] { "--lang", "en" }, envLang: "tr", osTwoLetter: "tr"));
 
-    [Fact]
-    public void Env_wins_when_no_cli_arg()
-        => Assert.Equal("en", TheApp.ResolveCulture(Array.Empty<string>(), envLang: "EN", osTwoLetter: "tr"));
+    [Theory]
+    [InlineData("EN", "en")]
+    [InlineData("tr", "tr")]
+    public void Env_wins_when_no_cli_arg(string envLang, string expected)
+        => Assert.Equal(expected, TheApp.ResolveCulture(Array.Empty<string>(), envLang, osTwoLetter: "tr"));
 
     [Fact]
-    public void Turkish_os_falls_back_to_turkish()
-        => Assert.Equal("tr", TheApp.ResolveCulture(Array.Empty<string>(), envLang: null, osTwoLetter: "tr"));
+    public void No_override_defaults_to_english_even_on_turkish_os()
+        => Assert.Equal("en", TheApp.ResolveCulture(Array.Empty<string>(), envLang: null, osTwoLetter: "tr"));
 
     [Theory]
     [InlineData("en")]
     [InlineData("de")]
     [InlineData("fr")]
-    public void Non_turkish_os_falls_back_to_english(string os)
+    public void No_override_defaults_to_english_regardless_of_os(string os)
         => Assert.Equal("en", TheApp.ResolveCulture(Array.Empty<string>(), envLang: null, osTwoLetter: os));
 
     [Theory]
     [InlineData("fr")]   // unsupported language code
     [InlineData("")]
     [InlineData("   ")]
-    public void Unsupported_or_blank_override_is_ignored_and_os_decides(string bad)
-        => Assert.Equal("en", TheApp.ResolveCulture(new[] { "--lang", bad }, envLang: bad, osTwoLetter: "en"));
+    public void Unsupported_or_blank_override_falls_through_to_english(string bad)
+        => Assert.Equal("en", TheApp.ResolveCulture(new[] { "--lang", bad }, envLang: bad, osTwoLetter: "tr"));
 
     // --- ExtractOption: the shared --name value / --name=value parser (backs --lang and --screen) ---
 
