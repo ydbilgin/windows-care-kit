@@ -18,6 +18,7 @@
   "nav.migration.desc": "Yeni bilgisayara taşınacakları seç",
   "nav.restore.desc": "Taşıma paketini geri yükle",
   "nav.install.desc": "Format sonrası geri yükle",
+  "nav.settings.desc": "Dil ve uygulama bilgisi",
 
   "common.language": "Dil",
   "common.refresh": "Yenile",
@@ -321,6 +322,21 @@
   "install.result.summary": "{0} tamam · {1} atlandı · {2} başarısız",
   "install.export.summary": "Kurulum planı dışa aktarıldı · {0} öğe",
   "install.export.refused": "Dışa aktarma reddedildi: hedef konum güvenlik geçidi tarafından engellendi",
+
+  "settings.eyebrow": "Windows Care Kit · Ayarlar",
+  "settings.title": "Ayarlar",
+  "settings.subtitle": "Arayüz dilini seç ve proje bilgisini gözden geçir.",
+  "settings.language.title": "Dil",
+  "settings.language.body": "Bu, üst çubuktaki aynı seçicidir. Değişiklikler uygulamanın tamamına hemen yansır.",
+  "settings.about.title": "Hakkında",
+  "settings.about.body": "Kuru çalışma, açık onay ve dürüst sonuçlara odaklanan açık kaynak Windows bakım aracı.",
+  "settings.about.app": "Uygulama",
+  "settings.about.version": "Sürüm",
+  "settings.about.license": "Lisans",
+  "settings.about.repository": "Depo",
+  "settings.about.repositoryLink": "Depoyu aç",
+  "settings.about.releases": "Sürümler",
+  "settings.about.releasesLink": "Sürümleri aç",
 
   "placeholder.body": "Bu modül sonraki bir sürümde geliyor. Dayandığı temel — SafetyGate, tipli plan motoru, denetim günlüğü — zaten hazır ve test edilmiş durumda.",
 

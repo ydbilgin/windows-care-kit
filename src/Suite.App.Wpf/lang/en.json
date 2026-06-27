@@ -18,6 +18,7 @@
   "nav.migration.desc": "Choose what moves to the new PC",
   "nav.restore.desc": "Restore a migration package",
   "nav.install.desc": "Restore after a format",
+  "nav.settings.desc": "Language and app information",
 
   "common.language": "Language",
   "common.refresh": "Refresh",
@@ -321,6 +322,21 @@
   "install.result.summary": "{0} done · {1} skipped · {2} failed",
   "install.export.summary": "Install plan exported · {0} items",
   "install.export.refused": "Export refused: target location blocked by the safety gate",
+
+  "settings.eyebrow": "Windows Care Kit · Settings",
+  "settings.title": "Settings",
+  "settings.subtitle": "Choose the interface language and review the project information.",
+  "settings.language.title": "Language",
+  "settings.language.body": "This is the same selector as the top bar. Changes apply across the app immediately.",
+  "settings.about.title": "About",
+  "settings.about.body": "Open-source Windows maintenance toolkit focused on dry-runs, explicit approval, and honest results.",
+  "settings.about.app": "App",
+  "settings.about.version": "Version",
+  "settings.about.license": "License",
+  "settings.about.repository": "Repository",
+  "settings.about.repositoryLink": "Open repository",
+  "settings.about.releases": "Releases",
+  "settings.about.releasesLink": "Open releases",
 
   "placeholder.body": "This module arrives in a later build. The foundation it relies on — the SafetyGate, the typed plan engine, the audit log — is already in place and tested.",
 

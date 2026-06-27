@@ -137,6 +137,33 @@ public sealed class MigrationLocalizationTests
         Assert.All(expected, key => Assert.Contains(key, english));
     }
 
+    [Fact]
+    public void Settings_screen_keys_exist_in_english()
+    {
+        HashSet<string> english = ReadKeys(Path.Combine(LangDir(), "en.json"));
+        string[] expected =
+        [
+            "nav.settings",
+            "nav.settings.desc",
+            "settings.eyebrow",
+            "settings.title",
+            "settings.subtitle",
+            "settings.language.title",
+            "settings.language.body",
+            "settings.about.title",
+            "settings.about.body",
+            "settings.about.app",
+            "settings.about.version",
+            "settings.about.license",
+            "settings.about.repository",
+            "settings.about.repositoryLink",
+            "settings.about.releases",
+            "settings.about.releasesLink",
+        ];
+
+        Assert.All(expected, key => Assert.Contains(key, english));
+    }
+
     private static HashSet<string> ReadKeys(string path)
     {
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));

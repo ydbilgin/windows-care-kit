@@ -123,6 +123,7 @@ public partial class App : Application
         s.AddSingleton<ICopyAdapter, CopyAdapter>();
         s.AddSingleton<IRecycleBinEmptier, RecycleBinEmptier>();
         s.AddSingleton<IFolderOpener, FolderOpener>(); // benign read-only folder open (not a gated action)
+        s.AddSingleton<IUrlOpener, UrlOpener>(); // user-clicked external documentation/release links
         // Restore-point creation (PR-5): the protective system-call sink, gate-armed + dispatched by the
         // executor. SRSetRestorePointW via P/Invoke (no process launch). Injected into GatedExecutor below.
         // The capability probe (registered below) is injected so the creator re-checks SR availability before
@@ -228,6 +229,7 @@ public partial class App : Application
         s.AddSingleton<MigrationViewModel>();
         s.AddSingleton<RestoreViewModel>();
         s.AddSingleton<InstallViewModel>();
+        s.AddSingleton<SettingsViewModel>();
         s.AddSingleton<MainViewModel>();
     }
 
