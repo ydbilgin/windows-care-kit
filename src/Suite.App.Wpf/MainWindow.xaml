@@ -14,7 +14,7 @@
         </Grid.RowDefinitions>
 
         <!-- Row 1: quiet brand strip (logo + wordmark + tagline + language selector) -->
-        <Border Grid.Row="0" Background="{StaticResource Bg.Panel}" BorderBrush="#221D14"
+        <Border Grid.Row="0" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.TopBar}"
                 BorderThickness="0,0,0,1" Padding="18,0" Height="44">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -27,8 +27,8 @@
                         Margin="0,0,11,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#F3C97E" Offset="0" />
-                            <GradientStop Color="#D29A41" Offset="1" />
+                            <GradientStop Color="{StaticResource Brand.Mark.Start}" Offset="0" />
+                            <GradientStop Color="{StaticResource Brand.Mark.End}" Offset="1" />
                         </LinearGradientBrush>
                     </Border.Background>
                 </Border>
@@ -65,7 +65,7 @@
         <ContentControl Grid.Row="2" Content="{Binding CurrentContent}" Margin="0" />
 
         <!-- First-run notice overlay -->
-        <Grid Grid.RowSpan="3" Background="#CC0B0906"
+        <Grid Grid.RowSpan="3" Background="{StaticResource Bg.Scrim}"
               Visibility="{Binding ShowFirstRun, Converter={StaticResource BoolToVis}}">
             <Border Style="{StaticResource Card}" MaxWidth="520" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <StackPanel>

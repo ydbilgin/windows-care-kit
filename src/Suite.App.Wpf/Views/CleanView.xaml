@@ -37,7 +37,7 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
             <TextBlock Text="{Binding I18n[clean.title]}" Style="{StaticResource H1}" />
             <TextBlock Text="{Binding I18n[clean.subtitle]}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
-            <Border Background="#2E2614" CornerRadius="6" Padding="10,6" Margin="0,10,0,0"
+            <Border Background="{StaticResource Bg.Row.Selected}" CornerRadius="6" Padding="10,6" Margin="0,10,0,0"
                     HorizontalAlignment="Left"
                     Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
@@ -95,7 +95,7 @@
                         </StackPanel>
 
                         <!-- Irreversible: explicit confirm before emptying -->
-                        <Border Background="#241B0A" BorderBrush="{StaticResource Danger}" BorderThickness="1"
+                        <Border Background="{StaticResource Bg.Warning.Strong}" BorderBrush="{StaticResource Danger}" BorderThickness="1"
                                 CornerRadius="8" Padding="12" Margin="0,12,0,0"
                                 Visibility="{Binding RecycleConfirmPending, Converter={StaticResource BoolToVis}}">
                             <StackPanel>

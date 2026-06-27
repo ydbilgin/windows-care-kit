@@ -31,7 +31,7 @@
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Gold}" />
-                                <Setter TargetName="Bd" Property="Background" Value="#241F14" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Bg.Gold.Subtle}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -51,8 +51,8 @@
                         <Style.Triggers>
                             <!-- Protected rows take a teal-tinted background. -->
                             <DataTrigger Binding="{Binding IsProtected}" Value="True">
-                                <Setter Property="Background" Value="#16201C" />
-                                <Setter Property="BorderBrush" Value="#22332D" />
+                                <Setter Property="Background" Value="{StaticResource Bg.Protected}" />
+                                <Setter Property="BorderBrush" Value="{StaticResource Border.Protected}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -88,7 +88,7 @@
         <Style x:Key="RegistryTabButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsRegistryTab}" Value="True">
-                    <Setter Property="Background" Value="#2E2614" />
+                    <Setter Property="Background" Value="{StaticResource Bg.Row.Selected}" />
                     <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
                     <Setter Property="Foreground" Value="{StaticResource Gold.Bright}" />
                 </DataTrigger>
@@ -97,7 +97,7 @@
         <Style x:Key="FilesTabButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsFilesTab}" Value="True">
-                    <Setter Property="Background" Value="#2E2614" />
+                    <Setter Property="Background" Value="{StaticResource Bg.Row.Selected}" />
                     <Setter Property="BorderBrush" Value="{StaticResource Gold}" />
                     <Setter Property="Foreground" Value="{StaticResource Gold.Bright}" />
                 </DataTrigger>
@@ -118,7 +118,7 @@
 
     <!-- Scrim + centered wizard card. Collapsed entirely when the wizard is closed. -->
     <Grid Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}">
-        <Border Background="#D80C0805" />
+        <Border Background="{StaticResource Bg.Scrim.Wizard}" />
         <Border Background="{StaticResource Bg.Card}" BorderBrush="{StaticResource Border.Gold}"
                 BorderThickness="1" CornerRadius="14" Width="780" MaxHeight="640"
                 HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -131,7 +131,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- ===== Step rail (4 beats) ===== -->
-                <Border Grid.Row="0" Background="#1C1810" BorderBrush="{StaticResource Border.Soft}"
+                <Border Grid.Row="0" Background="{StaticResource Bg.Chrome.Rail}" BorderBrush="{StaticResource Border.Soft}"
                         BorderThickness="0,0,0,1" CornerRadius="14,14,0,0" Padding="22,14">
                     <StackPanel Orientation="Horizontal">
                         <!-- 1 Hazırlık -->
@@ -278,7 +278,7 @@
                             </Border>
 
                             <!-- Honest rollback framing: .reg backup (adapter-internal) + Recycle Bin. -->
-                            <Border Background="#1D1810" BorderBrush="{StaticResource Border.Soft}"
+                            <Border Background="{StaticResource Bg.Card.Alt}" BorderBrush="{StaticResource Border.Soft}"
                                     BorderThickness="1" CornerRadius="0,8,8,0" Padding="12,11" Margin="0,12,0,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -292,7 +292,7 @@
                             </Border>
 
                             <!-- Broken-uninstaller honest note. -->
-                            <Border Background="#241F12" BorderBrush="#54472A" BorderThickness="1" CornerRadius="8"
+                            <Border Background="{StaticResource Bg.Card.Warning}" BorderBrush="{StaticResource Border.Card.Warning}" BorderThickness="1" CornerRadius="8"
                                     Padding="11,9" Margin="0,14,0,0"
                                     Visibility="{Binding OfficialUnavailable, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding I18n[uninstall.wizard.official.unavailable]}"
@@ -302,7 +302,7 @@
                             <!-- Live status line during the official run. -->
                             <StackPanel Margin="0,16,0,0"
                                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                                <Border Height="6" CornerRadius="4" Background="#221D14">
+                                <Border Height="6" CornerRadius="4" Background="{StaticResource Bg.Progress.Track}">
                                     <Border Background="{StaticResource Gold}" Width="120" HorizontalAlignment="Left"
                                             CornerRadius="4" />
                                 </Border>
@@ -351,7 +351,7 @@
 
                             <StackPanel Margin="0,16,0,0"
                                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                                <Border Height="6" CornerRadius="4" Background="#221D14">
+                                <Border Height="6" CornerRadius="4" Background="{StaticResource Bg.Progress.Track}">
                                     <Border Background="{StaticResource Gold}" Width="120" HorizontalAlignment="Left" CornerRadius="4" />
                                 </Border>
                                 <TextBlock Margin="0,9,0,0" TextWrapping="Wrap">
@@ -385,14 +385,14 @@
                             </StackPanel>
 
                             <!-- Helper -->
-                            <Border Background="#1D1810" BorderBrush="{StaticResource Border.Soft}" BorderThickness="1"
+                            <Border Background="{StaticResource Bg.Card.Alt}" BorderBrush="{StaticResource Border.Soft}" BorderThickness="1"
                                     CornerRadius="8" Padding="11,9" Margin="0,0,0,12">
                                 <TextBlock Text="{Binding I18n[uninstall.wizard.helper]}" Foreground="{StaticResource Gold.Dim}"
                                            FontSize="12" TextWrapping="Wrap" />
                             </Border>
 
                             <!-- Fail-loud build-guard error (normally unreachable): amber, non-destructive, never green. -->
-                            <Border Background="#2A1C12" BorderBrush="#7A4B22" BorderThickness="1" CornerRadius="8"
+                            <Border Background="{StaticResource Bg.Callout.Bad}" BorderBrush="{StaticResource Border.Callout.Bad}" BorderThickness="1" CornerRadius="8"
                                     Padding="11,9" Margin="0,0,0,12"
                                     Visibility="{Binding HasBuildError, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding BuildError}" Foreground="{StaticResource Amber}"
@@ -473,7 +473,7 @@
                             </ItemsControl>
 
                             <!-- Honest System-Restore-unavailable line -->
-                            <Border Background="#1D1810" BorderBrush="{StaticResource Border.Soft}" BorderThickness="1"
+                            <Border Background="{StaticResource Bg.Card.Alt}" BorderBrush="{StaticResource Border.Soft}" BorderThickness="1"
                                     CornerRadius="8" Padding="12,11" Margin="0,14,0,0">
                                 <TextBlock Text="{Binding I18n[uninstall.wizard.result.restoreNote]}"
                                            Foreground="{StaticResource Gold.Dim}" FontSize="12" TextWrapping="Wrap" />
@@ -483,7 +483,7 @@
                 </ScrollViewer>
 
                 <!-- ===== Footer (per-beat actions) ===== -->
-                <Border Grid.Row="3" Background="#17120B" BorderBrush="{StaticResource Border.Soft}"
+                <Border Grid.Row="3" Background="{StaticResource Bg.Footer}" BorderBrush="{StaticResource Border.Soft}"
                         BorderThickness="0,1,0,0" CornerRadius="0,0,14,14" Padding="26,14">
                     <Grid>
                         <Grid.ColumnDefinitions>
