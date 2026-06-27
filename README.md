@@ -150,8 +150,10 @@ Project layout: `src/` (modules + safety core + execution layer), `tests/` (auto
 Windows Care Kit is developed and maintained with **OpenAI Codex** as the primary coding agent.
 Each change starts from a written spec; **Codex writes the implementation and the automated tests**
 (the suite is **1,080+ tests**, host-safe by default), and every change goes through an independent,
-multi-pass review before the maintainer merges it. Codex also handles the routine maintainer chores
-— build/test verification, changelog and doc updates, and recipe-catalog hygiene.
+multi-pass review before the maintainer merges it. That review pass also runs in CI: the
+[`codex-review.yml`](.github/workflows/codex-review.yml) workflow has Codex review every pull request
+against the safety and honesty rules. Codex also handles the routine maintainer chores — build/test
+verification, changelog and doc updates, and recipe-catalog hygiene.
 
 This is deliberate for a tool that performs **destructive, system-level operations**: the same
 discipline the app promises its users (spec → review → never fake success) is applied to its own
