@@ -40,6 +40,8 @@
     <SolidColorBrush x:Key="Text.Faint"  Color="#786B58" />
     <SolidColorBrush x:Key="Success"     Color="#35743D" />
     <SolidColorBrush x:Key="Danger"      Color="#A43A32" />
+    <SolidColorBrush x:Key="Accent.Teal" Color="#2D6F61" />
+    <SolidColorBrush x:Key="Accent.Amber" Color="#7A4F10" />
     <Color x:Key="Brand.Mark.Start">#875D17</Color>
     <Color x:Key="Brand.Mark.End">#5E3D0B</Color>
 
@@ -320,6 +322,5 @@
         <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Padding" Value="16" />
     </Style>
-
 </ResourceDictionary>
 

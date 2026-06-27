@@ -59,10 +59,13 @@ public sealed class ThemeTests
             ["Text.Faint"] = "#867C67",
             ["Success"] = "#94BE8C",
             ["Danger"] = "#E08C8C",
+            ["Accent.Teal"] = "#7FC2A8",
+            ["Accent.Amber"] = "#E8B36B",
             ["Brand.Mark.Start"] = "#F3C97E",
             ["Brand.Mark.End"] = "#D29A41"
         };
 
+        Assert.Equal(expected.Count, palette.Count);
         foreach ((string key, string value) in expected)
             Assert.Equal(value, palette[key]);
     }

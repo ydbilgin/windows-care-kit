@@ -10,7 +10,7 @@ name: Codex PR Review
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: read
@@ -81,6 +81,7 @@ jobs:
           github-token: ${{ github.token }}
           script: |
             const marker = '<!-- codex-pr-review -->';
+            // The posted body below is model output from the review job.
             const body = `${marker}\n## 🤖 Codex review\n\n${process.env.CODEX_FINAL_MESSAGE}`;
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;

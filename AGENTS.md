@@ -8,7 +8,7 @@ is the instruction surface Codex uses when it works here — read it before maki
 ## What Codex does in this project
 
 - **Implementation** — features and fixes are written by Codex from a written spec/brief.
-- **Test authoring** — Codex writes the automated tests for every change (the suite is **1,080+
+- **Test authoring** — Codex writes the automated tests for every change (the suite is **1,140+
   tests**, all host-safe by default). New behavior is not "done" until its tests exist and pass.
 - **Review automation** — each change goes through an independent, multi-pass review before the
   maintainer merges it; over-claims, safety-rule violations, and missing tests are caught there. The

@@ -20,7 +20,13 @@ public sealed record MigrationRestorePreviewResult(
 public sealed record MigrationRestoreUndoResult(
     RestoreUndoActionBuildResult BuildResult,
     ExecutionReport Execution,
-    IReadOnlyList<RejectedRestoreUndoStep> RejectedSteps);
+    IReadOnlyList<RejectedRestoreUndoStep> RejectedSteps,
+    bool Authorized = true);
+
+public sealed record MigrationRestoreUndoPreviewResult(
+    RestoreUndoActionBuildResult BuildResult,
+    IReadOnlyList<RejectedRestoreUndoStep> RejectedSteps,
+    string PlanHash);
 
 /// <summary>
 /// Production migration restore seam. It performs reads, plan-building, sanctioned gated execution, and
@@ -112,22 +118,52 @@ public sealed class MigrationRestoreService
             planned.Plan.ComputeHash());
     }
 
-    public MigrationRestoreUndoResult Undo(RestoreState state, DateTime utc)
+    public MigrationRestoreUndoPreviewResult PreviewUndo(RestoreState state, DateTime utc)
     {
         ArgumentNullException.ThrowIfNull(state);
 
+        (RestoreUndoActionBuildResult build, IReadOnlyList<RejectedRestoreUndoStep> rejected) =
+            BuildUndo(state, utc);
+
+        return new MigrationRestoreUndoPreviewResult(build, rejected, build.Plan.ComputeHash());
+    }
+
+    public MigrationRestoreUndoResult Undo(RestoreState state, DateTime utc, string? approvedUndoHash = null)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        (RestoreUndoActionBuildResult build, IReadOnlyList<RejectedRestoreUndoStep> rejected) =
+            BuildUndo(state, utc);
+        string planHash = build.Plan.ComputeHash();
+        if (string.IsNullOrWhiteSpace(approvedUndoHash)
+            || !string.Equals(planHash, approvedUndoHash, StringComparison.Ordinal))
+        {
+            return new MigrationRestoreUndoResult(
+                build,
+                new ExecutionReport(false, planHash, Array.Empty<ActionResult>()),
+                rejected,
+                Authorized: false);
+        }
+
+        ExecutionReport report = _executor.ExecuteWithReport(build.Plan, approvedUndoHash);
+
+        return new MigrationRestoreUndoResult(build, report, rejected);
+    }
+
+    private static (RestoreUndoActionBuildResult Build, IReadOnlyList<RejectedRestoreUndoStep> Rejected) BuildUndo(
+        RestoreState state,
+        DateTime utc)
+    {
         RestoreUndoPlan undoPlan = RestoreJournal.BuildUndoPlan(state);
         (RestoreUndoPlan filtered, IReadOnlyList<RejectedRestoreUndoStep> shaRejected) =
             RejectWrongShaBackups(undoPlan, state);
 
         RestoreUndoActionBuildResult build = RestoreUndoActionBuilder.Build(filtered, utc);
-        ExecutionReport report = _executor.ExecuteWithReport(build.Plan, build.Plan.ComputeHash());
-
         var rejected = new List<RejectedRestoreUndoStep>(shaRejected.Count + build.RejectedSteps.Count);
         rejected.AddRange(shaRejected);
         rejected.AddRange(build.RejectedSteps);
 
-        return new MigrationRestoreUndoResult(build, report, rejected);
+        return (build, rejected);
     }
 
     private static MigrationRestorePlanResult AssignBakPaths(MigrationRestorePlanResult planned, string runToken)
