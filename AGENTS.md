@@ -11,7 +11,9 @@ is the instruction surface Codex uses when it works here — read it before maki
 - **Test authoring** — Codex writes the automated tests for every change (the suite is **1,080+
   tests**, all host-safe by default). New behavior is not "done" until its tests exist and pass.
 - **Review automation** — each change goes through an independent, multi-pass review before the
-  maintainer merges it; over-claims, safety-rule violations, and missing tests are caught there.
+  maintainer merges it; over-claims, safety-rule violations, and missing tests are caught there. The
+  same pass runs in CI: `.github/workflows/codex-review.yml` has Codex review every pull request
+  (it skips cleanly when no API key is configured, e.g. on fork PRs).
 - **Release & maintenance chores** — build/test verification, changelog and doc updates, dependency
   and recipe-catalog hygiene.
 
