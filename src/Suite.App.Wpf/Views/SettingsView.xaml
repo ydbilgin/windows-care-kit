@@ -24,6 +24,23 @@
                 </StackPanel>
             </Border>
 
+            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="{Binding I18n[settings.theme.title]}" Style="{StaticResource H2}" />
+                    <TextBlock Text="{Binding I18n[settings.theme.body]}" Style="{StaticResource Faint}"
+                               Margin="0,4,0,10" />
+                    <ComboBox MinWidth="180" MaxWidth="260" HorizontalAlignment="Left"
+                              VerticalContentAlignment="Center"
+                              ToolTip="{Binding I18n[settings.theme.title]}"
+                              ItemsSource="{Binding AvailableThemes}"
+                              SelectedValuePath="Theme"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValue="{Binding SelectedTheme, Mode=TwoWay}" />
+                    <TextBlock Text="{Binding ThemeStatusText}" Style="{StaticResource Faint}"
+                               Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource Card}" Margin="0,12,0,20">
                 <StackPanel>
                     <TextBlock Text="{Binding I18n[settings.about.title]}" Style="{StaticResource H2}" />

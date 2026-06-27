@@ -30,7 +30,7 @@
     </UserControl.Resources>
 
     <!-- Scrim + centered card. Collapsed entirely when the gate is closed. -->
-    <Border Background="#CC0F0B05"
+    <Border Background="{StaticResource Bg.Scrim.Confirm}"
             Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}">
         <Border Background="{StaticResource Bg.Card}" BorderBrush="{StaticResource Border.Gold}"
                 BorderThickness="1" CornerRadius="12" Padding="22" MaxWidth="520" MaxHeight="560"
@@ -53,13 +53,13 @@
                     <Border.Style>
                         <Style TargetType="Border">
                             <!-- Reversible / Medium: a neutral gold-dim banner. -->
-                            <Setter Property="Background" Value="#241F14" />
+                            <Setter Property="Background" Value="{StaticResource Bg.Gold.Subtle}" />
                             <Setter Property="BorderBrush" Value="{StaticResource Border.Gold}" />
                             <Setter Property="BorderThickness" Value="1" />
                             <Style.Triggers>
                                 <!-- Irreversible: red banner. -->
                                 <DataTrigger Binding="{Binding IsIrreversibleTier}" Value="True">
-                                    <Setter Property="Background" Value="#241B0A" />
+                                    <Setter Property="Background" Value="{StaticResource Bg.Warning.Strong}" />
                                     <Setter Property="BorderBrush" Value="{StaticResource Danger}" />
                                 </DataTrigger>
                             </Style.Triggers>

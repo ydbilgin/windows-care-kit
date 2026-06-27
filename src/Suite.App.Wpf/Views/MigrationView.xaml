@@ -110,15 +110,15 @@
                 </Border>
 
                 <StackPanel Orientation="Horizontal" Margin="0,14,0,8">
-                    <Border Background="#173322" BorderBrush="{StaticResource Success}" BorderThickness="1"
+                    <Border Background="{StaticResource Bg.Status.Good}" BorderBrush="{StaticResource Success}" BorderThickness="1"
                             CornerRadius="12" Padding="10,5" Margin="0,0,8,0">
                         <TextBlock Text="{Binding I18n[migration.legend.portable]}" Foreground="{StaticResource Success}" />
                     </Border>
-                    <Border Background="#332A16" BorderBrush="{StaticResource Gold}" BorderThickness="1"
+                    <Border Background="{StaticResource Bg.Status.Warn}" BorderBrush="{StaticResource Gold}" BorderThickness="1"
                             CornerRadius="12" Padding="10,5" Margin="0,0,8,0">
                         <TextBlock Text="{Binding I18n[migration.legend.step]}" Foreground="{StaticResource Gold}" />
                     </Border>
-                    <Border Background="#351D1D" BorderBrush="{StaticResource Danger}" BorderThickness="1"
+                    <Border Background="{StaticResource Bg.Status.Bad}" BorderBrush="{StaticResource Danger}" BorderThickness="1"
                             CornerRadius="12" Padding="10,5">
                         <TextBlock Text="{Binding I18n[migration.legend.manual]}" Foreground="{StaticResource Danger}" />
                     </Border>
@@ -192,7 +192,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11"
-                                               Foreground="#CFE0FF" Background="#0F1830" Padding="10,6"
+                                               Foreground="{StaticResource Code.Fg}" Background="{StaticResource Code.Bg}" Padding="10,6"
                                                TextWrapping="Wrap" Margin="0,0,0,4" />
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

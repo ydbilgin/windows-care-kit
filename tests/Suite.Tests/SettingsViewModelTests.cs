@@ -1,4 +1,5 @@
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Theming;
 using WindowsCareKit.App.ViewModels;
 using Xunit;
 
@@ -9,7 +10,7 @@ public sealed class SettingsViewModelTests
     [Fact]
     public void App_info_matches_project_metadata()
     {
-        var vm = new SettingsViewModel(new I18n());
+        var vm = new SettingsViewModel(new I18n(), new FakeThemeService());
 
         Assert.False(string.IsNullOrWhiteSpace(vm.Version));
         Assert.DoesNotContain("+", vm.Version); // build metadata trimmed
@@ -29,7 +30,7 @@ public sealed class SettingsViewModelTests
     public void Language_selector_uses_shared_i18n_languages()
     {
         var i18n = new I18n();
-        var vm = new SettingsViewModel(i18n);
+        var vm = new SettingsViewModel(i18n, new FakeThemeService());
 
         Assert.Same(i18n, vm.I18n);
         Assert.Same(i18n.AvailableLanguages, vm.I18n.AvailableLanguages);
@@ -41,12 +42,25 @@ public sealed class SettingsViewModelTests
     public void Setting_selected_culture_through_view_model_switches_language()
     {
         var i18n = new I18n();
-        var vm = new SettingsViewModel(i18n);
+        var vm = new SettingsViewModel(i18n, new FakeThemeService());
 
         vm.I18n.Load("en");
         vm.I18n.SelectedCulture = "tr";
 
         Assert.Equal("tr", vm.I18n.Culture);
         Assert.Equal("tr", i18n.Culture);
+    }
+
+    private sealed class FakeThemeService : IThemeService
+    {
+        public IReadOnlyList<AppTheme> AvailableThemes { get; } = new[] { AppTheme.Dark, AppTheme.Light };
+        public AppTheme SelectedTheme { get; private set; } = AppTheme.Dark;
+        public AppTheme AppliedTheme { get; } = AppTheme.Dark;
+        public bool RestartRequired => SelectedTheme != AppliedTheme;
+        public bool TrySelectTheme(AppTheme theme)
+        {
+            SelectedTheme = theme;
+            return true;
+        }
     }
 }

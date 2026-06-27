@@ -4,6 +4,7 @@ using System.Security.Principal;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Theming;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Execution;
@@ -31,11 +32,14 @@ public partial class App : Application
         base.OnStartup(e);
 
         var services = new ServiceCollection();
-        ConfigureServices(services);
+        ConfigureServices(services, e.Args);
         Services = services.BuildServiceProvider();
 
         var i18n = Services.GetRequiredService<I18n>();
         i18n.Load(ResolveCulture(e.Args));
+
+        var themeService = Services.GetRequiredService<IThemeService>();
+        ThemeDictionary.ApplyStartupTheme(Resources, themeService.AppliedTheme);
 
         var main = Services.GetRequiredService<MainViewModel>();
         if (main.SelectNavByKey(ExtractOption(e.Args, "--screen")))
@@ -95,9 +99,14 @@ public partial class App : Application
         return code is "en" or "tr" ? code : null;
     }
 
-    private static void ConfigureServices(IServiceCollection s)
+    private static void ConfigureServices(IServiceCollection s, string[] args)
     {
         s.AddSingleton<I18n>();
+        s.AddSingleton<IThemePreferenceStore>(_ => new JsonThemePreferenceStore(JsonThemePreferenceStore.DefaultBaseDirectory));
+        s.AddSingleton<IThemeService>(sp => new ThemeService(
+            args,
+            Environment.GetEnvironmentVariable(ThemeService.EnvironmentVariableName),
+            sp.GetRequiredService<IThemePreferenceStore>()));
 
         // Safety core
         s.AddSingleton<IPathCanonicalizer, Win32PathCanonicalizer>();

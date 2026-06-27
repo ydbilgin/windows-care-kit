@@ -2,46 +2,46 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ===== Theme palette (ported from the FormatBackup reference) ===== -->
-    <SolidColorBrush x:Key="Bg.Window"   Color="#141009" />
-    <SolidColorBrush x:Key="Bg.Panel"    Color="#1A160F" />
-    <SolidColorBrush x:Key="Bg.PanelAlt" Color="#242019" />
-    <SolidColorBrush x:Key="Bg.Card"     Color="#272219" />
-    <SolidColorBrush x:Key="Bg.Scrim"    Color="#CC0B0906" />
-    <SolidColorBrush x:Key="Bg.Scrim.Confirm" Color="#CC0F0B05" />
-    <SolidColorBrush x:Key="Bg.Scrim.Loading" Color="#AA141009" />
-    <SolidColorBrush x:Key="Bg.Scrim.Wizard" Color="#D80C0805" />
-    <SolidColorBrush x:Key="Bg.Card.Alt" Color="#1D1810" />
-    <SolidColorBrush x:Key="Bg.Card.Warning" Color="#241F12" />
-    <SolidColorBrush x:Key="Bg.Callout.Bad" Color="#2A1C12" />
-    <SolidColorBrush x:Key="Bg.Chrome.Rail" Color="#1C1810" />
-    <SolidColorBrush x:Key="Bg.Footer" Color="#17120B" />
-    <SolidColorBrush x:Key="Bg.Gold.Subtle" Color="#241F14" />
-    <SolidColorBrush x:Key="Bg.Progress.Track" Color="#221D14" />
-    <SolidColorBrush x:Key="Bg.Protected" Color="#16201C" />
-    <SolidColorBrush x:Key="Bg.Row.Hover" Color="#211D17" />
-    <SolidColorBrush x:Key="Bg.Row.Selected" Color="#2E2614" />
-    <SolidColorBrush x:Key="Bg.Status.Bad" Color="#351D1D" />
-    <SolidColorBrush x:Key="Bg.Status.Good" Color="#173322" />
-    <SolidColorBrush x:Key="Bg.Status.Warn" Color="#332A16" />
-    <SolidColorBrush x:Key="Bg.Warning.Strong" Color="#241B0A" />
-    <SolidColorBrush x:Key="Border.Callout.Bad" Color="#7A4B22" />
-    <SolidColorBrush x:Key="Border.Card.Warning" Color="#54472A" />
-    <SolidColorBrush x:Key="Border.Protected" Color="#22332D" />
-    <SolidColorBrush x:Key="Border.Soft" Color="#3A3329" />
-    <SolidColorBrush x:Key="Border.TopBar" Color="#221D14" />
-    <SolidColorBrush x:Key="Border.Gold" Color="#5A4E33" />
-    <SolidColorBrush x:Key="Code.Bg"     Color="#0F1830" />
-    <SolidColorBrush x:Key="Code.Fg"     Color="#CFE0FF" />
-    <SolidColorBrush x:Key="Gold"        Color="#E6B25E" />
-    <SolidColorBrush x:Key="Gold.Bright" Color="#F3C97E" />
-    <SolidColorBrush x:Key="Gold.Dim"    Color="#D29A41" />
-    <SolidColorBrush x:Key="Text"        Color="#F4EEE0" />
-    <SolidColorBrush x:Key="Text.Muted"  Color="#B8AD96" />
-    <SolidColorBrush x:Key="Text.Faint"  Color="#867C67" />
-    <SolidColorBrush x:Key="Success"     Color="#94BE8C" />
-    <SolidColorBrush x:Key="Danger"      Color="#E08C8C" />
-    <Color x:Key="Brand.Mark.Start">#F3C97E</Color>
-    <Color x:Key="Brand.Mark.End">#D29A41</Color>
+    <SolidColorBrush x:Key="Bg.Window"   Color="#FBF5E8" />
+    <SolidColorBrush x:Key="Bg.Panel"    Color="#F5EAD7" />
+    <SolidColorBrush x:Key="Bg.PanelAlt" Color="#EFE0C5" />
+    <SolidColorBrush x:Key="Bg.Card"     Color="#FFF9EE" />
+    <SolidColorBrush x:Key="Bg.Scrim"    Color="#CCFFFAEF" />
+    <SolidColorBrush x:Key="Bg.Scrim.Confirm" Color="#CCFFF8EC" />
+    <SolidColorBrush x:Key="Bg.Scrim.Loading" Color="#AAFFF8EC" />
+    <SolidColorBrush x:Key="Bg.Scrim.Wizard" Color="#D8FFF8EA" />
+    <SolidColorBrush x:Key="Bg.Card.Alt" Color="#FFF4E3" />
+    <SolidColorBrush x:Key="Bg.Card.Warning" Color="#FFF0D0" />
+    <SolidColorBrush x:Key="Bg.Callout.Bad" Color="#FBE5DC" />
+    <SolidColorBrush x:Key="Bg.Chrome.Rail" Color="#EFE0C5" />
+    <SolidColorBrush x:Key="Bg.Footer" Color="#F2E2C5" />
+    <SolidColorBrush x:Key="Bg.Gold.Subtle" Color="#F4E5C8" />
+    <SolidColorBrush x:Key="Bg.Progress.Track" Color="#E0CFAD" />
+    <SolidColorBrush x:Key="Bg.Protected" Color="#E5F4EE" />
+    <SolidColorBrush x:Key="Bg.Row.Hover" Color="#E7D7BD" />
+    <SolidColorBrush x:Key="Bg.Row.Selected" Color="#F4DFAE" />
+    <SolidColorBrush x:Key="Bg.Status.Bad" Color="#FBE3E1" />
+    <SolidColorBrush x:Key="Bg.Status.Good" Color="#E4F4E7" />
+    <SolidColorBrush x:Key="Bg.Status.Warn" Color="#FFF0CD" />
+    <SolidColorBrush x:Key="Bg.Warning.Strong" Color="#FBE4DC" />
+    <SolidColorBrush x:Key="Border.Callout.Bad" Color="#D28A5A" />
+    <SolidColorBrush x:Key="Border.Card.Warning" Color="#C7A96B" />
+    <SolidColorBrush x:Key="Border.Protected" Color="#9BBFAF" />
+    <SolidColorBrush x:Key="Border.Soft" Color="#D8C6A8" />
+    <SolidColorBrush x:Key="Border.TopBar" Color="#E4D0AD" />
+    <SolidColorBrush x:Key="Border.Gold" Color="#B99146" />
+    <SolidColorBrush x:Key="Code.Bg"     Color="#EDF4FF" />
+    <SolidColorBrush x:Key="Code.Fg"     Color="#35527A" />
+    <SolidColorBrush x:Key="Gold"        Color="#8A5E13" />
+    <SolidColorBrush x:Key="Gold.Bright" Color="#A06B18" />
+    <SolidColorBrush x:Key="Gold.Dim"    Color="#6F4A0E" />
+    <SolidColorBrush x:Key="Text"        Color="#2A2118" />
+    <SolidColorBrush x:Key="Text.Muted"  Color="#5B5144" />
+    <SolidColorBrush x:Key="Text.Faint"  Color="#786B58" />
+    <SolidColorBrush x:Key="Success"     Color="#35743D" />
+    <SolidColorBrush x:Key="Danger"      Color="#A43A32" />
+    <Color x:Key="Brand.Mark.Start">#875D17</Color>
+    <Color x:Key="Brand.Mark.End">#5E3D0B</Color>
 
     <!-- ===== Text ===== -->
     <Style TargetType="TextBlock">
@@ -94,7 +94,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#2A251D" />
+                            <Setter Property="Background" Value="#F0E2C8" />
                             <Setter Property="Foreground" Value="{StaticResource Gold.Bright}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -253,7 +253,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#1F1B13" />
+                            <Setter TargetName="Bd" Property="Background" Value="#EBDCC0" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource Bg.PanelAlt}" />
@@ -287,15 +287,15 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
                     <Border x:Name="Bd" Background="Transparent" BorderThickness="0,0,0,1"
-                            BorderBrush="#211D17" Padding="{TemplateBinding Padding}">
+                            BorderBrush="#E7D7BD" Padding="{TemplateBinding Padding}">
                         <ContentPresenter />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#211D17" />
+                            <Setter TargetName="Bd" Property="Background" Value="#E7D7BD" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#2E2614" />
+                            <Setter TargetName="Bd" Property="Background" Value="#F4DFAE" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -305,7 +305,7 @@
 
     <!-- ===== Inputs ===== -->
     <Style TargetType="TextBox">
-        <Setter Property="Background" Value="#11100B" />
+        <Setter Property="Background" Value="#FFFDF7" />
         <Setter Property="Foreground" Value="{StaticResource Text}" />
         <Setter Property="CaretBrush" Value="{StaticResource Gold}" />
         <Setter Property="BorderBrush" Value="{StaticResource Border.Soft}" />
@@ -322,3 +322,4 @@
     </Style>
 
 </ResourceDictionary>
+
