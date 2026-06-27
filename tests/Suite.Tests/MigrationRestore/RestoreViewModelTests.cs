@@ -55,7 +55,8 @@ public sealed class RestoreViewModelTests
 
         Assert.Equal("NEW", File.ReadAllText(Path.Combine(fx.Profile, ".gitconfig")));
         Assert.True(vm.HasResultRows);
-        Assert.True(vm.CanUndo);
+        Assert.True(vm.CanPreviewUndo);
+        Assert.False(vm.CanUndo);
         Assert.True(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
     }
 
@@ -119,10 +120,34 @@ public sealed class RestoreViewModelTests
         await vm.LoadAndPreviewAsync();
         vm.IsPreviewApproved = true;
         await vm.RunRestoreAsync();
+        await vm.PreviewUndoAsync();
+        vm.IsUndoPreviewApproved = true;
         await vm.UndoAsync();
 
         Assert.Equal("OLD", File.ReadAllText(destination));
         Assert.Contains(vm.UndoRows, row => row.RiskText == "migration.restore.status.Done");
+    }
+
+    [Fact]
+    public async Task Execute_undo_is_no_op_until_undo_preview_is_approved()
+    {
+        using var fx = Fixture.Create("vm-undo-no-approval");
+        fx.WritePayload("migration/x/settings.json", "NEW");
+        fx.SaveManifest(Target("git.config#0", ".gitconfig"));
+        string destination = Path.Combine(fx.Profile, ".gitconfig");
+        File.WriteAllText(destination, "OLD");
+        RestoreViewModel vm = fx.CreateViewModel();
+
+        await vm.LoadAndPreviewAsync();
+        vm.IsPreviewApproved = true;
+        await vm.RunRestoreAsync();
+        await vm.PreviewUndoAsync();
+
+        Assert.False(vm.CanUndo);
+        await vm.UndoAsync();
+
+        Assert.Equal("NEW", File.ReadAllText(destination));
+        Assert.DoesNotContain(vm.UndoRows, row => row.RiskText == "migration.restore.status.Done");
     }
 
     [Fact]
@@ -139,6 +164,8 @@ public sealed class RestoreViewModelTests
         vm.IsPreviewApproved = true;
         await vm.RunRestoreAsync();
         File.Delete(Directory.GetFiles(fx.Profile, ".gitconfig.bak.*").Single());
+        await vm.PreviewUndoAsync();
+        vm.IsUndoPreviewApproved = true;
         await vm.UndoAsync();
 
         Assert.Equal("NEW", File.ReadAllText(destination));

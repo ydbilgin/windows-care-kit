@@ -40,6 +40,8 @@
     <SolidColorBrush x:Key="Text.Faint"  Color="#867C67" />
     <SolidColorBrush x:Key="Success"     Color="#94BE8C" />
     <SolidColorBrush x:Key="Danger"      Color="#E08C8C" />
+    <SolidColorBrush x:Key="Accent.Teal" Color="#7FC2A8" />
+    <SolidColorBrush x:Key="Accent.Amber" Color="#E8B36B" />
     <Color x:Key="Brand.Mark.Start">#F3C97E</Color>
     <Color x:Key="Brand.Mark.End">#D29A41</Color>
 

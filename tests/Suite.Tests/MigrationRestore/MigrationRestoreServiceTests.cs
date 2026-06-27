@@ -116,13 +116,76 @@ public class MigrationRestoreServiceTests
             string bak = Assert.Single(restored.State.Journal).BakPath!;
             File.WriteAllText(bak, "TAMPERED");
 
-            MigrationRestoreUndoResult undo = fx.Service.Undo(restored.State, T0.AddMinutes(1));
+            MigrationRestoreUndoPreviewResult preview = fx.Service.PreviewUndo(restored.State, T0.AddMinutes(1));
+            MigrationRestoreUndoResult undo = fx.Service.Undo(
+                restored.State,
+                T0.AddMinutes(1),
+                preview.PlanHash);
 
             Assert.Empty(undo.BuildResult.Plan.Actions);
             RejectedRestoreUndoStep rejected = Assert.Single(undo.RejectedSteps);
             Assert.Equal("git.config#0", rejected.Step.EntryId);
             Assert.Contains("sha", rejected.Reason, StringComparison.OrdinalIgnoreCase);
             Assert.Empty(undo.Execution.Results);
+        }
+        finally { Directory.Delete(fx.Root, recursive: true); }
+    }
+
+    [Fact]
+    public void Undo_without_approved_hash_refuses_before_mutation()
+    {
+        var fx = Setup("service-undo-no-approval");
+        try
+        {
+            string destination = Path.Combine(fx.Profile, ".gitconfig");
+            File.WriteAllText(destination, "OLD");
+            MigrationRestoreExecutionResult restored = fx.Service.Restore(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0,
+                "run1");
+
+            Assert.Equal("NEW", File.ReadAllText(destination));
+
+            MigrationRestoreUndoResult undo = fx.Service.Undo(restored.State, T0.AddMinutes(1));
+
+            Assert.False(undo.Authorized);
+            Assert.False(undo.Execution.Authorized);
+            Assert.Empty(undo.Execution.Results);
+            Assert.Equal("NEW", File.ReadAllText(destination));
+        }
+        finally { Directory.Delete(fx.Root, recursive: true); }
+    }
+
+    [Fact]
+    public void Undo_with_tampered_approved_hash_refuses_before_mutation()
+    {
+        var fx = Setup("service-undo-tampered");
+        try
+        {
+            string destination = Path.Combine(fx.Profile, ".gitconfig");
+            File.WriteAllText(destination, "OLD");
+            MigrationRestoreExecutionResult restored = fx.Service.Restore(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0,
+                "run1");
+
+            Assert.Equal("NEW", File.ReadAllText(destination));
+
+            MigrationRestoreUndoPreviewResult preview = fx.Service.PreviewUndo(restored.State, T0.AddMinutes(1));
+            Assert.Equal(preview.BuildResult.Plan.ComputeHash(), preview.PlanHash);
+            MigrationRestoreUndoResult undo = fx.Service.Undo(
+                restored.State,
+                T0.AddMinutes(1),
+                "tampered");
+
+            Assert.False(undo.Authorized);
+            Assert.False(undo.Execution.Authorized);
+            Assert.Empty(undo.Execution.Results);
+            Assert.Equal("NEW", File.ReadAllText(destination));
         }
         finally { Directory.Delete(fx.Root, recursive: true); }
     }

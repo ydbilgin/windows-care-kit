@@ -26,11 +26,16 @@ public sealed class RestoreViewModel : ObservableObject
     private string _stateDir = DefaultStateDir();
     private bool _isBusy;
     private bool _isPreviewApproved;
+    private bool _isUndoPreviewApproved;
     private string? _approvedHash;
+    private string? _undoPreviewHash;
+    private string? _approvedUndoHash;
     private MigrationRestorePlanResult? _previewPlan;
+    private RestoreUndoActionBuildResult? _undoPreviewBuild;
     private MigrationRestoreManifest? _manifest;
     private RestoreState? _completedState;
     private RestoreReport? _lastReport;
+    private bool _usePreviewDispositionLabels;
     private string _restoreSummary = string.Empty;
     private string _packageWarning = string.Empty;
     private string? _summaryKey;
@@ -52,12 +57,14 @@ public sealed class RestoreViewModel : ObservableObject
 
         LoadAndPreviewCommand = new RelayCommand(async () => await LoadAndPreviewAsync(), () => CanPreview);
         RunRestoreCommand = new RelayCommand(async () => await RunRestoreAsync(), () => CanRunRestore);
-        UndoCommand = new RelayCommand(async () => await UndoAsync(), () => CanUndo);
+        PreviewUndoCommand = new RelayCommand(async () => await PreviewUndoAsync(), () => CanPreviewUndo);
+        UndoCommand = new RelayCommand(async () => await UndoAsync(), () => CanRunUndo);
     }
 
     public I18n I18n { get; }
     public ICommand LoadAndPreviewCommand { get; }
     public ICommand RunRestoreCommand { get; }
+    public ICommand PreviewUndoCommand { get; }
     public ICommand UndoCommand { get; }
 
     public ObservableCollection<PlanRow> PlanRows { get; } = new();
@@ -106,6 +113,12 @@ public sealed class RestoreViewModel : ObservableObject
     public bool HasReinstallEnqueuedRows => ReinstallEnqueuedRows.Count > 0;
     public bool HasManualRows => ManualRows.Count > 0;
     public bool HasUndoRows => UndoRows.Count > 0;
+    public string RestoredDispositionTitle => I18n[
+        _usePreviewDispositionLabels
+            ? "migration.restore.disposition.RestorePlanned"
+            : "migration.restore.disposition.Restored"];
+    public bool HasUndoCandidates =>
+        _completedState?.Journal.Any(entry => !string.IsNullOrWhiteSpace(entry.BakPath)) == true;
     public bool CanPreview => !IsBusy && HasPackageDir && HasStateDir;
 
     public bool CanRunRestore =>
@@ -115,9 +128,16 @@ public sealed class RestoreViewModel : ObservableObject
         && _previewPlan is { Plan.IsEmpty: false }
         && _approvedHash is not null;
 
-    public bool CanUndo =>
+    public bool CanPreviewUndo => !IsBusy && HasUndoCandidates;
+
+    public bool CanRunUndo =>
         !IsBusy
-        && _completedState?.Journal.Any(entry => !string.IsNullOrWhiteSpace(entry.BakPath)) == true;
+        && IsUndoPreviewApproved
+        && _completedState is not null
+        && _undoPreviewBuild is not null
+        && _approvedUndoHash is not null;
+
+    public bool CanUndo => CanRunUndo;
 
     public bool IsBusy
     {
@@ -136,6 +156,19 @@ public sealed class RestoreViewModel : ObservableObject
         {
             if (SetField(ref _isPreviewApproved, value))
                 RaiseCommandState();
+        }
+    }
+
+    public bool IsUndoPreviewApproved
+    {
+        get => _isUndoPreviewApproved;
+        set
+        {
+            if (SetField(ref _isUndoPreviewApproved, value))
+            {
+                _approvedUndoHash = value ? _undoPreviewHash : null;
+                RaiseCommandState();
+            }
         }
     }
 
@@ -182,6 +215,7 @@ public sealed class RestoreViewModel : ObservableObject
                 _previewPlan = built.Preview.PlanResult;
                 _approvedHash = built.Preview.PlanHash;
                 _lastReport = built.Preview.RestoreReport;
+                _usePreviewDispositionLabels = true;
                 SetNormalizedPaths(packageDir, stateDir);
 
                 foreach (PlannedAction action in built.Preview.PlanResult.Plan.Actions)
@@ -218,6 +252,7 @@ public sealed class RestoreViewModel : ObservableObject
         IsBusy = true;
         ResultRows.Clear();
         UndoRows.Clear();
+        ResetUndoPreview();
         try
         {
             MigrationRestoreManifest manifest = _manifest;
@@ -239,6 +274,7 @@ public sealed class RestoreViewModel : ObservableObject
             {
                 _completedState = null;
                 _lastReport = result.RestoreReport;
+                _usePreviewDispositionLabels = false;
                 PopulateDispositionRows(result.RestoreReport);
                 SetSummary("migration.restore.refused");
                 return;
@@ -253,10 +289,11 @@ public sealed class RestoreViewModel : ObservableObject
 
             _completedState = result.State;
             _lastReport = result.RestoreReport;
+            _usePreviewDispositionLabels = false;
             // A completed restore consumes its approval: drop it so the primary action disables
             // instead of re-running into a confusing fail-closed "refused" (the now-Done targets
-            // would rebuild an empty plan whose hash no longer matches). Undo stays available
-            // because CanUndo depends on the completed state's journal, not on the approval.
+            // would rebuild an empty plan whose hash no longer matches). Undo preview stays available
+            // from the completed state's journal, while undo execution still needs its own approval.
             IsPreviewApproved = false;
             PopulateDispositionRows(result.RestoreReport);
             SetSummary(
@@ -277,7 +314,7 @@ public sealed class RestoreViewModel : ObservableObject
 
     public async Task UndoAsync()
     {
-        if (!CanUndo || _completedState is null)
+        if (!CanRunUndo || _completedState is null || _approvedUndoHash is null)
             return;
 
         IsBusy = true;
@@ -285,8 +322,12 @@ public sealed class RestoreViewModel : ObservableObject
         try
         {
             RestoreState state = _completedState;
+            string approvedUndoHash = _approvedUndoHash;
             MigrationRestoreUndoResult undo = await Task.Run(() =>
-                _restoreService.Undo(state, DateTime.UtcNow));
+                _restoreService.Undo(state, DateTime.UtcNow, approvedUndoHash));
+
+            if (!undo.Authorized)
+                return;
 
             foreach (ActionResult actionResult in undo.Execution.Results)
             {
@@ -302,6 +343,36 @@ public sealed class RestoreViewModel : ObservableObject
                 "migration.restore.undoSummary",
                 undo.Execution.DoneCount,
                 undo.Execution.FailedCount + undo.RejectedSteps.Count);
+
+            ResetUndoPreview(clearRows: false);
+        }
+        finally
+        {
+            IsBusy = false;
+            RaiseAllListState();
+        }
+    }
+
+    public async Task PreviewUndoAsync()
+    {
+        if (!CanPreviewUndo || _completedState is null)
+            return;
+
+        IsBusy = true;
+        ResetUndoPreview();
+        try
+        {
+            RestoreState state = _completedState;
+            MigrationRestoreUndoPreviewResult preview = await Task.Run(() =>
+                _restoreService.PreviewUndo(state, DateTime.UtcNow));
+
+            _undoPreviewBuild = preview.BuildResult;
+            _undoPreviewHash = preview.PlanHash;
+
+            foreach (PlannedAction action in preview.BuildResult.Plan.Actions)
+                UndoRows.Add(PlanRow.FromAction(action));
+            foreach (RejectedRestoreUndoStep rejected in preview.RejectedSteps)
+                UndoRows.Add(RejectedUndoRow(rejected));
         }
         finally
         {
@@ -320,14 +391,29 @@ public sealed class RestoreViewModel : ObservableObject
         ManualRows.Clear();
         UndoRows.Clear();
         _previewPlan = null;
+        _undoPreviewBuild = null;
         _manifest = null;
         _approvedHash = null;
+        _undoPreviewHash = null;
+        _approvedUndoHash = null;
         _completedState = null;
         _lastReport = null;
+        _usePreviewDispositionLabels = false;
         IsPreviewApproved = false;
+        IsUndoPreviewApproved = false;
         ClearSummary();
         ClearPackageWarning();
         RaiseAllListState();
+    }
+
+    private void ResetUndoPreview(bool clearRows = true)
+    {
+        if (clearRows)
+            UndoRows.Clear();
+        _undoPreviewBuild = null;
+        _undoPreviewHash = null;
+        _approvedUndoHash = null;
+        IsUndoPreviewApproved = false;
     }
 
     private void PopulateDispositionRows(RestoreReport report)
@@ -376,7 +462,7 @@ public sealed class RestoreViewModel : ObservableObject
         return new PlanRow
         {
             Text = string.IsNullOrWhiteSpace(entry.RecipeId) ? entry.Id : entry.RecipeId,
-            RiskText = I18n[$"migration.restore.disposition.{entry.Disposition}"],
+            RiskText = I18n[DispositionKey(entry.Disposition)],
             RiskBrush = RiskVisuals.For(risk),
             Undo = string.Empty,
             Detail = $"{entry.Reason}: {LocalizedNote(entry.Note)}",
@@ -466,6 +552,7 @@ public sealed class RestoreViewModel : ObservableObject
     {
         if (_lastReport is not null)
             PopulateDispositionRows(_lastReport);
+        OnPropertyChanged(nameof(RestoredDispositionTitle));
         if (_summaryKey is not null)
             RestoreSummary = I18n.Format(_summaryKey, _summaryArgs);
         if (_warningKey is not null)
@@ -479,6 +566,8 @@ public sealed class RestoreViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanPreview));
         OnPropertyChanged(nameof(CanRunRestore));
+        OnPropertyChanged(nameof(CanPreviewUndo));
+        OnPropertyChanged(nameof(CanRunUndo));
         OnPropertyChanged(nameof(CanUndo));
         CommandManager.InvalidateRequerySuggested();
     }
@@ -493,6 +582,8 @@ public sealed class RestoreViewModel : ObservableObject
         OnPropertyChanged(nameof(HasReinstallEnqueuedRows));
         OnPropertyChanged(nameof(HasManualRows));
         OnPropertyChanged(nameof(HasUndoRows));
+        OnPropertyChanged(nameof(RestoredDispositionTitle));
+        OnPropertyChanged(nameof(HasUndoCandidates));
         RaiseCommandState();
     }
 
@@ -523,6 +614,11 @@ public sealed class RestoreViewModel : ObservableObject
         ActionStatus.NotRun => RiskLevel.Info,
         _ => RiskLevel.Critical,
     };
+
+    private string DispositionKey(RestoreDisposition disposition)
+        => disposition == RestoreDisposition.Restored && _usePreviewDispositionLabels
+            ? "migration.restore.disposition.RestorePlanned"
+            : $"migration.restore.disposition.{disposition}";
 
     private static bool TryNormalizeDirectory(string value, out string normalized)
     {

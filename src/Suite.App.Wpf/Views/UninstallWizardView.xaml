@@ -7,10 +7,6 @@
     <!-- The 4-beat uninstall wizard (PR-4). DataContext = an UninstallWizardViewModel. The whole control is
          collapsed until the wizard is open, so it sits as an overlay in UninstallView. -->
     <UserControl.Resources>
-        <!-- Teal (SafetyGate-protected) + amber tones not already in the theme. -->
-        <SolidColorBrush x:Key="Teal" Color="#7FC2A8" />
-        <SolidColorBrush x:Key="Amber" Color="#E8B36B" />
-
         <!-- Maps the int ScanDepthIndex to a bool for a RadioButton's IsChecked (one option per index). -->
         <mvvm:IndexEqualsConverter x:Key="IndexEq" />
 
@@ -69,7 +65,7 @@
                               IsEnabled="{Binding CanCheck}"
                               Visibility="{Binding HasCheckbox, Converter={StaticResource BoolToVis}}"
                               Checked="OnNodeCheckChanged" Unchecked="OnNodeCheckChanged" />
-                    <TextBlock Grid.Column="0" Text="🛡" FontSize="13" Foreground="{StaticResource Teal}"
+                    <TextBlock Grid.Column="0" Text="🛡" FontSize="13" Foreground="{StaticResource Accent.Teal}"
                                VerticalAlignment="Top" Margin="0,0,10,0"
                                Visibility="{Binding HasCheckbox, Converter={StaticResource InverseBoolToVis}}" />
 
@@ -271,7 +267,7 @@
                                         <TextBlock Text="{Binding I18n[uninstall.wizard.prep.restorePoint.desc]}"
                                                    Style="{StaticResource Faint}" Margin="0,3,0,0" />
                                         <TextBlock Text="{Binding RestorePointReason}"
-                                                   Foreground="{StaticResource Amber}" FontSize="11.5"
+                                                   Foreground="{StaticResource Accent.Amber}" FontSize="11.5"
                                                    Margin="0,5,0,0" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>
@@ -296,7 +292,7 @@
                                     Padding="11,9" Margin="0,14,0,0"
                                     Visibility="{Binding OfficialUnavailable, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding I18n[uninstall.wizard.official.unavailable]}"
-                                           Foreground="{StaticResource Amber}" FontSize="12" TextWrapping="Wrap" />
+                                           Foreground="{StaticResource Accent.Amber}" FontSize="12" TextWrapping="Wrap" />
                             </Border>
 
                             <!-- Live status line during the official run. -->
@@ -395,7 +391,7 @@
                             <Border Background="{StaticResource Bg.Callout.Bad}" BorderBrush="{StaticResource Border.Callout.Bad}" BorderThickness="1" CornerRadius="8"
                                     Padding="11,9" Margin="0,0,0,12"
                                     Visibility="{Binding HasBuildError, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{Binding BuildError}" Foreground="{StaticResource Amber}"
+                                <TextBlock Text="{Binding BuildError}" Foreground="{StaticResource Accent.Amber}"
                                            FontSize="12" TextWrapping="Wrap" />
                             </Border>
 
@@ -465,8 +461,8 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="🛡" Foreground="{StaticResource Teal}" FontSize="13" Margin="0,0,8,0" />
-                                            <TextBlock Text="{Binding}" Foreground="{StaticResource Teal}" FontSize="12.5" TextWrapping="Wrap" />
+                                            <TextBlock Text="🛡" Foreground="{StaticResource Accent.Teal}" FontSize="13" Margin="0,0,8,0" />
+                                            <TextBlock Text="{Binding}" Foreground="{StaticResource Accent.Teal}" FontSize="12.5" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
