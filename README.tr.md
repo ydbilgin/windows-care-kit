@@ -39,6 +39,21 @@ Windows Care Kit, tüm **format / yeniden kurulum yaşam döngüsünü** kapsaya
 
 ---
 
+## 🔄 Nasıl çalışır
+
+```mermaid
+flowchart LR
+  U[Uninstall - istenmeyen uygulamalari kaldir] --> C[Clean - gereksiz dosyalari temizle]
+  C --> B[Backup - ayarlari ve verileri paketle, sirlar haric]
+  B --> F[FORMAT - temiz Windows]
+  F --> R[Reinstall - uygulamalari yeniden kur]
+  R --> M[Migration - tasinabilir ayarlari tasi ve sinirlari bildir]
+```
+
+Bakım daha format kararından önce başlar, Backup taşınabilir olanları yakalar, Migration ise nelerin taşınamayacağını dürüstçe söyler.
+
+---
+
 ## 📸 Ekran Görüntüleri
 
 > Uygulama arayüzü varsayılan olarak İngilizce'dir (sağ üstten dil seçilebilir); ekran görüntüleri İngilizce arayüzü gösterir.

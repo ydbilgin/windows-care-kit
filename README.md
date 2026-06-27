@@ -38,6 +38,21 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 
 ---
 
+## 🔄 How it works
+
+```mermaid
+flowchart LR
+  U[Uninstall - remove unwanted apps] --> C[Clean - clear junk]
+  C --> B[Backup - package settings and data, secrets excluded]
+  B --> F[FORMAT - fresh Windows]
+  F --> R[Reinstall - reinstall your apps]
+  R --> M[Migration - carry portable settings and report limits]
+```
+
+Maintenance starts before you decide to format, Backup captures what is portable, and Migration stays honest about what cannot move.
+
+---
+
 ## 📸 Screenshots
 
 **💼 Migration — the honest part**
