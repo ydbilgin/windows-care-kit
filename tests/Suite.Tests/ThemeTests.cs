@@ -57,10 +57,15 @@ public sealed class ThemeTests
             ["Text"] = "#F4EEE0",
             ["Text.Muted"] = "#B8AD96",
             ["Text.Faint"] = "#867C67",
+            ["Text.Disabled"] = "#E6B25E",
             ["Success"] = "#94BE8C",
             ["Danger"] = "#E08C8C",
             ["Accent.Teal"] = "#7FC2A8",
             ["Accent.Amber"] = "#E8B36B",
+            ["Bg.Input"] = "#11100B",
+            ["ScrollBar.Track"] = "#1A160F",
+            ["ScrollBar.Thumb"] = "#3A3329",
+            ["ScrollBar.Thumb.Hover"] = "#5A4E33",
             ["Brand.Mark.Start"] = "#F3C97E",
             ["Brand.Mark.End"] = "#D29A41"
         };
@@ -101,10 +106,29 @@ public sealed class ThemeTests
         AssertContrast(palette, "Danger", "Bg.Window", 4.5);
         AssertContrast(palette, "Success", "Bg.Window", 4.5);
         AssertContrast(palette, "Text.Faint", "Bg.Panel", 3.0);
+        AssertContrast(palette, "Text.Disabled", "Bg.Window", 3.0);
+        AssertContrast(palette, "Text", "Bg.Input", 4.5);
+        AssertContrast(palette, "Gold.Dim", "Bg.Window", 4.5);
+        AssertContrast(palette, "Gold.Dim", "Bg.Card", 4.5);
+        AssertContrast(palette, "Accent.Amber", "Bg.Card.Warning", 4.5);
         AssertContrast(palette, "Success", "Bg.Status.Good", 4.5);
         AssertContrast(palette, "Gold", "Bg.Status.Warn", 4.5);
         AssertContrast(palette, "Danger", "Bg.Status.Bad", 4.5);
         AssertContrast(palette, "Code.Fg", "Code.Bg", 4.5);
+    }
+
+    [Fact]
+    public void Theme_dictionaries_define_an_implicit_scrollbar_style()
+    {
+        AssertImplicitScrollbarStyle(StrongboxPath);
+        AssertImplicitScrollbarStyle(DaylightPath);
+    }
+
+    [Fact]
+    public void Theme_xaml_does_not_use_dynamic_resources()
+    {
+        Assert.DoesNotContain("DynamicResource", File.ReadAllText(StrongboxPath), StringComparison.Ordinal);
+        Assert.DoesNotContain("DynamicResource", File.ReadAllText(DaylightPath), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -270,8 +294,28 @@ public sealed class ThemeTests
         if (HexColor.IsMatch(element.Value.Trim()) && !element.HasElements)
             element.Value = "#HEX";
 
+        if (element.Name.LocalName == "Double" && element.Attribute(Xaml + "Key") is not null)
+            element.Value = "#VALUE";
+
         foreach (XElement child in element.Elements())
             NormalizeHexValues(child);
+    }
+
+    private static void AssertImplicitScrollbarStyle(string path)
+    {
+        XElement style = XDocument.Load(path)
+            .Descendants()
+            .SingleOrDefault(e =>
+                e.Name.LocalName == "Style" &&
+                e.Attribute(Xaml + "Key") is null &&
+                e.Attribute("TargetType")?.Value == "ScrollBar")
+            ?? throw new Xunit.Sdk.XunitException($"{Path.GetFileName(path)} does not define an implicit ScrollBar style.");
+
+        Assert.Contains(
+            style.Descendants(),
+            e => e.Name.LocalName == "Setter" &&
+                 e.Attribute("Property")?.Value == "Background" &&
+                 e.Attribute("Value")?.Value == "{StaticResource ScrollBar.Track}");
     }
 
     private static void AssertContrast(Dictionary<string, string> palette, string foregroundKey, string backgroundKey, double floor)
