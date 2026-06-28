@@ -165,13 +165,13 @@ Proje yerleşimi: `src/` (modüller + güvenlik çekirdeği + yürütme katmanı
 
 Windows Care Kit, birincil kodlama ajanı olarak **OpenAI Codex** ile geliştirilir ve sürdürülür.
 Her değişiklik yazılı bir spekten başlar; **Codex implementasyonu ve otomatik testleri yazar**
-(test paketi **1.080+ testten** oluşur, varsayılan olarak host-safe), ve her değişiklik maintainer
+(test paketi **1.140+ testten** oluşur, varsayılan olarak host-safe), ve her değişiklik maintainer
 tarafından merge edilmeden önce bağımsız, çok geçişli bir incelemeden geçer. Codex ayrıca rutin
-maintainer işlerini de yürütür — build/test doğrulaması, changelog ve doküman güncellemeleri,
+maintainer işlerini de yürütür: build/test doğrulaması, changelog ve doküman güncellemeleri,
 recipe katalog hijyeni.
 
 Bu, **yıkıcı, sistem seviyesinde işlemler** yapan bir araç için bilinçli bir tercihtir: uygulamanın
-kullanıcılarına vaat ettiği aynı disiplin (spek → inceleme → asla başarı taklidi yapma) kendi
+kullanıcılarına vaat ettiği aynı disiplin (spek → implementasyon → inceleme → asla başarı taklidi yapma) kendi
 geliştirme sürecine de uygulanır. Ajanın çalışma kuralları [`AGENTS.md`](AGENTS.md) içinde yaşar;
 scope belirleme, son inceleme ve her merge kararı insan maintainer'a aittir.
 
@@ -182,7 +182,7 @@ scope belirleme, son inceleme ve her merge kararı insan maintainer'a aittir.
 **Bugün mevcut (beta):** yukarıdaki dört modül, güvenlik kapısı + gated executor, EN/TR UI, otomatik test paketi.
 
 **Tasarlanmış & planlanmış (bu build'de henüz yok):** daha zengin bir Backup/Restore motoru —
-- 🔎 Yerel uygulama ayarları ve geliştirici/AI-CLI yapılandırmaları (Codex/Discord/VS Code…) için **auto-discovery katalog**, checkbox seçim ekranı + manuel yol ekleme.
+- 🔎 Yerel uygulama ayarları ve geliştirici CLI yapılandırmaları (Codex/Discord/VS Code…) için **auto-discovery katalog**, checkbox seçim ekranı + manuel yol ekleme.
 - 🖥️ **Makine farkındalıklı restore** — kaynak/hedef makineyi (kullanıcı profili, sürücü harfleri, bilinen klasörler) soyutlayarak yedeğin *farklı* bir PC'de gerçekten çalışmasını sağlar.
 - 💽 **Çoklu sürücü taraması** (yalnızca C: değil), bulut yedekliliği tespitiyle (Steam Cloud / OneDrive zaten tutuyorsa atla).
 - 📋 **Paket envanteri** — pip/npm/winget içinde *nelerin kurulu olduğunu* yakala (dosyaları değil, listeyi) ve yeniden kur.

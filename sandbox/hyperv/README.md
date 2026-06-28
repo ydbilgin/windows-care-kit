@@ -48,7 +48,7 @@ so it cannot create or drive a VM yet. Two things, both one-time:
    desktop, and takes the `baseline-clean` checkpoint. If it ever stalls, peek with
    `vmconnect.exe localhost WCK-E2E` (read-only look; closing the window is fine).
 
-## Per-run (CLAUDE, autonomous — after sign out/in)
+## Per-run (autonomous — after sign out/in)
 From a normal (Hyper-V-Admin) session:
 ```powershell
 pwsh -File sandbox\hyperv\Invoke-WckUninstallRun.ps1 -Publish

@@ -1,19 +1,17 @@
 # AGENTS.md — working in Windows Care Kit with OpenAI Codex
 
 This repository is developed and maintained with **OpenAI Codex** as the primary coding agent.
-Implementation, test authoring, and review automation run through Codex against a binding spec;
-the maintainer scopes each change, directs Codex, reviews the result, and integrates it. This file
-is the instruction surface Codex uses when it works here — read it before making changes.
+Implementation and test authoring run through Codex against a binding spec; the maintainer scopes
+each change, directs Codex, reviews the result, and integrates it. This file is the instruction
+surface Codex uses when it works here — read it before making changes.
 
 ## What Codex does in this project
 
 - **Implementation** — features and fixes are written by Codex from a written spec/brief.
 - **Test authoring** — Codex writes the automated tests for every change (the suite is **1,140+
   tests**, all host-safe by default). New behavior is not "done" until its tests exist and pass.
-- **Review automation** — each change goes through an independent, multi-pass review before the
-  maintainer merges it; over-claims, safety-rule violations, and missing tests are caught there. The
-  same pass runs in CI: `.github/workflows/codex-review.yml` has Codex review every pull request
-  (it skips cleanly when no API key is configured, e.g. on fork PRs).
+- **Independent review** — each change goes through a separate, multi-pass review before the
+  maintainer merges it; over-claims, safety-rule violations, and missing tests are caught there.
 - **Release & maintenance chores** — build/test verification, changelog and doc updates, dependency
   and recipe-catalog hygiene.
 
