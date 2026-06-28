@@ -165,13 +165,11 @@ Project layout: `src/` (modules + safety core + execution layer), `tests/` (auto
 Windows Care Kit is developed and maintained with **OpenAI Codex** as the primary coding agent.
 Each change starts from a written spec; **Codex writes the implementation and the automated tests**
 (the suite is **1,140+ tests**, host-safe by default), and every change goes through an independent,
-multi-pass review before the maintainer merges it. That review pass also runs in CI: the
-[`codex-review.yml`](.github/workflows/codex-review.yml) workflow has Codex review every pull request
-against the safety and honesty rules. Codex also handles the routine maintainer chores — build/test
-verification, changelog and doc updates, and recipe-catalog hygiene.
+multi-pass review before the maintainer merges it. Codex also handles the routine maintainer chores:
+build/test verification, changelog and doc updates, and recipe-catalog hygiene.
 
 This is deliberate for a tool that performs **destructive, system-level operations**: the same
-discipline the app promises its users (spec → review → never fake success) is applied to its own
+discipline the app promises its users (spec → implement → review → never fake success) is applied to its own
 development. The agent's working rules live in [`AGENTS.md`](AGENTS.md); the human maintainer owns
 scoping, final review, and every merge.
 
@@ -182,7 +180,7 @@ scoping, final review, and every merge.
 **Built today (beta):** the four modules above, the safety gate + gated executor, a localizable UI with a language selector (English/Turkish), automated test suite.
 
 **Designed & planned (not in this build yet):** a richer Backup/Restore engine —
-- 🔎 **Auto-discovery catalog** of local app settings & dev/AI-CLI configs (Codex/Discord/VS Code…), with a checkbox selection screen + manual-path add.
+- 🔎 **Auto-discovery catalog** of local app settings & developer CLI configs (Codex/Discord/VS Code…), with a checkbox selection screen + manual-path add.
 - 🖥️ **Machine-aware restore** — abstracts the source/target machine (user profile, drive letters, known-folders) so a backup actually works on a *different* PC.
 - 💽 **Multi-drive scan** (not just C:), with cloud-redundancy detection (skip what Steam Cloud / OneDrive already holds).
 - 📋 **Package inventory** — capture *what's installed* in pip/npm/winget (the list, not the files) and reinstall it.

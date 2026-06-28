@@ -16,8 +16,8 @@
 payload/
 *.payload/
 
-## Local Claude-memory backup (pre-format redundancy) — global CLAUDE.md + ALL projects'
-## memory + harness config. Cross-project internal notes; PUBLIC repo → NEVER committed.
+## Local maintainer notes backup (pre-format redundancy) — internal cross-project
+## notes + harness config. PUBLIC repo → NEVER committed.
 .claude-memory-backup/
 
 ## ──────────────────────────────────────────────────────────────
