@@ -19,8 +19,13 @@
                               ToolTip="{Binding I18n[common.language]}"
                               ItemsSource="{Binding I18n.AvailableLanguages}"
                               SelectedValuePath="Code"
-                              DisplayMemberPath="DisplayName"
-                              SelectedValue="{Binding I18n.SelectedCulture, Mode=TwoWay}" />
+                              SelectedValue="{Binding I18n.SelectedCulture, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </StackPanel>
             </Border>
 
@@ -34,8 +39,13 @@
                               ToolTip="{Binding I18n[settings.theme.title]}"
                               ItemsSource="{Binding AvailableThemes}"
                               SelectedValuePath="Theme"
-                              DisplayMemberPath="DisplayName"
-                              SelectedValue="{Binding SelectedTheme, Mode=TwoWay}" />
+                              SelectedValue="{Binding SelectedTheme, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                     <TextBlock Text="{Binding ThemeStatusText}" Style="{StaticResource Faint}"
                                Margin="0,8,0,0" />
                 </StackPanel>
@@ -80,7 +90,7 @@
                         <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,8">
                             <Hyperlink NavigateUri="{Binding RepositoryUrl}"
                                        RequestNavigate="ExternalLink_RequestNavigate">
-                                <Run Text="{Binding I18n[settings.about.repositoryLink]}" />
+                                <Run Text="{Binding I18n[settings.about.repositoryLink], Mode=OneWay}" />
                             </Hyperlink>
                         </TextBlock>
 
@@ -89,7 +99,7 @@
                         <TextBlock Grid.Row="4" Grid.Column="1">
                             <Hyperlink NavigateUri="{Binding ReleasesUrl}"
                                        RequestNavigate="ExternalLink_RequestNavigate">
-                                <Run Text="{Binding I18n[settings.about.releasesLink]}" />
+                                <Run Text="{Binding I18n[settings.about.releasesLink], Mode=OneWay}" />
                             </Hyperlink>
                         </TextBlock>
                     </Grid>
