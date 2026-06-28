@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!-- ===== Theme palette (ported from the FormatBackup reference) ===== -->
     <SolidColorBrush x:Key="Bg.Window"   Color="#141009" />
@@ -38,10 +39,16 @@
     <SolidColorBrush x:Key="Text"        Color="#F4EEE0" />
     <SolidColorBrush x:Key="Text.Muted"  Color="#B8AD96" />
     <SolidColorBrush x:Key="Text.Faint"  Color="#867C67" />
+    <SolidColorBrush x:Key="Text.Disabled" Color="#E6B25E" />
     <SolidColorBrush x:Key="Success"     Color="#94BE8C" />
     <SolidColorBrush x:Key="Danger"      Color="#E08C8C" />
     <SolidColorBrush x:Key="Accent.Teal" Color="#7FC2A8" />
     <SolidColorBrush x:Key="Accent.Amber" Color="#E8B36B" />
+    <SolidColorBrush x:Key="Bg.Input" Color="#11100B" />
+    <SolidColorBrush x:Key="ScrollBar.Track" Color="#1A160F" />
+    <SolidColorBrush x:Key="ScrollBar.Thumb" Color="#3A3329" />
+    <SolidColorBrush x:Key="ScrollBar.Thumb.Hover" Color="#5A4E33" />
+    <sys:Double x:Key="Opacity.Disabled.Button">0.4</sys:Double>
     <Color x:Key="Brand.Mark.Start">#F3C97E</Color>
     <Color x:Key="Brand.Mark.End">#D29A41</Color>
 
@@ -100,7 +107,8 @@
                             <Setter Property="Foreground" Value="{StaticResource Gold.Bright}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.4" />
+                            <Setter Property="Foreground" Value="{StaticResource Text.Disabled}" />
+                            <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -169,6 +177,74 @@
                             </Border>
                         </Popup>
                     </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ScrollBarLineButton" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="Transparent" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ScrollBarThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="ThumbRoot" Background="{StaticResource ScrollBar.Thumb}" CornerRadius="4" Margin="2" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource ScrollBar.Thumb.Hover}" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource ScrollBar.Thumb.Hover}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="10" />
+        <Setter Property="MinWidth" Value="10" />
+        <Setter Property="Background" Value="{StaticResource ScrollBar.Track}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid x:Name="Root" Width="{TemplateBinding Width}" Height="Auto" Background="{TemplateBinding Background}">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton x:Name="DecreaseButton" Command="{x:Static ScrollBar.PageUpCommand}" Style="{StaticResource ScrollBarLineButton}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource ScrollBarThumb}" />
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton x:Name="IncreaseButton" Command="{x:Static ScrollBar.PageDownCommand}" Style="{StaticResource ScrollBarLineButton}" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal">
+                            <Setter Property="Width" Value="Auto" />
+                            <Setter Property="MinWidth" Value="0" />
+                            <Setter Property="Height" Value="10" />
+                            <Setter Property="MinHeight" Value="10" />
+                            <Setter TargetName="Root" Property="Width" Value="Auto" />
+                            <Setter TargetName="Root" Property="Height" Value="{Binding Height, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+                            <Setter TargetName="DecreaseButton" Property="Command" Value="{x:Static ScrollBar.PageLeftCommand}" />
+                            <Setter TargetName="IncreaseButton" Property="Command" Value="{x:Static ScrollBar.PageRightCommand}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -307,7 +383,7 @@
 
     <!-- ===== Inputs ===== -->
     <Style TargetType="TextBox">
-        <Setter Property="Background" Value="#11100B" />
+        <Setter Property="Background" Value="{StaticResource Bg.Input}" />
         <Setter Property="Foreground" Value="{StaticResource Text}" />
         <Setter Property="CaretBrush" Value="{StaticResource Gold}" />
         <Setter Property="BorderBrush" Value="{StaticResource Border.Soft}" />
