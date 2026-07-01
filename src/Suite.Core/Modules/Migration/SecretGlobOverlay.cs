@@ -17,13 +17,26 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// DPAPI blob under an arbitrary name — content-based "never readable" magic is explicitly NOT asserted.
 /// DPAPI/machine-locked data is handled by classification (<see cref="PortabilityBadge"/>), not a blind
 /// guarantee.</para>
+///
+/// <para><b>AI-CLI credential leaves (2026-07-01 leak fix):</b> a council audit found the broad
+/// <c>.codex</c>/<c>.gemini</c> backup recipes (which exclude only log/cache dirs) would package
+/// <c>auth.json</c> (Codex OAuth token) and <c>oauth_creds.json</c> (Gemini OAuth token) — neither matched the
+/// original globs. Those names, plus the owner's own documented hard-rule credential filenames
+/// (<c>.env*</c>, <c>.npmrc</c>, <c>cred_blob*</c>) and the non-RSA SSH private-key types, are added here so
+/// they are pruned forbidden-first at copy time for EVERY recipe. Still name-based, per the honesty note above.</para>
 /// </summary>
 public static class SecretGlobOverlay
 {
-    /// <summary>The credential/token leaf-name globs excluded on top of every recipe (F3).</summary>
+    /// <summary>The credential/token leaf-name globs excluded on top of every recipe (F3 + 2026-07-01 AI-CLI leak fix).</summary>
     public static readonly IReadOnlyList<string> Globs = new[]
     {
-        "*.key", "*.pem", "id_rsa*", "*.ppk", "*token*", "*secret*", "*credential*",
+        // Key material / tokens (original F3 set) + all SSH private-key types (id_rsa* only caught RSA).
+        "*.key", "*.pem", "id_rsa*", "id_ed25519*", "id_ecdsa*", "id_dsa*", "*.ppk",
+        "*token*", "*secret*", "*credential*",
+        // AI-CLI credential/token leaves + owner hard-rule credential filenames (2026-07-01 leak fix).
+        // `.env` + `.env.*` (not `.env*`) targets the dotenv file family without over-matching a directory
+        // such as `.environment` (adversarial-review LOW finding).
+        "auth.json", "oauth_creds.json", ".npmrc", ".env", ".env.*", "cred_blob*",
     };
 
     private static readonly Regex[] Compiled = Globs.Select(Compile).ToArray();
