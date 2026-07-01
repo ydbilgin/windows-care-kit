@@ -13,6 +13,9 @@ public enum BackupActionStatus
     /// <summary>The copy completed successfully.</summary>
     Done,
 
+    /// <summary>The copy ran but deliberately skipped the source without writing any file bytes.</summary>
+    Skipped,
+
     /// <summary>The gate re-blocked the action at execution time. It did not run.</summary>
     Blocked,
 
@@ -27,7 +30,11 @@ public enum BackupActionStatus
 /// <param name="ActionId">The <see cref="PlannedAction.Id"/> this result is for.</param>
 /// <param name="Status">What happened to the action.</param>
 /// <param name="Detail">Human-readable detail (gate reason, exception summary, …) — used to classify the skip reason.</param>
-public sealed record BackupActionResult(string ActionId, BackupActionStatus Status, string Detail);
+public sealed record BackupActionResult(string ActionId, BackupActionStatus Status, string Detail)
+{
+    /// <summary>Structured copy outcomes produced by the real copy adapter, when available.</summary>
+    public IReadOnlyList<CopyFileOutcome> CopyOutcomes { get; init; } = Array.Empty<CopyFileOutcome>();
+}
 
 /// <summary>
 /// The result of executing a backup plan, projected into Core terms. Mirrors the execution layer's

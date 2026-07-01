@@ -81,6 +81,7 @@ public sealed class BackupRunner
         // machine-readable manifest. This step ONLY reads + writes — it produces no new gated action.
         IReadOnlyList<BackupIntegrity> integrity =
             _integrityWriter.BuildIntegrity(copyReport, payloadRoot, _fs, _hasher, _clock);
+        ReconcileCopyReportWithIntegrity(copyReport, integrity);
         _integrityWriter.WriteIntegrity(integrity, payloadRoot, _gate);
 
         // Human-readable reports (the writer re-gates the destination before writing).
@@ -109,6 +110,12 @@ public sealed class BackupRunner
                 continue;
 
             BackupActionResult? result = byId.TryGetValue(copy.Id, out BackupActionResult? r) ? r : null;
+            if (result?.CopyOutcomes.Count > 0)
+            {
+                outcomes.AddRange(result.CopyOutcomes);
+                continue;
+            }
+
             bool copied = result?.Status == BackupActionStatus.Done;
             CopySkipReason? reason = copied ? null : ClassifySkip(result);
             outcomes.Add(new CopyFileOutcome(
@@ -116,6 +123,27 @@ public sealed class BackupRunner
         }
 
         return new CopySkipReport(outcomes);
+    }
+
+    private static void ReconcileCopyReportWithIntegrity(
+        CopySkipReport copyReport,
+        IReadOnlyList<BackupIntegrity> integrity)
+    {
+        var copiedIds = new HashSet<string>(copyReport.Copied.Select(o => o.EntryId), StringComparer.Ordinal);
+        var skippedOnlyIds = new HashSet<string>(
+            copyReport.Skipped
+                .Select(o => o.EntryId)
+                .Where(id => !copiedIds.Contains(id)),
+            StringComparer.Ordinal);
+
+        foreach (BackupIntegrity row in integrity)
+        {
+            if (skippedOnlyIds.Contains(row.EntryId))
+            {
+                throw new InvalidOperationException(
+                    $"integrity row '{row.DestinationRelativePath}' belongs to skipped copy entry '{row.EntryId}'.");
+            }
+        }
     }
 
     // The execution layer throws typed exceptions whose recorded detail is "{TypeName}: {message}". Match on
@@ -132,6 +160,8 @@ public sealed class BackupRunner
             return CopySkipReason.Other;
         if (result.Status == BackupActionStatus.Blocked)
             return CopySkipReason.Blocked;
+        if (result.Status == BackupActionStatus.Skipped)
+            return CopySkipReason.Other;
         if (result.Status == BackupActionStatus.NotRun)
             return CopySkipReason.Other;
 

@@ -8,9 +8,35 @@
 *.vhdx
 *.vmcx
 *.pfx
+*.p12
+*.pgp
+*.gpg
+*.asc
+*.jks
+*.keystore
 *.pem
 *.key
 *.kdbx
+*.ovpn
+*.mobileprovision
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+*.ppk
+wallet.dat
+.git-credentials
+.netrc
+.pypirc
+.npmrc
+.env
+.env.*
+auth.json
+oauth_creds.json
+cred_blob*
+.claude.json
+*password*
+*recovery-code*
 
 ## Payload = personal user data (tool/payload separation). NEVER committed.
 payload/

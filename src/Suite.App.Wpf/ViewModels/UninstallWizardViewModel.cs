@@ -675,12 +675,12 @@ public sealed class UninstallWizardViewModel : ObservableObject
             RiskLevel risk = r.Status switch
             {
                 ActionStatus.Done => RiskLevel.Low,
-                ActionStatus.NotRun => RiskLevel.Info,
+                ActionStatus.NotRun or ActionStatus.Skipped => RiskLevel.Info,
                 _ => RiskLevel.Critical,
             };
             if (r.Status == ActionStatus.Done)
                 _doneCount++;
-            else if (r.Status == ActionStatus.NotRun)
+            else if (r.Status is ActionStatus.NotRun or ActionStatus.Skipped)
                 _skippedCount++;
             else
                 _failedCount++;
@@ -706,6 +706,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
         ActionStatus.Blocked => I18n["uninstall.result.status.blocked"],
         ActionStatus.Failed => I18n["uninstall.result.status.failed"],
         ActionStatus.NotRun => I18n["uninstall.result.status.notRun"],
+        ActionStatus.Skipped => I18n["uninstall.result.status.notRun"],
         _ => status.ToString(),
     };
 

@@ -75,8 +75,10 @@ Some of this is enforced in code, so reviewers and reporters know where to look:
 - **Build-enforced isolation.** A Banned-APIs analyzer **fails the build** if destructive APIs
   (`File.Delete`, registry deletes, process kills, …) are called outside the sanctioned execution
   layer.
-- **Secret exclusion** is applied at copy time (a forbidden-first leaf filter), so a backup cannot
-  silently include known credential/token files.
+- **Secret exclusion** is applied at copy time with a forbidden-first leaf filter for known
+  credential/token files, plus a bounded text content scan that drops configs containing embedded
+  token-like values before bytes are copied. Users should still review the generated report and the
+  backup contents before storing or sharing a package.
 - **Honest failure.** When a protective guarantee can't be met, the app refuses and records a
   failure rather than reporting a success that didn't happen.
 - **No telemetry / no phone-home.** The app never contacts a server on its own; network activity only occurs when the user explicitly runs the Install module (`winget`/`npm` reinstalls).

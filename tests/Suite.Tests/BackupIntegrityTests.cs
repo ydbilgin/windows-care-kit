@@ -4,6 +4,7 @@ using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Execution;
 using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
@@ -315,6 +316,37 @@ public class BackupIntegrityTests
         Assert.Equal("not run", o.Detail);
     }
 
+    [Fact]
+    public void Embedded_secret_single_file_copy_is_reported_as_skipped_not_done()
+    {
+        using var fx = new RealExecutorFixture();
+        string source = fx.Workspace.WriteFile("src/settings.json", "{ \"apiKey\": \"synthetic-value-for-report\" }");
+        string destination = fx.Workspace.Combine("payload", "settings.json");
+        var copy = Copy("secret-settings", source, destination);
+        var plan = new OperationPlan("Back up", "backup", new[] { copy }, T0);
+
+        ExecutionReport execution = fx.Executor.ExecuteWithReport(plan, plan.ComputeHash());
+
+        ActionResult action = Assert.Single(execution.Results);
+        Assert.Equal(ActionStatus.Skipped, action.Status);
+        Assert.False(File.Exists(destination));
+        Assert.Contains(fx.LogLines(), line => line.Contains("action.skipped", StringComparison.Ordinal));
+        Assert.DoesNotContain(fx.LogLines(), line => line.Contains("action.done", StringComparison.Ordinal));
+
+        var backupReport = new BackupExecutionReport(true, new[]
+        {
+            new BackupActionResult(copy.Id, BackupActionStatus.Skipped, action.Detail)
+            {
+                CopyOutcomes = action.CopyOutcomes,
+            },
+        });
+
+        CopyFileOutcome outcome = Assert.Single(BackupRunner.BuildCopyReport(plan, backupReport).Outcomes);
+        Assert.False(outcome.Copied);
+        Assert.Equal(CopySkipReason.ExcludedEmbeddedSecret, outcome.Reason);
+        Assert.Contains("key/value", outcome.Detail);
+    }
+
     // ----------------------------------------------------------------------------------------------------
     // F1: cross-assembly contract — Core's skip classification is keyed on the REAL exception TypeTokens.
     // The Core runner duplicates the type-name tokens as private constants (it cannot reference Suite.Execution).
@@ -395,6 +427,43 @@ public class BackupIntegrityTests
             new BackupIntegrityWriter().BuildIntegrity(copied, payload, fs, hasher, clock));
     }
 
+    [Fact]
+    public void BackupRunner_rejects_integrity_rows_for_skipped_only_copy_entries()
+    {
+        using var ws = new TempWorkspace("wck-reconcile-");
+        string src = ws.WriteFile("src/settings.json", "{ \"apiKey\": \"synthetic-value-for-reconcile\" }");
+        string dst = ws.Combine("payload", "settings.json");
+        var copy = Copy("settings", src, dst);
+        var plan = new OperationPlan("Back up", "backup", new[] { copy }, T0);
+        var planResult = new BackupPlanResult(plan,
+            Array.Empty<BackupEntry>(), Array.Empty<BackupSkip>(), Array.Empty<BackupEntry>());
+
+        var executor = new RecordingBackupExecutor(authorized: true,
+            new BackupActionResult(copy.Id, BackupActionStatus.Skipped, "Skipped (ExcludedEmbeddedSecret)")
+            {
+                CopyOutcomes = new[]
+                {
+                    new CopyFileOutcome(copy.Id, src, dst, false, CopySkipReason.ExcludedEmbeddedSecret, "secret-like key/value"),
+                },
+            });
+
+        var runner = new BackupRunner(
+            executor,
+            new ContradictingIntegrityWriter(new[]
+            {
+                new BackupIntegrity(copy.Id, "settings.json", "hash", 1, T0),
+            }),
+            new BackupReportWriter(new LogRedactor(null, null)),
+            RealGate(),
+            new FakeFileSystem(),
+            new FakeHasher(),
+            new FakeClock(T0));
+
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(
+            () => runner.Run(planResult, plan.ComputeHash(), ws.Combine("payload")));
+        Assert.Contains("skipped", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ---- test doubles ------------------------------------------------------------------------------------
 
     /// <summary>A fake <see cref="IBackupExecutor"/> that records the call and returns a canned report — no real copy.</summary>
@@ -435,5 +504,20 @@ public class BackupIntegrityTests
         }
 
         public PlanValidationResult Validate(OperationPlan plan) => _inner.Validate(plan);
+    }
+
+    private sealed class ContradictingIntegrityWriter : IIntegrityWriter
+    {
+        private readonly IReadOnlyList<BackupIntegrity> _rows;
+
+        public ContradictingIntegrityWriter(IReadOnlyList<BackupIntegrity> rows)
+            => _rows = rows;
+
+        public IReadOnlyList<BackupIntegrity> BuildIntegrity(
+            CopySkipReport copied, string payloadRoot, IFileSystem fs, IHasher hasher, IClock clock)
+            => _rows;
+
+        public string WriteIntegrity(IReadOnlyList<BackupIntegrity> rows, string payloadRoot, ISafetyGate gate)
+            => throw new InvalidOperationException("reconcile should run before writing integrity");
     }
 }

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
@@ -669,7 +670,7 @@ internal sealed class ThrowingTaskAdapter : ITaskAdapter
 
 internal sealed class ThrowingCopyAdapter : ICopyAdapter
 {
-    public void Copy(CopyAction a) => throw new InvalidOperationException("copy not expected in uninstall E2E");
+    public CopyAdapterResult Copy(CopyAction a) => throw new InvalidOperationException("copy not expected in uninstall E2E");
     public void Merge(RestoreMergeAction a) => throw new InvalidOperationException("merge not expected in uninstall E2E");
 }
 

@@ -49,7 +49,7 @@ public class BackupReportWriterTests
         Assert.Contains("Copied: 1", md);
         Assert.Contains("Skipped: 1", md);
         Assert.Contains(@"C:\src\a", md);
-        Assert.Contains("Locked", md);
+        Assert.Contains("Skipped (Locked)", md);
         Assert.Contains("vscode", md);          // reinstall list
         Assert.Contains("2026-01-01 12:30:00", md);
     }

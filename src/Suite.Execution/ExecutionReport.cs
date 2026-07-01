@@ -1,3 +1,5 @@
+using WindowsCareKit.Core.Modules.Backup;
+
 namespace WindowsCareKit.Execution;
 
 /// <summary>The terminal state of one action after the executor ran (or refused to run) it.</summary>
@@ -5,6 +7,9 @@ public enum ActionStatus
 {
     /// <summary>The adapter completed the action successfully.</summary>
     Done,
+
+    /// <summary>The adapter deliberately skipped the action without writing or mutating its target.</summary>
+    Skipped,
 
     /// <summary>The gate re-evaluated the action as blocked at execution time (the world changed). It did not run.</summary>
     Blocked,
@@ -21,7 +26,11 @@ public enum ActionStatus
 /// <param name="Kind">The action's <see cref="WindowsCareKit.Core.Planning.PlannedAction.Kind"/> (e.g. <c>file.delete</c>).</param>
 /// <param name="Status">What happened to the action.</param>
 /// <param name="Detail">Human-readable detail (gate reason, exception summary, exit code, backup path, …). Redacted in the log.</param>
-public sealed record ActionResult(string ActionId, string Kind, ActionStatus Status, string Detail);
+public sealed record ActionResult(string ActionId, string Kind, ActionStatus Status, string Detail)
+{
+    /// <summary>Structured copy outcomes when this result comes from a <c>CopyAction</c>.</summary>
+    public IReadOnlyList<CopyFileOutcome> CopyOutcomes { get; init; } = Array.Empty<CopyFileOutcome>();
+}
 
 /// <summary>
 /// The richer execution result the UI binds to. <see cref="GatedExecutor.Execute"/> wraps this and
@@ -41,6 +50,9 @@ public sealed record ExecutionReport(
 
     /// <summary>How many actions completed successfully.</summary>
     public int DoneCount => Results.Count(r => r.Status == ActionStatus.Done);
+
+    /// <summary>How many actions were deliberately skipped without being treated as failures.</summary>
+    public int SkippedCount => Results.Count(r => r.Status == ActionStatus.Skipped);
 
     /// <summary>How many actions were blocked or threw (i.e. genuine failures, not best-effort skips).</summary>
     public int FailedCount => Results.Count(r => r.Status is ActionStatus.Failed or ActionStatus.Blocked);

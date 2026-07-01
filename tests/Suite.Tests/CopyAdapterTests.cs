@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Execution.Adapters;
 using WindowsCareKit.Tests.TestInfra;
 using Xunit;
@@ -217,17 +218,49 @@ public class CopyAdapterTests
             string src = Path.Combine(root, "Login Data");
             File.WriteAllText(src, "secret");
 
-            // The refusal is a typed ForbiddenSourceException (still an InvalidOperationException) so the
-            // Backup report can classify the skip on a stable token, not a fragile message substring (L8).
-            var ex = Assert.Throws<ForbiddenSourceException>(() => new CopyAdapter().Copy(new CopyAction
+            CopyAdapterResult result = new CopyAdapter().Copy(new CopyAction
             {
                 Source = src,
                 Destination = Path.Combine(root, "out"),
                 Description = "copy",
                 Reason = "t",
-            }));
-            Assert.IsAssignableFrom<InvalidOperationException>(ex);
-            Assert.Equal(nameof(ForbiddenSourceException), ForbiddenSourceException.TypeToken);
+            });
+
+            CopySkippedItem skip = Assert.Single(result.Skipped);
+            Assert.False(result.CopiedAny);
+            Assert.Equal(CopySkipReason.ExcludedByName, skip.Reason);
+            Assert.False(File.Exists(Path.Combine(root, "out")));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void Skips_text_file_with_embedded_token_before_copying_bytes()
+    {
+        string root = TempDir();
+        try
+        {
+            string src = Path.Combine(root, "profile");
+            Directory.CreateDirectory(src);
+            File.WriteAllText(Path.Combine(src, "settings.json"),
+                "{ \"apiKey\": \"synthetic-value-for-copy-scan\" }");
+            File.WriteAllText(Path.Combine(src, "keybindings.json"), "{}");
+
+            string dst = Path.Combine(root, "out");
+            CopyAdapterResult result = new CopyAdapter().Copy(new CopyAction
+            {
+                Source = src,
+                Destination = dst,
+                Description = "copy",
+                Reason = "t",
+            });
+
+            Assert.True(File.Exists(Path.Combine(dst, "keybindings.json")), "benign text file should be copied");
+            Assert.False(File.Exists(Path.Combine(dst, "settings.json")), "settings.json with embedded token must be dropped");
+            CopySkippedItem skip = Assert.Single(result.Skipped);
+            Assert.Equal(CopySkipReason.ExcludedEmbeddedSecret, skip.Reason);
+            Assert.Contains("key/value", skip.Detail);
+            Assert.True(result.CopiedAny);
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -529,10 +562,13 @@ public class CopyAdapterTests
             Assert.True(HardLinkInterop.TryCreateHardLink(link, secret));
 
             string dst = Path.Combine(root, "out", "notes.db");
-            // A single-file copy of a multi-linked file is silently skipped (AllowsFile == false) — nothing copied.
-            new CopyAdapter().Copy(new CopyAction { Source = link, Destination = dst, Description = "c", Reason = "t" });
+            CopyAdapterResult result =
+                new CopyAdapter().Copy(new CopyAction { Source = link, Destination = dst, Description = "c", Reason = "t" });
 
             Assert.False(File.Exists(dst));
+            CopySkippedItem skip = Assert.Single(result.Skipped);
+            Assert.Equal(CopySkipReason.HardLinked, skip.Reason);
+            Assert.False(result.CopiedAny);
         }
         finally { Directory.Delete(root, recursive: true); }
     }
