@@ -10,13 +10,12 @@ namespace WindowsCareKit.Core.Modules.Migration;
 ///
 /// <para><b>Priority is forbidden-first (F3):</b> a recipe's <c>include</c> allow-list can NEVER override a
 /// secret-glob match — these globs are merged into the copy action's <c>ExcludeLeaves</c>, and the engine
-/// evaluates exclusion before include (see <c>CopyAdapter.Exclusions.AllowsFile</c>: leaf/forbidden checks
+/// evaluates exclusion before include (see <c>CopyAdapter.Exclusions.EvaluateFile</c>: leaf/forbidden checks
 /// run before the include filter).</para>
 ///
-/// <para><b>No over-claim (F3):</b> this is NAME-based exclusion. It does not, and does not claim to, catch a
-/// DPAPI blob under an arbitrary name — content-based "never readable" magic is explicitly NOT asserted.
-/// DPAPI/machine-locked data is handled by classification (<see cref="PortabilityBadge"/>), not a blind
-/// guarantee.</para>
+/// <para><b>Content pass:</b> name-based exclusion is paired with
+/// <see cref="EmbeddedSecretScanner"/> at the copy boundary so innocuous config names containing embedded
+/// tokens are dropped before bytes are written.</para>
 ///
 /// <para><b>AI-CLI credential leaves (2026-07-01 leak fix):</b> a council audit found the broad
 /// <c>.codex</c>/<c>.gemini</c> backup recipes (which exclude only log/cache dirs) would package
@@ -27,16 +26,24 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// </summary>
 public static class SecretGlobOverlay
 {
-    /// <summary>The credential/token leaf-name globs excluded on top of every recipe (F3 + 2026-07-01 AI-CLI leak fix).</summary>
+    /// <summary>
+    /// The credential/token leaf-name globs excluded on top of every recipe (F3 + 2026-07-01 AI-CLI leak fix).
+    /// The concrete file-family patterns here mirror the SECURITY DENY-LIST in .gitignore. The broad
+    /// content-name patterns (*token*/*secret*/*credential*) are deliberately NOT in .gitignore — there they
+    /// would wrongly ignore this repo's own security-named source files (SecretGlobOverlay, EmbeddedSecretScanner,
+    /// SecretFilter tests). This overlay guards BACKUP sources; .gitignore guards repo commits.
+    /// </summary>
     public static readonly IReadOnlyList<string> Globs = new[]
     {
         // Key material / tokens (original F3 set) + all SSH private-key types (id_rsa* only caught RSA).
-        "*.key", "*.pem", "id_rsa*", "id_ed25519*", "id_ecdsa*", "id_dsa*", "*.ppk",
-        "*token*", "*secret*", "*credential*",
+        "*.key", "*.pem", "*.pfx", "*.p12", "*.pgp", "*.gpg", "*.asc", "*.jks", "*.keystore",
+        "*.kdbx", "*.ovpn", "*.mobileprovision", "id_rsa*", "id_ed25519*", "id_ecdsa*", "id_dsa*", "*.ppk",
+        "*token*", "*secret*", "*credential*", "*password*", "*recovery-code*",
         // AI-CLI credential/token leaves + owner hard-rule credential filenames (2026-07-01 leak fix).
         // `.env` + `.env.*` (not `.env*`) targets the dotenv file family without over-matching a directory
         // such as `.environment` (adversarial-review LOW finding).
         "auth.json", "oauth_creds.json", ".npmrc", ".env", ".env.*", "cred_blob*",
+        "wallet.dat", ".git-credentials", ".netrc", ".pypirc", ".claude.json",
     };
 
     private static readonly Regex[] Compiled = Globs.Select(Compile).ToArray();

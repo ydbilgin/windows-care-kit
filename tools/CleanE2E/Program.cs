@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Win32;
 using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Modules.Backup;
 using CoreHive = WindowsCareKit.Core.Planning.RegistryHive;
 using CoreView = WindowsCareKit.Core.Planning.RegistryView;
 using WindowsCareKit.Core.Modules.Clean;
@@ -631,7 +632,7 @@ internal sealed class ThrowingProcessAdapter : IProcessAdapter
 
 internal sealed class ThrowingCopyAdapter : ICopyAdapter
 {
-    public void Copy(CopyAction a) => throw new InvalidOperationException("copy not expected in Clean E2E");
+    public CopyAdapterResult Copy(CopyAction a) => throw new InvalidOperationException("copy not expected in Clean E2E");
     public void Merge(RestoreMergeAction a) => throw new InvalidOperationException("merge not expected in Clean E2E");
 }
 

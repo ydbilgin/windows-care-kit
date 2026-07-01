@@ -1,5 +1,6 @@
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution.Adapters;
@@ -61,7 +62,7 @@ public sealed class GatedExecutor : IExecutor
         if (!report.Authorized)
             return new ExecutionOutcome(false, FirstDetailOr(report, "plan refused"));
 
-        string reason = $"{report.DoneCount} done, {report.FailedCount} failed of {report.Results.Count}";
+        string reason = $"{report.DoneCount} done, {report.SkippedCount} skipped, {report.FailedCount} failed of {report.Results.Count}";
         return new ExecutionOutcome(true, reason);
     }
 
@@ -129,9 +130,10 @@ public sealed class GatedExecutor : IExecutor
             // 3d/3e) Dispatch + try/catch.
             try
             {
-                Dispatch(action);
-                _log.Append("action.done", $"{action.Kind}: {action.Description}", ActionData(action));
-                results.Add(new ActionResult(action.Id, action.Kind, ActionStatus.Done, "ok"));
+                ActionResult result = Dispatch(action);
+                string eventName = result.Status == ActionStatus.Skipped ? "action.skipped" : "action.done";
+                _log.Append(eventName, $"{action.Kind}: {action.Description}", ActionData(action));
+                results.Add(result);
             }
             catch (Exception ex)
             {
@@ -148,14 +150,16 @@ public sealed class GatedExecutor : IExecutor
 
         // 4) plan.done with tallies.
         int done = results.Count(r => r.Status == ActionStatus.Done);
+        int skipped = results.Count(r => r.Status == ActionStatus.Skipped);
         int failed = results.Count(r => r.Status is ActionStatus.Failed or ActionStatus.Blocked);
         int notRunCount = results.Count(r => r.Status == ActionStatus.NotRun);
-        _log.Append("plan.done", $"{plan.ModuleName}: {done} done / {failed} failed / {notRunCount} not run",
+        _log.Append("plan.done", $"{plan.ModuleName}: {done} done / {skipped} skipped / {failed} failed / {notRunCount} not run",
             new Dictionary<string, string?>
             {
                 ["module"] = plan.ModuleName,
                 ["planId"] = plan.Id,
                 ["done"] = done.ToString(),
+                ["skipped"] = skipped.ToString(),
                 ["failed"] = failed.ToString(),
                 ["notRun"] = notRunCount.ToString(),
             });
@@ -174,37 +178,69 @@ public sealed class GatedExecutor : IExecutor
            && action.Risk == RiskLevel.Low
            && action.Undo == UndoCapability.Full;
 
-    private void Dispatch(PlannedAction action)
+    private ActionResult Dispatch(PlannedAction action)
     {
         switch (action)
         {
             case FileDeleteAction file:
                 _fileAdapter.Delete(file);
-                break;
+                return Done(action);
             case RegistryDeleteAction reg:
                 _registryAdapter.Delete(reg);
-                break;
+                return Done(action);
             case ServiceDeleteAction svc:
                 _serviceAdapter.Apply(svc);
-                break;
+                return Done(action);
             case TaskDeleteAction task:
                 _taskAdapter.Apply(task);
-                break;
+                return Done(action);
             case CommandAction cmd:
                 _processAdapter.Run(cmd);
-                break;
+                return Done(action);
             case CopyAction copy:
-                _copyAdapter.Copy(copy);
-                break;
+                return CopyResult(copy, _copyAdapter.Copy(copy));
             case RestoreMergeAction merge:
                 _copyAdapter.Merge(merge);
-                break;
+                return Done(action);
             case CreateRestorePointAction restorePoint:
                 _restorePointCreator.Create(restorePoint);
-                break;
+                return Done(action);
             default:
                 throw new NotSupportedException($"No adapter for action kind '{action.Kind}'.");
         }
+    }
+
+    private static ActionResult Done(PlannedAction action)
+        => new(action.Id, action.Kind, ActionStatus.Done, "ok");
+
+    private static ActionResult CopyResult(CopyAction action, CopyAdapterResult result)
+    {
+        var outcomes = new List<CopyFileOutcome>();
+        if (result.CopiedAny)
+        {
+            string copiedDetail = $"ok ({result.CopiedFileCount} file(s), {result.CopiedByteCount} byte(s))";
+            outcomes.Add(new CopyFileOutcome(action.Id, action.Source, action.Destination, true, null, copiedDetail));
+        }
+
+        foreach (CopySkippedItem skipped in result.Skipped)
+            outcomes.Add(new CopyFileOutcome(action.Id, skipped.Source, skipped.Destination, false, skipped.Reason, skipped.Detail));
+
+        if (outcomes.Count == 0)
+            outcomes.Add(new CopyFileOutcome(action.Id, action.Source, action.Destination, false, CopySkipReason.Other, "no files copied"));
+
+        if (result.CopiedAny)
+        {
+            string detail = result.Skipped.Count == 0
+                ? outcomes[0].Detail
+                : $"{outcomes[0].Detail}; {result.Skipped.Count} skipped";
+            return new ActionResult(action.Id, action.Kind, ActionStatus.Done, detail) { CopyOutcomes = outcomes };
+        }
+
+        CopyFileOutcome firstSkip = outcomes.First(o => !o.Copied);
+        string skippedDetail = result.Skipped.Count <= 1
+            ? $"Skipped ({firstSkip.Reason}): {firstSkip.Detail}"
+            : $"Skipped ({firstSkip.Reason}): {firstSkip.Detail}; {result.Skipped.Count} total skipped";
+        return new ActionResult(action.Id, action.Kind, ActionStatus.Skipped, skippedDetail) { CopyOutcomes = outcomes };
     }
 
     private static Dictionary<string, string?> ActionData(PlannedAction action, Exception? ex = null)

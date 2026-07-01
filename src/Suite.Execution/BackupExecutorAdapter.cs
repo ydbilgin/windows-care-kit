@@ -24,13 +24,17 @@ public sealed class BackupExecutorAdapter : IBackupExecutor
         ExecutionReport report = _executor.ExecuteWithReport(plan, approvedPlanHash);
         var results = new List<BackupActionResult>(report.Results.Count);
         foreach (ActionResult r in report.Results)
-            results.Add(new BackupActionResult(r.ActionId, Map(r.Status), r.Detail));
+            results.Add(new BackupActionResult(r.ActionId, Map(r.Status), r.Detail)
+            {
+                CopyOutcomes = r.CopyOutcomes,
+            });
         return new BackupExecutionReport(report.Authorized, results);
     }
 
     private static BackupActionStatus Map(ActionStatus status) => status switch
     {
         ActionStatus.Done => BackupActionStatus.Done,
+        ActionStatus.Skipped => BackupActionStatus.Skipped,
         ActionStatus.Blocked => BackupActionStatus.Blocked,
         ActionStatus.Failed => BackupActionStatus.Failed,
         ActionStatus.NotRun => BackupActionStatus.NotRun,

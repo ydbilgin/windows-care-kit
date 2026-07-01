@@ -59,6 +59,20 @@ public class BackupPlannerTests
     }
 
     [Fact]
+    public void Never_read_copy_enabled_entry_emits_no_copy_action_even_when_method_is_copy()
+    {
+        var manifest = new BackupManifest(new[]
+        {
+            CopyEntry("token", @"C:\Users\alice\.claude.json", "ai/.claude.json", secret: SecretHandling.NeverRead),
+        });
+
+        BackupPlanResult result = Planner().BuildPlan(manifest, OutsidePayloadRoot(), T0);
+
+        Assert.Empty(result.Plan.Actions.OfType<CopyAction>());
+        Assert.Equal("token", Assert.Single(result.ManualTodos).Id);
+    }
+
+    [Fact]
     public void Disabled_entries_are_skipped_with_reason()
     {
         var manifest = new BackupManifest(new[]

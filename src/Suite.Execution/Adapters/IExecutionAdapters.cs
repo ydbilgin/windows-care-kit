@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Modules.Backup;
 
 namespace WindowsCareKit.Execution.Adapters;
 
@@ -60,7 +61,7 @@ public interface IProcessAdapter
 public interface ICopyAdapter
 {
     /// <summary>Copy <see cref="CopyAction.Source"/> to <see cref="CopyAction.Destination"/>.</summary>
-    void Copy(CopyAction action);
+    CopyAdapterResult Copy(CopyAction action);
 
     /// <summary>Back up the destination (if present and requested) to <c>.bak.&lt;timestamp&gt;</c>, then write the source onto it.</summary>
     void Merge(RestoreMergeAction action);

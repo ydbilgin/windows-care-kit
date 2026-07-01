@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Execution.Adapters;
 
 namespace WindowsCareKit.Tests.Execution;
@@ -61,7 +62,12 @@ internal sealed class RecordingAdapters
 
     private sealed class FakeCopy(RecordingAdapters o) : ICopyAdapter
     {
-        public void Copy(CopyAction action) => o.Hit("copy", action);
+        public CopyAdapterResult Copy(CopyAction action)
+        {
+            o.Hit("copy", action);
+            return new CopyAdapterResult(1, 1, Array.Empty<CopySkippedItem>());
+        }
+
         public void Merge(RestoreMergeAction action) => o.Hit("merge", action);
     }
 }

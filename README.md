@@ -43,7 +43,7 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 ```mermaid
 flowchart LR
   U[Uninstall - remove unwanted apps] --> C[Clean - clear junk]
-  C --> B[Backup - package settings and data, secrets excluded]
+  C --> B[Backup - package settings and data, credential files filtered]
   B --> F[FORMAT - fresh Windows]
   F --> R[Reinstall - reinstall your apps]
   R --> M[Migration - carry portable settings and report limits]
@@ -69,7 +69,7 @@ Maintenance starts before you decide to format, Backup captures what is portable
 
 **💾 Backup**
 
-![Backup — choose a folder outside the app, preview the plan; secrets are never copied](docs/screenshots/03-backup.png)
+![Backup — choose a folder outside the app, preview the plan; credential files and embedded-token configs are dropped](docs/screenshots/03-backup.png)
 
 **📦 Reinstall**
 
@@ -94,7 +94,7 @@ Maintenance starts before you decide to format, Backup captures what is portable
 ### 💾 Backup
 - **Manifest-driven plan** for the irreplaceable stuff before a format.
 - **Tool / payload separation:** re-downloadable apps are **never copied** — only an *install list* is written, so your backup stays small.
-- **Secret-store exclusion is enforced:** browser cookies, saved passwords, token stores (`Login Data`, `Local State`, `key4.db`, …) are **not** copied into the backup.
+- **Credential filtering is enforced:** known credential-file names (`Login Data`, `Local State`, `key4.db`, `.npmrc`, `.env`, …) are skipped, and text configs are content-scanned so files with embedded tokens are dropped before copy. Review the report and backup contents before relying on them.
 - Produces a human-readable **`RAPOR.md`** (report) and **`MANUAL_TODO.md`** (the things only *you* can do — e.g. re-login somewhere).
 - Your personal backup data lives **outside** the app, never in the repo.
 
@@ -130,7 +130,7 @@ This is the part most "cleaner" tools get wrong. Here it is the core design:
 - **Dry-run first, always.** Nothing happens until you see a typed, risk-classified plan and **approve** it.
 - **Honest interface.** If something can't transfer (DPAPI-encrypted passwords, cloud-only saves), the app **says so** — it doesn't fake success.
 - **No telemetry, no analytics, no phone-home.** The app never contacts a server on its own. The only network activity happens when *you* run the Install module — it reinstalls your apps via `winget`/`npm`, and shows you the exact, approved plan before anything downloads.
-- **Tool/payload separation + secret exclusion** so a backup never leaks your credentials.
+- **Tool/payload separation + credential filtering:** known secret-store files are name-filtered, text configs are scanned for embedded tokens, and the report tells you what was skipped. Review the backup before storing or sharing it.
 - **Auditable:** a single sanctioned execution layer, an analyzer that **fails the build** if destructive APIs are used outside it, and a redacted **execution log**.
 
 ---

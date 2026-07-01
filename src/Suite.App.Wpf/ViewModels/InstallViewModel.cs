@@ -378,11 +378,12 @@ public sealed class InstallViewModel : ObservableObject
     private PlanRow ResultRow(ActionResult r)
     {
         bool ok = r.Status == ActionStatus.Done;
+        bool skipped = r.Status is ActionStatus.NotRun or ActionStatus.Skipped;
         return new PlanRow
         {
             Text = $"{r.Kind}: {r.Detail}",
             RiskText = r.Status.ToString().ToUpperInvariant(),
-            RiskBrush = RiskVisuals.For(ok ? RiskLevel.Low : RiskLevel.Critical),
+            RiskBrush = RiskVisuals.For(ok ? RiskLevel.Low : skipped ? RiskLevel.Info : RiskLevel.Critical),
             Undo = string.Empty,
             Detail = r.ActionId,
         };

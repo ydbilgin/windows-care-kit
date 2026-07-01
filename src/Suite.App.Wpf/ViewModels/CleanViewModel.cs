@@ -303,7 +303,7 @@ public sealed class CleanViewModel : ObservableObject
         {
             string hash = plan.ComputeHash();
             ExecutionReport report = await Task.Run(() => _executor.ExecuteWithReport(plan, hash));
-            int notRun = report.Results.Count(r => r.Status == ActionStatus.NotRun);
+            int notRun = report.Results.Count(r => r.Status is ActionStatus.NotRun or ActionStatus.Skipped);
             ResultSummary = I18n.Format("clean.result.summary", report.DoneCount, notRun, report.FailedCount);
         }
         finally

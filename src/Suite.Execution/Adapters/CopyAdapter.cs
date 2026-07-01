@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using WindowsCareKit.Core.Modules.Backup;
+using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Win32;
 
@@ -8,11 +10,12 @@ namespace WindowsCareKit.Execution.Adapters;
 /// <summary>
 /// Performs Backup copies and config-restore merges. The copy engine is long-path aware, guards against
 /// junction/symlink loops, retries transient sharing violations, and enforces secret-store protection at
-/// copy time in three layers (spec §1.3):
+/// copy time in four layers (spec §1.3):
 /// <list type="number">
 /// <item>an <c>Include</c> allow-list (when present, ONLY matching paths are copied);</item>
 /// <item>the per-action <c>ExcludeLeaves</c>/<c>ForbiddenSources</c> from the manifest PLUS a hardened
 /// built-in superset of credential/cookie/session leaves;</item>
+/// <item>a bounded text content scan that drops files with embedded token/credential values before writing;</item>
 /// <item>every file is resolved with <c>GetFinalPathNameByHandle</c> so a renamed SYMLINK to a secret store is
 /// still caught, and any file reparse point (symlink) is skipped. A HARD LINK, however, is NOT de-aliased by
 /// that API — both names are equal aliases of the same on-disk file and it returns whichever you opened — so a
@@ -33,26 +36,31 @@ public sealed class CopyAdapter : ICopyAdapter
         WindowsCareKit.Core.Modules.Migration.MigrationSecretFilter.FixedCredentialLeaves;
 
     /// <inheritdoc />
-    public void Copy(CopyAction action)
+    public CopyAdapterResult Copy(CopyAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
 
         var ex = Exclusions.From(action, _canon);
-        GuardForbiddenSource(action.Source, ex);
+        var acc = new CopyAccumulator();
 
         if (Directory.Exists(action.Source))
         {
             string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(action.Source));
-            CopyTree(action.Source, action.Destination, root, ex, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-            return;
+            CopyTree(action.Source, action.Destination, root, ex, new HashSet<string>(StringComparer.OrdinalIgnoreCase), acc);
+            return acc.ToResult();
         }
 
         if (File.Exists(action.Source))
         {
-            if (!ex.AllowsFile(action.Source, action.Source))
-                return; // a single forbidden/excluded/reparse source file → nothing copied
-            CopyFileWithRetry(action.Source, action.Destination);
-            return;
+            FileCopyDecision decision = ex.EvaluateFile(action.Source, action.Source);
+            if (!decision.Allowed)
+            {
+                acc.Skip(action.Source, action.Destination, decision.Reason, decision.Detail);
+                return acc.ToResult();
+            }
+
+            CopyFileWithRetry(action.Source, action.Destination, acc);
+            return acc.ToResult();
         }
 
         throw new FileNotFoundException($"Copy source does not exist: {action.Source}", action.Source);
@@ -235,15 +243,27 @@ public sealed class CopyAdapter : ICopyAdapter
 
     // ---- engine ----------------------------------------------------------------------------
 
-    private void CopyTree(string sourceDir, string destDir, string sourceRoot, Exclusions ex, HashSet<string> visitedRealDirs)
+    private void CopyTree(
+        string sourceDir,
+        string destDir,
+        string sourceRoot,
+        Exclusions ex,
+        HashSet<string> visitedRealDirs,
+        CopyAccumulator acc)
     {
         string real = TryGetRealPath(sourceDir);
         if (!visitedRealDirs.Add(real))
+        {
+            acc.Skip(sourceDir, destDir, CopySkipReason.Reparse, "directory loop/reparse target already visited");
             return;
+        }
 
         // Never follow a directory reparse point into another tree (junction-loop + redirect guard).
         if (IsReparsePoint(sourceDir))
+        {
+            acc.Skip(sourceDir, destDir, CopySkipReason.Reparse, "directory reparse point excluded");
             return;
+        }
 
         // Destination-side TOCTOU re-check at the write boundary (mirror of the delete adapter): refuse to
         // create/write under a destination whose existing parent chain contains a junction/symlink swapped in
@@ -254,25 +274,44 @@ public sealed class CopyAdapter : ICopyAdapter
 
         foreach (string file in Directory.EnumerateFiles(sourceDir))
         {
-            if (!ex.AllowsFile(file, sourceRoot))
+            string destination = Path.Combine(destDir, Path.GetFileName(file));
+            FileCopyDecision decision = ex.EvaluateFile(file, sourceRoot);
+            if (!decision.Allowed)
+            {
+                acc.Skip(file, destination, decision.Reason, decision.Detail);
                 continue;
-            CopyFileWithRetry(file, Path.Combine(destDir, Path.GetFileName(file)));
+            }
+
+            CopyFileWithRetry(file, destination, acc);
         }
 
         foreach (string sub in Directory.EnumerateDirectories(sourceDir))
         {
-            if (ex.IsExcludedDir(sub, sourceRoot))
+            string destination = Path.Combine(destDir, Path.GetFileName(sub));
+            DirectoryCopyDecision decision = ex.EvaluateDirectory(sub, sourceRoot);
+            if (!decision.Allowed)
+            {
+                acc.Skip(sub, destination, decision.Reason, decision.Detail);
                 continue;
-            CopyTree(sub, Path.Combine(destDir, Path.GetFileName(sub)), sourceRoot, ex, visitedRealDirs);
+            }
+
+            CopyTree(sub, destination, sourceRoot, ex, visitedRealDirs, acc);
         }
     }
 
-    private static void CopyFileWithRetry(string source, string destination)
+    private static void CopyFileWithRetry(string source, string destination, CopyAccumulator acc)
     {
         // Destination-side TOCTOU re-check immediately before the write (mirror of the delete adapter): a
         // destination parent raced into a junction/symlink after authorize-time would redirect the file into
         // a protected/other tree. No legitimate copy targets a reparse-point parent, so this fails closed.
         GuardDestinationNotReparse(destination);
+
+        EmbeddedSecretScanResult scan = ScanForEmbeddedSecret(source);
+        if (scan.ContainsSecret)
+        {
+            acc.Skip(source, destination, CopySkipReason.ExcludedEmbeddedSecret, scan.Reason);
+            return;
+        }
 
         string? dir = Path.GetDirectoryName(LongPath(destination));
         if (!string.IsNullOrEmpty(dir))
@@ -283,6 +322,7 @@ public sealed class CopyAdapter : ICopyAdapter
             try
             {
                 File.Copy(LongPath(source), LongPath(destination), overwrite: true);
+                acc.Copied(new FileInfo(LongPath(source)).Length);
                 return;
             }
             catch (IOException) when (attempt < MaxRetries)
@@ -290,13 +330,6 @@ public sealed class CopyAdapter : ICopyAdapter
                 Thread.Sleep(RetryDelay);
             }
         }
-    }
-
-    private void GuardForbiddenSource(string source, Exclusions ex)
-    {
-        string leaf = Path.GetFileName(source.TrimEnd('\\', '/'));
-        if (ex.IsForbiddenLeaf(leaf) || ex.IsForbiddenFull(source))
-            throw new ForbiddenSourceException($"Refusing to copy a protected/forbidden source: {leaf} (spec §1.3).");
     }
 
     private static bool IsReparsePoint(string path)
@@ -359,6 +392,68 @@ public sealed class CopyAdapter : ICopyAdapter
         if (path.StartsWith(@"\\", StringComparison.Ordinal))
             return @"\\?\UNC\" + path.Substring(2);
         return @"\\?\" + path;
+    }
+
+    private static EmbeddedSecretScanResult ScanForEmbeddedSecret(string source)
+    {
+        if (EmbeddedSecretScanner.HasObviousBinaryExtension(source))
+            return EmbeddedSecretScanResult.Clean;
+
+        byte[] buffer = new byte[EmbeddedSecretScanner.MaxBytesToScan];
+        int read = 0;
+        using var stream = new FileStream(
+            LongPath(source),
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 8192,
+            FileOptions.SequentialScan);
+
+        while (read < buffer.Length)
+        {
+            int n = stream.Read(buffer.AsSpan(read));
+            if (n == 0)
+                break;
+            read += n;
+        }
+
+        return EmbeddedSecretScanner.Scan(buffer.AsSpan(0, read), source);
+    }
+
+    private sealed class CopyAccumulator
+    {
+        private readonly List<CopySkippedItem> _skipped = new();
+
+        public int CopiedFileCount { get; private set; }
+        public long CopiedByteCount { get; private set; }
+
+        public void Copied(long byteCount)
+        {
+            CopiedFileCount++;
+            CopiedByteCount += Math.Max(0, byteCount);
+        }
+
+        public void Skip(string source, string destination, CopySkipReason reason, string detail)
+            => _skipped.Add(new CopySkippedItem(source, destination, reason, detail));
+
+        public CopyAdapterResult ToResult()
+            => new(CopiedFileCount, CopiedByteCount, _skipped.ToArray());
+    }
+
+    private readonly record struct FileCopyDecision(
+        bool Allowed,
+        CopySkipReason Reason,
+        string Detail)
+    {
+        public static FileCopyDecision Allow { get; } = new(true, CopySkipReason.Other, string.Empty);
+    }
+
+    private readonly record struct DirectoryCopyDecision(
+        bool Allowed,
+        CopySkipReason Reason,
+        string Detail)
+    {
+        public static DirectoryCopyDecision Allow { get; } = new(true, CopySkipReason.Other, string.Empty);
     }
 
     /// <summary>The resolved exclusion policy for one copy action: include allow-list, forbidden leaves/paths,
@@ -446,17 +541,37 @@ public sealed class CopyAdapter : ICopyAdapter
         /// (hard-linked) file. A symlink is de-referenced by <c>GetFinalPathNameByHandle</c>, but a HARD LINK is
         /// NOT — both names are equal aliases of the same on-disk file and the API returns whichever you opened,
         /// so a hard link under an innocuous leaf is refused outright (fail-safe) rather than copied.</summary>
-        public bool AllowsFile(string file, string sourceRoot)
+        public FileCopyDecision EvaluateFile(string file, string sourceRoot)
         {
             // Skip any file reparse point outright — a symlink can alias a secret store under an innocent name.
-            try { if (File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint)) return false; }
-            catch { return false; }
+            try
+            {
+                if (File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint))
+                {
+                    return new FileCopyDecision(
+                        false,
+                        CopySkipReason.Reparse,
+                        "file reparse point excluded");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PathTooLongException)
+            {
+                return new FileCopyDecision(
+                    false,
+                    CopySkipReason.Locked,
+                    $"could not read file attributes: {ex.Message}");
+            }
 
             // A hard link cannot be de-aliased by GetFinalPathNameByHandle (it returns the opened name, not the
             // "secret" sibling name), so a hard link under a benign leaf would slip past the leaf-name filter.
             // Refuse any multi-linked file: "multi-linked file (possible hardlink alias) excluded".
             if (HardLinkProbe.IsMultiLinked(file))
-                return false;
+            {
+                return new FileCopyDecision(
+                    false,
+                    CopySkipReason.HardLinked,
+                    "multi-linked file (possible hardlink alias) excluded");
+            }
 
             // Resolve the true target so a renamed symlink to "Login Data" is still caught.
             var canon = _canon.Canonicalize(file);
@@ -465,9 +580,19 @@ public sealed class CopyAdapter : ICopyAdapter
 
             if (_leaves.Contains(literalLeaf) || _leaves.Contains(resolvedLeaf)
                 || MatchesLeafGlob(literalLeaf) || MatchesLeafGlob(resolvedLeaf))
-                return false;
+            {
+                return new FileCopyDecision(
+                    false,
+                    CopySkipReason.ExcludedByName,
+                    $"excluded by source name: {literalLeaf}");
+            }
             if (IsForbiddenFull(file) || IsForbiddenFull(canon.FinalPath))
-                return false;
+            {
+                return new FileCopyDecision(
+                    false,
+                    CopySkipReason.Forbidden,
+                    "forbidden source path excluded");
+            }
 
             // Path-glob excludes (e.g. "sessions/**", "cache/**") are matched against the file's path relative
             // to the copy root — the recipe's directory excludes now actually prune their subtree's files.
@@ -476,40 +601,83 @@ public sealed class CopyAdapter : ICopyAdapter
                 string rel = RelativePath(file, sourceRoot);
                 foreach (Regex rx in _pathGlobs)
                     if (rx.IsMatch(rel))
-                        return false;
+                    {
+                        return new FileCopyDecision(
+                            false,
+                            CopySkipReason.ExcludedByName,
+                            $"excluded by path pattern: {rel}");
+                    }
             }
 
             if (_include.Count > 0)
             {
                 string rel = RelativePath(file, sourceRoot);
                 if (!MatchesAnyInclude(rel))
-                    return false;
+                {
+                    return new FileCopyDecision(
+                        false,
+                        CopySkipReason.ExcludedByName,
+                        $"not matched by include allow-list: {rel}");
+                }
             }
-            return true;
+
+            return FileCopyDecision.Allow;
         }
 
-        /// <summary>True when a directory is excluded by leaf name (so the whole sub-tree is skipped).</summary>
-        public bool IsExcludedDir(string dir, string sourceRoot)
+        public DirectoryCopyDecision EvaluateDirectory(string dir, string sourceRoot)
         {
+            try
+            {
+                if (File.GetAttributes(dir).HasFlag(FileAttributes.ReparsePoint))
+                {
+                    return new DirectoryCopyDecision(
+                        false,
+                        CopySkipReason.Reparse,
+                        "directory reparse point excluded");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PathTooLongException)
+            {
+                return new DirectoryCopyDecision(
+                    false,
+                    CopySkipReason.Locked,
+                    $"could not read directory attributes: {ex.Message}");
+            }
+
             string leaf = Path.GetFileName(dir.TrimEnd('\\', '/'));
             if (_leaves.Contains(leaf) || MatchesLeafGlob(leaf))
-                return true;
+            {
+                return new DirectoryCopyDecision(
+                    false,
+                    CopySkipReason.ExcludedByName,
+                    $"directory excluded by source name: {leaf}");
+            }
             // A "<base>/**" path-glob prunes the whole subtree: if this dir IS that base, skip it entirely.
             if (_subtreeBases.Count > 0)
             {
                 string relDir = RelativePath(dir, sourceRoot);
                 foreach (Regex rx in _subtreeBases)
                     if (rx.IsMatch(relDir))
-                        return true;
+                    {
+                        return new DirectoryCopyDecision(
+                            false,
+                            CopySkipReason.ExcludedByName,
+                            $"directory excluded by path pattern: {relDir}");
+                    }
             }
             // With an include allow-list, only prune a dir when nothing under it could ever match.
             if (_include.Count > 0)
             {
                 string rel = RelativePath(dir, sourceRoot);
                 if (!CouldContainInclude(rel))
-                    return true;
+                {
+                    return new DirectoryCopyDecision(
+                        false,
+                        CopySkipReason.ExcludedByName,
+                        $"directory not matched by include allow-list: {rel}");
+                }
             }
-            return false;
+            return DirectoryCopyDecision.Allow;
         }
 
         private bool MatchesAnyInclude(string rel)

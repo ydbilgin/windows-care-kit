@@ -76,14 +76,14 @@ public sealed class BackupReportWriter
             sb.Append('\n');
         }
 
-        sb.Append("## Skipped (locked / forbidden / too long / blocked)\n\n");
+        sb.Append("## Skipped (locked / forbidden / secret / too long / blocked)\n\n");
         if (skippedCopies.Count == 0 && plan.Skipped.Count == 0)
             sb.Append("_None._\n\n");
         else
         {
             foreach (CopyFileOutcome o in skippedCopies)
-                sb.Append("- `").Append(R(o.Source)).Append("` — ")
-                  .Append(o.Reason?.ToString() ?? "skipped").Append(": ").Append(R(o.Detail)).Append('\n');
+                sb.Append("- `").Append(R(o.Source)).Append("` — Skipped (")
+                  .Append(o.Reason?.ToString() ?? "Other").Append("): ").Append(R(o.Detail)).Append('\n');
             foreach (BackupSkip s in plan.Skipped)
                 sb.Append("- `").Append(R(s.Entry.Id)).Append("` — ").Append(R(s.Reason)).Append('\n');
             sb.Append('\n');
