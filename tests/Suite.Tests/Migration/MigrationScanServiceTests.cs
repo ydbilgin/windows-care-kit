@@ -39,6 +39,86 @@ public sealed class MigrationScanServiceTests
         Assert.NotEqual("✅", badge.Glyph);
     }
 
+    [Fact]
+    public void Exists_false_recipe_without_detection_presence_produces_no_phantom_row()
+    {
+        ProfileRoots roots = MigrationTestData.Roots();
+        MigrationRecipe recipe = AlwaysMatchRecipe("putty.putty", "PuTTY", "PuTTY.PuTTY");
+        var service = new MigrationScanService(
+            [new FakeProgramSource([])],
+            () => roots,
+            new FakeRecipeFileSystem(),
+            new CleanProbe(),
+            () => [recipe]);
+
+        MigrationScanResult result = service.Scan();
+
+        Assert.Empty(result.Candidates);
+    }
+
+    [Fact]
+    public void Exists_false_recipe_is_allowed_when_matching_program_is_detected()
+    {
+        ProfileRoots roots = MigrationTestData.Roots();
+        MigrationRecipe recipe = AlwaysMatchRecipe("putty.putty", "PuTTY", "PuTTY.PuTTY");
+        DiscoveredProgram putty = Program("PuTTY") with { ReinstallId = "PuTTY.PuTTY" };
+        var service = new MigrationScanService(
+            [new FakeProgramSource([putty])],
+            () => roots,
+            new FakeRecipeFileSystem(),
+            new CleanProbe(),
+            () => [recipe]);
+
+        MigrationScanResult result = service.Scan();
+
+        MigrationSelectionCandidate candidate = Assert.Single(result.Candidates);
+        Assert.Equal("putty.putty", candidate.Meta.RecipeId);
+        Assert.True(candidate.IsRecognized);
+    }
+
+    [Fact]
+    public void Has_cloud_backup_comes_from_injected_onedrive_containment_signal()
+    {
+        ProfileRoots roots = MigrationTestData.Roots();
+        string source = Path.Combine(roots.UserProfile, "OneDrive", "Documents", "settings.json");
+        var fs = new FakeRecipeFileSystem().AddDir(Path.GetDirectoryName(source)!).AddFile(source);
+        MigrationRecipe recipe = new(
+            SchemaVersion: 3,
+            Id: "cloud.tool",
+            DisplayName: "Cloud Tool",
+            Category: "projects",
+            Detect: new RecipeDetect(KnownFolder.UserProfile, "OneDrive/Documents/settings.json", true),
+            Items: [new RecipeItem("OneDrive/Documents/settings.json", [], [])],
+            Exclude: [],
+            SecretRule: "global",
+            PortabilityClass: PortabilityClass.ProfileRelative,
+            Restore: new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []))
+        {
+            RestoreTier = RestoreTier.ConfigCopy,
+        };
+        var service = new MigrationScanService(
+            [new FakeProgramSource([])],
+            () => roots,
+            fs,
+            new CleanProbe(),
+            () => [recipe],
+            new OneDriveKnownFolderContainmentSignal([Path.Combine(roots.UserProfile, "OneDrive")]));
+
+        MigrationSelectionCandidate candidate = Assert.Single(service.Scan().Candidates);
+
+        Assert.True(candidate.HasCloudBackup);
+    }
+
+    [Fact]
+    public void OneDrive_containment_signal_is_false_for_unknown_or_outside_paths()
+    {
+        var signal = new OneDriveKnownFolderContainmentSignal([@"C:\Users\alice\OneDrive"]);
+
+        Assert.False(signal.HasCloudBackup(null));
+        Assert.False(signal.HasCloudBackup(@"C:\Users\alice\Documents\settings.json"));
+        Assert.True(signal.HasCloudBackup(@"C:\Users\alice\OneDrive\Documents\settings.json"));
+    }
+
     private static MigrationRecipe Recipe()
         => new(
             SchemaVersion: 3,
@@ -67,31 +147,78 @@ public sealed class MigrationScanServiceTests
                 SurvivesOnOtherDrive: false),
         };
 
+    private static MigrationRecipe AlwaysMatchRecipe(string id, string displayName, string wingetId)
+        => new(
+            SchemaVersion: 3,
+            Id: id,
+            DisplayName: displayName,
+            Category: "dev-tools",
+            Detect: new RecipeDetect(KnownFolder.UserProfile, ".", false),
+            Items:
+            [
+                new RecipeItem("export-note", [], [])
+                {
+                    Kind = RecipeItemKind.ManualTodo,
+                    ManualTodo = ["Export manually."],
+                },
+            ],
+            Exclude: [],
+            SecretRule: "global",
+            PortabilityClass: PortabilityClass.Partial,
+            Restore: new RecipeRestore(
+                RestoreStrategy.ConfigWrite,
+                RestorePhase.ConfigWrite,
+                []))
+        {
+            RestoreTier = RestoreTier.InventoryOnly,
+            WingetId = wingetId,
+            InstallPathHint = [displayName],
+            Install = new RecipeInstall(RecipeInstallMethod.Winget, wingetId, null, null, false, false),
+        };
+
+    private static DiscoveredProgram Program(string displayName)
+        => new()
+        {
+            Id = displayName.ToLowerInvariant(),
+            DisplayName = displayName,
+            NormalizedName = ProgramJoinKeys.NormalizeName(displayName),
+            Scope = ProgramScope.CurrentUser,
+            Sources = [ProgramSourceKind.RegistryUninstall],
+        };
+
     private sealed class FakeProgramSource : IProgramSource
     {
+        private readonly IReadOnlyList<DiscoveredProgram> _programs;
+
+        public FakeProgramSource()
+            : this([Program("Test Tool")])
+        {
+        }
+
+        public FakeProgramSource(IReadOnlyList<DiscoveredProgram> programs)
+            => _programs = programs;
+
         public int CallCount { get; private set; }
         public ProgramSourceKind Kind => ProgramSourceKind.RegistryUninstall;
 
         public ProgramEnumeration Enumerate()
         {
             CallCount++;
-            DiscoveredProgram program = new()
-            {
-                Id = "test-tool",
-                DisplayName = "Test Tool",
-                NormalizedName = "test tool",
-                Scope = ProgramScope.CurrentUser,
-                Sources = [Kind],
-            };
             return new ProgramEnumeration(
-                [program],
-                new ProgramSourceReport(Kind, ProgramSourceStatus.Ok, 1));
+                _programs,
+                new ProgramSourceReport(Kind, ProgramSourceStatus.Ok, _programs.Count));
         }
     }
 
     private sealed class MachineBoundProbe : IContentSignatureProbe
     {
-        public ContentSignature ProbeFile(string path)
+        public ContentSignature ProbeFile(string path, ContentSignatureOptions? options = null)
             => new() { HasDpapiBlob = true, BytesInspected = 32 };
+    }
+
+    private sealed class CleanProbe : IContentSignatureProbe
+    {
+        public ContentSignature ProbeFile(string path, ContentSignatureOptions? options = null)
+            => new() { BytesInspected = 32 };
     }
 }

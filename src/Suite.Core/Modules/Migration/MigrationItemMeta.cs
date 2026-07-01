@@ -39,4 +39,16 @@ public sealed record MigrationItemMeta(
     /// credential-store signature, or could not classify the file safely. This can only downgrade a badge.
     /// </summary>
     public bool HasMachineBoundContent { get; init; }
+
+    /// <summary>
+    /// True when the probe could not inspect local bytes without side effects or user action (locked now,
+    /// inaccessible, cloud placeholder). This blocks a "works" claim without calling it machine-locked.
+    /// </summary>
+    public bool HasUnanalyzedContent { get; init; }
+
+    /// <summary>
+    /// The last content-probe status observed while deriving the item signals. Complete means no special
+    /// status was observed; non-complete values allow UI text to explain the honest downgrade.
+    /// </summary>
+    public ContentProbeStatus ContentProbeStatus { get; init; } = ContentProbeStatus.Complete;
 }

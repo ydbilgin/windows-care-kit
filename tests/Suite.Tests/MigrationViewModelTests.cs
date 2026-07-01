@@ -59,6 +59,45 @@ public sealed class MigrationViewModelTests
     }
 
     [Fact]
+    public void Locked_now_candidate_renders_close_app_reason()
+    {
+        var i18n = new I18n();
+        i18n.Load("en");
+        MigrationViewModel vm = CreateVm(i18n: i18n);
+        MigrationSelectionCandidate locked = Candidate("firefox-profile", "browsers") with
+        {
+            Meta = new MigrationItemMeta(
+                "recipe",
+                "entry",
+                PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite,
+                RestorePhase.ConfigWrite,
+                ["process-closed:firefox.exe"])
+            {
+                HasUnanalyzedContent = true,
+                ContentProbeStatus = ContentProbeStatus.LockedNow,
+            },
+        };
+
+        vm.LoadScan(Detection(1, 0), @"C:\Users\demo", [locked]);
+
+        MigrationItemRow row = vm.Groups.Single(group => group.Category == MigrationCategory.Browsers).Items.Single();
+        Assert.Equal("in use - close firefox.exe and re-scan", row.WhatHappens);
+    }
+
+    [Fact]
+    public void Locked_now_language_keys_exist_in_english_and_turkish()
+    {
+        HashSet<string> en = ReadLangKeys("en");
+        HashSet<string> tr = ReadLangKeys("tr");
+
+        Assert.Contains("migration.item.reason.lockedNow", en);
+        Assert.Contains("migration.item.reason.lockedNow.generic", en);
+        Assert.Contains("migration.item.reason.lockedNow", tr);
+        Assert.Contains("migration.item.reason.lockedNow.generic", tr);
+    }
+
+    [Fact]
     public void Group_and_item_commands_preserve_three_state_and_forced_selection()
     {
         MigrationViewModel vm = CreateVm();
@@ -378,6 +417,8 @@ public sealed class MigrationViewModelTests
             IsOnSystemDrive = true,
             IsUnique = true,
             IsRegenerable = false,
+            IsRecognized = true,
+            HasInstallRecord = true,
         };
 
     private static DetectionResult Detection(int programs, int uncovered)
@@ -400,12 +441,35 @@ public sealed class MigrationViewModelTests
     private static MigrationViewModel CreateVm(
         IMigrationScanService? scan = null,
         RecordingMigrationBackupRunner? runner = null,
-        IReadOnlyList<MigrationRecipe>? recipes = null)
+        IReadOnlyList<MigrationRecipe>? recipes = null,
+        I18n? i18n = null)
         => new(
-            new I18n(),
+            i18n ?? new I18n(),
             scan ?? new FakeScanService(new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", [])),
             runner ?? new RecordingMigrationBackupRunner(),
             () => recipes ?? Array.Empty<MigrationRecipe>());
+
+    private static HashSet<string> ReadLangKeys(string code)
+    {
+        string path = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "lang", code + ".json");
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+        return document.RootElement.EnumerateObject()
+            .Select(property => property.Name)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "WindowsCareKit.slnx")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("repository root not found");
+    }
 
     private static MigrationViewModel CreateCaptureVm(RecordingMigrationBackupRunner runner)
     {

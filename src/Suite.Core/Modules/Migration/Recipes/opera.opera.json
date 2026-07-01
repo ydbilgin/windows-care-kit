@@ -7,7 +7,7 @@
   "items": [
     {
       "path": "Opera Software/Opera Stable",
-      "include": ["Preferences", "Secure Preferences", "Bookmarks", "Bookmarks.bak", "Extensions/**"],
+      "include": ["Preferences", "Bookmarks", "Bookmarks.bak"],
       "requiresClosedProcesses": ["opera.exe"]
     }
   ],

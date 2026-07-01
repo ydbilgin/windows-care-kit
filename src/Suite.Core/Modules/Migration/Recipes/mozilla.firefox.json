@@ -9,6 +9,7 @@
     {
       "path": "Mozilla/Firefox/Profiles",
       "include": ["**/prefs.js", "**/user.js", "**/places.sqlite", "**/bookmarkbackups/**", "**/extensions/**"],
+      "expectedFormat": "sqlite",
       "requiresClosedProcesses": ["firefox.exe"]
     }
   ],

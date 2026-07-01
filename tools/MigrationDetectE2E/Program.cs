@@ -20,7 +20,7 @@ internal static class Program
 
             DetectionResult detection = RunBroadDetection();
             Console.WriteLine();
-            return RunRecipeValidation();
+            return RunRecipeValidation(detection);
         }
         catch (Exception ex)
         {
@@ -48,6 +48,8 @@ internal static class Program
 
         DetectionResult result = detector.Detect();
         Console.WriteLine($"DedupedProgramCount: {result.Programs.Count}");
+        AssertDedupInvariants(result.Programs);
+        Console.WriteLine("DedupInvariant: fixpoint ok; strong keys disjoint");
         Console.WriteLine("PerSource:");
         foreach (ProgramSourceReport report in result.SourceReports)
             Console.WriteLine($"  {report.Kind} / {report.Status} / Count={report.Count}");
@@ -64,7 +66,55 @@ internal static class Program
         return result;
     }
 
-    private static int RunRecipeValidation()
+    private static void AssertDedupInvariants(IReadOnlyList<DiscoveredProgram> programs)
+    {
+        IReadOnlyList<DiscoveredProgram> dedupedAgain = ProgramDedupLayer.Merge(programs);
+        string first = ProgramSignature(programs);
+        string second = ProgramSignature(dedupedAgain);
+        if (!string.Equals(first, second, StringComparison.Ordinal))
+            throw new InvalidOperationException("Dedup invariant failed: Dedup(Dedup(x)) changed the output.");
+
+        var ownerByStrongKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DiscoveredProgram program in programs)
+        {
+            foreach (string key in StrongKeys(program))
+            {
+                if (ownerByStrongKey.TryGetValue(key, out string? owner))
+                    throw new InvalidOperationException(
+                        $"Dedup invariant failed: strong key {key} is shared by '{owner}' and '{program.DisplayName}'.");
+                ownerByStrongKey[key] = program.DisplayName;
+            }
+        }
+    }
+
+    private static IEnumerable<string> StrongKeys(DiscoveredProgram program)
+    {
+        if (!string.IsNullOrWhiteSpace(program.ProductCode))
+            yield return "pc:" + program.ProductCode.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(program.PackageFamilyName))
+            yield return "pfn:" + program.PackageFamilyName.Trim().ToLowerInvariant();
+    }
+
+    private static string ProgramSignature(IReadOnlyList<DiscoveredProgram> programs)
+        => string.Join(
+            "\n",
+            programs.Select(program => string.Join(
+                "|",
+                program.Id,
+                program.DisplayName,
+                program.Publisher ?? string.Empty,
+                program.Version ?? string.Empty,
+                program.InstallLocation ?? string.Empty,
+                program.InstallPathLeaf ?? string.Empty,
+                program.ProductCode ?? string.Empty,
+                program.PackageFamilyName ?? string.Empty,
+                program.ReinstallId ?? string.Empty,
+                program.NormalizedName,
+                program.Scope,
+                program.IsSystemComponent,
+                string.Join(",", program.Sources))));
+
+    private static int RunRecipeValidation(DetectionResult detection)
     {
         Console.WriteLine("===== Section B - Recipe applicability + honesty =====");
 
@@ -82,7 +132,7 @@ internal static class Program
 
         foreach (MigrationRecipe recipe in recipes)
         {
-            DetectPresence presence = DetectPresent(recipe, pathResolver);
+            DetectPresence presence = DetectPresent(recipe, pathResolver, detection.Programs);
             if (!presence.Present)
                 continue;
 
@@ -110,8 +160,14 @@ internal static class Program
         return ExitOk;
     }
 
-    private static DetectPresence DetectPresent(MigrationRecipe recipe, RecipePathResolver resolver)
+    private static DetectPresence DetectPresent(
+        MigrationRecipe recipe,
+        RecipePathResolver resolver,
+        IReadOnlyList<DiscoveredProgram> programs)
     {
+        if (!recipe.Detect.Exists && !HasPositivePresence(recipe, resolver, programs))
+            return new DetectPresence(false, "not-detected");
+
         try
         {
             string detectPath = resolver.Resolve(recipe.Detect.KnownFolder, recipe.Detect.Path);
@@ -125,6 +181,84 @@ internal static class Program
         {
             return new DetectPresence(false, "resolve-failed");
         }
+    }
+
+    private static bool HasPositivePresence(
+        MigrationRecipe recipe,
+        RecipePathResolver resolver,
+        IReadOnlyList<DiscoveredProgram> programs)
+    {
+        if (HasDetectedProgram(recipe, programs))
+            return true;
+
+        if (DetectPathIsConcrete(recipe.Detect))
+        {
+            try
+            {
+                string detectPath = resolver.Resolve(recipe.Detect.KnownFolder, recipe.Detect.Path);
+                if (Directory.Exists(detectPath) || File.Exists(detectPath))
+                    return true;
+            }
+            catch (RecipePathException)
+            {
+                return false;
+            }
+        }
+
+        foreach (RecipeItem item in recipe.Items)
+        {
+            if (item.Kind != RecipeItemKind.ProfilePath)
+                continue;
+            try
+            {
+                string itemPath = resolver.Resolve(recipe.Detect.KnownFolder, item.Path);
+                if (Directory.Exists(itemPath) || File.Exists(itemPath))
+                    return true;
+            }
+            catch (RecipePathException)
+            {
+                continue;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool DetectPathIsConcrete(RecipeDetect detect)
+    {
+        string path = detect.Path.Replace('\\', '/').Trim('/');
+        return path.Length > 0 && path != ".";
+    }
+
+    private static bool HasDetectedProgram(
+        MigrationRecipe recipe,
+        IReadOnlyList<DiscoveredProgram> programs)
+    {
+        string displayName = ProgramJoinKeys.NormalizeName(recipe.DisplayName);
+        string[] installHints = recipe.InstallPathHint
+            .Select(ProgramJoinKeys.NormalizeName)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+
+        foreach (DiscoveredProgram program in programs)
+        {
+            if (!string.IsNullOrWhiteSpace(recipe.WingetId)
+                && (string.Equals(program.ReinstallId, recipe.WingetId, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(program.ReinstallId, "winget:" + recipe.WingetId, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (recipe.ProductCode.Any(pc => string.Equals(pc, program.ProductCode, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (recipe.PackageFamilyName.Any(pfn => string.Equals(pfn, program.PackageFamilyName, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (!string.IsNullOrWhiteSpace(displayName)
+                && string.Equals(displayName, program.NormalizedName, StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (installHints.Any(hint => string.Equals(hint, program.InstallPathLeaf, StringComparison.OrdinalIgnoreCase)
+                                         || string.Equals(hint, program.NormalizedName, StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
     }
 
     private static RecipeHonesty BuildHonesty(

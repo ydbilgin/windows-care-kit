@@ -144,6 +144,127 @@ public sealed class M1bProgramSourceTests
     }
 
     [Fact]
+    public void Dedup_merges_msi_record_with_its_own_start_menu_shortcut()
+    {
+        const string productCode = "{11111111-2222-3333-4444-555555555555}";
+        DiscoveredProgram msi = Program("Contoso Tool", ProgramSourceKind.RegistryUninstall, installPathLeaf: "contoso-tool")
+            with
+            {
+                ProductCode = productCode,
+                Id = productCode,
+                Publisher = "Contoso",
+            };
+        DiscoveredProgram shortcut = Program("Contoso Tool", ProgramSourceKind.StartMenu, installPathLeaf: "contoso-tool")
+            with { Publisher = "Contoso" };
+
+        DiscoveredProgram merged = Assert.Single(ProgramDedupLayer.Merge([msi, shortcut]));
+
+        Assert.Equal(productCode, merged.ProductCode);
+        Assert.Equal([ProgramSourceKind.RegistryUninstall, ProgramSourceKind.StartMenu], merged.Sources);
+    }
+
+    [Fact]
+    public void Dedup_refuses_weak_namepub_union_for_distinct_product_codes()
+    {
+        DiscoveredProgram python311 = Program("Python 3.11", ProgramSourceKind.RegistryUninstall)
+            with
+            {
+                Id = "{11111111-1111-1111-1111-111111111111}",
+                NormalizedName = "python",
+                Publisher = "Python Software Foundation",
+                ProductCode = "{11111111-1111-1111-1111-111111111111}",
+                Version = "3.11",
+            };
+        DiscoveredProgram python312 = Program("Python 3.12", ProgramSourceKind.RegistryUninstall)
+            with
+            {
+                Id = "{22222222-2222-2222-2222-222222222222}",
+                NormalizedName = "python",
+                Publisher = "Python Software Foundation",
+                ProductCode = "{22222222-2222-2222-2222-222222222222}",
+                Version = "3.12",
+            };
+
+        IReadOnlyList<DiscoveredProgram> merged = ProgramDedupLayer.Merge([python311, python312]);
+
+        Assert.Equal(2, merged.Count);
+        Assert.Contains(merged, program => program.ProductCode == python311.ProductCode);
+        Assert.Contains(merged, program => program.ProductCode == python312.ProductCode);
+    }
+
+    [Fact]
+    public void Dedup_still_merges_equal_product_code_records()
+    {
+        const string productCode = "{33333333-3333-3333-3333-333333333333}";
+        DiscoveredProgram registry = Program("Contoso Tool", ProgramSourceKind.RegistryUninstall)
+            with
+            {
+                Id = productCode,
+                ProductCode = productCode,
+                Publisher = "Contoso",
+                Version = "1.0",
+            };
+        DiscoveredProgram msi = Program("Contoso Tool", ProgramSourceKind.Msi)
+            with
+            {
+                Id = productCode,
+                ProductCode = productCode,
+                Publisher = "Contoso",
+                Version = "1.0",
+            };
+
+        DiscoveredProgram merged = Assert.Single(ProgramDedupLayer.Merge([registry, msi]));
+
+        Assert.Equal(productCode, merged.ProductCode);
+        Assert.Equal([ProgramSourceKind.RegistryUninstall, ProgramSourceKind.Msi], merged.Sources);
+    }
+
+    [Fact]
+    public void Dedup_shuffle_order_produces_identical_output()
+    {
+        DiscoveredProgram registry = Program("Contoso Tool", ProgramSourceKind.RegistryUninstall, installPathLeaf: "contoso-tool")
+            with
+            {
+                ProductCode = "{22222222-2222-3333-4444-555555555555}",
+                Id = "{22222222-2222-3333-4444-555555555555}",
+                Publisher = "Contoso",
+                Version = "1",
+            };
+        DiscoveredProgram shortcut = Program("Contoso Tool", ProgramSourceKind.StartMenu, installPathLeaf: "contoso-tool")
+            with { Publisher = "Contoso", Version = "9" };
+        DiscoveredProgram unrelated = Program("Other", ProgramSourceKind.AppPaths, installPathLeaf: "other")
+            with { Publisher = "OtherCo" };
+        DiscoveredProgram[][] inputs =
+        [
+            [registry, shortcut, unrelated],
+            [shortcut, unrelated, registry],
+            [unrelated, registry, shortcut],
+            [shortcut, registry, unrelated],
+        ];
+
+        string expected = Signature(ProgramDedupLayer.Merge(inputs[0]));
+
+        foreach (DiscoveredProgram[] input in inputs.Skip(1))
+            Assert.Equal(expected, Signature(ProgramDedupLayer.Merge(input)));
+    }
+
+    [Theory]
+    [InlineData("1.2.3")]
+    [InlineData("current")]
+    [InlineData("bin")]
+    public void Dedup_refuses_version_shaped_and_generic_leaf_joins(string blockedLeaf)
+    {
+        DiscoveredProgram left = Program("Left", ProgramSourceKind.AppPaths, installPathLeaf: blockedLeaf)
+            with { Publisher = "VendorA" };
+        DiscoveredProgram right = Program("Right", ProgramSourceKind.StartMenu, installPathLeaf: blockedLeaf)
+            with { Publisher = "VendorB" };
+
+        IReadOnlyList<DiscoveredProgram> merged = ProgramDedupLayer.Merge([left, right]);
+
+        Assert.Equal(2, merged.Count);
+    }
+
+    [Fact]
     public void Dedup_same_source_value_conflicts_have_a_stable_tie_break()
     {
         DiscoveredProgram zulu = Program("Same", ProgramSourceKind.AppPaths, installPathLeaf: "same", version: "9")
@@ -230,6 +351,20 @@ public sealed class M1bProgramSourceTests
             PackageFamilyName = null,
         };
     }
+
+    private static string Signature(IReadOnlyList<DiscoveredProgram> programs)
+        => string.Join(
+            "\n",
+            programs.Select(p => string.Join(
+                "|",
+                p.Id,
+                p.DisplayName,
+                p.Publisher ?? "",
+                p.Version ?? "",
+                p.ProductCode ?? "",
+                p.PackageFamilyName ?? "",
+                p.InstallPathLeaf ?? "",
+                string.Join(",", p.Sources))));
 
     private sealed class FakeMsiCatalog(IReadOnlyList<MsiProduct> products) : IMsiCatalog
     {

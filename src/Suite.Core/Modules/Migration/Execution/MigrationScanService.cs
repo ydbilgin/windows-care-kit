@@ -8,6 +8,59 @@ public sealed record MigrationScanResult(
     string ProfileRoot,
     IReadOnlyList<MigrationSelectionCandidate> Candidates);
 
+public interface ICloudBackupSignal
+{
+    bool HasCloudBackup(string? sourcePath);
+}
+
+public sealed class OneDriveKnownFolderContainmentSignal : ICloudBackupSignal
+{
+    private readonly IReadOnlyList<string> _oneDriveUserFolders;
+
+    public OneDriveKnownFolderContainmentSignal(IEnumerable<string> oneDriveUserFolders)
+    {
+        ArgumentNullException.ThrowIfNull(oneDriveUserFolders);
+        _oneDriveUserFolders = oneDriveUserFolders
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public bool HasCloudBackup(string? sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+            return false;
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(sourcePath));
+        }
+        catch
+        {
+            return false;
+        }
+
+        return _oneDriveUserFolders.Any(root => IsContained(root, fullPath));
+    }
+
+    private static bool IsContained(string root, string candidate)
+        => string.Equals(root, candidate, StringComparison.OrdinalIgnoreCase)
+           || candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+}
+
+public sealed class NoCloudBackupSignal : ICloudBackupSignal
+{
+    public static NoCloudBackupSignal Instance { get; } = new();
+
+    private NoCloudBackupSignal() { }
+
+    // TODO(P4): replace the constant fallback with a real OneDrive account reader
+    // (HKCU\Software\Microsoft\OneDrive\Accounts\*\UserFolder) when that read-only port is added.
+    public bool HasCloudBackup(string? sourcePath) => false;
+}
+
 /// <summary>Read-only, on-demand program and recipe scan seam used by the Migration UI.</summary>
 public interface IMigrationScanService
 {
@@ -25,13 +78,15 @@ public sealed class MigrationScanService : IMigrationScanService
     private readonly IRecipeFileSystem _fileSystem;
     private readonly IContentSignatureProbe _contentProbe;
     private readonly Func<IReadOnlyList<MigrationRecipe>> _recipeSource;
+    private readonly ICloudBackupSignal _cloudBackupSignal;
 
     public MigrationScanService(
         IEnumerable<IProgramSource> programSources,
         Func<ProfileRoots> profileRoots,
         IRecipeFileSystem fileSystem,
         IContentSignatureProbe contentProbe,
-        Func<IReadOnlyList<MigrationRecipe>>? recipeSource = null)
+        Func<IReadOnlyList<MigrationRecipe>>? recipeSource = null,
+        ICloudBackupSignal? cloudBackupSignal = null)
     {
         ArgumentNullException.ThrowIfNull(programSources);
         _programSources = [.. programSources];
@@ -39,6 +94,7 @@ public sealed class MigrationScanService : IMigrationScanService
         _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
         _contentProbe = contentProbe ?? throw new ArgumentNullException(nameof(contentProbe));
         _recipeSource = recipeSource ?? BuiltinRecipeSource.LoadAll;
+        _cloudBackupSignal = cloudBackupSignal ?? NoCloudBackupSignal.Instance;
     }
 
     public MigrationScanResult Scan(CancellationToken cancellationToken = default)
@@ -53,6 +109,9 @@ public sealed class MigrationScanService : IMigrationScanService
         foreach (MigrationRecipe recipe in _recipeSource())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!recipe.Detect.Exists && !HasPositivePresence(recipe, paths, detection.Programs))
+                continue;
+
             ResolvedRecipe resolved;
             try
             {
@@ -158,7 +217,7 @@ public sealed class MigrationScanService : IMigrationScanService
             WhatHappens = migration?.UiWarning?.En ?? string.Empty,
             WhatHappensTr = migration?.UiWarning?.Tr,
             WhatHappensEn = migration?.UiWarning?.En,
-            HasCloudBackup = false,
+            HasCloudBackup = _cloudBackupSignal.HasCloudBackup(source),
             IsOnSystemDrive = IsOnSystemDrive(source),
             IsUnique = !isRegenerable,
             IsRegenerable = isRegenerable,
@@ -189,7 +248,74 @@ public sealed class MigrationScanService : IMigrationScanService
             ? MigrationSourceKind.Directory
             : _fileSystem.FileExists(path)
                 ? MigrationSourceKind.File
-                : MigrationSourceKind.None;
+            : MigrationSourceKind.None;
+
+    private bool HasPositivePresence(
+        MigrationRecipe recipe,
+        RecipePathResolver paths,
+        IReadOnlyList<DiscoveredProgram> programs)
+    {
+        if (HasDetectedProgram(recipe, programs))
+            return true;
+
+        if (DetectPathIsConcrete(recipe.Detect) && IsPresent(recipe, paths))
+            return true;
+
+        foreach (RecipeItem item in recipe.Items)
+        {
+            if (item.Kind != RecipeItemKind.ProfilePath)
+                continue;
+            try
+            {
+                string path = paths.Resolve(recipe.Detect.KnownFolder, item.Path);
+                if (_fileSystem.DirectoryExists(path) || _fileSystem.FileExists(path))
+                    return true;
+            }
+            catch (RecipePathException)
+            {
+                continue;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool DetectPathIsConcrete(RecipeDetect detect)
+    {
+        string path = detect.Path.Replace('\\', '/').Trim('/');
+        return path.Length > 0 && path != ".";
+    }
+
+    private static bool HasDetectedProgram(
+        MigrationRecipe recipe,
+        IReadOnlyList<DiscoveredProgram> programs)
+    {
+        string displayName = ProgramJoinKeys.NormalizeName(recipe.DisplayName);
+        var installHints = recipe.InstallPathHint
+            .Select(ProgramJoinKeys.NormalizeName)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+
+        foreach (DiscoveredProgram program in programs)
+        {
+            if (!string.IsNullOrWhiteSpace(recipe.WingetId)
+                && (string.Equals(program.ReinstallId, recipe.WingetId, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(program.ReinstallId, "winget:" + recipe.WingetId, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (recipe.ProductCode.Any(pc => string.Equals(pc, program.ProductCode, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (recipe.PackageFamilyName.Any(pfn => string.Equals(pfn, program.PackageFamilyName, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (!string.IsNullOrWhiteSpace(displayName)
+                && string.Equals(displayName, program.NormalizedName, StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (installHints.Any(hint => string.Equals(hint, program.InstallPathLeaf, StringComparison.OrdinalIgnoreCase)
+                                         || string.Equals(hint, program.NormalizedName, StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
+    }
 
     private static MigrationItemMeta FallbackMeta(MigrationRecipe recipe)
     {

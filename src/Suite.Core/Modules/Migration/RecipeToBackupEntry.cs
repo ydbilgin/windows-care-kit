@@ -85,11 +85,20 @@ public static class RecipeToBackupEntry
             // No probe is itself uncertainty. A caller must provide an explicit benign classification before
             // a profile-relative item may retain a green badge; otherwise the M2.5 floor fails closed.
             bool hasMachineBoundContent = contentSignatureProbe is null;
+            bool hasUnanalyzedContent = false;
+            ContentProbeStatus contentProbeStatus = ContentProbeStatus.Complete;
             if (contentSignatureProbe is not null)
             {
                 try
                 {
-                    hasMachineBoundContent = contentSignatureProbe.ProbeFile(item.AbsoluteSource).HasMachineBoundContent;
+                    var options = new ContentSignatureOptions(Array.Empty<string>(), ExpectedFormatFor(recipe, item));
+                    ContentSignature signature = contentSignatureProbe.ProbeFile(item.AbsoluteSource, options);
+                    hasMachineBoundContent = signature.HasMachineBoundContent;
+                    hasUnanalyzedContent =
+                        (signature.BlocksPortabilityClaim && !signature.HasMachineBoundContent)
+                        || signature.DirectoryEnumerationTruncated
+                        || signature.DirectoryFilesSampled < signature.DirectoryFilesTotalSeen;
+                    contentProbeStatus = signature.Status;
                 }
                 catch
                 {
@@ -109,6 +118,8 @@ public static class RecipeToBackupEntry
             {
                 HasExcludedSecret = hasExcludedSecret,
                 HasMachineBoundContent = hasMachineBoundContent,
+                HasUnanalyzedContent = hasUnanalyzedContent,
+                ContentProbeStatus = contentProbeStatus,
             };
 
             result.Add(new BridgedMigrationItem(entry, meta));
@@ -134,6 +145,14 @@ public static class RecipeToBackupEntry
         RestoreStrategy.Replace => "replace",
         _ => "config-write",
     };
+
+    private static string? ExpectedFormatFor(MigrationRecipe recipe, ResolvedRecipeItem resolvedItem)
+        => recipe.Items
+            .FirstOrDefault(item => string.Equals(
+                item.Path.Replace('\\', '/').Trim('/'),
+                resolvedItem.RecipePath,
+                StringComparison.OrdinalIgnoreCase))
+            ?.ExpectedFormat;
 
     private static IReadOnlyList<string> MergePreconditions(
         IReadOnlyList<string> recipePreconditions,

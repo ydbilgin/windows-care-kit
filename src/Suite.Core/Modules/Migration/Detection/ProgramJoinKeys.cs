@@ -28,6 +28,19 @@ public static partial class ProgramJoinKeys
         RegexOptions.None, matchTimeoutMilliseconds: 250)]
     private static partial Regex ArchTokenPattern();
 
+    [GeneratedRegex(@"^\d+(\.\d+)*$", RegexOptions.None, matchTimeoutMilliseconds: 250)]
+    private static partial Regex VersionShapedLeafPattern();
+
+    private static readonly IReadOnlySet<string> GenericLeafBlocklist =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "bin",
+            "app",
+            "current",
+            "x64",
+            "lib",
+        };
+
     /// <summary>
     /// Returns the lowercase MSI ProductCode GUID if <paramref name="registryKeyName"/> is exactly a
     /// well-formed GUID (with braces, all-hex segments of the correct lengths); otherwise null.
@@ -120,6 +133,39 @@ public static partial class ProgramJoinKeys
 
         string leaf = Path.GetFileName(trimmed);
         return string.IsNullOrEmpty(leaf) ? null : leaf.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// True when an install path leaf is specific enough to participate in a fallback leaf join. Version-shaped
+    /// and generic leaves are refused to prevent package-manager/current-bin false joins.
+    /// </summary>
+    public static bool IsJoinableInstallLeaf(string? leaf)
+    {
+        if (string.IsNullOrWhiteSpace(leaf))
+            return false;
+
+        string normalized = leaf.Trim().ToLowerInvariant();
+        return !VersionShapedLeafPattern().IsMatch(normalized)
+               && !GenericLeafBlocklist.Contains(normalized);
+    }
+
+    /// <summary>
+    /// Returns the preferred parent+leaf fallback key when both segments are available and the leaf is joinable.
+    /// </summary>
+    public static string? InstallPathParentLeaf(string? installLocation, string? installPathLeaf)
+    {
+        if (!IsJoinableInstallLeaf(installPathLeaf) || string.IsNullOrWhiteSpace(installLocation))
+            return null;
+
+        string trimmed = installLocation.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string? parent = Path.GetDirectoryName(trimmed);
+        string parentLeaf = string.IsNullOrWhiteSpace(parent)
+            ? string.Empty
+            : Path.GetFileName(parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+        return string.IsNullOrWhiteSpace(parentLeaf)
+            ? installPathLeaf!.Trim().ToLowerInvariant()
+            : $"{parentLeaf.ToLowerInvariant()}/{installPathLeaf!.Trim().ToLowerInvariant()}";
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────────────────────────
