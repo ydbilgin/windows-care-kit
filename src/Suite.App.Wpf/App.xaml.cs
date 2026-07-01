@@ -151,7 +151,7 @@ public partial class App : Application
         s.AddSingleton<IAppxReader, Win32AppxReader>();
         s.AddSingleton<IMsiCatalog, Win32MsiCatalog>();
         s.AddSingleton<IStartMenuShortcutReader, Win32StartMenuShortcutReader>();
-        s.AddSingleton<IContentSignatureProbe, Win32ContentSignatureProbe>();
+        s.AddSingleton<IContentSignatureProbe>(_ => new Win32ContentSignatureProbe());
         s.AddSingleton<ILeftoverProbe, Win32LeftoverProbe>();
         s.AddSingleton<IAppxRemover>(sp => new Win32AppxRemover(sp.GetRequiredService<ExecutionLog>()));
         // Restore-point capability probe (PR-5): availability = SR enabled on the system drive AND elevated

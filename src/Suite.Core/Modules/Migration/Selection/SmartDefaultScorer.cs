@@ -30,11 +30,11 @@ public static class SmartDefaultScorer
             // §D.3 "unique/non-regenerable" is intentionally OR: either property earns factor 3.
             + (candidate.IsUnique || !candidate.IsRegenerable ? 1 : 0);
 
-        if (candidate.OneDriveRedirectedSyncOff)
-            return new SmartDefaultDecision(score, SmartDefaultKind.ForcedOnCritical, "onedrive-redirected-sync-off");
-
         if (!candidate.IsRecognized || candidate.IsAutoStub)
             return new SmartDefaultDecision(score, SmartDefaultKind.Off, "manual-review-only");
+
+        if (candidate.OneDriveRedirectedSyncOff)
+            return new SmartDefaultDecision(score, SmartDefaultKind.ForcedOnCritical, "onedrive-redirected-sync-off");
 
         if (!badge.MayClaimWorks
             || badge.DisplayKind is BadgeKind.Partial or BadgeKind.MachineLocked)

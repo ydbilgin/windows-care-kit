@@ -119,6 +119,44 @@ public sealed class MigrationSelectionLogicTests
         Assert.Equal(SmartDefaultKind.Off, SmartDefaultScorer.Score(autoStub, badge).Kind);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void Forced_default_requires_recognized_non_auto_stub_candidates(bool isRecognized, bool isAutoStub)
+    {
+        MigrationSelectionCandidate candidate = Candidate("redirected", "personal") with
+        {
+            OneDriveRedirectedSyncOff = true,
+            IsRecognized = isRecognized,
+            IsAutoStub = isAutoStub,
+            HasCloudBackup = false,
+            IsOnSystemDrive = true,
+            IsUnique = true,
+        };
+        MigrationBadgePresentation badge = MigrationBadgePresenter.Derive(
+            candidate.Meta, candidate.RestoreTier, candidate.IsRegenerable);
+
+        SmartDefaultDecision decision = SmartDefaultScorer.Score(candidate, badge);
+
+        Assert.Equal(SmartDefaultKind.Off, decision.Kind);
+    }
+
+    [Fact]
+    public void Bare_candidate_defaults_to_unrecognized_without_install_record()
+    {
+        var candidate = new MigrationSelectionCandidate
+        {
+            Id = "bare",
+            DisplayName = "Bare",
+            RecipeCategory = "dev-tools",
+            Meta = Meta(PortabilityClass.ProfileRelative),
+            RestoreTier = RestoreTier.ConfigCopy,
+        };
+
+        Assert.False(candidate.IsRecognized);
+        Assert.False(candidate.HasInstallRecord);
+    }
+
     [Fact]
     public void OneDrive_redirected_sync_off_is_forced_on_and_cannot_be_cleared()
     {
@@ -374,6 +412,8 @@ public sealed class MigrationSelectionLogicTests
             IsOnSystemDrive = false,
             IsUnique = false,
             IsRegenerable = true,
+            IsRecognized = true,
+            HasInstallRecord = true,
         };
 
     private static DetectionResult Detection(int programs, int uncovered)

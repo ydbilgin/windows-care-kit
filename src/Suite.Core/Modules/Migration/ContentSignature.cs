@@ -1,7 +1,25 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace WindowsCareKit.Core.Modules.Migration;
+
+public enum ContentProbeStatus
+{
+    Complete,
+    Inconclusive,
+    Inaccessible,
+    LockedNow,
+    CloudPlaceholder,
+    ProbeTimedOut,
+}
+
+public sealed record ContentSignatureOptions(
+    IReadOnlyList<string> ProfileRoots,
+    string? ExpectedFormat = null)
+{
+    public static ContentSignatureOptions Default { get; } = new(Array.Empty<string>());
+}
 
 /// <summary>
 /// Read-only content classification for one file. An inconclusive probe is deliberately machine-bound:
@@ -13,9 +31,17 @@ public sealed record ContentSignature
     public bool HasSidBinding { get; init; }
     public bool HasMachineGuidBinding { get; init; }
     public bool HasAbsolutePathBinding { get; init; }
+    public bool HasSqliteHeader { get; init; }
+    public bool HasUnexpectedSqliteHeader { get; init; }
     public bool HasCredentialStoreHeader { get; init; }
     public bool IsInconclusive { get; init; }
+    public ContentProbeStatus Status { get; init; } = ContentProbeStatus.Complete;
     public int BytesInspected { get; init; }
+    public bool IsDirectorySignature { get; init; }
+    public int DirectoryFilesSampled { get; init; }
+    public int DirectoryFilesTotalSeen { get; init; }
+    public bool DirectoryEnumerationTruncated { get; init; }
+    public IReadOnlyList<string> DirectorySampledFiles { get; init; } = Array.Empty<string>();
 
     public bool HasMachineBoundContent =>
         HasDpapiBlob
@@ -25,8 +51,46 @@ public sealed record ContentSignature
         || HasCredentialStoreHeader
         || IsInconclusive;
 
+    public bool BlocksPortabilityClaim =>
+        HasMachineBoundContent
+        || HasUnexpectedSqliteHeader
+        || DirectoryEnumerationTruncated
+        || Status is ContentProbeStatus.Inaccessible
+            or ContentProbeStatus.LockedNow
+            or ContentProbeStatus.CloudPlaceholder
+            or ContentProbeStatus.ProbeTimedOut;
+
     public static ContentSignature Inconclusive(int bytesInspected = 0) =>
-        new() { IsInconclusive = true, BytesInspected = Math.Max(0, bytesInspected) };
+        new()
+        {
+            IsInconclusive = true,
+            Status = ContentProbeStatus.Inconclusive,
+            BytesInspected = Math.Max(0, bytesInspected),
+        };
+
+    public static ContentSignature Inaccessible(int bytesInspected = 0) =>
+        new()
+        {
+            Status = ContentProbeStatus.Inaccessible,
+            BytesInspected = Math.Max(0, bytesInspected),
+        };
+
+    public static ContentSignature LockedNow(int bytesInspected = 0) =>
+        new()
+        {
+            Status = ContentProbeStatus.LockedNow,
+            BytesInspected = Math.Max(0, bytesInspected),
+        };
+
+    public static ContentSignature CloudPlaceholder() =>
+        new() { Status = ContentProbeStatus.CloudPlaceholder };
+
+    public static ContentSignature ProbeTimedOut(int bytesInspected = 0) =>
+        new()
+        {
+            Status = ContentProbeStatus.ProbeTimedOut,
+            BytesInspected = Math.Max(0, bytesInspected),
+        };
 }
 
 /// <summary>
@@ -35,7 +99,7 @@ public sealed record ContentSignature
 /// </summary>
 public interface IContentSignatureProbe
 {
-    ContentSignature ProbeFile(string path);
+    ContentSignature ProbeFile(string path, ContentSignatureOptions? options = null);
 }
 
 /// <summary>
@@ -45,6 +109,7 @@ public interface IContentSignatureProbe
 public static partial class ContentSignatureClassifier
 {
     public const int DefaultMaxBytes = 64 * 1024;
+    private static readonly ConcurrentDictionary<(string Root, bool JsonEscapedBackslashes), Regex> ProfileRootRegexCache = new();
 
     private static ReadOnlySpan<byte> DpapiProviderHeader =>
     [
@@ -61,16 +126,19 @@ public static partial class ContentSignatureClassifier
     public static ContentSignature Classify(byte[] bytes)
     {
         ArgumentNullException.ThrowIfNull(bytes);
-        return Classify(bytes.AsSpan());
+        return Classify(bytes.AsSpan(), ContentSignatureOptions.Default);
     }
 
     public static ContentSignature Classify(ReadOnlySpan<byte> bytes)
+        => Classify(bytes, ContentSignatureOptions.Default);
+
+    public static ContentSignature Classify(ReadOnlySpan<byte> bytes, ContentSignatureOptions? options)
     {
+        options ??= ContentSignatureOptions.Default;
         bool dpapi = Contains(bytes, DpapiProviderHeader);
-        bool credentialStore =
-            bytes.StartsWith(SqliteHeader)
-            || Contains(bytes, LevelDbTableMagic)
-            || StartsWithAsciiIgnoreCase(bytes, "MANIFEST-");
+        bool sqliteHeader = bytes.StartsWith(SqliteHeader);
+        bool credentialStore = Contains(bytes, LevelDbTableMagic)
+                               || StartsWithAsciiIgnoreCase(bytes, "MANIFEST-");
 
         string utf8 = Encoding.UTF8.GetString(bytes);
         string utf16 = bytes.Length >= 2
@@ -79,9 +147,20 @@ public static partial class ContentSignatureClassifier
 
         bool sid = SidRegex().IsMatch(utf8) || SidRegex().IsMatch(utf16);
         bool machineGuid = MachineGuidRegex().IsMatch(utf8) || MachineGuidRegex().IsMatch(utf16);
-        bool absolutePath =
-            CountAbsoluteProfilePaths(utf8) >= 3
-            || CountAbsoluteProfilePaths(utf16) >= 3;
+        bool profileRootProbeTimedOut = false;
+        bool absolutePath = false;
+        try
+        {
+            absolutePath =
+                ContainsThisMachineProfilePath(utf8, options.ProfileRoots)
+                || ContainsThisMachineProfilePath(utf16, options.ProfileRoots)
+                || CountGenericAbsoluteProfilePaths(utf8) >= 3
+                || CountGenericAbsoluteProfilePaths(utf16) >= 3;
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            profileRootProbeTimedOut = true;
+        }
 
         return new ContentSignature
         {
@@ -89,12 +168,22 @@ public static partial class ContentSignatureClassifier
             HasSidBinding = sid,
             HasMachineGuidBinding = machineGuid,
             HasAbsolutePathBinding = absolutePath,
+            HasSqliteHeader = sqliteHeader,
+            HasUnexpectedSqliteHeader = sqliteHeader
+                                      && !string.Equals(options.ExpectedFormat, "sqlite", StringComparison.OrdinalIgnoreCase),
             HasCredentialStoreHeader = credentialStore,
+            Status = profileRootProbeTimedOut ? ContentProbeStatus.ProbeTimedOut : ContentProbeStatus.Complete,
             BytesInspected = bytes.Length,
         };
     }
 
     public static ContentSignature Classify(Stream stream, int maxBytes = DefaultMaxBytes)
+        => Classify(stream, maxBytes, ContentSignatureOptions.Default);
+
+    public static ContentSignature Classify(
+        Stream stream,
+        int maxBytes,
+        ContentSignatureOptions? options)
     {
         ArgumentNullException.ThrowIfNull(stream);
         if (!stream.CanRead)
@@ -112,7 +201,7 @@ public static partial class ContentSignatureClassifier
             total += read;
         }
 
-        return Classify(buffer.AsSpan(0, total));
+        return Classify(buffer.AsSpan(0, total), options);
     }
 
     private static bool Contains(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
@@ -132,10 +221,87 @@ public static partial class ContentSignatureClassifier
         return true;
     }
 
-    private static int CountAbsoluteProfilePaths(string text)
+    public static ContentSignature MergeDirectory(
+        IEnumerable<(string RelativePath, ContentSignature Signature)> samples,
+        int filesTotalSeen,
+        bool truncated = false)
+    {
+        ArgumentNullException.ThrowIfNull(samples);
+
+        var sampleList = samples.ToArray();
+        return new ContentSignature
+        {
+            HasDpapiBlob = sampleList.Any(s => s.Signature.HasDpapiBlob),
+            HasSidBinding = sampleList.Any(s => s.Signature.HasSidBinding),
+            HasMachineGuidBinding = sampleList.Any(s => s.Signature.HasMachineGuidBinding),
+            HasAbsolutePathBinding = sampleList.Any(s => s.Signature.HasAbsolutePathBinding),
+            HasSqliteHeader = sampleList.Any(s => s.Signature.HasSqliteHeader),
+            HasUnexpectedSqliteHeader = sampleList.Any(s => s.Signature.HasUnexpectedSqliteHeader),
+            HasCredentialStoreHeader = sampleList.Any(s => s.Signature.HasCredentialStoreHeader),
+            IsInconclusive = sampleList.Any(s => s.Signature.IsInconclusive),
+            Status = sampleList.Any(s => s.Signature.Status != ContentProbeStatus.Complete)
+                ? sampleList.First(s => s.Signature.Status != ContentProbeStatus.Complete).Signature.Status
+                : ContentProbeStatus.Complete,
+            BytesInspected = sampleList.Sum(s => s.Signature.BytesInspected),
+            IsDirectorySignature = true,
+            DirectoryFilesSampled = sampleList.Length,
+            DirectoryFilesTotalSeen = Math.Max(0, filesTotalSeen),
+            DirectoryEnumerationTruncated = truncated,
+            DirectorySampledFiles = sampleList.Select(s => s.RelativePath).ToArray(),
+        };
+    }
+
+    private static bool ContainsThisMachineProfilePath(string text, IReadOnlyList<string> profileRoots)
+    {
+        if (string.IsNullOrEmpty(text))
+            return false;
+
+        foreach (string root in ProfileRootCandidates(profileRoots))
+        {
+            if (ForceProfileRootRegexTimeoutForTests)
+                throw new RegexMatchTimeoutException(text, root, TimeSpan.FromMilliseconds(250));
+
+            if (ProfileRootRegex(root, jsonEscapedBackslashes: false).IsMatch(text)
+                || ProfileRootRegex(root, jsonEscapedBackslashes: true).IsMatch(text))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> ProfileRootCandidates(IReadOnlyList<string> profileRoots)
+    {
+        foreach (string root in profileRoots)
+            if (!string.IsNullOrWhiteSpace(root))
+                yield return root;
+
+        string currentProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(currentProfile))
+            yield return currentProfile;
+
+        yield return @"C:\Users";
+    }
+
+    private static Regex ProfileRootRegex(string root, bool jsonEscapedBackslashes)
+        => ProfileRootRegexCache.GetOrAdd((root, jsonEscapedBackslashes), static key => BuildProfileRootRegex(key.Root, key.JsonEscapedBackslashes));
+
+    private static Regex BuildProfileRootRegex(string root, bool jsonEscapedBackslashes)
+    {
+        string normalized = root.Replace('\\', '/').TrimEnd('/');
+        string[] segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+            return NeverMatchRegex();
+
+        string separator = jsonEscapedBackslashes ? @"(?:\\\\|/)" : @"[\\/]";
+        string prefix = string.Join(separator, segments.Select(Regex.Escape));
+        string pattern = $@"(?i:{prefix}(?:{separator}|{separator}[^\\/""']+{separator}))";
+        return new Regex(pattern, RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromMilliseconds(250));
+    }
+
+    private static int CountGenericAbsoluteProfilePaths(string text)
     {
         int count = 0;
-        foreach (Match _ in AbsoluteProfilePathRegex().Matches(text))
+        foreach (Match _ in GenericAbsoluteProfilePathRegex().Matches(text))
         {
             count++;
             if (count >= 3)
@@ -152,6 +318,15 @@ public static partial class ContentSignatureClassifier
         RegexOptions.CultureInvariant)]
     private static partial Regex MachineGuidRegex();
 
-    [GeneratedRegex(@"(?i:[a-z]:\\users\\[^\\\s""']+\\)", RegexOptions.CultureInvariant)]
-    private static partial Regex AbsoluteProfilePathRegex();
+    [GeneratedRegex(@"(?!)", RegexOptions.CultureInvariant)]
+    private static partial Regex NeverMatchRegex();
+
+    [GeneratedRegex(@"(?i:[a-z]:(?:\\|/)users(?:\\|/)[^\\/""']+(?:\\|/))", RegexOptions.CultureInvariant)]
+    private static partial Regex GenericAbsoluteProfilePathRegex();
+
+    internal static int ProfileRootRegexCacheCountForTests => ProfileRootRegexCache.Count;
+
+    internal static void ResetProfileRootRegexCacheForTests() => ProfileRootRegexCache.Clear();
+
+    internal static bool ForceProfileRootRegexTimeoutForTests { get; set; }
 }

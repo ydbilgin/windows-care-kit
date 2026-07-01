@@ -36,7 +36,7 @@ public static class PortabilityBadge
 {
     /// <summary>Back-compat overload: no declared-secret signal (equivalent to <c>hasExcludedSecret: false</c>).</summary>
     public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions)
-        => Compute(cls, hasPreconditions, hasExcludedSecret: false, hasMachineBoundContent: false);
+        => Compute(cls, hasPreconditions, hasExcludedSecret: false, hasMachineBoundContent: false, hasUnanalyzedContent: false);
 
     /// <summary>
     /// PURE badge computation with the B-1 secret fail-safe as a FIRST-CLASS input (decision §3A / critic#1-#2).
@@ -46,7 +46,7 @@ public static class PortabilityBadge
     /// content includes a pruned secret. The override is here, in the pure function, so no UI layer can fork it.
     /// </summary>
     public static PortabilityBadgeResult Compute(PortabilityClass cls, bool hasPreconditions, bool hasExcludedSecret)
-        => Compute(cls, hasPreconditions, hasExcludedSecret, hasMachineBoundContent: false);
+        => Compute(cls, hasPreconditions, hasExcludedSecret, hasMachineBoundContent: false, hasUnanalyzedContent: false);
 
     /// <summary>
     /// PURE badge computation with both B-1 floors. Content evidence is stronger than an optimistic declaration
@@ -56,10 +56,24 @@ public static class PortabilityBadge
         PortabilityClass cls,
         bool hasPreconditions,
         bool hasExcludedSecret,
-        bool hasMachineBoundContent) => cls switch
+        bool hasMachineBoundContent)
+        => Compute(cls, hasPreconditions, hasExcludedSecret, hasMachineBoundContent, hasUnanalyzedContent: false);
+
+    /// <summary>
+    /// PURE badge computation with distinct "not analyzed" vocabulary. Unanalyzed local bytes may not claim
+    /// works, but they are not rendered as machine-locked evidence.
+    /// </summary>
+    public static PortabilityBadgeResult Compute(
+        PortabilityClass cls,
+        bool hasPreconditions,
+        bool hasExcludedSecret,
+        bool hasMachineBoundContent,
+        bool hasUnanalyzedContent) => cls switch
     {
         PortabilityClass.ProfileRelative when hasMachineBoundContent
             => new PortabilityBadgeResult(BadgeKind.MachineLocked, "❌", MayClaimWorks: false),
+        PortabilityClass.ProfileRelative when hasUnanalyzedContent
+            => new PortabilityBadgeResult(BadgeKind.Partial, "⚠️", MayClaimWorks: false),
         // B-1: a declared secret on an otherwise-portable item can never be presented as a confident "works".
         PortabilityClass.ProfileRelative when hasExcludedSecret
             => new PortabilityBadgeResult(BadgeKind.Partial, "⚠️", MayClaimWorks: false),
@@ -83,6 +97,7 @@ public static class PortabilityBadge
             meta.PortabilityClass,
             meta.Preconditions.Count > 0,
             meta.HasExcludedSecret,
-            meta.HasMachineBoundContent);
+            meta.HasMachineBoundContent,
+            meta.HasUnanalyzedContent);
     }
 }

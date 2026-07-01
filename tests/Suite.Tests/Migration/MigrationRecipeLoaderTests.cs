@@ -149,6 +149,7 @@ public class MigrationRecipeLoaderTests
     [InlineData(1, "\"requiresClosedProcesses\": [\"app.exe\"], ")]
     [InlineData(2, "\"verify\": { \"maxSizeMB\": 1 }, ")]
     [InlineData(2, "\"manualTodo\": [\"manual\"], ")]
+    [InlineData(2, "\"expectedFormat\": \"sqlite\", ")]
     public void Older_schema_versions_reject_v3_only_item_fields(int schemaVersion, string field)
     {
         string json = Valid
@@ -175,6 +176,7 @@ public class MigrationRecipeLoaderTests
               "path": "Contoso/settings.json",
               "include": ["settings.json"],
               "exclude": [],
+              "expectedFormat": "sqlite",
               "requiresClosedProcesses": ["contoso.exe"],
               "verify": { "exists": ["settings.json"], "maxSizeMB": 25 }
             }
@@ -222,6 +224,7 @@ public class MigrationRecipeLoaderTests
         Assert.Equal(25, recipe.Items[0].Verify!.MaxSizeMB);
         Assert.Equal("Backs up settings only.", recipe.MigrationMeta!.UiWarning!.En);
         Assert.True(recipe.MigrationMeta.RequiresRelogin);
+        Assert.Equal("sqlite", recipe.Items[0].ExpectedFormat);
     }
 
     [Fact]

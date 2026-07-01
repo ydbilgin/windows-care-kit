@@ -198,7 +198,7 @@ public static class MigrationRecipeLoader
                 throw new RecipeValidationException("each item must be a JSON object");
             string[] allowedItemFields = schemaVersion >= V3SchemaVersion
                 ? ["path", "include", "exclude", "kind", "libraryDetector", "launcherId", "exportKind",
-                    "manualTodo", "requiresClosedProcesses", "verify"]
+                    "manualTodo", "requiresClosedProcesses", "verify", "expectedFormat"]
                 : ["path", "include", "exclude"];
             RejectUnknownFields(el, "items[]", allowedItemFields);
             string path = RequireNonEmptyString(el, "path");
@@ -228,6 +228,9 @@ public static class MigrationRecipeLoader
                 ManualTodo = manualTodo,
                 RequiresClosedProcesses = ParseStringArray(el, "requiresClosedProcesses"),
                 Verify = el.TryGetProperty("verify", out JsonElement verifyEl) ? ParseVerify(verifyEl) : null,
+                ExpectedFormat = el.TryGetProperty("expectedFormat", out _)
+                    ? ParseExpectedFormat(RequireNonEmptyString(el, "expectedFormat"))
+                    : null,
             });
         }
         if (list.Count == 0)
@@ -447,6 +450,12 @@ public static class MigrationRecipeLoader
         "pathdump" or "path-dump" => ExportKind.PathDump,
         "scheduledtasks" or "scheduled-tasks" => ExportKind.ScheduledTasks,
         _ => throw new RecipeValidationException($"unknown exportKind '{s}'"),
+    };
+
+    private static string ParseExpectedFormat(string s) => s.ToLowerInvariant() switch
+    {
+        "sqlite" => "sqlite",
+        _ => throw new RecipeValidationException($"unknown items[].expectedFormat '{s}'"),
     };
 
     private static InstallerSource ParseInstallerSource(string s) => s.ToLowerInvariant() switch

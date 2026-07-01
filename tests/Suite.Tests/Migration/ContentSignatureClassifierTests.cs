@@ -48,6 +48,64 @@ public sealed class ContentSignatureClassifierTests
     }
 
     [Theory]
+    [InlineData(@"C:\Users\Alice Smith\AppData\Roaming\Tool\settings.json")]
+    [InlineData(@"C:\\Users\\Alice Smith\\AppData\\Roaming\\Tool\\settings.json")]
+    [InlineData("C:/Users/Alice Smith/AppData/Roaming/Tool/settings.json")]
+    [InlineData(@"D:\Profiles\Alice Smith\AppData\Roaming\Tool\settings.json")]
+    public void This_machine_profile_roots_detect_backslash_escaped_forward_and_spaced_forms(string path)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes($"{{\"recent\":\"{path}\"}}");
+
+        ContentSignature signature = ContentSignatureClassifier.Classify(
+            bytes.AsSpan(),
+            new ContentSignatureOptions([@"C:\Users\Alice Smith", @"D:\Profiles"]));
+
+        Assert.True(signature.HasAbsolutePathBinding);
+        Assert.True(signature.HasMachineBoundContent);
+    }
+
+    [Fact]
+    public void Utf16_profile_root_literal_is_detected()
+    {
+        byte[] bytes = Encoding.Unicode.GetBytes(@"path=D:\Profiles\Alice Smith\AppData\Roaming\Tool");
+
+        ContentSignature signature = ContentSignatureClassifier.Classify(
+            bytes.AsSpan(),
+            new ContentSignatureOptions([@"D:\Profiles"]));
+
+        Assert.True(signature.HasAbsolutePathBinding);
+    }
+
+    [Fact]
+    public void Unexpected_sqlite_header_blocks_claim_without_machine_bound_label()
+    {
+        byte[] bytes = Encoding.ASCII.GetBytes("SQLite format 3\0synthetic");
+
+        ContentSignature signature = ContentSignatureClassifier.Classify(bytes);
+
+        Assert.True(signature.HasSqliteHeader);
+        Assert.True(signature.HasUnexpectedSqliteHeader);
+        Assert.False(signature.HasCredentialStoreHeader);
+        Assert.False(signature.HasMachineBoundContent);
+        Assert.True(signature.BlocksPortabilityClaim);
+    }
+
+    [Fact]
+    public void Expected_sqlite_header_does_not_block_claim()
+    {
+        byte[] bytes = Encoding.ASCII.GetBytes("SQLite format 3\0synthetic");
+
+        ContentSignature signature = ContentSignatureClassifier.Classify(
+            bytes.AsSpan(),
+            new ContentSignatureOptions(Array.Empty<string>(), ExpectedFormat: "sqlite"));
+
+        Assert.True(signature.HasSqliteHeader);
+        Assert.False(signature.HasUnexpectedSqliteHeader);
+        Assert.False(signature.HasMachineBoundContent);
+        Assert.False(signature.BlocksPortabilityClaim);
+    }
+
+    [Theory]
     [MemberData(nameof(CredentialStoreHeaders))]
     public void Credential_store_headers_are_conservatively_machine_bound(byte[] bytes)
     {
@@ -59,7 +117,6 @@ public sealed class ContentSignatureClassifierTests
 
     public static TheoryData<byte[]> CredentialStoreHeaders => new()
     {
-        Encoding.ASCII.GetBytes("SQLite format 3\0synthetic"),
         new byte[] { 0x01, 0x02, 0x57, 0xFB, 0x80, 0x8B, 0x24, 0x75, 0x47, 0xDB },
         Encoding.ASCII.GetBytes("MANIFEST-000007\n"),
     };
@@ -94,5 +151,41 @@ public sealed class ContentSignatureClassifierTests
 
         Assert.True(signature.IsInconclusive);
         Assert.True(signature.HasMachineBoundContent);
+    }
+
+    [Fact]
+    public void Profile_root_regex_timeout_is_not_machine_bound()
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(@"path=C:\Users\Alice\AppData\Roaming\Tool");
+        ContentSignatureClassifier.ForceProfileRootRegexTimeoutForTests = true;
+        try
+        {
+            ContentSignature signature = ContentSignatureClassifier.Classify(
+                bytes.AsSpan(),
+                new ContentSignatureOptions([@"C:\Users\Alice"]));
+
+            Assert.Equal(ContentProbeStatus.ProbeTimedOut, signature.Status);
+            Assert.False(signature.HasMachineBoundContent);
+            Assert.True(signature.BlocksPortabilityClaim);
+        }
+        finally
+        {
+            ContentSignatureClassifier.ForceProfileRootRegexTimeoutForTests = false;
+        }
+    }
+
+    [Fact]
+    public void Profile_root_regexes_are_cached_across_classifications()
+    {
+        ContentSignatureClassifier.ResetProfileRootRegexCacheForTests();
+        byte[] bytes = Encoding.UTF8.GetBytes("""{"theme":"dark"}""");
+        var options = new ContentSignatureOptions([@"C:\Users\Alice"]);
+
+        _ = ContentSignatureClassifier.Classify(bytes.AsSpan(), options);
+        int firstCount = ContentSignatureClassifier.ProfileRootRegexCacheCountForTests;
+        _ = ContentSignatureClassifier.Classify(bytes.AsSpan(), options);
+
+        Assert.True(firstCount > 0);
+        Assert.Equal(firstCount, ContentSignatureClassifier.ProfileRootRegexCacheCountForTests);
     }
 }

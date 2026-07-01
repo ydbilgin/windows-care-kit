@@ -272,4 +272,15 @@ public class BuiltinRecipeSourceTests
         Assert.Contains(putty.Exclude, value => value.Contains("*.ppk", StringComparison.OrdinalIgnoreCase));
         Assert.All(new[] { winscp, putty }, recipe => Assert.Equal(RestoreTier.InventoryOnly, recipe.RestoreTier));
     }
+
+    [Fact]
+    public void Opera_recipe_does_not_copy_machine_bound_secure_preferences_or_extensions()
+    {
+        MigrationRecipe opera = BuiltinRecipeSource.LoadAll().Single(r => r.Id == "opera.opera");
+        RecipeItem item = Assert.Single(opera.Items);
+
+        Assert.DoesNotContain(item.Include, value => value.Equals("Secure Preferences", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(item.Include, value => value.Equals("Extensions/**", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(RestoreTier.InventoryOnly, opera.RestoreTier);
+    }
 }

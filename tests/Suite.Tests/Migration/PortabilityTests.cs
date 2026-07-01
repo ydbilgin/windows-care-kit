@@ -100,6 +100,21 @@ public class PortabilityTests
     }
 
     [Fact]
+    public void Unanalyzed_content_blocks_works_without_machine_locked_badge()
+    {
+        var meta = new MigrationItemMeta("r", "r#0", PortabilityClass.ProfileRelative,
+            RestoreStrategy.MergeAfterInstall, RestorePhase.ConfigWrite, Array.Empty<string>())
+        {
+            HasUnanalyzedContent = true,
+        };
+
+        PortabilityBadgeResult badge = PortabilityBadge.Compute(meta);
+
+        Assert.Equal(BadgeKind.Partial, badge.Kind);
+        Assert.False(badge.MayClaimWorks);
+    }
+
+    [Fact]
     public void Unknown_named_synthetic_dpapi_blob_can_never_claim_works()
     {
         byte[] syntheticUnknownNamedBlob =

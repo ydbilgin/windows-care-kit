@@ -186,6 +186,7 @@ public sealed record RecipeItem(string Path, IReadOnlyList<string> Include, IRea
     public IReadOnlyList<string> ManualTodo { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> RequiresClosedProcesses { get; init; } = Array.Empty<string>();
     public RecipeItemVerify? Verify { get; init; }
+    public string? ExpectedFormat { get; init; }
 }
 
 /// <summary>The restore META block (strategy/phase/preconditions). Slice 1: declarative only, no execution.</summary>

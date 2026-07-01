@@ -26,12 +26,21 @@ public class RecipeToBackupEntryTests
 
     private sealed class FixedContentProbe(ContentSignature signature) : IContentSignatureProbe
     {
-        public ContentSignature ProbeFile(string path) => signature;
+        public ContentSignature ProbeFile(string path, ContentSignatureOptions? options = null) => signature;
     }
 
     private sealed class ThrowingContentProbe : IContentSignatureProbe
     {
-        public ContentSignature ProbeFile(string path) => throw new IOException("synthetic read failure");
+        public ContentSignature ProbeFile(string path, ContentSignatureOptions? options = null)
+            => throw new IOException("synthetic read failure");
+    }
+
+    private sealed class SqliteClassifyingProbe : IContentSignatureProbe
+    {
+        private static readonly byte[] Header = System.Text.Encoding.ASCII.GetBytes("SQLite format 3\0synthetic");
+
+        public ContentSignature ProbeFile(string path, ContentSignatureOptions? options = null)
+            => ContentSignatureClassifier.Classify(Header.AsSpan(), options);
     }
 
     [Fact]
@@ -179,6 +188,90 @@ public class RecipeToBackupEntryTests
         Assert.False(bridged.Meta.HasExcludedSecret);
         Assert.False(bridged.Meta.HasMachineBoundContent);
         Assert.True(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Places_sqlite_header_does_not_make_bookmarks_machine_locked()
+    {
+        var fs = new FakeRecipeFileSystem()
+            .AddDir(@"C:\Users\alice\.claude")
+            .AddFile(@"C:\Users\alice\.claude\places.sqlite");
+        var recipe = Recipe(
+                PortabilityClass.ProfileRelative,
+                Item(".claude/places.sqlite") with { ExpectedFormat = "sqlite" })
+            with { RestoreTier = RestoreTier.ConfigCopy };
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(fs).Resolve(recipe),
+            new SqliteClassifyingProbe()));
+
+        Assert.False(bridged.Meta.HasMachineBoundContent);
+        Assert.False(bridged.Meta.HasUnanalyzedContent);
+        Assert.False(bridged.Meta.HasExcludedSecret);
+        Assert.True(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Unexpected_sqlite_header_blocks_a_works_badge_without_machine_locking()
+    {
+        var fs = new FakeRecipeFileSystem()
+            .AddDir(@"C:\Users\alice\.claude")
+            .AddFile(@"C:\Users\alice\.claude\unknown.db");
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/unknown.db"))
+            with { RestoreTier = RestoreTier.ConfigCopy };
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(fs).Resolve(recipe),
+            new SqliteClassifyingProbe()));
+
+        Assert.False(bridged.Meta.HasMachineBoundContent);
+        Assert.True(bridged.Meta.HasUnanalyzedContent);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Truncated_directory_signature_blocks_a_works_badge()
+    {
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/projects"))
+            with { RestoreTier = RestoreTier.ConfigCopy };
+        var signature = new ContentSignature
+        {
+            IsDirectorySignature = true,
+            DirectoryFilesSampled = 16,
+            DirectoryFilesTotalSeen = 17,
+            DirectoryEnumerationTruncated = true,
+        };
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(Fs()).Resolve(recipe),
+            new FixedContentProbe(signature)));
+
+        Assert.False(bridged.Meta.HasMachineBoundContent);
+        Assert.True(bridged.Meta.HasUnanalyzedContent);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Key4_db_is_secret_even_when_sqlite_header_is_not_machine_bound()
+    {
+        var fs = new FakeRecipeFileSystem()
+            .AddDir(@"C:\Users\alice\.claude")
+            .AddFile(@"C:\Users\alice\.claude\key4.db");
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/key4.db"))
+            with { RestoreTier = RestoreTier.ConfigCopy };
+        var probe = new FixedContentProbe(new ContentSignature
+        {
+            HasSqliteHeader = true,
+            BytesInspected = 32,
+        });
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(fs).Resolve(recipe),
+            probe));
+
+        Assert.True(bridged.Meta.HasExcludedSecret);
+        Assert.False(bridged.Meta.HasMachineBoundContent);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
     }
 
     [Fact]

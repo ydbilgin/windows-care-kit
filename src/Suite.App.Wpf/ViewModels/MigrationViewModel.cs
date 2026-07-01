@@ -701,6 +701,9 @@ public sealed class MigrationItemRow : ObservableObject
     {
         get
         {
+            if (Candidate.Meta.ContentProbeStatus == ContentProbeStatus.LockedNow)
+                return LockedNowReason();
+
             string? localized = _i18n.Culture == "tr" ? Candidate.WhatHappensTr : Candidate.WhatHappensEn;
             if (!string.IsNullOrWhiteSpace(localized))
                 return localized;
@@ -730,6 +733,26 @@ public sealed class MigrationItemRow : ObservableObject
     {
         OnPropertyChanged(nameof(BadgeText));
         OnPropertyChanged(nameof(WhatHappens));
+    }
+
+    private string LockedNowReason()
+    {
+        string? process = Candidate.Meta.Preconditions
+            .Select(ProcessNameFromPrecondition)
+            .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+
+        return string.IsNullOrWhiteSpace(process)
+            ? _i18n["migration.item.reason.lockedNow.generic"]
+            : _i18n.Format("migration.item.reason.lockedNow", process);
+    }
+
+    private static string? ProcessNameFromPrecondition(string precondition)
+    {
+        const string Prefix = "process-closed:";
+        if (!precondition.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+            return null;
+        string process = precondition[Prefix.Length..].Trim();
+        return string.IsNullOrWhiteSpace(process) ? null : process;
     }
 }
 
