@@ -367,14 +367,18 @@ public sealed class CopyAdapter : ICopyAdapter
     {
         private readonly HashSet<string> _leaves;
         private readonly IReadOnlyList<Regex> _leafGlobs;
+        private readonly IReadOnlyList<Regex> _pathGlobs;
+        private readonly IReadOnlyList<Regex> _subtreeBases;
         private readonly HashSet<string> _forbiddenFull;
         private readonly IReadOnlyList<string> _include;
         private readonly Win32PathCanonicalizer _canon;
 
-        private Exclusions(HashSet<string> leaves, IReadOnlyList<Regex> leafGlobs, HashSet<string> forbiddenFull, IReadOnlyList<string> include, Win32PathCanonicalizer canon)
+        private Exclusions(HashSet<string> leaves, IReadOnlyList<Regex> leafGlobs, IReadOnlyList<Regex> pathGlobs, IReadOnlyList<Regex> subtreeBases, HashSet<string> forbiddenFull, IReadOnlyList<string> include, Win32PathCanonicalizer canon)
         {
             _leaves = leaves;
             _leafGlobs = leafGlobs;
+            _pathGlobs = pathGlobs;
+            _subtreeBases = subtreeBases;
             _forbiddenFull = forbiddenFull;
             _include = include;
             _canon = canon;
@@ -388,19 +392,50 @@ public sealed class CopyAdapter : ICopyAdapter
             // which left the migration secret-glob overlay + recipe cache excludes inert at copy time).
             var leaves = new HashSet<string>(ForbiddenSourceLeaves, StringComparer.OrdinalIgnoreCase);
             var globs = new List<Regex>();
-            foreach (string leaf in action.ExcludeLeaves)
+            var pathGlobs = new List<Regex>();
+            var subtreeBases = new List<Regex>();
+
+            void AddExclude(string entry)
             {
-                if (string.IsNullOrWhiteSpace(leaf)) continue;
-                string trimmed = leaf.Trim();
+                if (string.IsNullOrWhiteSpace(entry)) return;
+                string trimmed = entry.Trim();
+
+                // A '/'-bearing entry is a PATH glob (e.g. "sessions/**", "cache/**", "antigravity*/**") matched
+                // against the file's path RELATIVE to the copy root. Previously such entries were compiled as
+                // LEAF globs and were INERT — a bare directory leaf has no '/', so a recipe's `sessions/**`
+                // never matched and those subtrees were copied WHOLESALE (adversarial-review finding; the
+                // .codex/.gemini/.claude recipes' own log/sessions/cache/projects excludes were dead).
+                if (trimmed.Contains('/') || trimmed.Contains('\\'))
+                {
+                    string norm = Normalize(trimmed);
+                    pathGlobs.Add(CompilePathGlob(norm));
+                    // A "<base>/**" pattern excludes the ENTIRE subtree, so the base directory itself is pruned
+                    // (not just its files) — otherwise CopyTree would recreate an empty excluded dir. Only "/**"
+                    // prunes the dir; a single-level "/*" is left to per-file matching so deeper content it does
+                    // not cover still copies.
+                    if (norm.EndsWith("/**", StringComparison.Ordinal))
+                        subtreeBases.Add(CompilePathGlob(norm[..^3]));
+                    return;
+                }
+
                 if (trimmed.Contains('*')) globs.Add(CompileLeafGlob(trimmed));
                 else leaves.Add(trimmed);
             }
+
+            // The global secret-glob overlay is enforced BUILT-IN on EVERY copy action, forbidden-first,
+            // regardless of caller — mirroring ForbiddenSourceLeaves above. Previously only the migration
+            // bridge plumbed the overlay into ExcludeLeaves, so the legacy Backup manifest path
+            // (ManifestLoader → BackupPlanner) bypassed it and the broad .codex/.gemini recipes leaked
+            // auth.json/oauth_creds.json (2026-07-01 leak fix). Seeding it at the engine removes that bypass
+            // class entirely: a copy path that forgets the overlay still cannot carry a secret-named leaf.
+            foreach (string s in WindowsCareKit.Core.Modules.Migration.SecretGlobOverlay.Globs) AddExclude(s);
+            foreach (string leaf in action.ExcludeLeaves) AddExclude(leaf);
 
             var full = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (string p in action.ForbiddenSources)
                 if (!string.IsNullOrWhiteSpace(p)) full.Add(NormalizeFull(p));
 
-            return new Exclusions(leaves, globs, full, action.Include, canon);
+            return new Exclusions(leaves, globs, pathGlobs, subtreeBases, full, action.Include, canon);
         }
 
         public bool IsForbiddenLeaf(string leaf) => _leaves.Contains(leaf) || MatchesLeafGlob(leaf);
@@ -434,6 +469,16 @@ public sealed class CopyAdapter : ICopyAdapter
             if (IsForbiddenFull(file) || IsForbiddenFull(canon.FinalPath))
                 return false;
 
+            // Path-glob excludes (e.g. "sessions/**", "cache/**") are matched against the file's path relative
+            // to the copy root — the recipe's directory excludes now actually prune their subtree's files.
+            if (_pathGlobs.Count > 0)
+            {
+                string rel = RelativePath(file, sourceRoot);
+                foreach (Regex rx in _pathGlobs)
+                    if (rx.IsMatch(rel))
+                        return false;
+            }
+
             if (_include.Count > 0)
             {
                 string rel = RelativePath(file, sourceRoot);
@@ -449,6 +494,14 @@ public sealed class CopyAdapter : ICopyAdapter
             string leaf = Path.GetFileName(dir.TrimEnd('\\', '/'));
             if (_leaves.Contains(leaf) || MatchesLeafGlob(leaf))
                 return true;
+            // A "<base>/**" path-glob prunes the whole subtree: if this dir IS that base, skip it entirely.
+            if (_subtreeBases.Count > 0)
+            {
+                string relDir = RelativePath(dir, sourceRoot);
+                foreach (Regex rx in _subtreeBases)
+                    if (rx.IsMatch(relDir))
+                        return true;
+            }
             // With an include allow-list, only prune a dir when nothing under it could ever match.
             if (_include.Count > 0)
             {
