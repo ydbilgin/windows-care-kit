@@ -129,6 +129,35 @@ public sealed class RestoreViewModelTests
     }
 
     [Fact]
+    public async Task Created_only_restore_keeps_undo_explanation_visible_without_runnable_undo()
+    {
+        using var fx = Fixture.Create("vm-created-only-undo");
+        fx.WritePayload("migration/x/settings.json", "NEW");
+        fx.SaveManifest(Target("git.config#0", ".gitconfig"));
+        string destination = Path.Combine(fx.Profile, ".gitconfig");
+        RestoreViewModel vm = fx.CreateViewModel();
+
+        await vm.LoadAndPreviewAsync();
+        vm.IsPreviewApproved = true;
+        await vm.RunRestoreAsync();
+
+        Assert.Equal("NEW", File.ReadAllText(destination));
+        Assert.False(vm.HasUndoCandidates);
+        Assert.True(vm.HasUndoJournalEntries);
+        Assert.True(vm.CanPreviewUndo);
+
+        await vm.PreviewUndoAsync();
+        Assert.Contains(vm.UndoRows, row => row.RiskText == "migration.restore.status.rejected");
+        Assert.False(vm.CanUndo);
+
+        vm.IsUndoPreviewApproved = true;
+        Assert.False(vm.CanUndo);
+        await vm.UndoAsync();
+
+        Assert.Equal("NEW", File.ReadAllText(destination));
+    }
+
+    [Fact]
     public async Task Execute_undo_is_no_op_until_undo_preview_is_approved()
     {
         using var fx = Fixture.Create("vm-undo-no-approval");

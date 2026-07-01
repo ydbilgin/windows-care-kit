@@ -26,7 +26,10 @@ public class RestoreUndoActionBuilderTests
 
             RestoreUndoActionBuildResult result = RestoreUndoActionBuilder.Build(RestoreJournal.BuildUndoPlan(state), T0);
 
-            Assert.Empty(result.RejectedSteps);
+            RejectedRestoreUndoStep rejected = Assert.Single(result.RejectedSteps);
+            Assert.Equal("b", rejected.Step.EntryId);
+            Assert.Contains("created", rejected.Reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("remain", rejected.Reason, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(new[] { c, a }, result.Plan.Actions.Cast<RestoreMergeAction>().Select(x => x.Destination).ToArray());
             Assert.All(result.Plan.Actions.Cast<RestoreMergeAction>(), action =>
             {

@@ -265,12 +265,18 @@ internal static class Program
         var restoreRunner = new MigrationRestoreRunner(new RecipePathResolver(rootsB), restoreGate);
         var stateStore = new RestoreStateStore();
         var restoreService = new MigrationRestoreService(restoreRunner, restoreExecutor, stateStore);
+        MigrationRestorePreviewResult restorePreview = restoreService.Preview(
+            manifest,
+            cfg.PackageDir,
+            cfg.StateDir,
+            utc);
         MigrationRestoreExecutionResult restoreResult = restoreService.Restore(
             manifest,
             cfg.PackageDir,
             cfg.StateDir,
             utc,
-            cfg.SelfTest ? "selftest-main" : null);
+            cfg.SelfTest ? "selftest-main" : null,
+            approvedHash: restorePreview.PlanHash);
         MigrationRestorePlanResult restorePlan = restoreResult.PlanResult;
 
         Console.WriteLine($"[E2E]   restore plan actions : {restorePlan.Plan.Actions.Count}");
@@ -685,9 +691,13 @@ internal static class Program
             Console.Error.WriteLine("[E2E] FAIL: restore journal has fewer than 2 undoable .bak entries.");
             pass = false;
         }
-        if (nullBak.Length < 1 || nullBak.Any(j => undoPlan.Steps.Any(s => string.Equals(s.EntryId, j.EntryId, StringComparison.OrdinalIgnoreCase))))
+        MigrationRestoreUndoPreviewResult undoPreview = restoreService.PreviewUndo(loadedState, utc.AddMinutes(1));
+        if (nullBak.Length < 1
+            || nullBak.Any(j => !undoPreview.RejectedSteps.Any(s =>
+                string.Equals(s.Step.EntryId, j.EntryId, StringComparison.OrdinalIgnoreCase)
+                && s.Reason.Contains("created", StringComparison.OrdinalIgnoreCase))))
         {
-            Console.Error.WriteLine("[E2E] FAIL: newly-created target is missing or incorrectly undo-planned.");
+            Console.Error.WriteLine("[E2E] FAIL: newly-created target is missing or not surfaced as a cannot-undo row.");
             pass = false;
         }
         if (tierEvidence.Any(t => undoPlan.Steps.Any(s => string.Equals(s.EntryId, t.EntryId, StringComparison.OrdinalIgnoreCase))))
@@ -721,7 +731,11 @@ internal static class Program
                 false));
         }
 
-        MigrationRestoreUndoResult undo = restoreService.Undo(loadedState, utc.AddMinutes(1));
+        MigrationRestoreUndoResult undo = restoreService.Undo(
+            loadedState,
+            cfg.StateDir,
+            utc.AddMinutes(1),
+            undoPreview.PlanHash);
         int executionFailures = undo.Execution.Results.Count(r => r.Status == ActionStatus.Failed);
         var finalUndoEntries = new List<UndoEntryEvidence>();
         foreach (UndoEntryEvidence before in undoEntries)
@@ -756,7 +770,12 @@ internal static class Program
         if (missingBakEntry?.BakPath is not null)
         {
             File.Delete(missingBakEntry.BakPath);
-            MigrationRestoreUndoResult missingUndo = restoreService.Undo(loadedState, utc.AddMinutes(2));
+            MigrationRestoreUndoPreviewResult missingPreview = restoreService.PreviewUndo(loadedState, utc.AddMinutes(2));
+            MigrationRestoreUndoResult missingUndo = restoreService.Undo(
+                loadedState,
+                cfg.StateDir,
+                utc.AddMinutes(2),
+                missingPreview.PlanHash);
             missingFailedCount = missingUndo.Execution.Results.Count(r => r.Status == ActionStatus.Failed);
             missingRejectedCount = missingUndo.RejectedSteps.Count;
 
@@ -839,11 +858,24 @@ internal static class Program
         var run1Manifest = new MigrationRestoreManifest(MigrationRestoreManifest.CurrentSchemaVersion, new[] { candidates[0] });
         var run2Manifest = new MigrationRestoreManifest(MigrationRestoreManifest.CurrentSchemaVersion, candidates);
 
-        service.Restore(run1Manifest, cfg.PackageDir, stateDir, utc, "resume-1");
+        MigrationRestorePreviewResult run1Preview = service.Preview(run1Manifest, cfg.PackageDir, stateDir, utc);
+        service.Restore(run1Manifest, cfg.PackageDir, stateDir, utc, "resume-1", approvedHash: run1Preview.PlanHash);
         RestoreState afterRun1 = new RestoreStateStore().Load(stateDir);   // disk-grounded run1 journal (reboot sim)
-        MigrationRestoreExecutionResult run2 = service.Restore(run2Manifest, cfg.PackageDir, stateDir, utc.AddMinutes(1), "resume-2");
+        MigrationRestorePreviewResult run2Preview = service.Preview(run2Manifest, cfg.PackageDir, stateDir, utc.AddMinutes(1));
+        MigrationRestoreExecutionResult run2 = service.Restore(
+            run2Manifest,
+            cfg.PackageDir,
+            stateDir,
+            utc.AddMinutes(1),
+            "resume-2",
+            approvedHash: run2Preview.PlanHash);
         RestoreState loaded = new RestoreStateStore().Load(stateDir);      // disk-grounded final journal
-        MigrationRestoreUndoResult undo = service.Undo(loaded, utc.AddMinutes(2));
+        MigrationRestoreUndoPreviewResult undoPreview = service.PreviewUndo(loaded, utc.AddMinutes(2));
+        MigrationRestoreUndoResult undo = service.Undo(
+            loaded,
+            stateDir,
+            utc.AddMinutes(2),
+            undoPreview.PlanHash);
 
         bool alreadyDone = run2.PlanResult.Skipped.Any(s =>
             s.Reason == RestoreSkipReason.AlreadyDone

@@ -176,6 +176,27 @@ public class MigrationRestoreRunnerTests
         finally { Directory.Delete(parent, recursive: true); }
     }
 
+    [Fact]
+    public void Package_relative_source_that_escapes_package_is_rejected()
+    {
+        var (pkg, _, runner, _, _) = Setup("source-escape");
+        string parent = Directory.GetParent(pkg)!.FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(parent, "escape.txt"), "{}");
+            var manifest = new MigrationRestoreManifest(1,
+                new[] { Target("git.config", PortabilityClass.ProfileRelative, ".gitconfig", source: @"..\escape.txt") });
+
+            MigrationRestorePlanResult result = runner.BuildPlan(manifest, pkg, RestoreState.Empty, T0);
+
+            Assert.Empty(result.Plan.Actions);
+            RestoreSkip skip = Assert.Single(result.Skipped);
+            Assert.Equal(RestoreSkipReason.PackageSourceRejected, skip.Reason);
+            Assert.Contains("outside", skip.Note, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { Directory.Delete(parent, recursive: true); }
+    }
+
     /// <summary>Resume — a target already Done in the checkpoint is skipped (not re-planned).</summary>
     [Fact]
     public void Already_done_target_is_skipped_on_resume()

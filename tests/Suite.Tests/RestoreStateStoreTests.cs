@@ -67,7 +67,7 @@ public class RestoreStateStoreTests : IDisposable
     }
 
     [Fact]
-    public void RestoreJournal_builds_reverse_order_undo_plan_for_entries_with_bak()
+    public void RestoreJournal_builds_reverse_order_undo_plan_and_keeps_created_entries_visible()
     {
         var state = RestoreState.Empty
             .WithJournalEntry(new RestoreJournalEntry("a", @"C:\target\a", @"C:\target\a.bak", "old-a", "new-a", T0))
@@ -76,8 +76,10 @@ public class RestoreStateStoreTests : IDisposable
 
         RestoreUndoPlan plan = RestoreJournal.BuildUndoPlan(state);
 
-        Assert.Equal(new[] { "c", "a" }, plan.Steps.Select(s => s.EntryId).ToArray());
-        Assert.All(plan.Steps, s => Assert.EndsWith(".bak", s.BakPath, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(new[] { "c", "b", "a" }, plan.Steps.Select(s => s.EntryId).ToArray());
+        Assert.Null(plan.Steps.Single(s => s.EntryId == "b").BakPath);
+        Assert.All(plan.Steps.Where(s => s.EntryId != "b"),
+            s => Assert.EndsWith(".bak", s.BakPath, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

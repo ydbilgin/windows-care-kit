@@ -21,6 +21,7 @@ public sealed record MigrationRestoreUndoResult(
     RestoreUndoActionBuildResult BuildResult,
     ExecutionReport Execution,
     IReadOnlyList<RejectedRestoreUndoStep> RejectedSteps,
+    RestoreState State,
     bool Authorized = true);
 
 public sealed record MigrationRestoreUndoPreviewResult(
@@ -69,7 +70,8 @@ public sealed class MigrationRestoreService
         string token = SanitizeFileToken(string.IsNullOrWhiteSpace(runToken) ? utc.Ticks.ToString("x") : runToken!);
         MigrationRestorePlanResult withBaks = AssignBakPaths(planned, token);
         string planHash = withBaks.Plan.ComputeHash();
-        if (approvedHash is not null && !string.Equals(planHash, approvedHash, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(approvedHash)
+            || !string.Equals(planHash, approvedHash, StringComparison.Ordinal))
         {
             return new MigrationRestoreExecutionResult(
                 withBaks,
@@ -128,9 +130,14 @@ public sealed class MigrationRestoreService
         return new MigrationRestoreUndoPreviewResult(build, rejected, build.Plan.ComputeHash());
     }
 
-    public MigrationRestoreUndoResult Undo(RestoreState state, DateTime utc, string? approvedUndoHash = null)
+    public MigrationRestoreUndoResult Undo(
+        RestoreState state,
+        string stateDirectory,
+        DateTime utc,
+        string? approvedUndoHash = null)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stateDirectory);
 
         (RestoreUndoActionBuildResult build, IReadOnlyList<RejectedRestoreUndoStep> rejected) =
             BuildUndo(state, utc);
@@ -142,12 +149,16 @@ public sealed class MigrationRestoreService
                 build,
                 new ExecutionReport(false, planHash, Array.Empty<ActionResult>()),
                 rejected,
+                state,
                 Authorized: false);
         }
 
         ExecutionReport report = _executor.ExecuteWithReport(build.Plan, approvedUndoHash);
+        RestoreState updated = ResetSuccessfulUndoEntries(state, build, report, utc, out bool changed);
+        if (changed)
+            _stateStore.Save(stateDirectory, updated);
 
-        return new MigrationRestoreUndoResult(build, report, rejected);
+        return new MigrationRestoreUndoResult(build, report, rejected, updated);
     }
 
     private static (RestoreUndoActionBuildResult Build, IReadOnlyList<RejectedRestoreUndoStep> Rejected) BuildUndo(
@@ -245,6 +256,12 @@ public sealed class MigrationRestoreService
 
         foreach (RestoreUndoStep step in undoPlan.Steps)
         {
+            if (string.IsNullOrWhiteSpace(step.BakPath))
+            {
+                accepted.Add(step);
+                continue;
+            }
+
             RestoreJournalEntry? entry = state.Journal.FirstOrDefault(e =>
                 string.Equals(e.EntryId, step.EntryId, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(e.TargetPath, step.TargetPath, StringComparison.OrdinalIgnoreCase)
@@ -273,6 +290,31 @@ public sealed class MigrationRestoreService
         }
 
         return (new RestoreUndoPlan(accepted), rejected);
+    }
+
+    private static RestoreState ResetSuccessfulUndoEntries(
+        RestoreState state,
+        RestoreUndoActionBuildResult build,
+        ExecutionReport report,
+        DateTime utc,
+        out bool changed)
+    {
+        RestoreState updated = state;
+        changed = false;
+
+        foreach (ActionResult result in report.Results)
+        {
+            if (result.Status != ActionStatus.Done
+                || !build.ActionEntryIds.TryGetValue(result.ActionId, out string? entryId))
+            {
+                continue;
+            }
+
+            updated = updated.With(entryId, RestoreEntryStatus.Pending, utc);
+            changed = true;
+        }
+
+        return updated;
     }
 
     private static MigrationRestoreActionResult MapResult(ActionResult result)
