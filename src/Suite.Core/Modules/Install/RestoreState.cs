@@ -29,7 +29,7 @@ public sealed record RestoreJournalEntry(
 public sealed record RestoreUndoStep(
     string EntryId,
     string TargetPath,
-    string BakPath,
+    string? BakPath,
     string Note);
 
 public sealed record RestoreUndoPlan(IReadOnlyList<RestoreUndoStep> Steps);
@@ -119,13 +119,14 @@ public static class RestoreJournal
         ArgumentNullException.ThrowIfNull(state);
 
         var steps = state.Journal
-            .Where(e => !string.IsNullOrWhiteSpace(e.BakPath))
             .Reverse()
             .Select(e => new RestoreUndoStep(
                 e.EntryId,
                 e.TargetPath,
-                e.BakPath!,
-                "Restore the saved .bak over the target through the gated file-restore path."))
+                e.BakPath,
+                string.IsNullOrWhiteSpace(e.BakPath)
+                    ? "Restore created this file; undo restores overwritten files only, so this file will remain."
+                    : "Restore the saved .bak over the target through the gated file-restore path."))
             .ToArray();
 
         return new RestoreUndoPlan(steps);

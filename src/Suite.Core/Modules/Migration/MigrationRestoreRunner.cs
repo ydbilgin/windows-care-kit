@@ -20,6 +20,8 @@ public enum RestoreSkipReason
     UnsupportedStrategy,
     /// <summary>The packaged source bytes are missing from the package.</summary>
     SourceMissing,
+    /// <summary>The package-relative source resolves outside the package root.</summary>
+    PackageSourceRejected,
     /// <summary>Typed rebind rejected the destination (absolute/traversal/unknown-token/target-escape).</summary>
     RebindRejected,
     /// <summary>The SafetyGate refused the destination (outside the current/target profile, protected tree).</summary>
@@ -202,9 +204,16 @@ public sealed class MigrationRestoreRunner
                 continue;
             }
 
-            // 6) The packaged source bytes must exist in the package.
+            // 6) The packaged source bytes must resolve inside the package and exist there.
             string source = Path.GetFullPath(Path.Combine(
                 packageDirectory, target.PackageRelativeSource.Replace('/', Path.DirectorySeparatorChar)));
+            if (!IsContained(packageDirectory, source))
+            {
+                skipped.Add(new RestoreSkip(target, RestoreSkipReason.PackageSourceRejected,
+                    $"Packaged source resolves outside package: {target.PackageRelativeSource}"));
+                continue;
+            }
+
             if (!File.Exists(source))
             {
                 skipped.Add(new RestoreSkip(target, RestoreSkipReason.SourceMissing,
@@ -255,4 +264,13 @@ public sealed class MigrationRestoreRunner
         => target.RestoreTier == RestoreTier.Unspecified
             ? RestoreAllowList.LegacyTierFor(target.RecipeId)
             : target.RestoreTier;
+
+    private static bool IsContained(string root, string candidate)
+    {
+        string rootFull = Path.GetFullPath(root).TrimEnd(
+            Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string candidateFull = Path.GetFullPath(candidate);
+        return candidateFull.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase);
+    }
 }

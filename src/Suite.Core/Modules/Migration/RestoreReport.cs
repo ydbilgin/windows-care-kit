@@ -177,6 +177,8 @@ public static class RestoreSkipNotes
                 "EN: This restore strategy is not supported by the file-placement runner; redo it manually. TR: Bu geri yukleme stratejisi dosya-yerlestirme kosucusu tarafindan desteklenmez; elle yapin." + detail,
             RestoreSkipReason.SourceMissing =>
                 "EN: The package bytes are missing; WCK cannot restore this item. TR: Paket icerigi eksik; WCK bu kalemi geri yukleyemez." + detail,
+            RestoreSkipReason.PackageSourceRejected =>
+                "EN: The package source path resolved outside the package; WCK refused this item before any write. TR: Paket kaynak yolu paketin disina cozuldu; WCK bu kalemi yazmadan once reddetti." + detail,
             RestoreSkipReason.RebindRejected =>
                 "EN: Target path rebinding was rejected before any write. TR: Hedef yol yeniden baglama yazmadan once reddedildi." + detail,
             RestoreSkipReason.GateBlocked =>

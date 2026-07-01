@@ -76,6 +76,36 @@ public class MigrationRestoreServiceTests
         finally { Directory.Delete(fx.Root, recursive: true); }
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Restore_without_approved_hash_refuses_before_mutation(string? approvedHash)
+    {
+        var fx = Setup("service-no-approval");
+        try
+        {
+            string destination = Path.Combine(fx.Profile, ".gitconfig");
+
+            MigrationRestoreExecutionResult result = fx.Service.Restore(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0,
+                approvedHash: approvedHash);
+
+            Assert.False(result.Authorized);
+            Assert.False(result.Execution.Authorized);
+            Assert.Empty(result.Execution.Results);
+            Assert.False(File.Exists(destination));
+            Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+            Assert.Empty(Directory.EnumerateFiles(fx.Root, "*.bak.*", SearchOption.AllDirectories));
+            Assert.Empty(result.State.Journal);
+            Assert.Empty(result.RestoreReport.Restored);
+        }
+        finally { Directory.Delete(fx.Root, recursive: true); }
+    }
+
     [Fact]
     public void Restore_over_preexisting_file_records_non_null_BakPath()
     {
@@ -83,12 +113,18 @@ public class MigrationRestoreServiceTests
         try
         {
             File.WriteAllText(Path.Combine(fx.Profile, ".gitconfig"), "OLD");
+            MigrationRestorePreviewResult preview = fx.Service.Preview(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0);
             MigrationRestoreExecutionResult result = fx.Service.Restore(
                 Manifest("git.config#0", ".gitconfig"),
                 fx.Package,
                 fx.StateDir,
                 T0,
-                "run1");
+                "run1",
+                approvedHash: preview.PlanHash);
 
             Assert.True(result.Execution.Authorized);
             Assert.All(result.Execution.Results, r => Assert.Equal(ActionStatus.Done, r.Status));
@@ -101,24 +137,67 @@ public class MigrationRestoreServiceTests
     }
 
     [Fact]
+    public void PreviewUndo_surfaces_created_files_as_rejected_rows()
+    {
+        var fx = Setup("service-created-undo");
+        try
+        {
+            string destination = Path.Combine(fx.Profile, ".gitconfig");
+            MigrationRestorePreviewResult preview = fx.Service.Preview(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0);
+            MigrationRestoreExecutionResult restored = fx.Service.Restore(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0,
+                "run1",
+                approvedHash: preview.PlanHash);
+
+            Assert.Equal("NEW", File.ReadAllText(destination));
+            RestoreJournalEntry journal = Assert.Single(restored.State.Journal);
+            Assert.Null(journal.BakPath);
+
+            MigrationRestoreUndoPreviewResult undoPreview = fx.Service.PreviewUndo(restored.State, T0.AddMinutes(1));
+
+            Assert.Empty(undoPreview.BuildResult.Plan.Actions);
+            RejectedRestoreUndoStep rejected = Assert.Single(undoPreview.RejectedSteps);
+            Assert.Equal("git.config#0", rejected.Step.EntryId);
+            Assert.Equal(destination, rejected.Step.TargetPath);
+            Assert.Contains("created", rejected.Reason, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("remain", rejected.Reason, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { Directory.Delete(fx.Root, recursive: true); }
+    }
+
+    [Fact]
     public void Undo_rejects_backup_when_disk_sha_does_not_match_journal()
     {
         var fx = Setup("service-undo");
         try
         {
             File.WriteAllText(Path.Combine(fx.Profile, ".gitconfig"), "OLD");
+            MigrationRestorePreviewResult restorePreview = fx.Service.Preview(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0);
             MigrationRestoreExecutionResult restored = fx.Service.Restore(
                 Manifest("git.config#0", ".gitconfig"),
                 fx.Package,
                 fx.StateDir,
                 T0,
-                "run1");
+                "run1",
+                approvedHash: restorePreview.PlanHash);
             string bak = Assert.Single(restored.State.Journal).BakPath!;
             File.WriteAllText(bak, "TAMPERED");
 
             MigrationRestoreUndoPreviewResult preview = fx.Service.PreviewUndo(restored.State, T0.AddMinutes(1));
             MigrationRestoreUndoResult undo = fx.Service.Undo(
                 restored.State,
+                fx.StateDir,
                 T0.AddMinutes(1),
                 preview.PlanHash);
 
@@ -139,16 +218,22 @@ public class MigrationRestoreServiceTests
         {
             string destination = Path.Combine(fx.Profile, ".gitconfig");
             File.WriteAllText(destination, "OLD");
+            MigrationRestorePreviewResult restorePreview = fx.Service.Preview(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0);
             MigrationRestoreExecutionResult restored = fx.Service.Restore(
                 Manifest("git.config#0", ".gitconfig"),
                 fx.Package,
                 fx.StateDir,
                 T0,
-                "run1");
+                "run1",
+                approvedHash: restorePreview.PlanHash);
 
             Assert.Equal("NEW", File.ReadAllText(destination));
 
-            MigrationRestoreUndoResult undo = fx.Service.Undo(restored.State, T0.AddMinutes(1));
+            MigrationRestoreUndoResult undo = fx.Service.Undo(restored.State, fx.StateDir, T0.AddMinutes(1));
 
             Assert.False(undo.Authorized);
             Assert.False(undo.Execution.Authorized);
@@ -166,12 +251,18 @@ public class MigrationRestoreServiceTests
         {
             string destination = Path.Combine(fx.Profile, ".gitconfig");
             File.WriteAllText(destination, "OLD");
+            MigrationRestorePreviewResult restorePreview = fx.Service.Preview(
+                Manifest("git.config#0", ".gitconfig"),
+                fx.Package,
+                fx.StateDir,
+                T0);
             MigrationRestoreExecutionResult restored = fx.Service.Restore(
                 Manifest("git.config#0", ".gitconfig"),
                 fx.Package,
                 fx.StateDir,
                 T0,
-                "run1");
+                "run1",
+                approvedHash: restorePreview.PlanHash);
 
             Assert.Equal("NEW", File.ReadAllText(destination));
 
@@ -179,12 +270,66 @@ public class MigrationRestoreServiceTests
             Assert.Equal(preview.BuildResult.Plan.ComputeHash(), preview.PlanHash);
             MigrationRestoreUndoResult undo = fx.Service.Undo(
                 restored.State,
+                fx.StateDir,
                 T0.AddMinutes(1),
                 "tampered");
 
             Assert.False(undo.Authorized);
             Assert.False(undo.Execution.Authorized);
             Assert.Empty(undo.Execution.Results);
+            Assert.Equal("NEW", File.ReadAllText(destination));
+        }
+        finally { Directory.Delete(fx.Root, recursive: true); }
+    }
+
+    [Fact]
+    public void Undo_clears_checkpoint_so_restore_can_rerun()
+    {
+        var fx = Setup("service-undo-checkpoint");
+        try
+        {
+            string destination = Path.Combine(fx.Profile, ".gitconfig");
+            File.WriteAllText(destination, "OLD");
+            var manifest = Manifest("git.config#0", ".gitconfig");
+            MigrationRestorePreviewResult preview = fx.Service.Preview(manifest, fx.Package, fx.StateDir, T0);
+            MigrationRestoreExecutionResult restored = fx.Service.Restore(
+                manifest,
+                fx.Package,
+                fx.StateDir,
+                T0,
+                "run1",
+                approvedHash: preview.PlanHash);
+            Assert.True(restored.State.IsDone("git.config#0"));
+
+            MigrationRestoreUndoPreviewResult undoPreview = fx.Service.PreviewUndo(restored.State, T0.AddMinutes(1));
+            MigrationRestoreUndoResult undo = fx.Service.Undo(
+                restored.State,
+                fx.StateDir,
+                T0.AddMinutes(1),
+                undoPreview.PlanHash);
+
+            Assert.True(undo.Authorized);
+            Assert.Equal("OLD", File.ReadAllText(destination));
+            RestoreState afterUndo = new RestoreStateStore().Load(fx.StateDir);
+            Assert.False(afterUndo.IsDone("git.config#0"));
+            Assert.Equal(RestoreEntryStatus.Pending, afterUndo.StatusOf("git.config#0"));
+
+            MigrationRestorePreviewResult rerunPreview = fx.Service.Preview(
+                manifest,
+                fx.Package,
+                fx.StateDir,
+                T0.AddMinutes(2));
+            Assert.Single(rerunPreview.PlanResult.Plan.Actions);
+            Assert.DoesNotContain(rerunPreview.PlanResult.Skipped, s => s.Reason == RestoreSkipReason.AlreadyDone);
+
+            MigrationRestoreExecutionResult rerun = fx.Service.Restore(
+                manifest,
+                fx.Package,
+                fx.StateDir,
+                T0.AddMinutes(2),
+                "rerun",
+                approvedHash: rerunPreview.PlanHash);
+            Assert.True(rerun.Authorized);
             Assert.Equal("NEW", File.ReadAllText(destination));
         }
         finally { Directory.Delete(fx.Root, recursive: true); }

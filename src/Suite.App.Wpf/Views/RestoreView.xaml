@@ -152,7 +152,7 @@
             </Border>
 
             <Border Style="{StaticResource Card}" Margin="0,12,0,20"
-                    Visibility="{Binding HasUndoCandidates, Converter={StaticResource BoolToVis}}">
+                    Visibility="{Binding HasUndoJournalEntries, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>

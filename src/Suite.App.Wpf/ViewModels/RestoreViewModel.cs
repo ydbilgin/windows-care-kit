@@ -113,6 +113,7 @@ public sealed class RestoreViewModel : ObservableObject
     public bool HasReinstallEnqueuedRows => ReinstallEnqueuedRows.Count > 0;
     public bool HasManualRows => ManualRows.Count > 0;
     public bool HasUndoRows => UndoRows.Count > 0;
+    public bool HasUndoJournalEntries => _completedState?.Journal.Count > 0;
     public string RestoredDispositionTitle => I18n[
         _usePreviewDispositionLabels
             ? "migration.restore.disposition.RestorePlanned"
@@ -128,13 +129,13 @@ public sealed class RestoreViewModel : ObservableObject
         && _previewPlan is { Plan.IsEmpty: false }
         && _approvedHash is not null;
 
-    public bool CanPreviewUndo => !IsBusy && HasUndoCandidates;
+    public bool CanPreviewUndo => !IsBusy && HasUndoJournalEntries;
 
     public bool CanRunUndo =>
         !IsBusy
         && IsUndoPreviewApproved
         && _completedState is not null
-        && _undoPreviewBuild is not null
+        && _undoPreviewBuild is { Plan.IsEmpty: false }
         && _approvedUndoHash is not null;
 
     public bool CanUndo => CanRunUndo;
@@ -300,7 +301,7 @@ public sealed class RestoreViewModel : ObservableObject
                 "migration.restore.resultSummary",
                 result.Execution.DoneCount,
                 result.Execution.FailedCount,
-                result.Execution.Results.Count(r => r.Status == ActionStatus.NotRun),
+                result.Execution.Results.Count(r => r.Status is ActionStatus.NotRun or ActionStatus.Skipped),
                 result.RestoreReport.Restored.Count,
                 result.RestoreReport.ReinstallEnqueued.Count,
                 result.RestoreReport.Manual.Count);
@@ -324,7 +325,7 @@ public sealed class RestoreViewModel : ObservableObject
             RestoreState state = _completedState;
             string approvedUndoHash = _approvedUndoHash;
             MigrationRestoreUndoResult undo = await Task.Run(() =>
-                _restoreService.Undo(state, DateTime.UtcNow, approvedUndoHash));
+                _restoreService.Undo(state, _stateDir, DateTime.UtcNow, approvedUndoHash));
 
             if (!undo.Authorized)
                 return;
@@ -344,6 +345,7 @@ public sealed class RestoreViewModel : ObservableObject
                 undo.Execution.DoneCount,
                 undo.Execution.FailedCount + undo.RejectedSteps.Count);
 
+            _completedState = undo.State;
             ResetUndoPreview(clearRows: false);
         }
         finally
@@ -436,7 +438,8 @@ public sealed class RestoreViewModel : ObservableObject
         {
             RestoreSkipReason.AlreadyDone => RiskLevel.Info,
             RestoreSkipReason.GateBlocked or RestoreSkipReason.MachineLocked
-                or RestoreSkipReason.RebindRejected or RestoreSkipReason.SourceMissing => RiskLevel.Critical,
+                or RestoreSkipReason.RebindRejected or RestoreSkipReason.SourceMissing
+                or RestoreSkipReason.PackageSourceRejected => RiskLevel.Critical,
             _ => RiskLevel.High,
         };
 
@@ -582,6 +585,7 @@ public sealed class RestoreViewModel : ObservableObject
         OnPropertyChanged(nameof(HasReinstallEnqueuedRows));
         OnPropertyChanged(nameof(HasManualRows));
         OnPropertyChanged(nameof(HasUndoRows));
+        OnPropertyChanged(nameof(HasUndoJournalEntries));
         OnPropertyChanged(nameof(RestoredDispositionTitle));
         OnPropertyChanged(nameof(HasUndoCandidates));
         RaiseCommandState();
@@ -611,7 +615,7 @@ public sealed class RestoreViewModel : ObservableObject
     private static RiskLevel StatusRisk(ActionStatus status) => status switch
     {
         ActionStatus.Done => RiskLevel.Low,
-        ActionStatus.NotRun => RiskLevel.Info,
+        ActionStatus.NotRun or ActionStatus.Skipped => RiskLevel.Info,
         _ => RiskLevel.Critical,
     };
 
