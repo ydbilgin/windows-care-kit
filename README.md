@@ -95,7 +95,7 @@ Maintenance starts before you decide to format, Backup captures what is portable
 - **Manifest-driven plan** for the irreplaceable stuff before a format.
 - **Tool / payload separation:** re-downloadable apps are **never copied** — only an *install list* is written, so your backup stays small.
 - **Credential filtering is enforced:** known credential-file names (`Login Data`, `Local State`, `key4.db`, `.npmrc`, `.env`, …) are skipped, and text configs are content-scanned so files with embedded tokens are dropped before copy. Review the report and backup contents before relying on them.
-- Produces a human-readable **`RAPOR.md`** (report) and **`MANUAL_TODO.md`** (the things only *you* can do — e.g. re-login somewhere).
+- Produces a human-readable **`REPORT.md`** and **`MANUAL_TODO.md`** (the things only *you* can do — e.g. re-login somewhere).
 - Your personal backup data lives **outside** the app, never in the repo.
 
 ### 📦 Reinstall / Restore

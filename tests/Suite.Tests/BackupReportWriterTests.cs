@@ -45,7 +45,7 @@ public class BackupReportWriterTests
 
         string md = Writer().BuildReport(plan, copyReport, T0);
 
-        Assert.Contains("# RAPOR", md);
+        Assert.Contains("# REPORT", md);
         Assert.Contains("Copied: 1", md);
         Assert.Contains("Skipped: 1", md);
         Assert.Contains(@"C:\src\a", md);
@@ -99,7 +99,7 @@ public class BackupReportWriterTests
 
             Assert.True(File.Exists(reportPath));
             Assert.True(File.Exists(manualPath));
-            Assert.EndsWith("RAPOR.md", reportPath);
+            Assert.EndsWith("REPORT.md", reportPath);
             Assert.EndsWith("MANUAL_TODO.md", manualPath);
             Assert.Contains("Copied: 1", File.ReadAllText(reportPath));
             Assert.Contains("x desc", File.ReadAllText(manualPath));
@@ -124,7 +124,7 @@ public class BackupReportWriterTests
 
     // F2: the report must not leak the real username/profile path onto external media. A ForCurrentUser-style
     // redactor masks the profile path and user name in every emitted path field (Source/Destination/Detail in
-    // RAPOR.md, and the path-bearing id in MANUAL_TODO.md). Authored prose (Description/UiWarning) is emitted
+    // REPORT.md, and the path-bearing id in MANUAL_TODO.md). Authored prose (Description/UiWarning) is emitted
     // as-is, so only the runtime paths are scrubbed.
     [Fact]
     public void Report_redacts_username_and_profile_path_in_path_fields()

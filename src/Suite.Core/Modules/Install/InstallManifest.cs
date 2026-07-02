@@ -26,7 +26,7 @@ public static class InstallTier
 }
 
 /// <summary>
-/// One entry of the reinstall manifest (<c>90-kurulum.json</c>). Read-only data — the planner turns the
+/// One entry of the reinstall manifest (<c>90-install.json</c>). Read-only data — the planner turns the
 /// auto/winget/npm entries into typed <see cref="Planning.CommandAction"/>s and config entries into
 /// <see cref="Planning.RestoreMergeAction"/>s, ordered by the restore sequence (spec §1.4).
 /// </summary>

@@ -9,7 +9,7 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// + review fix #3). The migration package is UNTRUSTED, so this loader is the opposite of the Kur module's
 /// PERMISSIVE <see cref="InstallManifestLoader"/> (which ignores schema version, silently skips incomplete
 /// entries, and returns <see cref="InstallManifest.Empty"/> on malformed JSON — correct for the user's OWN
-/// authored <c>90-kurulum.json</c>, WRONG for a package that could be tampered with):
+/// authored <c>90-install.json</c>, WRONG for a package that could be tampered with):
 /// <list type="bullet">
 /// <item><see cref="JsonUnmappedMemberHandling.Disallow"/> — any unknown JSON field FAILS the load (no silent drop);</item>
 /// <item>an unknown <c>schemaVersion</c> is rejected;</item>

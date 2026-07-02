@@ -49,9 +49,9 @@ public static class BackupMethod
 /// <param name="Id">Stable manifest id, e.g. <c>chrome-profile</c>.</param>
 /// <param name="Enabled">When false the entry is skipped (opt-in items default off).</param>
 /// <param name="Method">One of <see cref="BackupMethod"/>; only <c>copy</c> yields a <c>CopyAction</c>.</param>
-/// <param name="Category">UI grouping, e.g. <c>tarayici</c>.</param>
+/// <param name="Category">UI grouping, e.g. <c>browser</c>.</param>
 /// <param name="Source">The (env-unexpanded) source path for a copy; empty for export/manual entries.</param>
-/// <param name="Target">Destination relative to the payload root, e.g. <c>tarayici/Chrome/Default</c>.</param>
+/// <param name="Target">Destination relative to the payload root, e.g. <c>browser/Chrome/Default</c>.</param>
 /// <param name="Exclude">Glob-ish exclude patterns surfaced to the report (the engine guards secret leaves itself).</param>
 /// <param name="SecretHandling">One of <see cref="SecretHandling"/>; <c>never-read</c>/<c>manual-only</c> forbid copy.</param>
 /// <param name="RestoreOrder">Restore ordering hint (from <c>restore.order</c>).</param>

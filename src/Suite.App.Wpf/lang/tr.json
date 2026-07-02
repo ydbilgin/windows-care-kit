@@ -242,6 +242,7 @@
   "migration.item.reason.lockedNow": "kullanımda - {0} uygulamasını kapat ve yeniden tara",
   "migration.item.reason.lockedNow.generic": "kullanımda - uygulamayı kapat ve yeniden tara",
   "migration.item.forced": "Sessiz veri kaybını önlemek için seçili",
+  "migration.item.forcedTooltip": "zorunlu — her zaman taşınır",
   "migration.preview.title": "Kesin komut önizlemesi",
   "migration.preview.body": "Seçimden yalnızca önizleme metinleri üretilir. Burada kopyalama veya geri yükleme çalışmaz.",
   "migration.manual.title": "Yeni bilgisayarda elle yapılacaklar",

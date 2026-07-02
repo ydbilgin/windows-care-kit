@@ -69,6 +69,7 @@ TestResults/
 ## Orchestration runtime — NEVER committed (regenerated per session)
 ## ──────────────────────────────────────────────────────────────
 .planning/
+/STAGING/
 .cx_dispatch/
 .ax_dispatch/
 .cx_dispatch_locks/
@@ -78,7 +79,7 @@ graphify-out/
 .graphify_*
 
 ## Internal-only handoff reports surfaced inside the tree
-**/RAPOR.md
+**/REPORT.md
 **/MANUAL_TODO.md
 
 ## Stray orchestration files dropped at repo root

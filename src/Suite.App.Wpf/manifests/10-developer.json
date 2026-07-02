@@ -1,0 +1,344 @@
+{
+  "entries": [
+    {
+      "id": "vscode-user",
+      "enabled": true,
+      "profile": [
+        "dev"
+      ],
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Code\\User",
+      "target": "developer/Code/User",
+      "include": [
+        "settings.json",
+        "keybindings.json",
+        "snippets/**",
+        "tasks.json"
+      ],
+      "exclude": [
+        "workspaceStorage/**",
+        "Cache/**",
+        "CachedData/**",
+        "Code Cache/**",
+        "GPUCache/**",
+        "logs/**"
+      ],
+      "requiresClosedProcesses": [
+        "Code"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [
+          "settings.json"
+        ],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 40,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "vscode-user: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "cursor-user",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Cursor\\User",
+      "target": "developer/Cursor/User",
+      "include": [
+        "settings.json",
+        "keybindings.json",
+        "snippets/**",
+        "tasks.json"
+      ],
+      "exclude": [
+        "workspaceStorage/**",
+        "globalStorage/**",
+        "Cache/**",
+        "CachedData/**",
+        "Code Cache/**",
+        "GPUCache/**",
+        "logs/**"
+      ],
+      "requiresClosedProcesses": [
+        "Cursor"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [
+          "settings.json"
+        ],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 40,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "cursor-user: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "cursor-globalstorage",
+      "enabled": false,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Cursor\\User\\globalStorage",
+      "target": "developer/Cursor/User/globalStorage",
+      "include": [],
+      "exclude": [
+        "Cache/**",
+        "GPUCache/**"
+      ],
+      "requiresClosedProcesses": [
+        "Cursor"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 6000
+      },
+      "restore": {
+        "order": 41,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "cursor-globalstorage: backs up the configured files into the payload while leaving cache and protected secret material excluded.",
+      "uiWarning": "Large optional data; enable only after checking destination capacity."
+    },
+    {
+      "id": "jetbrains-config",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\JetBrains",
+      "target": "developer/JetBrains",
+      "include": [],
+      "exclude": [
+        "**/plugins/**",
+        "**/workspace/**",
+        "**/event-log-metadata/**",
+        "**/log/**",
+        "**/caches/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 42,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "jetbrains-config: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "gitconfig",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.gitconfig",
+      "target": "developer/.gitconfig",
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1
+      },
+      "restore": {
+        "order": 43,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "gitconfig: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "wslconfig",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.wslconfig",
+      "target": "developer/.wslconfig",
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1
+      },
+      "restore": {
+        "order": 44,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "wslconfig: backs up the configured files into the payload while leaving cache and protected secret material excluded.",
+      "uiWarning": "Large optional data; enable only after checking destination capacity."
+    },
+    {
+      "id": "powershell-profile",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Documents\\PowerShell",
+      "target": "developer/Documents/PowerShell",
+      "include": [],
+      "exclude": [
+        "Modules/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 100
+      },
+      "restore": {
+        "order": 45,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "powershell-profile: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "windowspowershell-profile",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Documents\\WindowsPowerShell",
+      "target": "developer/Documents/WindowsPowerShell",
+      "include": [],
+      "exclude": [
+        "Modules/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 100
+      },
+      "restore": {
+        "order": 45,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "windowspowershell-profile: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "visual-studio-2022",
+      "enabled": false,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Documents\\Visual Studio 2022",
+      "target": "developer/Documents/Visual Studio 2022",
+      "include": [],
+      "exclude": [
+        "**/bin/**",
+        "**/obj/**",
+        "**/.vs/**"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 5000
+      },
+      "restore": {
+        "order": 46,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "visual-studio-2022: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "notepadpp-config",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Notepad++",
+      "target": "developer/Notepad++",
+      "include": [],
+      "exclude": [
+        "backup/**"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 50
+      },
+      "restore": {
+        "order": 47,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "notepadpp-config: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "postman-config",
+      "enabled": false,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Postman",
+      "target": "developer/Postman",
+      "include": [],
+      "exclude": [
+        "Cache/**",
+        "GPUCache/**",
+        "logs/**",
+        "Code Cache/**"
+      ],
+      "requiresClosedProcesses": [
+        "Postman"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 48,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "postman-config: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "code-extensions-list",
+      "enabled": true,
+      "phase": "backup",
+      "category": "developer",
+      "tier": "T3",
+      "method": "export-cmd",
+      "command": "code --list-extensions",
+      "target": "developer/code-extensions.txt",
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1
+      },
+      "restore": {
+        "order": 49,
+        "mode": "reference",
+        "notes": "Use as reference when rebuilding the PC."
+      },
+      "description": "code-extensions-list: exports reference information into the payload for rebuilding the PC."
+    }
+  ]
+}

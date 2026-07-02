@@ -151,6 +151,28 @@ public class UninstallExecutionTests
         Assert.Single(vm.AllRows, r => r.Appx is not null); // not removed — still in the unified list
     }
 
+    [Fact]
+    public async Task Changing_store_selection_cancels_the_staged_appx_gate()
+    {
+        var remover = new FakeAppxRemover { Result = new AppxRemovalResult(true, "removed") };
+        var appA = new InstalledAppx { PackageFullName = "Contoso.A_1.0.0.0_x64__abc", DisplayName = "Contoso A" };
+        var appB = new InstalledAppx { PackageFullName = "Contoso.B_1.0.0.0_x64__abc", DisplayName = "Contoso B" };
+        var vm = BuildVm(new FakeExecutor(), remover, appx: [appA, appB]);
+
+        await vm.LoadAsync();
+        vm.SelectedRow = vm.AllRows.Single(r => ReferenceEquals(r.Appx, appA));
+        vm.RemoveAppxCommand.Execute(null);
+        Assert.True(vm.RequiresConfirmation);
+
+        vm.SelectedRow = vm.AllRows.Single(r => ReferenceEquals(r.Appx, appB));
+        vm.ApproveCommand.Execute(null);
+        await Task.Delay(50);
+
+        Assert.False(vm.RequiresConfirmation);
+        Assert.Equal(0, remover.CallCount);
+        Assert.Equal(2, vm.AllRows.Count(r => r.Appx is not null));
+    }
+
     // ---- fakes ----
 
     private sealed class FakeInstalledAppReader(IReadOnlyList<InstalledApp> apps) : IInstalledAppReader

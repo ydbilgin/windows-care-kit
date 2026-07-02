@@ -1,0 +1,92 @@
+{
+  "entries": [
+    {
+      "id": "obsidian-app-config",
+      "enabled": true,
+      "profile": [
+        "general",
+        "dev"
+      ],
+      "phase": "backup",
+      "category": "notes",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\obsidian",
+      "target": "notes/obsidian-config",
+      "include": [
+        "obsidian.json"
+      ],
+      "exclude": [
+        "Cache/**",
+        "GPUCache/**",
+        "Code Cache/**",
+        "Dawn*/**",
+        "IndexedDB/**",
+        "logs/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 100
+      },
+      "restore": {
+        "order": 80,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "obsidian-app-config: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "obsidian-vault-tespit",
+      "enabled": true,
+      "phase": "backup",
+      "category": "notes",
+      "tier": "T2",
+      "method": "manual-todo",
+      "instructions": "Check the Obsidian vault list in obsidian.json and copy local vaults that live on the drive being formatted.",
+      "secretHandling": "metadata-only",
+      "restore": {
+        "order": 81,
+        "mode": "manual",
+        "notes": "Manual review required after formatting."
+      },
+      "description": "Check the Obsidian vault list in obsidian.json and copy local vaults that live on the drive being formatted."
+    },
+    {
+      "id": "sticky-notes",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "notes",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\Packages\\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\\LocalState",
+      "target": "notes/StickyNotes",
+      "include": [
+        "plum.sqlite",
+        "plum.sqlite-wal",
+        "plum.sqlite-shm"
+      ],
+      "exclude": [],
+      "requiresClosedProcesses": [
+        "Microsoft.Notes",
+        "StickyNotes"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [
+          "plum.sqlite"
+        ],
+        "maxSizeMB": 100
+      },
+      "restore": {
+        "order": 82,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "sticky-notes: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    }
+  ]
+}

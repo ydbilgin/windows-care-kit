@@ -147,7 +147,7 @@ public sealed class InstallViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            string path = Path.Combine(AppContext.BaseDirectory, "manifests", "90-kurulum.json");
+            string path = Path.Combine(AppContext.BaseDirectory, "manifests", "90-install.json");
             _manifest = File.Exists(path) ? _loader.Load(path) : InstallManifest.Empty;
 
             BuildAuthRows();

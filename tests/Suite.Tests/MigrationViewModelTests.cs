@@ -132,6 +132,33 @@ public sealed class MigrationViewModelTests
     }
 
     [Fact]
+    public void Forced_item_rejects_uncheck_and_notifies_the_checkbox_to_snap_back()
+    {
+        var i18n = new I18n();
+        i18n.Load("en");
+        MigrationViewModel vm = CreateVm(i18n: i18n);
+        MigrationSelectionCandidate forced = Candidate("forced", "personal") with
+        {
+            OneDriveRedirectedSyncOff = true,
+            Meta = Meta(PortabilityClass.MachineLocked),
+        };
+        vm.LoadScan(Detection(1, 0), @"C:\Users\demo", [forced]);
+        vm.ConfirmProfileCommand.Execute(null);
+        MigrationItemRow row = vm.Groups
+            .Single(g => g.Category == MigrationCategory.IrreplaceablePersonal)
+            .Items.Single();
+        var changed = new List<string?>();
+        row.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        row.IsSelected = false;
+
+        Assert.True(row.IsForcedSelected);
+        Assert.True(row.IsSelected);
+        Assert.Contains(nameof(MigrationItemRow.IsSelected), changed);
+        Assert.Equal("required — always carried", row.ForcedSelectionToolTip);
+    }
+
+    [Fact]
     public void Preview_command_is_string_only_and_manual_todo_keeps_combined_honesty()
     {
         MigrationViewModel vm = CreateVm();

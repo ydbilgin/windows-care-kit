@@ -11,14 +11,14 @@ namespace WindowsCareKit.Core.Modules.Backup;
 public static class BackupReportFiles
 {
     /// <summary>The human-readable backup report (what was copied / skipped / reinstall list).</summary>
-    public const string Report = "RAPOR.md";
+    public const string Report = "REPORT.md";
 
     /// <summary>The manual checklist (re-login for secrets, manual-todo items).</summary>
     public const string ManualTodo = "MANUAL_TODO.md";
 }
 
 /// <summary>
-/// Builds <c>RAPOR.md</c> and <c>MANUAL_TODO.md</c> from a <see cref="BackupPlanResult"/> and the post-execution
+/// Builds <c>REPORT.md</c> and <c>MANUAL_TODO.md</c> from a <see cref="BackupPlanResult"/> and the post-execution
 /// <see cref="CopySkipReport"/> (spec §1.3). The markdown construction is pure (testable). Writing the two files
 /// is a plain <see cref="File.WriteAllText"/> into the payload dir (outside the repo) — that write API is NOT on
 /// <c>BannedSymbols.txt</c> (only Delete/Move/registry/Process are banned), so it is allowed from Suite.Core.
@@ -40,7 +40,7 @@ public sealed class BackupReportWriter
     private string R(string? text) => _redactor.Redact(text);
 
     /// <summary>
-    /// Build the <c>RAPOR.md</c> text: copied OK, skipped, and the reinstall list. <paramref name="integrityCount"/>
+    /// Build the <c>REPORT.md</c> text: copied OK, skipped, and the reinstall list. <paramref name="integrityCount"/>
     /// is how many per-leaf rows the integrity manifest holds; it surfaces a one-line pointer to
     /// <c>backup_integrity.json</c> in the summary (W4). Defaults to 0 so existing callers are unaffected.
     /// </summary>
@@ -50,7 +50,7 @@ public sealed class BackupReportWriter
         ArgumentNullException.ThrowIfNull(copyReport);
 
         var sb = new StringBuilder();
-        sb.Append("# RAPOR — Windows Care Kit backup\n\n");
+        sb.Append("# REPORT — Windows Care Kit backup\n\n");
         sb.Append("Generated (UTC): ")
           .Append(utc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))
           .Append("\n\n");

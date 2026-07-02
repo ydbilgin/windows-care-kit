@@ -1,0 +1,74 @@
+{
+  "entries": [
+    {
+      "id": "network-driver-export",
+      "enabled": true,
+      "profile": [
+        "general",
+        "dev"
+      ],
+      "phase": "backup",
+      "category": "network-driver",
+      "tier": "T2",
+      "method": "export-cmd",
+      "command": "pnputil /export-driver * \"%PAYLOAD%\\system\\network-driver\"",
+      "target": "system/network-driver/export.txt",
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 4,
+        "mode": "manual",
+        "notes": "Use as offline reference only. Install only needed network drivers after reviewing the hardware."
+      },
+      "description": "network-driver-export: records network-driver recovery information for offline connectivity after reinstall.",
+      "uiWarning": "Restoring all old drivers can break a clean install; prefer only the needed network driver."
+    },
+    {
+      "id": "all-drivers-export",
+      "enabled": false,
+      "phase": "backup",
+      "category": "network-driver",
+      "tier": "T3",
+      "method": "export-cmd",
+      "command": "pnputil /export-driver * \"%PAYLOAD%\\system\\INSTALL_FIRST\\all-drivers\"",
+      "target": "system/INSTALL_FIRST/all-drivers/export.txt",
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 5000
+      },
+      "restore": {
+        "order": 5,
+        "mode": "manual",
+        "notes": "Use as offline reference only. Install only needed network drivers after reviewing the hardware."
+      },
+      "description": "all-drivers-export: records network-driver recovery information for offline connectivity after reinstall.",
+      "uiWarning": "Restoring all old drivers can break a clean install; prefer only the needed network driver."
+    },
+    {
+      "id": "hardware-id-inventory",
+      "enabled": true,
+      "phase": "backup",
+      "category": "network-driver",
+      "tier": "T3",
+      "method": "export-cmd",
+      "command": "Get-CimInstance Win32_NetworkAdapter",
+      "target": "system/network-driver/network-adapter-inventory.txt",
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1
+      },
+      "restore": {
+        "order": 3,
+        "mode": "reference",
+        "notes": "Use as offline reference only. Install only needed network drivers after reviewing the hardware."
+      },
+      "description": "hardware-id-inventory: records network-driver recovery information for offline connectivity after reinstall.",
+      "uiWarning": "Restoring all old drivers can break a clean install; prefer only the needed network driver."
+    }
+  ]
+}

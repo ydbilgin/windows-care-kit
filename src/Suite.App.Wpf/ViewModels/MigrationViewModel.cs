@@ -696,6 +696,7 @@ public sealed class MigrationItemRow : ObservableObject
     public MigrationBadgePresentation Badge => Model.Badge;
     public SmartDefaultDecision SmartDefault => Model.SmartDefault;
     public bool IsForcedSelected => Model.IsForcedSelected;
+    public string? ForcedSelectionToolTip => IsForcedSelected ? _i18n["migration.item.forcedTooltip"] : null;
     public string BadgeText => $"{Badge.Glyph} {(_i18n.Culture == "tr" ? Badge.LabelTr : Badge.LabelEn)}";
     public string WhatHappens
     {
@@ -725,6 +726,10 @@ public sealed class MigrationItemRow : ObservableObject
                 OnPropertyChanged();
                 _selectionChanged();
             }
+            else if (value != Model.IsSelected)
+            {
+                OnPropertyChanged(nameof(IsSelected));
+            }
         }
     }
 
@@ -733,6 +738,7 @@ public sealed class MigrationItemRow : ObservableObject
     {
         OnPropertyChanged(nameof(BadgeText));
         OnPropertyChanged(nameof(WhatHappens));
+        OnPropertyChanged(nameof(ForcedSelectionToolTip));
     }
 
     private string LockedNowReason()

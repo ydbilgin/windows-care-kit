@@ -1,0 +1,480 @@
+{
+  "entries": [
+    {
+      "id": "desktop",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Desktop",
+      "target": "general-user/Desktop",
+      "include": [],
+      "exclude": [
+        "Thumbs.db",
+        "desktop.ini"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 20000
+      },
+      "restore": {
+        "order": 100,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "desktop: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "documents",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Documents",
+      "target": "general-user/Documents",
+      "include": [],
+      "exclude": [
+        "Thumbs.db",
+        "desktop.ini",
+        "My Games/**",
+        "PowerShell/**",
+        "WindowsPowerShell/**",
+        "Visual Studio 2022/**",
+        "Outlook Files/**"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 50000
+      },
+      "restore": {
+        "order": 100,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "documents: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "pictures",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Pictures",
+      "target": "general-user/Pictures",
+      "include": [],
+      "exclude": [
+        "Thumbs.db",
+        "desktop.ini"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 100000
+      },
+      "restore": {
+        "order": 100,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "pictures: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "videos",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Videos",
+      "target": "general-user/Videos",
+      "include": [],
+      "exclude": [
+        "Thumbs.db",
+        "desktop.ini"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200000
+      },
+      "restore": {
+        "order": 100,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "videos: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "music",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Music",
+      "target": "general-user/Music",
+      "include": [],
+      "exclude": [
+        "Thumbs.db",
+        "desktop.ini"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 100000
+      },
+      "restore": {
+        "order": 100,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "music: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "downloads-filtered",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Downloads",
+      "target": "general-user/Downloads",
+      "include": [
+        "*.pdf",
+        "*.doc",
+        "*.docx",
+        "*.xls",
+        "*.xlsx",
+        "*.ppt",
+        "*.pptx",
+        "*.jpg",
+        "*.jpeg",
+        "*.png",
+        "*.heic",
+        "*.mp4",
+        "*.zip",
+        "*.rar",
+        "*.udf"
+      ],
+      "exclude": [
+        "Thumbs.db",
+        "desktop.ini"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 30000
+      },
+      "restore": {
+        "order": 101,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "downloads-filtered: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "official-documents-review",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T1",
+      "method": "manual-todo",
+      "instructions": "Review Documents, Downloads, and Desktop for important government, finance, tax, or identity documents and copy them into a separate official-documents folder.",
+      "secretHandling": "normal",
+      "restore": {
+        "order": 102,
+        "mode": "manual",
+        "notes": "Manual review required after formatting."
+      },
+      "description": "official-documents-review: checklist for documents that are easy to miss before formatting."
+    },
+    {
+      "id": "sticky-notes-general",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\Packages\\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\\LocalState",
+      "target": "general-user/StickyNotes",
+      "include": [
+        "plum.sqlite",
+        "plum.sqlite-wal",
+        "plum.sqlite-shm"
+      ],
+      "exclude": [],
+      "requiresClosedProcesses": [
+        "Microsoft.Notes",
+        "StickyNotes"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [
+          "plum.sqlite"
+        ],
+        "maxSizeMB": 100
+      },
+      "restore": {
+        "order": 82,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "sticky-notes-general: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "outlook-pst",
+      "enabled": true,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Documents\\Outlook Files",
+      "target": "general-user/Outlook/pst",
+      "include": [
+        "*.pst"
+      ],
+      "exclude": [],
+      "requiresClosedProcesses": [
+        "OUTLOOK"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 50000
+      },
+      "restore": {
+        "order": 103,
+        "mode": "manual",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "outlook-pst: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "outlook-ost",
+      "enabled": false,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\Microsoft\\Outlook",
+      "target": "general-user/Outlook/ost",
+      "include": [
+        "*.ost"
+      ],
+      "exclude": [],
+      "requiresClosedProcesses": [
+        "OUTLOOK"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 50000
+      },
+      "restore": {
+        "order": 104,
+        "mode": "reference",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "outlook-ost: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "custom-fonts",
+      "enabled": true,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\Microsoft\\Windows\\Fonts",
+      "target": "general-user/Fonts",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1000
+      },
+      "restore": {
+        "order": 105,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "custom-fonts: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "iphone-backup",
+      "enabled": false,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Apple Computer\\MobileSync\\Backup",
+      "target": "general-user/Apple/MobileSync-Backup",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200000
+      },
+      "restore": {
+        "order": 106,
+        "mode": "manual",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "iphone-backup: backs up the configured files into the payload while leaving cache and protected secret material excluded.",
+      "uiWarning": "Large optional data; enable only after checking destination capacity."
+    },
+    {
+      "id": "whatsapp-desktop-manual",
+      "enabled": true,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T1",
+      "method": "manual-todo",
+      "instructions": "Check the phone or cloud chat backup date. Desktop database copies are encrypted and are not useful for restore.",
+      "secretHandling": "manual-only",
+      "restore": {
+        "order": 107,
+        "mode": "manual",
+        "notes": "Manual restore only; prefer signing in again or following the checklist."
+      },
+      "description": "Check the phone or cloud chat backup date. Desktop database copies are encrypted and are not useful for restore.",
+      "uiWarning": "Contains credentials, tokens, or account/session data; do not copy automatically. Sign in again or export manually when needed."
+    },
+    {
+      "id": "crypto-wallet-manual",
+      "enabled": false,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T0",
+      "method": "manual-todo",
+      "instructions": "Do not copy wallet data automatically. Write recovery words offline and keep them separately from this backup.",
+      "secretHandling": "manual-only",
+      "restore": {
+        "order": 108,
+        "mode": "manual",
+        "notes": "Manual restore only; prefer signing in again or following the checklist."
+      },
+      "description": "crypto-wallet-manual: credential or session material is not copied automatically; use sign-in, sync, or manual export instead.",
+      "uiWarning": "Contains credentials, tokens, or account/session data; do not copy automatically. Sign in again or export manually when needed."
+    },
+    {
+      "id": "turkey-uyap-folder",
+      "enabled": true,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.uyap",
+      "target": "general-user/TR/.uyap",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 109,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "turkey-uyap-folder: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "turkey-tax-ledger",
+      "enabled": true,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T1",
+      "method": "manual-todo",
+      "instructions": "Record the local government or e-signature components you use. Reinstall drivers, Java, card-reader tools, and the app chain after formatting; token contents are never copied.",
+      "secretHandling": "normal",
+      "restore": {
+        "order": 110,
+        "mode": "manual",
+        "notes": "Manual review required after formatting."
+      },
+      "description": "Record the local government or e-signature components you use. Reinstall drivers, Java, card-reader tools, and the app chain after formatting; token contents are never copied."
+    },
+    {
+      "id": "turkey-esign-chain-manual",
+      "enabled": true,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T1",
+      "method": "manual-todo",
+      "instructions": "Record the local government or e-signature components you use. Reinstall drivers, Java, card-reader tools, and the app chain after formatting; token contents are never copied.",
+      "secretHandling": "manual-only",
+      "restore": {
+        "order": 111,
+        "mode": "manual",
+        "notes": "Manual review required after formatting."
+      },
+      "description": "Record the local government or e-signature components you use. Reinstall drivers, Java, card-reader tools, and the app chain after formatting; token contents are never copied.",
+      "uiWarning": "Contains credentials, tokens, or account/session data; do not copy automatically. Sign in again or export manually when needed."
+    },
+    {
+      "id": "efs-warning-manual",
+      "enabled": false,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T0",
+      "method": "manual-todo",
+      "instructions": "If EFS-encrypted files exist, export the certificate as a PFX before formatting or the data can be permanently lost.",
+      "secretHandling": "manual-only",
+      "restore": {
+        "order": 1,
+        "mode": "manual",
+        "notes": "Manual restore only; prefer signing in again or following the checklist."
+      },
+      "description": "efs-warning-manual: checks for encrypted files and keeps the certificate-export warning visible before formatting.",
+      "uiWarning": "Export the EFS certificate as PFX before formatting if encrypted files are found."
+    },
+    {
+      "id": "onedrive-cloud-only-warning",
+      "enabled": true,
+      "phase": "backup",
+      "category": "general-user",
+      "tier": "T2",
+      "method": "manual-todo",
+      "instructions": "Make cloud-only OneDrive files available offline before backup if they matter.",
+      "secretHandling": "normal",
+      "restore": {
+        "order": 99,
+        "mode": "manual",
+        "notes": "Manual review required after formatting."
+      },
+      "description": "onedrive-cloud-only-warning: warns about cloud-only files that must be downloaded before they can be copied."
+    }
+  ]
+}

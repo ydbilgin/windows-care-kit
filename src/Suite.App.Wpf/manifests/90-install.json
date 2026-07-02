@@ -4,67 +4,67 @@
     {
       "id": "install-google-chrome",
       "phase": "install",
-      "category": "tarayici",
+      "category": "browser",
       "method": "install-winget",
       "wingetId": "Google.Chrome",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Google Chrome tarayicisi (winget, sessiz)."
+      "description": "Installs Google.Chrome through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-firefox",
       "phase": "install",
-      "category": "tarayici",
+      "category": "browser",
       "method": "install-winget",
       "wingetId": "Mozilla.Firefox",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Mozilla Firefox tarayicisi (winget, sessiz)."
+      "description": "Installs Mozilla.Firefox through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-operagx",
       "phase": "install",
-      "category": "tarayici",
+      "category": "browser",
       "method": "install-winget",
       "wingetId": "Opera.OperaGX",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Opera GX tarayicisi (winget, sessiz)."
+      "description": "Installs Opera.OperaGX through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-discord",
       "phase": "install",
-      "category": "iletisim",
+      "category": "communication",
       "method": "install-winget",
       "wingetId": "Discord.Discord",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Discord (winget, sessiz)."
+      "description": "Installs Discord.Discord through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-telegram",
       "phase": "install",
-      "category": "iletisim",
+      "category": "communication",
       "method": "install-winget",
       "wingetId": "Telegram.TelegramDesktop",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Telegram Desktop (winget, sessiz)."
+      "description": "Installs Telegram.TelegramDesktop through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-vscode",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "Microsoft.VisualStudioCode",
       "verifyCommand": "commandVersion",
@@ -72,24 +72,24 @@
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Visual Studio Code (winget, sessiz, user-scope)."
+      "description": "Installs Microsoft.VisualStudioCode through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-cursor",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "Anysphere.Cursor",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Cursor (AI editor, winget, sessiz)."
+      "description": "Installs Anysphere.Cursor through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-git",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "Git.Git",
       "verifyCommand": "commandVersion",
@@ -97,12 +97,12 @@
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Git surum kontrolu (winget, sessiz)."
+      "description": "Installs Git.Git through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-github-cli",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "GitHub.cli",
       "verifyCommand": "commandVersion",
@@ -110,132 +110,132 @@
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "GitHub CLI (winget, sessiz)."
+      "description": "Installs GitHub.cli through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-github-desktop",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "GitHub.GitHubDesktop",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "GitHub Desktop (winget, sessiz)."
+      "description": "Installs GitHub.GitHubDesktop through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-obsidian",
       "phase": "install",
-      "category": "notlar",
+      "category": "notes",
       "method": "install-winget",
       "wingetId": "Obsidian.Obsidian",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Obsidian not uygulamasi (winget, sessiz)."
+      "description": "Installs Obsidian.Obsidian through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-notepadpp",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "Notepad++.Notepad++",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Notepad++ metin editoru (winget, sessiz)."
+      "description": "Installs Notepad++.Notepad++ through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-everything",
       "phase": "install",
-      "category": "arac",
+      "category": "tools",
       "method": "install-winget",
       "wingetId": "voidtools.Everything",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "Everything dosya arama. Varsayilan winget kurulumu makine geneli + Everything servisi kurar (UAC). Garantili user-scope/UAC'siz kurulum yok -> manual-after (review: manual-after)."
+      "description": "Queues voidtools.Everything for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-memreduct",
       "phase": "install",
-      "category": "arac",
+      "category": "tools",
       "method": "install-winget",
       "wingetId": "Henry++.MemReduct",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Mem Reduct RAM temizleyici (winget, sessiz)."
+      "description": "Installs Henry++.MemReduct through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-cpuz",
       "phase": "install",
-      "category": "arac",
+      "category": "tools",
       "method": "install-winget",
       "wingetId": "CPUID.CPU-Z",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "CPU-Z donanim bilgisi (winget, sessiz)."
+      "description": "Installs CPUID.CPU-Z through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-powertoys",
       "phase": "install",
-      "category": "arac",
+      "category": "tools",
       "method": "install-winget",
       "wingetId": "Microsoft.PowerToys",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "Microsoft PowerToys. Varsayilan winget paketi makine geneli MSI (UAC). Garantili user-scope/UAC'siz kurulum yok -> manual-after (review: manual-after)."
+      "description": "Queues Microsoft.PowerToys for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-blender",
       "phase": "install",
-      "category": "tasarim",
+      "category": "design",
       "method": "install-winget",
       "wingetId": "BlenderFoundation.Blender",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Blender 3D (winget, sessiz)."
+      "description": "Installs BlenderFoundation.Blender through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-obs",
       "phase": "install",
-      "category": "tasarim",
+      "category": "design",
       "method": "install-winget",
       "wingetId": "OBSProject.OBSStudio",
       "verifyCommand": "wingetList",
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "OBS Studio yayin/kayit (winget, sessiz)."
+      "description": "Installs OBSProject.OBSStudio through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-miktex",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "MiKTeX.MiKTeX",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "MiKTeX (LaTeX dagitimi). Kurulum kapsami/UAC garantisi belirsiz, ilk-paket kurulumu uzun. Garantili user-scope/UAC'siz akis yok -> manual-after (review: manual-after)."
+      "description": "Queues MiKTeX.MiKTeX for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-nodejs-lts",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "OpenJS.NodeJS.LTS",
       "verifyCommand": "commandVersion",
@@ -243,9 +243,8 @@
       "installTier": "auto",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Node.js LTS (npm/AI CLI on-kosulu — AI CLI band'i bundan ve PATH refresh'ten ONCE baslamaz)."
+      "description": "Installs OpenJS.NodeJS.LTS through the approved reinstall plan after preview and explicit approval."
     },
-
     {
       "id": "install-claude-code",
       "phase": "install",
@@ -261,7 +260,7 @@
       "authProbe": "%USERPROFILE%\\.claude.json",
       "authKey": "claude",
       "authCommand": "claude auth login",
-      "description": "Claude Code CLI (npm global). Node + PATH refresh sonrasi. Auth: claude auth login."
+      "description": "Installs @anthropic-ai/claude-code through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-codex",
@@ -278,7 +277,7 @@
       "authProbe": "%USERPROFILE%\\.codex\\auth.json",
       "authKey": "codex",
       "authCommand": "codex login",
-      "description": "OpenAI Codex CLI (npm global). Node + PATH refresh sonrasi. Auth: codex login (codex auth login DEGIL)."
+      "description": "Installs @openai/codex through the approved reinstall plan after preview and explicit approval."
     },
     {
       "id": "install-gemini-cli",
@@ -295,140 +294,138 @@
       "authProbe": "%USERPROFILE%\\.gemini\\oauth_creds.json",
       "authKey": "gemini",
       "authCommand": "gemini",
-      "description": "Google Gemini CLI (npm global). Node + PATH refresh sonrasi. Auth: gemini (interaktif; auth/login subcommand yok)."
+      "description": "Installs @google/gemini-cli through the approved reinstall plan after preview and explicit approval."
     },
-
     {
       "id": "install-vs2022-community",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "Microsoft.VisualStudio.2022.Community",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": true,
-      "description": "Visual Studio 2022 Community. Workload secimi + UAC + reboot gerekir; otomatik akista calismaz. KONTROL_LISTESI'ne komut olarak gider."
+      "description": "Queues Microsoft.VisualStudio.2022.Community for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-unity-hub",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "Unity.UnityHub",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Unity Hub. Editor surumu ardindan elle secilir; manual-after."
+      "description": "Queues Unity.UnityHub for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-intellij-community",
       "phase": "install",
-      "category": "gelistirici",
+      "category": "developer",
       "method": "install-winget",
       "wingetId": "JetBrains.IntelliJIDEA.Community",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "IntelliJ IDEA Community. Agir IDE; manual-after."
+      "description": "Queues JetBrains.IntelliJIDEA.Community for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-steam",
       "phase": "install",
-      "category": "oyun-launcher",
+      "category": "game-launcher",
       "method": "install-winget",
       "wingetId": "Valve.Steam",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Steam. Login + buyuk indirme; manual-after."
+      "description": "Queues Valve.Steam for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-epic",
       "phase": "install",
-      "category": "oyun-launcher",
+      "category": "game-launcher",
       "method": "install-winget",
       "wingetId": "EpicGames.EpicGamesLauncher",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Epic Games Launcher. Login gerekir; manual-after."
+      "description": "Queues EpicGames.EpicGamesLauncher for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-ea-desktop",
       "phase": "install",
-      "category": "oyun-launcher",
+      "category": "game-launcher",
       "method": "install-winget",
       "wingetId": "ElectronicArts.EADesktop",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "EA Desktop. Login gerekir; manual-after."
+      "description": "Queues ElectronicArts.EADesktop for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-battlenet",
       "phase": "install",
-      "category": "oyun-launcher",
+      "category": "game-launcher",
       "method": "install-winget",
       "wingetId": "Blizzard.BattleNet",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Battle.net. Login gerekir; manual-after."
+      "description": "Queues Blizzard.BattleNet for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-valorant",
       "phase": "install",
-      "category": "oyun-launcher",
+      "category": "game-launcher",
       "method": "install-winget",
       "wingetId": "RiotGames.Valorant",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": true,
-      "description": "Riot/Valorant. Anti-cheat surucu + reboot + login; manual-after."
+      "description": "Queues RiotGames.Valorant for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-league-of-legends",
       "phase": "install",
-      "category": "oyun-launcher",
+      "category": "game-launcher",
       "method": "install-winget",
       "wingetId": "RiotGames.LeagueOfLegends",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Riot/League of Legends. Login gerekir; manual-after."
+      "description": "Queues RiotGames.LeagueOfLegends for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
     {
       "id": "install-logitech-ghub",
       "phase": "install",
-      "category": "arac",
+      "category": "tools",
       "method": "install-winget",
       "wingetId": "Logitech.GHUB",
       "verifyCommand": "wingetList",
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "Logitech G HUB. Cihaz surucusu + UAC; manual-after."
+      "description": "Queues Logitech.GHUB for manual follow-up because admin, reboot, login, or product-specific choices may be required."
     },
-
     {
       "id": "install-nvidia-app",
       "phase": "install",
-      "category": "arac",
+      "category": "tools",
       "method": "install-url-manual",
       "manualUrl": "https://www.nvidia.com/en-us/software/nvidia-app/",
       "installTier": "manual-after",
       "requiresAdmin": true,
       "rebootExpected": false,
-      "description": "NVIDIA App. winget manifest'i yok (Nvidia.NVIDIAApp 404) — resmi installer'dan elle kur. KONTROL_LISTESI'ne link gider."
+      "description": "Queues a manual install reference for https://www.nvidia.com/en-us/software/nvidia-app/; no download or install runs until the user handles it."
     },
     {
       "id": "install-antigravity",
@@ -439,29 +436,29 @@
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Antigravity. @google/antigravity npm paketi yok (404) — resmi installer'dan elle kur."
+      "description": "Queues a manual install reference for https://antigravity.google/; no download or install runs until the user handles it."
     },
     {
       "id": "install-wallpaper-engine",
       "phase": "install",
-      "category": "arac",
+      "category": "tools",
       "method": "install-url-manual",
       "manualUrl": "steam://store/431960",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Wallpaper Engine. winget'te yok; Steam uzerinden gelir. Steam kurulduktan sonra magazadan al."
+      "description": "Queues a manual install reference for steam://store/431960; no download or install runs until the user handles it."
     },
     {
       "id": "install-aseprite",
       "phase": "install",
-      "category": "tasarim",
+      "category": "design",
       "method": "install-url-manual",
       "manualUrl": "steam://store/431730",
       "installTier": "manual-after",
       "requiresAdmin": false,
       "rebootExpected": false,
-      "description": "Aseprite. Lisansli/Steam kaynakli; Steam uzerinden gelir (manual-after, Steam notu)."
+      "description": "Queues a manual install reference for steam://store/431730; no download or install runs until the user handles it."
     }
   ]
 }

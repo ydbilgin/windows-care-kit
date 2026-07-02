@@ -1,0 +1,211 @@
+{
+  "entries": [
+    {
+      "id": "claude-home",
+      "enabled": true,
+      "profile": [
+        "ai-dev"
+      ],
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.claude",
+      "target": "ai-tools/.claude",
+      "include": [],
+      "exclude": [
+        "cache/**",
+        "file-history/**",
+        "shell-snapshots/**",
+        "paste-cache/**",
+        "projects/**"
+      ],
+      "requiresClosedProcesses": [],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 41,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "claude-home: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "claude-projects",
+      "enabled": false,
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.claude\\projects",
+      "target": "ai-tools/.claude/projects",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 4000
+      },
+      "restore": {
+        "order": 42,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "claude-projects: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "claude-json",
+      "enabled": false,
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T0",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.claude.json",
+      "target": "ai-tools/.claude.json",
+      "secretHandling": "never-read",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 50
+      },
+      "restore": {
+        "order": 43,
+        "mode": "manual",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "claude-json: backs up the configured files into the payload while leaving cache and protected secret material excluded.",
+      "uiWarning": "Contains credentials, tokens, or account/session data; do not copy automatically. Sign in again or export manually when needed."
+    },
+    {
+      "id": "codex-home",
+      "enabled": true,
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.codex",
+      "target": "ai-tools/.codex",
+      "include": [],
+      "exclude": [
+        "log/**",
+        "sessions/**",
+        "cache/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200
+      },
+      "restore": {
+        "order": 44,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "codex-home: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "codex-auth",
+      "enabled": false,
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T0",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.codex\\auth.json",
+      "target": "ai-tools/.codex/auth.json",
+      "secretHandling": "never-read",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 5
+      },
+      "restore": {
+        "order": 45,
+        "mode": "manual",
+        "notes": "Manual restore only; prefer signing in again or following the checklist."
+      },
+      "description": "codex-auth: credential or session material is not copied automatically; use sign-in, sync, or manual export instead.",
+      "uiWarning": "Contains credentials, tokens, or account/session data; do not copy automatically. Sign in again or export manually when needed."
+    },
+    {
+      "id": "gemini-home",
+      "enabled": true,
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.gemini",
+      "target": "ai-tools/.gemini",
+      "include": [],
+      "exclude": [
+        "antigravity*/**",
+        "tmp/**",
+        "cache/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200
+      },
+      "restore": {
+        "order": 46,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "gemini-home: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "agents-home",
+      "enabled": true,
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.agents",
+      "target": "ai-tools/.agents",
+      "include": [],
+      "exclude": [
+        "cache/**",
+        "tmp/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200
+      },
+      "restore": {
+        "order": 47,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "agents-home: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "antigravitycli-home",
+      "enabled": true,
+      "phase": "backup",
+      "category": "ai-tools",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\.antigravitycli",
+      "target": "ai-tools/.antigravitycli",
+      "include": [],
+      "exclude": [
+        "cache/**",
+        "tmp/**",
+        "logs/**"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200
+      },
+      "restore": {
+        "order": 48,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "antigravitycli-home: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    }
+  ]
+}

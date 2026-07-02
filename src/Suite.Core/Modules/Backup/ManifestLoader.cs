@@ -34,7 +34,7 @@ public sealed class ManifestLoader : IManifestLoader
 
         // Deterministic order: the numeric file-name prefixes (00-, 10-, ...) sort the categories.
         var docs = Directory.EnumerateFiles(manifestsDirectory, "*.json", SearchOption.TopDirectoryOnly)
-            .Where(f => !Path.GetFileName(f).StartsWith("90-", StringComparison.Ordinal)) // 90-kurulum.json is the Kur install manifest
+            .Where(f => !Path.GetFileName(f).StartsWith("90-", StringComparison.Ordinal)) // 90-install.json is the install manifest
             .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
             .Select(File.ReadAllText);
 

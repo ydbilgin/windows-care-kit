@@ -40,6 +40,7 @@ public sealed class UninstallViewModel : ObservableObject
 
     // Which run path is staged for confirmation (only the Store-app removal lives here).
     private PendingKind _pendingKind;
+    private InstalledAppx? _pendingAppx;
     private bool _hasResult;
     private string _resultSummary = string.Empty;
 
@@ -199,7 +200,10 @@ public sealed class UninstallViewModel : ObservableObject
         private set
         {
             if (SetField(ref _selectedAppx, value))
+            {
+                CancelPending(); // a new Store-app selection invalidates any staged removal
                 OnPropertyChanged(nameof(HasAppxSelection));
+            }
         }
     }
 
@@ -322,6 +326,7 @@ public sealed class UninstallViewModel : ObservableObject
         // AppX removal is not a typed plan; we still route it through the same confirm gate. Store app
         // removal can't be undone, so it is always the IRREVERSIBLE tier (type-to-confirm).
         _pendingKind = PendingKind.Appx;
+        _pendingAppx = package;
 
         var rows = new[]
         {
@@ -338,6 +343,7 @@ public sealed class UninstallViewModel : ObservableObject
         if (_pendingKind == PendingKind.None)
             return;
         _pendingKind = PendingKind.None;
+        _pendingAppx = null;
         Gate.Close();
         RaiseConfirmationState();
     }
@@ -350,16 +356,23 @@ public sealed class UninstallViewModel : ObservableObject
         // single-shot Store-app removal (UI decision §4).
         if (_pendingKind != PendingKind.Appx)
             return;
+        InstalledAppx? package = _pendingAppx;
+        if (package is null)
+        {
+            CancelPending();
+            return;
+        }
 
         // The user has approved — clear the staged state and dismiss the confirm panel BEFORE we run, so the
         // result can never land before the confirm state is reset.
         _pendingKind = PendingKind.None;
+        _pendingAppx = null;
         IsBusy = true;
         Gate.Close();
         RaiseConfirmationState();
         try
         {
-            await RunAppxRemovalAsync();
+            await RunAppxRemovalAsync(package);
         }
         finally
         {
@@ -368,12 +381,8 @@ public sealed class UninstallViewModel : ObservableObject
         }
     }
 
-    private async Task RunAppxRemovalAsync()
+    private async Task RunAppxRemovalAsync(InstalledAppx package)
     {
-        InstalledAppx? package = _selectedAppx;
-        if (package is null)
-            return;
-
         ExecutionResults.Clear();
 
         AppxRemovalResult result = await _appxRemover.RemoveCurrentUserAsync(package);
