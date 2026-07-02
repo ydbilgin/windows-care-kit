@@ -12,6 +12,7 @@
     <Project Path="tools/CleanE2E/CleanE2E.csproj" />
     <Project Path="tools/MigrationDetectE2E/MigrationDetectE2E.csproj" />
     <Project Path="tools/MigrationE2E/MigrationE2E.csproj" />
+    <Project Path="tools/MigrationRealRestore/MigrationRealRestore.csproj" />
     <Project Path="tools/UninstallE2E/UninstallE2E.csproj" />
   </Folder>
 </Solution>
