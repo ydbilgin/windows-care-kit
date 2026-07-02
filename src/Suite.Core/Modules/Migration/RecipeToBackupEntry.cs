@@ -97,7 +97,9 @@ public static class RecipeToBackupEntry
                     hasUnanalyzedContent =
                         (signature.BlocksPortabilityClaim && !signature.HasMachineBoundContent)
                         || signature.DirectoryEnumerationTruncated
-                        || signature.DirectoryFilesSampled < signature.DirectoryFilesTotalSeen;
+                        || signature.DirectoryFilesSampled < signature.DirectoryFilesTotalSeen
+                        || signature.DirectoryCloudPlaceholdersSkipped > 0
+                        || signature.DirectorySubtreesSkipped > 0;
                     contentProbeStatus = signature.Status;
                 }
                 catch

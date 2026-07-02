@@ -458,6 +458,60 @@ public sealed class ViewRenderSmokeTests
         });
     }
 
+    /// <summary>UI rollout (2026-07): the desktop-app wizard overlay was reskinned to the same Backup.*
+    /// evidence-row language as Uninstall/Backup. Seed a ProgramOwned leftover so the populated row template,
+    /// sub-tab button state, and centered wizard chrome render in both themes.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void UninstallWizardView_renders_seeded_leftover_rows_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                var probe = new FakeLeftoverProbe();
+                probe.RegistryKeys.Add(new LeftoverRegistryKey(
+                    RegistryHive.LocalMachine,
+                    @"SOFTWARE\SomeVendor\SomeApp",
+                    RegistryView.Registry64,
+                    "render-owned registry key"));
+                var vm = new UninstallWizardViewModel(
+                    i18n,
+                    TestData.Gate(),
+                    probe,
+                    new FakeExecutor(),
+                    () => new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+                vm.Open(TestData.App(
+                    displayName: "SomeApp",
+                    publisher: "SomeVendor",
+                    source: InstalledAppSource.MachineWide64,
+                    uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
+                    installLocation: @"C:\Program Files\SomeApp"));
+                vm.SkipToScanCommand.Execute(null);
+                Assert.True(SpinWait.SpinUntil(() => vm.IsLeftoversBeat, TimeSpan.FromSeconds(5)));
+
+                var view = new UninstallWizardView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 760 };
+                var size = new Size(1000, 760);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                Assert.True(vm.IsOpen);
+                Assert.Single(vm.RegistryNodes);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
     [Theory]
     [InlineData("Strongbox")]
     [InlineData("Daylight")]

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32;
 using WindowsCareKit.Core.Planning;
@@ -45,6 +46,7 @@ internal sealed class RegBackupCollisionException : IOException
 public sealed class RegistryDeleteAdapter : IRegistryAdapter
 {
     private const int MaxBackupPathAttempts = 5;
+    private const int MaxBackupFileNameLength = 120;
     private static readonly TimeSpan BackupPathRetryDelay = TimeSpan.FromMilliseconds(10);
 
     private readonly IRegBackupWriter _backupWriter;
@@ -139,12 +141,14 @@ public sealed class RegistryDeleteAdapter : IRegistryAdapter
     private string ResolveBackupPath(RegistryDeleteAction action)
     {
         string stamp = _utcNow().ToString("yyyyMMdd_HHmmssfffffff", CultureInfo.InvariantCulture);
+        string identity = IdentityHash(action.SubKeyPath, action.ValueName ?? "<key>");
         string key = Sanitize(action.SubKeyPath);
         string target = action.ValueName is null
             ? "key"
             : "value_" + Sanitize(action.ValueName.Length == 0 ? "default" : action.ValueName);
         string suffix = _newGuid().ToString("N")[..8];
-        return Path.Combine(_backupDir, $"{stamp}_{key}_{target}_{suffix}.reg");
+        string[] parts = FitNameParts(key, target, identity, stamp, suffix);
+        return Path.Combine(_backupDir, $"{stamp}_{parts[0]}_{parts[1]}_{identity}_{suffix}.reg");
     }
 
     internal static string Sanitize(string subKeyPath)
@@ -155,6 +159,36 @@ public sealed class RegistryDeleteAdapter : IRegistryAdapter
         string s = sb.ToString().Trim('_');
         return s.Length == 0 ? "key" : (s.Length > 80 ? s[^80..] : s);
     }
+
+    private static string IdentityHash(string subKeyPath, string rawTarget)
+    {
+        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(subKeyPath + "|" + rawTarget));
+        return Convert.ToHexString(bytes, 0, 4).ToLowerInvariant();
+    }
+
+    private static string[] FitNameParts(string key, string target, string identity, string stamp, string suffix)
+    {
+        int fixedLength = stamp.Length + identity.Length + suffix.Length + ".reg".Length + 4;
+        int budget = Math.Max(12, MaxBackupFileNameLength - fixedLength);
+        int keyBudget = Math.Max(4, budget / 2);
+        int targetBudget = Math.Max(4, budget - keyBudget);
+
+        string fittedKey = Tail(key, keyBudget);
+        string fittedTarget = Tail(target, targetBudget);
+        int over = fixedLength + fittedKey.Length + fittedTarget.Length - MaxBackupFileNameLength;
+        if (over > 0)
+        {
+            if (fittedKey.Length >= fittedTarget.Length)
+                fittedKey = Tail(fittedKey, Math.Max(4, fittedKey.Length - over));
+            else
+                fittedTarget = Tail(fittedTarget, Math.Max(4, fittedTarget.Length - over));
+        }
+
+        return [fittedKey, fittedTarget];
+    }
+
+    private static string Tail(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[^maxLength..];
 
     internal static void SplitParent(string subKeyPath, out string? parentPath, out string lastSegment)
     {

@@ -89,6 +89,56 @@ public sealed class Win32ContentSignatureProbeTests : IDisposable
     }
 
     [Fact]
+    public void Directory_sampler_counts_only_cloud_placeholders_as_unanalyzed()
+    {
+        string placeholder = Path.Combine(_root, "cloud.txt");
+        File.WriteAllText(placeholder, "theme=dark");
+        File.SetAttributes(placeholder, File.GetAttributes(placeholder) | FileAttributes.Offline);
+
+        try
+        {
+            var signature = new Win32ContentSignatureProbe(maxBytes: 64).ProbeFile(_root);
+
+            Assert.True(signature.IsDirectorySignature);
+            Assert.Equal(0, signature.DirectoryFilesSampled);
+            Assert.Equal(0, signature.DirectoryFilesTotalSeen);
+            Assert.Equal(1, signature.DirectoryCloudPlaceholdersSkipped);
+            Assert.False(signature.HasMachineBoundContent);
+            Assert.True(signature.BlocksPortabilityClaim);
+        }
+        finally
+        {
+            File.SetAttributes(placeholder, FileAttributes.Normal);
+        }
+    }
+
+    [Fact]
+    public void Directory_sampler_counts_mixed_real_and_cloud_placeholder_files()
+    {
+        File.WriteAllText(Path.Combine(_root, "a.txt"), "theme=dark");
+        string placeholder = Path.Combine(_root, "cloud.txt");
+        File.WriteAllText(placeholder, "theme=dark");
+        File.SetAttributes(placeholder, File.GetAttributes(placeholder) | FileAttributes.Offline);
+
+        try
+        {
+            var signature = new Win32ContentSignatureProbe(maxBytes: 64).ProbeFile(_root);
+
+            Assert.True(signature.IsDirectorySignature);
+            Assert.Equal(1, signature.DirectoryFilesSampled);
+            Assert.Equal(1, signature.DirectoryFilesTotalSeen);
+            Assert.Equal(1, signature.DirectoryCloudPlaceholdersSkipped);
+            Assert.Equal(["a.txt"], signature.DirectorySampledFiles);
+            Assert.False(signature.HasMachineBoundContent);
+            Assert.True(signature.BlocksPortabilityClaim);
+        }
+        finally
+        {
+            File.SetAttributes(placeholder, FileAttributes.Normal);
+        }
+    }
+
+    [Fact]
     public void Directory_sampler_detects_machine_bound_sampled_file_deterministically()
     {
         string sub = Path.Combine(_root, "sub");

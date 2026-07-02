@@ -32,6 +32,19 @@ public sealed class MigrationSelectionLogicTests
     }
 
     [Fact]
+    public void Unanalyzed_content_uses_not_analyzed_label_not_machine_locked()
+    {
+        MigrationItemMeta meta = Meta(PortabilityClass.ProfileRelative) with { HasUnanalyzedContent = true };
+        MigrationBadgePresentation badge = MigrationBadgePresenter.Derive(
+            meta, RestoreTier.ConfigCopy, isRegenerable: false);
+
+        Assert.Equal(BadgeKind.Partial, badge.DisplayKind);
+        Assert.Equal("not analyzed", badge.LabelEn);
+        Assert.Equal("incelenemedi", badge.LabelTr);
+        Assert.False(badge.MayClaimWorks);
+    }
+
+    [Fact]
     public void Inventory_only_7zip_recipe_cannot_render_green_works()
     {
         MigrationRecipe recipe = BuiltinRecipeSource.LoadAll().Single(r => r.Id == "7zip.7zip");

@@ -126,6 +126,82 @@ public class RegistryBackupBeforeDeleteTests
     }
 
     [Fact]
+    public void Sanitized_aliases_keep_distinct_identity_hashes_with_fixed_clock_and_guid()
+    {
+        var writer = new RecordingBackupWriter();
+        string backupDir = Path.Combine(Path.GetTempPath(), "wck-regbak-" + Guid.NewGuid().ToString("N"));
+        var fixedUtc = new DateTime(2026, 7, 2, 12, 34, 56, DateTimeKind.Utc).AddTicks(1234567);
+        var fixedGuid = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        var adapter = new RegistryDeleteAdapter(
+            backupDir,
+            writer,
+            utcNow: () => fixedUtc,
+            newGuid: () => fixedGuid);
+
+        adapter.Delete(Action(@"Software\Foo Bar", "SameValue"));
+        string first = Path.GetFileName(writer.LastDestination!);
+        adapter.Delete(Action(@"Software\Foo\Bar", "SameValue"));
+        string second = Path.GetFileName(writer.LastDestination!);
+
+        Assert.NotEqual(first, second);
+        Assert.Matches(@"_[0-9a-f]{8}_11111111\.reg$", first);
+        Assert.Matches(@"_[0-9a-f]{8}_11111111\.reg$", second);
+    }
+
+    [Fact]
+    public void Long_key_and_value_backup_filename_is_capped_and_real_writer_succeeds()
+    {
+        string backupDir = Path.Combine(
+            Path.GetTempPath(),
+            "wck-regbak-" + new string('d', 36),
+            new string('e', 36));
+        var fixedUtc = new DateTime(2026, 7, 2, 12, 34, 56, DateTimeKind.Utc).AddTicks(1234567);
+        var adapter = new RegistryDeleteAdapter(
+            backupDir,
+            new RegFileBackupWriter(),
+            utcNow: () => fixedUtc,
+            newGuid: () => Guid.Parse("22222222-3333-4444-5555-666666666666"));
+        string longKey = @"Software\WindowsCareKit.Tests\"
+                         + string.Join('\\', Enumerable.Range(0, 6).Select(i => new string((char)('A' + i), 60)));
+
+        try
+        {
+            adapter.Delete(Action(longKey, new string('B', 220)));
+
+            string file = Assert.Single(Directory.GetFiles(backupDir, "*.reg"));
+            Assert.True(Path.GetFileName(file).Length <= 120, Path.GetFileName(file));
+            Assert.True(new FileInfo(file).Length > 0);
+        }
+        finally
+        {
+            if (Directory.Exists(backupDir))
+                TestFs.DeleteResilient(Path.GetDirectoryName(backupDir)!);
+        }
+    }
+
+    [Fact]
+    public void Identity_hash_is_deterministic_for_the_same_original_key_and_value()
+    {
+        var writer = new RecordingBackupWriter();
+        string backupDir = Path.Combine(Path.GetTempPath(), "wck-regbak-" + Guid.NewGuid().ToString("N"));
+        var fixedUtc = new DateTime(2026, 7, 2, 12, 34, 56, DateTimeKind.Utc).AddTicks(1234567);
+        var fixedGuid = Guid.Parse("33333333-4444-5555-6666-777777777777");
+        var adapter = new RegistryDeleteAdapter(
+            backupDir,
+            writer,
+            utcNow: () => fixedUtc,
+            newGuid: () => fixedGuid);
+        var action = Action(@"Software\WindowsCareKit.Tests\Same", "Value");
+
+        adapter.Delete(action);
+        string first = Path.GetFileName(writer.LastDestination!);
+        adapter.Delete(action);
+        string second = Path.GetFileName(writer.LastDestination!);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
     public void Same_key_value_deletes_get_distinct_value_scoped_backup_files_and_preserve_both_values()
     {
         string backupDir = Path.Combine(Path.GetTempPath(), "wck-regbak-" + Guid.NewGuid().ToString("N"));
@@ -208,4 +284,14 @@ public class RegistryBackupBeforeDeleteTests
         Assert.Equal(Microsoft.Win32.RegistryView.Registry32, RegistryDeleteAdapter.MapView(CoreView.Registry32));
         Assert.Equal(Microsoft.Win32.RegistryView.Registry64, RegistryDeleteAdapter.MapView(CoreView.Registry64));
     }
+
+    private static RegistryDeleteAction Action(string subKeyPath, string? valueName) => new()
+    {
+        Hive = CoreHive.CurrentUser,
+        SubKeyPath = subKeyPath,
+        ValueName = valueName,
+        View = CoreView.Registry64,
+        Description = "d",
+        Reason = "t",
+    };
 }

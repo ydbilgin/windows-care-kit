@@ -40,6 +40,8 @@ public sealed record ContentSignature
     public bool IsDirectorySignature { get; init; }
     public int DirectoryFilesSampled { get; init; }
     public int DirectoryFilesTotalSeen { get; init; }
+    public int DirectoryCloudPlaceholdersSkipped { get; init; }
+    public int DirectorySubtreesSkipped { get; init; }
     public bool DirectoryEnumerationTruncated { get; init; }
     public IReadOnlyList<string> DirectorySampledFiles { get; init; } = Array.Empty<string>();
 
@@ -55,6 +57,8 @@ public sealed record ContentSignature
         HasMachineBoundContent
         || HasUnexpectedSqliteHeader
         || DirectoryEnumerationTruncated
+        || DirectoryCloudPlaceholdersSkipped > 0
+        || DirectorySubtreesSkipped > 0
         || Status is ContentProbeStatus.Inaccessible
             or ContentProbeStatus.LockedNow
             or ContentProbeStatus.CloudPlaceholder
@@ -224,7 +228,9 @@ public static partial class ContentSignatureClassifier
     public static ContentSignature MergeDirectory(
         IEnumerable<(string RelativePath, ContentSignature Signature)> samples,
         int filesTotalSeen,
-        bool truncated = false)
+        bool truncated = false,
+        int cloudPlaceholdersSkipped = 0,
+        int subtreesSkipped = 0)
     {
         ArgumentNullException.ThrowIfNull(samples);
 
@@ -246,6 +252,8 @@ public static partial class ContentSignatureClassifier
             IsDirectorySignature = true,
             DirectoryFilesSampled = sampleList.Length,
             DirectoryFilesTotalSeen = Math.Max(0, filesTotalSeen),
+            DirectoryCloudPlaceholdersSkipped = Math.Max(0, cloudPlaceholdersSkipped),
+            DirectorySubtreesSkipped = Math.Max(0, subtreesSkipped),
             DirectoryEnumerationTruncated = truncated,
             DirectorySampledFiles = sampleList.Select(s => s.RelativePath).ToArray(),
         };

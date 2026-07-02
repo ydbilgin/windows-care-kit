@@ -154,6 +154,40 @@ public sealed class ContentSignatureClassifierTests
     }
 
     [Fact]
+    public void Directory_cloud_placeholders_block_claim_without_machine_bound_label()
+    {
+        ContentSignature signature = ContentSignatureClassifier.MergeDirectory(
+            Array.Empty<(string RelativePath, ContentSignature Signature)>(),
+            filesTotalSeen: 0,
+            cloudPlaceholdersSkipped: 2);
+
+        Assert.True(signature.IsDirectorySignature);
+        Assert.Equal(0, signature.DirectoryFilesSampled);
+        Assert.Equal(0, signature.DirectoryFilesTotalSeen);
+        Assert.Equal(2, signature.DirectoryCloudPlaceholdersSkipped);
+        Assert.False(signature.HasMachineBoundContent);
+        Assert.True(signature.BlocksPortabilityClaim);
+    }
+
+    [Fact]
+    public void Directory_subtree_skips_block_claim_without_poisoning_reachable_samples()
+    {
+        ContentSignature clean = ContentSignatureClassifier.Classify(Encoding.UTF8.GetBytes("theme=dark"));
+        ContentSignature signature = ContentSignatureClassifier.MergeDirectory(
+            [("reachable/settings.json", clean)],
+            filesTotalSeen: 1,
+            subtreesSkipped: 1);
+
+        Assert.True(signature.IsDirectorySignature);
+        Assert.Equal(1, signature.DirectoryFilesSampled);
+        Assert.Equal(1, signature.DirectoryFilesTotalSeen);
+        Assert.Equal(1, signature.DirectorySubtreesSkipped);
+        Assert.Equal(ContentProbeStatus.Complete, signature.Status);
+        Assert.False(signature.HasMachineBoundContent);
+        Assert.True(signature.BlocksPortabilityClaim);
+    }
+
+    [Fact]
     public void Profile_root_regex_timeout_is_not_machine_bound()
     {
         byte[] bytes = Encoding.UTF8.GetBytes(@"path=C:\Users\Alice\AppData\Roaming\Tool");

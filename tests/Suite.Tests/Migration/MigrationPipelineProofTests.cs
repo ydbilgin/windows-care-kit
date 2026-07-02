@@ -1,5 +1,6 @@
 using System.Text;
 using WindowsCareKit.Core.Modules.Migration;
+using WindowsCareKit.Core.Modules.Migration.Selection;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
 using WindowsCareKit.Win32;
@@ -107,6 +108,7 @@ public class MigrationPipelineProofTests
         try
         {
             var resolver = new RecipeResolver(new RecipePathResolver(ProfileRoots.ForCurrentUser()), new Win32RecipeFileSystem());
+            var contentProbe = new Win32ContentSignatureProbe();
             int detected = 0, copiedFiles = 0;
 
             foreach (MigrationRecipe recipe in BuiltinRecipeSource.LoadAll())
@@ -119,9 +121,14 @@ public class MigrationPipelineProofTests
                 }
                 detected++;
                 report.AppendLine($"[x] {recipe.Id} ({recipe.DisplayName}) — {resolved.Items.Count} item(s), portability={recipe.PortabilityClass}");
-                foreach (BridgedMigrationItem b in RecipeToBackupEntry.Bridge(resolved))
+                foreach (BridgedMigrationItem b in RecipeToBackupEntry.Bridge(resolved, contentProbe))
                 {
-                    report.AppendLine($"      • {b.Entry.Source}");
+                    MigrationBadgePresentation badge = MigrationBadgePresenter.Derive(
+                        b.Meta,
+                        recipe.RestoreTier,
+                        recipe.Install is not null);
+                    string analysisNote = b.Meta.HasUnanalyzedContent ? $" — {badge.LabelEn}" : string.Empty;
+                    report.AppendLine($"      • {b.Entry.Source}{analysisNote}");
                     new CopyAdapter().Copy(new CopyAction
                     {
                         Source = b.Entry.Source,

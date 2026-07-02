@@ -45,6 +45,7 @@ public static class MigrationBadgePresenter
             BadgeKind.PortableClean => ("taşınabilir", "portable"),
             BadgeKind.PortableWithStep => ("adım gerekli", "step required"),
             BadgeKind.Partial when tierCapped => ("yalnız envanter / manuel", "inventory / manual only"),
+            BadgeKind.Partial when meta.HasUnanalyzedContent => ("incelenemedi", "not analyzed"),
             BadgeKind.Partial => ("kısmi", "partial"),
             _ => ("makine-kilitli", "machine-locked"),
         };

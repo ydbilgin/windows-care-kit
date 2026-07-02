@@ -87,11 +87,13 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
 
         var sampled = new List<(string RelativePath, ContentSignature Signature)>();
         int eligibleSeen = 0;
+        int cloudPlaceholdersSkipped = 0;
+        int subtreesSkipped = 0;
         bool truncated = false;
 
         try
         {
-            foreach (string file in EnumerateFilesDeterministically(path))
+            foreach (string file in EnumerateFilesDeterministically(path, () => subtreesSkipped++))
             {
                 FileAttributes attributes;
                 try
@@ -106,9 +108,13 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
                 string relative = Path.GetRelativePath(path, file).Replace('\\', '/');
                 if (attributes.HasFlag(FileAttributes.Directory)
                     || attributes.HasFlag(FileAttributes.ReparsePoint)
-                    || IsCloudPlaceholder(attributes)
                     || IsSecretOrCachePath(relative))
                     continue;
+                if (IsCloudPlaceholder(attributes))
+                {
+                    cloudPlaceholdersSkipped++;
+                    continue;
+                }
 
                 eligibleSeen++;
                 if (sampled.Count >= _directorySampleFileCount)
@@ -137,17 +143,22 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
             return ContentSignature.Inconclusive();
         }
 
-        return ContentSignatureClassifier.MergeDirectory(sampled, eligibleSeen, truncated);
+        return ContentSignatureClassifier.MergeDirectory(
+            sampled,
+            eligibleSeen,
+            truncated,
+            cloudPlaceholdersSkipped,
+            subtreesSkipped);
     }
 
-    private static IEnumerable<string> EnumerateFilesDeterministically(string root)
+    private static IEnumerable<string> EnumerateFilesDeterministically(string root, Action skippedSubtree)
     {
-        var pending = new Queue<string>();
-        pending.Enqueue(root);
+        var pending = new Queue<(string Path, bool IsRoot)>();
+        pending.Enqueue((root, true));
 
         while (pending.Count > 0)
         {
-            string dir = pending.Dequeue();
+            (string dir, bool isRoot) = pending.Dequeue();
             string[] entries;
             try
             {
@@ -155,14 +166,25 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
             }
             catch (UnauthorizedAccessException)
             {
-                throw;
+                if (isRoot)
+                    throw;
+                skippedSubtree();
+                continue;
             }
             catch (IOException)
             {
-                throw;
+                if (isRoot)
+                    throw;
+                skippedSubtree();
+                continue;
             }
             catch
             {
+                // Exotic (non-UA/non-IO) enumeration failure: still count the subtree as skipped so the
+                // not-analyzed tier cap applies — a silently missing subtree must never look fully analyzed.
+                // Root-level exotic failures keep the pre-existing lenient skip (probe-level catch decides).
+                if (!isRoot)
+                    skippedSubtree();
                 continue;
             }
 
@@ -182,7 +204,7 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
                 if (attributes.HasFlag(FileAttributes.ReparsePoint))
                     continue;
                 if (attributes.HasFlag(FileAttributes.Directory))
-                    pending.Enqueue(entry);
+                    pending.Enqueue((entry, false));
                 else
                     yield return entry;
             }

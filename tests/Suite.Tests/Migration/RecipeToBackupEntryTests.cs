@@ -252,6 +252,67 @@ public class RecipeToBackupEntryTests
     }
 
     [Fact]
+    public void Directory_cloud_placeholders_block_a_works_badge_without_machine_locking()
+    {
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/projects"))
+            with { RestoreTier = RestoreTier.ConfigCopy };
+        var signature = new ContentSignature
+        {
+            IsDirectorySignature = true,
+            DirectoryCloudPlaceholdersSkipped = 1,
+        };
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(Fs()).Resolve(recipe),
+            new FixedContentProbe(signature)));
+
+        Assert.False(bridged.Meta.HasMachineBoundContent);
+        Assert.True(bridged.Meta.HasUnanalyzedContent);
+        Assert.Equal(ContentProbeStatus.Complete, bridged.Meta.ContentProbeStatus);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Directory_subtree_skips_block_a_works_badge_without_marking_whole_directory_inaccessible()
+    {
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/projects"))
+            with { RestoreTier = RestoreTier.ConfigCopy };
+        var signature = new ContentSignature
+        {
+            IsDirectorySignature = true,
+            DirectoryFilesSampled = 1,
+            DirectoryFilesTotalSeen = 1,
+            DirectorySubtreesSkipped = 1,
+            BytesInspected = 32,
+        };
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(Fs()).Resolve(recipe),
+            new FixedContentProbe(signature)));
+
+        Assert.False(bridged.Meta.HasMachineBoundContent);
+        Assert.True(bridged.Meta.HasUnanalyzedContent);
+        Assert.Equal(ContentProbeStatus.Complete, bridged.Meta.ContentProbeStatus);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
+    public void Root_inaccessible_signature_still_caps_badge_as_unanalyzed_not_machine_locked()
+    {
+        var recipe = Recipe(PortabilityClass.ProfileRelative, Item(".claude/CLAUDE.md"))
+            with { RestoreTier = RestoreTier.ConfigCopy };
+
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(
+            MigrationTestData.Resolver(Fs()).Resolve(recipe),
+            new FixedContentProbe(ContentSignature.Inaccessible())));
+
+        Assert.False(bridged.Meta.HasMachineBoundContent);
+        Assert.True(bridged.Meta.HasUnanalyzedContent);
+        Assert.Equal(ContentProbeStatus.Inaccessible, bridged.Meta.ContentProbeStatus);
+        Assert.False(PortabilityBadge.Compute(bridged.Meta).MayClaimWorks);
+    }
+
+    [Fact]
     public void Key4_db_is_secret_even_when_sqlite_header_is_not_machine_bound()
     {
         var fs = new FakeRecipeFileSystem()
