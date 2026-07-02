@@ -12,7 +12,17 @@
     results\<id>.json        agent writes (atomically): { id, ok, pid, hwnd, width, height, message }
     agent-alive.txt          heartbeat (UTC, every loop) — host checks FRESHNESS, not mere existence
 
-  ops: launch | capture | launchcapture | close
+  ops: launch | capture | launchcapture | close | settext | invoke
+
+  settext/invoke (added for POPULATED-state screenshots — Backup/Clean/Install only render
+  content after an explicit user action: type a folder path, click "Scan"/"Load"/"Build
+  plan"): both target the SAME window as a prior launch, resolved fresh by process-tree pid
+  (never a cached handle, mirroring 'capture'). settext finds the first UIA Edit control
+  (WPF TextBox) and ValuePattern.SetValue(text); invoke finds a UIA Button whose Name equals
+  -name (exact match; retries while the window settles) and Invoke()s it. Both are plain
+  managed UI Automation client calls (no COM apartment requirement observed for
+  Invoke/ValuePattern on a resident MTA host process); if that ever proves flaky the fix is
+  to launch this scheduled task with `powershell.exe -sta`.
 
   Robustness (per kaizen review): resolves the target window by enumerating visible
   titled top-level windows owned by the launched PROCESS TREE and picking the largest
@@ -28,6 +38,8 @@ param([string]$Root = 'C:\WCK-Cap')
 
 $ErrorActionPreference = 'Continue'   # a resident agent must survive transient errors, not exit
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 Add-Type @'
 using System;
 using System.Collections.Generic;
@@ -98,6 +110,46 @@ function Resolve-Window([int]$launchPid,[int]$timeoutSec){
 function Find-WindowByTitle([string]$match){
   foreach($line in [WckCap]::Tops()){ $p=$line -split ';',5; if($p[4] -like "*$match*"){ return [pscustomobject]@{ h=[IntPtr][int64]$p[0]; opid=[int]$p[1] } } }
   return $null
+}
+# --- UI Automation helpers (settext/invoke ops) -----------------------------------------
+# Both re-resolve the window fresh from [h] (caller already re-ran Resolve-Window by pid) so
+# they never depend on a stale AutomationElement across requests.
+function Set-UiaEditText([IntPtr]$h,[string]$text,[int]$timeoutSec){
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
+  if(-not $root){ throw "settext: AutomationElement.FromHandle returned null" }
+  $cond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Edit)
+  $edit=$null; $end=[DateTime]::UtcNow.AddSeconds($timeoutSec)
+  while(-not $edit -and [DateTime]::UtcNow -lt $end){
+    $edit = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$cond)
+    if(-not $edit){ Start-Sleep -Milliseconds 300 }
+  }
+  if(-not $edit){ throw "settext: no Edit (TextBox) control found in target window" }
+  $pat = $null
+  if(-not $edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$pat)){
+    throw "settext: target Edit control does not support ValuePattern"
+  }
+  $pat.SetValue($text)
+}
+function Invoke-UiaButton([IntPtr]$h,[string]$name,[int]$timeoutSec){
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
+  if(-not $root){ throw "invoke: AutomationElement.FromHandle returned null" }
+  $cond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Button)
+  $target=$null; $end=[DateTime]::UtcNow.AddSeconds($timeoutSec)
+  while(-not $target -and [DateTime]::UtcNow -lt $end){
+    $buttons = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$cond)
+    foreach($b in $buttons){ if($b.Current.Name -eq $name){ $target=$b; break } }
+    if(-not $target){ Start-Sleep -Milliseconds 300 }
+  }
+  if(-not $target){ throw "invoke: no Button named '$name' found in target window" }
+  $pat = $null
+  if(-not $target.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$pat)){
+    throw "invoke: button '$name' does not support InvokePattern"
+  }
+  $pat.Invoke()
 }
 function Get-RectDwm([IntPtr]$h){
   $r=New-Object WckCap+RECT
@@ -185,6 +237,20 @@ while($true){
           $res.pid=$win.opid; $res.hwnd=[int64]$win.h; $res.width=$cap.width; $res.height=$cap.height; $res.ok=$true
         }
         'close'{ if($r.pid){ Stop-Process -Id ([int]$r.pid) -Force -ErrorAction SilentlyContinue }; $res.ok=$true }
+        'settext'{
+          if(-not $r.pid){ throw 'settext needs pid' }
+          if($null -eq $r.text){ throw 'settext needs text' }
+          $win = Resolve-Window ([int]$r.pid) $to
+          Set-UiaEditText $win.h ([string]$r.text) $to
+          $res.pid=$win.opid; $res.hwnd=[int64]$win.h; $res.ok=$true
+        }
+        'invoke'{
+          if(-not $r.pid){ throw 'invoke needs pid' }
+          if([string]::IsNullOrEmpty($r.name)){ throw 'invoke needs name' }
+          $win = Resolve-Window ([int]$r.pid) $to
+          Invoke-UiaButton $win.h ([string]$r.name) $to
+          $res.pid=$win.opid; $res.hwnd=[int64]$win.h; $res.ok=$true
+        }
         default { throw "unknown op '$($r.op)'" }
       }
     } catch { $res.message = $_.Exception.Message; Log "ERR $($res.id): $($res.message)" }
