@@ -340,7 +340,7 @@ public class SafetyGateServiceTaskCommandTests
         }
         finally
         {
-            try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); } catch { /* ignore */ }
+            try { if (Directory.Exists(dir)) TestFs.DeleteResilient(dir); } catch { /* ignore */ }
         }
     }
 

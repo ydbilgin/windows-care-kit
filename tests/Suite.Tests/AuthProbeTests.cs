@@ -1,5 +1,6 @@
 using WindowsCareKit.Win32;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests;
 
@@ -69,7 +70,7 @@ public class AuthProbeTests : IDisposable
 
     public void Dispose()
     {
-        try { if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true); }
+        try { if (Directory.Exists(_dir)) TestFs.DeleteResilient(_dir); }
         catch { /* best-effort */ }
     }
 }

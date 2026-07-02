@@ -185,7 +185,7 @@ public sealed class Win32ContentSignatureProbeTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, recursive: true); }
+        try { TestFs.DeleteResilient(_root); }
         catch { }
     }
 }

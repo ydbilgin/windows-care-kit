@@ -2,6 +2,7 @@ using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.Migration;
 
@@ -71,7 +72,7 @@ public class SecretGlobCopyEnforcementTests
             Assert.False(File.Exists(Path.Combine(dst, "session.ppk")), "*.ppk leaked into the package");
             Assert.False(Directory.Exists(Path.Combine(dst, "GPUCache")), "cache dir leaked into the package");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -101,6 +102,6 @@ public class SecretGlobCopyEnforcementTests
             Assert.True(File.Exists(Path.Combine(dst, "ok.json")));
             Assert.False(File.Exists(Path.Combine(dst, "id_rsa")), "include allow-list must NOT override the secret-glob exclusion");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

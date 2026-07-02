@@ -5,6 +5,7 @@ using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
 using WindowsCareKit.Win32;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -70,7 +71,7 @@ public class MigrationRestoreRunnerTests
             Assert.Empty(report.Results);
             Assert.False(File.Exists(Path.Combine(profile, ".gitconfig")), "machine-locked must write NOTHING");
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>Pass-with: the SAME shape but profile-relative + allow-listed DOES produce exactly one action
@@ -92,7 +93,7 @@ public class MigrationRestoreRunnerTests
             Assert.True(report.Results.All(r => r.Status == ActionStatus.Done));
             Assert.True(File.Exists(Path.Combine(profile, ".gitconfig")));
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>F0 — a profile-relative inventory-only recipe is manual-listed and produces no config-copy action.</summary>
@@ -110,7 +111,7 @@ public class MigrationRestoreRunnerTests
             Assert.Empty(result.Plan.Actions);
             Assert.Equal(RestoreSkipReason.InventoryOnly, result.Skipped.Single().Reason);
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>F4 — a non-profile root cannot self-promote to a restore write even with restoreTier=config-copy.</summary>
@@ -128,7 +129,7 @@ public class MigrationRestoreRunnerTests
             Assert.Empty(result.Plan.Actions);
             Assert.Equal(RestoreSkipReason.NonProfileRoot, result.Skipped.Single().Reason);
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>Back-compat — old manifests without restoreTier keep the old two-id allow-list behavior.</summary>
@@ -152,7 +153,7 @@ public class MigrationRestoreRunnerTests
             Assert.Single(result.Plan.Actions);
             Assert.Equal(RestoreSkipReason.NotAllowListed, result.Skipped.Single().Reason);
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>Typed rebind rejects an absolute / traversal / unknown-token destination BEFORE the gate.</summary>
@@ -173,7 +174,7 @@ public class MigrationRestoreRunnerTests
             Assert.Empty(result.Plan.Actions);
             Assert.Equal(RestoreSkipReason.RebindRejected, result.Skipped.Single().Reason);
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     [Fact]
@@ -194,7 +195,7 @@ public class MigrationRestoreRunnerTests
             Assert.Equal(RestoreSkipReason.PackageSourceRejected, skip.Reason);
             Assert.Contains("outside", skip.Note, StringComparison.OrdinalIgnoreCase);
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>Resume — a target already Done in the checkpoint is skipped (not re-planned).</summary>
@@ -213,7 +214,7 @@ public class MigrationRestoreRunnerTests
             Assert.Empty(result.Plan.Actions);
             Assert.Equal(RestoreSkipReason.AlreadyDone, result.Skipped.Single().Reason);
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>F1/F2 — migration restore can prepend gated reinstall actions from the existing install planner.</summary>
@@ -253,7 +254,7 @@ public class MigrationRestoreRunnerTests
             Assert.Equal("git.config#0", result.ActionEntryIds[merge.Id]);
             Assert.Single(result.InstallActionEntries);
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>F2 — target ordering follows the existing three RestorePhase values after install planning.</summary>
@@ -278,7 +279,7 @@ public class MigrationRestoreRunnerTests
             Assert.Equal(new[] { "install.cfg", "first.cfg", "config.cfg" },
                 result.Plan.Actions.Cast<RestoreMergeAction>().Select(a => Path.GetFileName(a.Destination)).ToArray());
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 
     /// <summary>F4 — the report separates manual todo/machine-locked rows from restored rows.</summary>
@@ -310,6 +311,6 @@ public class MigrationRestoreRunnerTests
             Assert.Contains(report.Manual, e => e.Reason == "relogin-required");
             Assert.Contains(report.Manual, e => e.Note.Contains("TR:", StringComparison.OrdinalIgnoreCase));
         }
-        finally { Directory.Delete(parent, recursive: true); }
+        finally { TestFs.DeleteResilient(parent); }
     }
 }

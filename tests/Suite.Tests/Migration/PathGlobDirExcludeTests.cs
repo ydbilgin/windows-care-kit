@@ -1,6 +1,7 @@
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.Migration;
 
@@ -59,7 +60,7 @@ public class PathGlobDirExcludeTests
             Assert.False(Directory.Exists(Path.Combine(dst, "cache")), "cache/** subtree should be pruned");
             Assert.False(Directory.Exists(Path.Combine(dst, "antigravity_x")), "antigravity*/** subtree should be pruned");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -86,6 +87,6 @@ public class PathGlobDirExcludeTests
             Assert.False(File.Exists(Path.Combine(dst, "top", "direct.txt")), "top/* should exclude the direct child");
             Assert.True(File.Exists(Path.Combine(dst, "top", "sub", "keep.txt")), "top/* must NOT over-prune deeper content it does not cover");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

@@ -50,6 +50,6 @@ internal static class JunctionHelper
         }
         catch { /* best-effort teardown */ }
         if (Directory.Exists(root))
-            Directory.Delete(root, recursive: true);
+            TestFs.DeleteResilient(root);
     }
 }

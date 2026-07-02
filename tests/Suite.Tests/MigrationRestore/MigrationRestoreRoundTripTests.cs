@@ -5,6 +5,7 @@ using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
 using WindowsCareKit.Win32;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -132,7 +133,7 @@ public class MigrationRestoreRoundTripTests
             Assert.False(File.Exists(Path.Combine(bProfile, "AppData", "Roaming", "wckclaude", "settings.json")),
                 "settings.json must NOT be placed under B's default AppData when AppData is relocated");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>

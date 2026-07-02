@@ -5,6 +5,7 @@ using WindowsCareKit.Execution.Adapters;
 using WindowsCareKit.Win32;
 using Xunit;
 using Xunit.Abstractions;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.Migration;
 
@@ -87,7 +88,7 @@ public class MigrationPipelineProofTests
             Assert.DoesNotContain(all, f => f.EndsWith("deploy.pem", StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(all, f => f.Contains("GPUCache", StringComparison.OrdinalIgnoreCase));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
@@ -153,6 +154,6 @@ public class MigrationPipelineProofTests
 
             Assert.Empty(leaked); // never leak a secret, regardless of what is installed
         }
-        finally { try { Directory.Delete(pkg, recursive: true); } catch { /* best-effort */ } }
+        finally { try { TestFs.DeleteResilient(pkg); } catch { /* best-effort */ } }
     }
 }

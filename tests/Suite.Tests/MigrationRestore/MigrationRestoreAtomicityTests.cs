@@ -1,6 +1,7 @@
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -35,7 +36,7 @@ public class MigrationRestoreAtomicityTests
             Assert.Equal("OLD", File.ReadAllText(bak));                 // old content preserved
             Assert.Empty(Directory.GetFiles(root, "*.wcktmp"));        // no torn/leftover staging file
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -53,7 +54,7 @@ public class MigrationRestoreAtomicityTests
             Assert.Equal("FRESH", File.ReadAllText(dst));
             Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(dst)!, "*.wcktmp"));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
@@ -85,6 +86,6 @@ public class MigrationRestoreAtomicityTests
             Assert.Equal("NEW", File.ReadAllText(dst));
             Assert.Empty(Directory.GetFiles(root, "*.wcktmp"));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

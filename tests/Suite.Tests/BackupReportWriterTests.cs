@@ -4,6 +4,7 @@ using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests;
 
@@ -107,7 +108,7 @@ public class BackupReportWriterTests
         finally
         {
             if (Directory.Exists(payload))
-                Directory.Delete(payload, recursive: true);
+                TestFs.DeleteResilient(payload);
         }
     }
 

@@ -3,6 +3,7 @@ using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -39,7 +40,7 @@ public class RestoreUndoActionBuilderTests
                 Assert.StartsWith("Undo restore of ", action.Description, StringComparison.Ordinal);
             });
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -61,6 +62,6 @@ public class RestoreUndoActionBuilderTests
             Assert.Equal("a", rejected.Step.EntryId);
             Assert.Contains("sibling", rejected.Reason, StringComparison.OrdinalIgnoreCase);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

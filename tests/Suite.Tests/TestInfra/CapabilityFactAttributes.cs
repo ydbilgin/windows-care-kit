@@ -42,7 +42,7 @@ internal static class HostCapabilities
         }
         catch
         {
-            try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch { /* ignore */ }
+            try { if (Directory.Exists(root)) TestFs.DeleteResilient(root); } catch { /* ignore */ }
             return false;
         }
     }
@@ -72,7 +72,7 @@ internal static class HostCapabilities
         }
         finally
         {
-            try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch { /* ignore */ }
+            try { if (Directory.Exists(root)) TestFs.DeleteResilient(root); } catch { /* ignore */ }
         }
     }
 
@@ -93,7 +93,7 @@ internal static class HostCapabilities
         }
         finally
         {
-            try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch { /* ignore */ }
+            try { if (Directory.Exists(root)) TestFs.DeleteResilient(root); } catch { /* ignore */ }
         }
     }
 

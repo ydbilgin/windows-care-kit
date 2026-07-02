@@ -4,6 +4,7 @@ using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution.Adapters;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.Migration;
 
@@ -83,7 +84,7 @@ public class AiToolCredentialLeakTests
             Assert.False(File.Exists(Path.Combine(dst, ".credentials.json")), ".credentials.json leaked (regression)");
             Assert.False(File.Exists(Path.Combine(dst, "id_rsa")), "id_rsa leaked (regression)");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Theory]
@@ -146,7 +147,7 @@ public class AiToolCredentialLeakTests
             Assert.True(File.Exists(Path.Combine(dstDir, "config.toml")), "benign config.toml should be backed up");
             Assert.False(File.Exists(Path.Combine(dstDir, "auth.json")), "Codex auth.json leaked through the SHIPPED BackupPlanner path");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     private static ISafetyGate RealGate()

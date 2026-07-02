@@ -2,6 +2,7 @@ using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Execution;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -43,7 +44,7 @@ public class MigrationRestoreServiceTests
             Assert.Equal(preview.PlanHash, restored.Execution.PlanHash);
             Assert.Equal("NEW", File.ReadAllText(destination));
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public class MigrationRestoreServiceTests
             Assert.Empty(result.RestoreReport.ReinstallEnqueued);
             Assert.Empty(result.RestoreReport.Manual);
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Theory]
@@ -103,7 +104,7 @@ public class MigrationRestoreServiceTests
             Assert.Empty(result.State.Journal);
             Assert.Empty(result.RestoreReport.Restored);
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Fact]
@@ -133,7 +134,7 @@ public class MigrationRestoreServiceTests
             Assert.True(File.Exists(entry.BakPath));
             Assert.Equal("OLD", File.ReadAllText(entry.BakPath!));
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Fact]
@@ -169,7 +170,7 @@ public class MigrationRestoreServiceTests
             Assert.Contains("created", rejected.Reason, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("remain", rejected.Reason, StringComparison.OrdinalIgnoreCase);
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Fact]
@@ -207,7 +208,7 @@ public class MigrationRestoreServiceTests
             Assert.Contains("sha", rejected.Reason, StringComparison.OrdinalIgnoreCase);
             Assert.Empty(undo.Execution.Results);
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Fact]
@@ -240,7 +241,7 @@ public class MigrationRestoreServiceTests
             Assert.Empty(undo.Execution.Results);
             Assert.Equal("NEW", File.ReadAllText(destination));
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Fact]
@@ -279,7 +280,7 @@ public class MigrationRestoreServiceTests
             Assert.Empty(undo.Execution.Results);
             Assert.Equal("NEW", File.ReadAllText(destination));
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public class MigrationRestoreServiceTests
             Assert.True(rerun.Authorized);
             Assert.Equal("NEW", File.ReadAllText(destination));
         }
-        finally { Directory.Delete(fx.Root, recursive: true); }
+        finally { TestFs.DeleteResilient(fx.Root); }
     }
 
     private static Fixture Setup(string tag)

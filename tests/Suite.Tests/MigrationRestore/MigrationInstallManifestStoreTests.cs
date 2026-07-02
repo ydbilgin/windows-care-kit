@@ -1,6 +1,7 @@
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -28,7 +29,7 @@ public class MigrationInstallManifestStoreTests
             InstallManifest m = new MigrationInstallManifestStore().Load(dir);
             Assert.Empty(m.Entries);
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -51,7 +52,7 @@ public class MigrationInstallManifestStoreTests
             Assert.Equal("Git.Git", e.WingetId);
             Assert.True(e.RequiresAdmin);
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -63,7 +64,7 @@ public class MigrationInstallManifestStoreTests
             new MigrationInstallManifestStore().Save(dir, Array.Empty<InstallEntry>());
             Assert.Empty(new MigrationInstallManifestStore().Load(dir).Entries);
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -75,7 +76,7 @@ public class MigrationInstallManifestStoreTests
             Write(dir, """{ "schemaVersion": 99, "entries": [] }""");
             Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -92,7 +93,7 @@ public class MigrationInstallManifestStoreTests
                 """);
             Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -109,7 +110,7 @@ public class MigrationInstallManifestStoreTests
                 """);
             Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -125,7 +126,7 @@ public class MigrationInstallManifestStoreTests
                 """);
             Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -137,6 +138,6 @@ public class MigrationInstallManifestStoreTests
             Write(dir, "{ not json ");
             Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 }

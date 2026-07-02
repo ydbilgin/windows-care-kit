@@ -3,6 +3,7 @@ using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -137,7 +138,7 @@ public class MigrationInstallRoundTripTests
             Assert.All(result.Plan.Actions, a => Assert.IsType<CommandAction>(a));
             Assert.True(TestData.Gate().Validate(result.Plan).AllAllowed); // gate-clean, exported, not executed
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     // ---- helpers ----

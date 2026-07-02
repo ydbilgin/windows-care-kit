@@ -5,6 +5,7 @@ using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
 using WindowsCareKit.Win32;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -102,6 +103,6 @@ public class SecretExclusionRunnerTests
                 allInPackage.Any(f => System.IO.Path.GetFileName(f).Equals("settings.json", StringComparison.OrdinalIgnoreCase)),
                 "settings.json (benign) must be present in the package");
         }
-        finally { System.IO.Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

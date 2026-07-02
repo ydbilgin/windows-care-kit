@@ -45,7 +45,7 @@ internal sealed class TempWorkspace : IDisposable
         try
         {
             if (Directory.Exists(Root))
-                Directory.Delete(Root, recursive: true);
+                TestFs.DeleteResilient(Root);
         }
         catch
         {

@@ -4,6 +4,7 @@ using WindowsCareKit.Execution.Adapters;
 using Xunit;
 using CoreHive = WindowsCareKit.Core.Planning.RegistryHive;
 using CoreView = WindowsCareKit.Core.Planning.RegistryView;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests;
 
@@ -181,7 +182,7 @@ public class RegistryBackupBeforeDeleteTests
         {
             Registry.CurrentUser.DeleteSubKeyTree(sub, throwOnMissingSubKey: false);
             if (Directory.Exists(backupDir))
-                Directory.Delete(backupDir, recursive: true);
+                TestFs.DeleteResilient(backupDir);
         }
     }
 

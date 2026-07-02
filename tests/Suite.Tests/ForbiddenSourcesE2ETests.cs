@@ -2,6 +2,7 @@ using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests;
 
@@ -97,6 +98,6 @@ public class ForbiddenSourcesE2ETests
             Assert.True(System.IO.File.Exists(destBenign),
                 "benign sibling 'settings.json' must be copied into the destination");
         }
-        finally { System.IO.Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

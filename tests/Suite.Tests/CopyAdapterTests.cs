@@ -36,7 +36,7 @@ public class CopyAdapterTests
 
             Assert.Equal("hello", File.ReadAllText(dst));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class CopyAdapterTests
             Assert.Equal("1", File.ReadAllText(Path.Combine(dst, "top.txt")));
             Assert.Equal("2", File.ReadAllText(Path.Combine(dst, "nested", "deep.txt")));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class CopyAdapterTests
             Assert.NotNull(bak);
             Assert.Equal("OLD", File.ReadAllText(bak!)); // old content preserved in the .bak
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class CopyAdapterTests
             Assert.Equal("OLD", File.ReadAllText(bak));
             Assert.Equal(new[] { bak }, Directory.GetFiles(root, "live.cfg.bak.*"));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class CopyAdapterTests
             Assert.Equal("EXISTING", File.ReadAllText(bak));
             Assert.Equal(new[] { bak }, Directory.GetFiles(root, "live.cfg.bak.*"));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class CopyAdapterTests
 
             Assert.Equal("OLD", File.ReadAllText(dst));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public class CopyAdapterTests
             Assert.Equal("NEW", File.ReadAllText(dst));
             Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(dst)!, "*.bak.*"));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class CopyAdapterTests
             Assert.Equal(CopySkipReason.ExcludedByName, skip.Reason);
             Assert.False(File.Exists(Path.Combine(root, "out")));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public class CopyAdapterTests
             Assert.Contains("key/value", skip.Detail);
             Assert.True(result.CopiedAny);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public class CopyAdapterTests
             Assert.False(File.Exists(Path.Combine(dst, "Network", "Cookies")));
             Assert.False(Directory.Exists(Path.Combine(dst, "Sync Data")));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public class CopyAdapterTests
             Assert.False(File.Exists(Path.Combine(dst, "prefs.js")));        // excluded by the allow-list
             Assert.False(File.Exists(Path.Combine(dst, "cache2", "blob")));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [FactRequiresSymlink]
@@ -362,7 +362,7 @@ public class CopyAdapterTests
             Assert.True(File.Exists(Path.Combine(dst, "Bookmarks")));
             Assert.False(File.Exists(Path.Combine(dst, "InnocentName"))); // file reparse point skipped
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class CopyAdapterTests
                 Reason = "t",
             }));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     // F1: write-boundary destination TOCTOU re-check (the write-side counterpart of the delete adapter's
@@ -516,7 +516,7 @@ public class CopyAdapterTests
             Assert.Contains(baks, b => File.ReadAllText(b) == "AAA");
             Assert.True(baks.Length >= 2, "each merge must produce its own distinct .bak");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     // ---- Audit Item 3: a hard link under a benign leaf aliases a secret; GetFinalPathNameByHandle cannot
@@ -547,7 +547,7 @@ public class CopyAdapterTests
             Assert.True(File.Exists(Path.Combine(dst, "Bookmarks")));         // normal file copied
             Assert.False(File.Exists(Path.Combine(dst, "settings.json")));    // multi-linked alias refused
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [FactRequiresHardlink]
@@ -570,7 +570,7 @@ public class CopyAdapterTests
             Assert.Equal(CopySkipReason.HardLinked, skip.Reason);
             Assert.False(result.CopiedAny);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -588,7 +588,7 @@ public class CopyAdapterTests
 
             Assert.Equal("hello", File.ReadAllText(dst));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     // ---- Audit Item 5: true "**" semantics — "**" matches across path separators while single "*" stays
@@ -620,7 +620,7 @@ public class CopyAdapterTests
             Assert.True(File.Exists(Path.Combine(dst, "a", "b", "memory", "x.dat")), "deep memory/ file must be copied");
             Assert.True(File.Exists(Path.Combine(dst, "a", "b", "c", "note.md")), "deep .md note must be copied");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -649,6 +649,6 @@ public class CopyAdapterTests
             Assert.True(File.Exists(Path.Combine(dst, "a", "note.md")));        // within-segment match
             Assert.False(File.Exists(Path.Combine(dst, "a", "sub", "deep.md"))); // single * did not cross '/'
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

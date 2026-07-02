@@ -1,5 +1,6 @@
 using WindowsCareKit.Core.Modules.Migration;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -35,7 +36,7 @@ public class MigrationManifestAndZipTests
             Assert.Equal(KnownFolder.UserProfile, t.KnownFolder);
             Assert.Equal(".gitconfig", t.RelativePath);
         }
-        finally { System.IO.Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -69,7 +70,7 @@ public class MigrationManifestAndZipTests
             Assert.True(loaded.MigrationMeta!.RequiresRelogin);
             Assert.Contains("TR:", loaded.MigrationMeta.ManualTodo.Single());
         }
-        finally { System.IO.Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -130,7 +131,7 @@ public class MigrationManifestAndZipTests
             new MigrationRestoreManifestStore().Save(dir, ManifestWith(relativePath));
             Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore().Load(dir));
         }
-        finally { System.IO.Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -142,7 +143,7 @@ public class MigrationManifestAndZipTests
             new MigrationRestoreManifestStore().Save(dir, ManifestWith(".gitconfig", source: "../outside/f.cfg"));
             Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore().Load(dir));
         }
-        finally { System.IO.Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -155,7 +156,7 @@ public class MigrationManifestAndZipTests
                 new MigrationRestoreManifest(99, System.Array.Empty<MigrationRestoreTarget>()));
             Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore().Load(dir));
         }
-        finally { System.IO.Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -182,7 +183,7 @@ public class MigrationManifestAndZipTests
             MigrationRestoreManifest loaded = new MigrationRestoreManifestStore().Load(outDir);
             Assert.Single(loaded.Targets);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]
@@ -204,6 +205,6 @@ public class MigrationManifestAndZipTests
             Assert.Throws<InvalidOperationException>(() => MigrationPackageArchive.Import(zip, outDir));
             Assert.False(File.Exists(Path.Combine(root, "escaped.txt")));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 }

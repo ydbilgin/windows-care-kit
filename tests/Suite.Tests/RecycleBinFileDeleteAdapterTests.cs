@@ -2,6 +2,7 @@ using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution.Adapters;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests;
 
@@ -61,7 +62,7 @@ public class RecycleBinFileDeleteAdapterTests
         }
         finally
         {
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            if (Directory.Exists(dir)) TestFs.DeleteResilient(dir);
         }
     }
 

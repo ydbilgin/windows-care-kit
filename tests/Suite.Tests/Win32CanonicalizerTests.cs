@@ -110,7 +110,7 @@ public class Win32CanonicalizerTests
         finally
         {
             if (Directory.Exists(link)) Directory.Delete(link);
-            if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
+            if (Directory.Exists(target)) TestFs.DeleteResilient(target);
         }
     }
 

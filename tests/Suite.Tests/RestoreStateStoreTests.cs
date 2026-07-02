@@ -1,5 +1,6 @@
 using WindowsCareKit.Core.Modules.Install;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests;
 
@@ -113,7 +114,7 @@ public class RestoreStateStoreTests : IDisposable
 
     public void Dispose()
     {
-        try { if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true); }
+        try { if (Directory.Exists(_dir)) TestFs.DeleteResilient(_dir); }
         catch { /* best-effort cleanup */ }
     }
 }

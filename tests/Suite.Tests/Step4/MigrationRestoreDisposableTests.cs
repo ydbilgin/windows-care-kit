@@ -73,7 +73,7 @@ public class MigrationRestoreDisposableTests
             Assert.Equal("[user]\n name = restored", File.ReadAllText(restored));
             Assert.Single(Directory.GetFiles(targetProfile, ".gitconfig.bak.*")); // .bak of the preexisting file
         }
-        finally { Directory.Delete(sandboxRoot, recursive: true); }
+        finally { TestFs.DeleteResilient(sandboxRoot); }
     }
 
     private static WindowsCareKit.Core.Logging.ExecutionLog ExecLog()

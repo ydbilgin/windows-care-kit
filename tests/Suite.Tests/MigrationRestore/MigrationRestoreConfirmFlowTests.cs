@@ -5,6 +5,7 @@ using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Win32;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -48,7 +49,7 @@ public class MigrationRestoreConfirmFlowTests
             Assert.Single(result.Plan.Actions);
             Assert.False(File.Exists(Path.Combine(profile, ".gitconfig")), "no silent overwrite before approval/execution");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     [Fact]

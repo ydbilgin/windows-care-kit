@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using WindowsCareKit.Execution.Adapters;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests;
 
@@ -43,7 +44,7 @@ public class FolderOpenerTests
             // The resolved final path is passed as a discrete argument (never a shell string).
             Assert.Equal(full, Assert.Single(launched.ArgumentList));
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -63,7 +64,7 @@ public class FolderOpenerTests
 
             Assert.False(launched);
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]
@@ -83,7 +84,7 @@ public class FolderOpenerTests
 
             Assert.False(launched);
         }
-        finally { Directory.Delete(dir, recursive: true); }
+        finally { TestFs.DeleteResilient(dir); }
     }
 
     [Fact]

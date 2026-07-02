@@ -1,5 +1,6 @@
 using WindowsCareKit.Core.Modules.Migration;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.Migration;
 
@@ -85,7 +86,7 @@ public class CommunityRecipeSourceTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            TestFs.DeleteResilient(dir);
         }
     }
 

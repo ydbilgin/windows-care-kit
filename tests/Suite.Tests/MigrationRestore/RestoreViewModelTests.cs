@@ -5,6 +5,7 @@ using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Execution;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -329,7 +330,7 @@ public sealed class RestoreViewModelTests
         public void Dispose()
         {
             if (Directory.Exists(Root))
-                Directory.Delete(Root, recursive: true);
+                TestFs.DeleteResilient(Root);
         }
     }
 }

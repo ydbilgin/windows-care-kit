@@ -6,6 +6,7 @@ using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
 using WindowsCareKit.Win32;
 using Xunit;
+using WindowsCareKit.Tests.TestInfra;
 
 namespace WindowsCareKit.Tests.MigrationRestore;
 
@@ -101,7 +102,7 @@ public class MigrationBackupRunnerTests
             // The skipped item is surfaced honestly (not silently dropped).
             Assert.Contains(result.SkippedItems, s => s.ItemPath == "missing.cfg");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
@@ -169,7 +170,7 @@ public class MigrationBackupRunnerTests
                 Assert.Equal(t.Sha256, hasher.ComputeFileSha256(dest));
             }
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
@@ -225,7 +226,7 @@ public class MigrationBackupRunnerTests
             CommandAction cmd = Assert.IsType<CommandAction>(Assert.Single(plan.Plan.Actions));
             Assert.Equal("Vendor.App", cmd.Arguments[2]);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>An authorized backup with NO install-block recipes still writes a VALID EMPTY install manifest.</summary>
@@ -248,7 +249,7 @@ public class MigrationBackupRunnerTests
             InstallManifest install = new MigrationInstallManifestStore().Load(pkg);
             Assert.Empty(install.Entries);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>A REFUSED run writes NEITHER manifest (critic fix #4: install save sits after the refusal return).</summary>
@@ -285,7 +286,7 @@ public class MigrationBackupRunnerTests
             Assert.False(File.Exists(new MigrationInstallManifestStore().PathFor(pkg)), "a refused run must write NO install manifest");
             Assert.False(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)), "a refused run must write NO restore manifest");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>(c) A duplicate recipe id in the supplied set is skipped + surfaced — no silent overwrite.</summary>
@@ -308,7 +309,7 @@ public class MigrationBackupRunnerTests
             Assert.Single(result.Manifest.Targets);
             Assert.Contains(result.SkippedItems, s => s.Reason.Contains("duplicate recipe id"));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
@@ -342,7 +343,7 @@ public class MigrationBackupRunnerTests
                 "a refused run must write NO manifest");
             Assert.False(Directory.Exists(pkg), "a refused run must not create the protected package dir");
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
@@ -374,7 +375,7 @@ public class MigrationBackupRunnerTests
             Assert.True(result.Authorized);
             Assert.True(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
@@ -419,7 +420,7 @@ public class MigrationBackupRunnerTests
                 "a blocked re-gate must write NO install manifest");
             Assert.Contains(result.FinalizationSkips, s => s.Reason.Contains("gate", StringComparison.OrdinalIgnoreCase));
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally { TestFs.DeleteResilient(root); }
     }
 
     /// <summary>
