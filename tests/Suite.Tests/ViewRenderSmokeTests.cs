@@ -8,6 +8,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
 using WindowsCareKit.App;
+using WindowsCareKit.App.Controls;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.App.Theming;
@@ -17,9 +18,16 @@ using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Backup;
+using WindowsCareKit.Core.Modules.Clean;
+using WindowsCareKit.Core.Modules.Install;
+using WindowsCareKit.Core.Modules.Migration;
+using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Execution;
+using WindowsCareKit.Tests.Execution;
+using WindowsCareKit.Tests.MigrationRestore;
 using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
@@ -77,6 +85,244 @@ public sealed class ViewRenderSmokeTests
                 application.Resources.MergedDictionaries.Remove(theme);
                 if (createdApplication)
                     application.Shutdown();
+            }
+        });
+    }
+
+    /// <summary>UI rollout (2026-07): Settings was reskinned to the emerald sectioned-card language. The Fact
+    /// above only ever rendered Strongbox — this closes the Daylight gap for the same view/VM pairing.</summary>
+    [Fact]
+    public void SettingsView_renders_without_binding_errors_in_daylight()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources("Daylight", out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+
+                var view = new SettingsView { DataContext = new SettingsViewModel(i18n, new FakeThemeService()) };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
+                var size = new Size(1000, 800);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>UI rollout (2026-07): Clean's four section cards + the shared PlanRowTemplate were reskinned to
+    /// the emerald evidence-row language. Seed one junk candidate + one startup entry so BOTH the empty-state
+    /// AND the populated PlanRow branch render (the honesty-critical "undo: None" elevation lives in the row
+    /// template, so an empty list alone would not exercise it).</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void CleanView_renders_junk_and_startup_rows_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                using var fx = new ExecutorFixture();
+                var vm = new CleanViewModel(
+                    i18n,
+                    new RenderFakeJunkProbe(new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 1024, "Temp files")),
+                    new RenderFakeStartupProbe(new StartupEntry("Updater", @"C:\Program Files\App\updater.exe", StartupSource.HkcuRun, null)),
+                    new RenderFakeBrowserExtensionInventory(),
+                    new RenderFakeRecycleBinService(new RecycleBinStats(3, 2048)),
+                    new RenderFakeFolderOpener(),
+                    fx.Gate,
+                    fx.Executor);
+                vm.ScanJunkCommand.Execute(null);
+                vm.LoadStartupCommand.Execute(null);
+
+                var view = new CleanView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>UI rollout (2026-07): Install's shared PlanRowTemplate + Sign-in-status rows were reskinned.
+    /// Seed one entry through LoadManifest+BuildPlan so the populated dry-run row renders, not just the
+    /// empty-state.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void InstallView_renders_plan_rows_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                using var fx = new ExecutorFixture();
+                var entries = new[]
+                {
+                    new InstallEntry("git", "install", "dev", InstallMethod.Winget, "Git.Git", null, false, false, 100, "Install git"),
+                };
+                var loader = new RenderFakeManifestLoader(entries);
+                var planner = new InstallPlanner(fx.Gate, new RenderAllNetDriverGuard());
+                var runner = new InstallRunner(new RenderThrowingPlanWriter(), new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+                var vm = new InstallViewModel(
+                    i18n, loader, planner, new RenderFakeAuthProbe(), new RenderRecordingStateStore(), fx.Gate, fx.Executor, runner);
+                vm.LoadManifestCommand.Execute(null);
+                vm.BuildPlanCommand.Execute(null);
+
+                var view = new InstallView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>UI rollout (2026-07): Migration's promise cards, scan card, legend pills, and capture
+    /// PlanRowTemplate were reskinned. Constructs the VM with read-only fakes and renders the empty (pre-scan)
+    /// state in both themes — no scan is triggered, so no real registry/profile/disk is touched.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void MigrationView_renders_empty_state_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                var vm = new MigrationViewModel(
+                    i18n,
+                    new RenderFakeMigrationScanService(),
+                    new RenderFakeMigrationBackupRunner(),
+                    () => Array.Empty<MigrationRecipe>());
+
+                var view = new MigrationView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>UI rollout (2026-07): Restore's shared PlanRowTemplate + dispositions/undo cards were reskinned.
+    /// Constructs the VM over a real <see cref="MigrationRestoreService"/> (host-safe fakes/temp gate from the
+    /// Slice-2 restore fixtures) and renders the empty (pre-load) state in both themes.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void RestoreView_renders_empty_state_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                const string profile = @"C:\Users\render-smoke";
+                const string usersRoot = @"C:\Users";
+                var gate = MigrationRestoreTestData.GateForProfile(profile, usersRoot);
+                var runner = new MigrationRestoreRunner(
+                    new RecipePathResolver(new ProfileRoots(
+                        profile,
+                        profile + @"\AppData\Roaming",
+                        profile + @"\AppData\Local")),
+                    gate);
+                var service = new MigrationRestoreService(runner, MigrationRestoreTestData.Executor(gate), new RestoreStateStore());
+                var vm = new RestoreViewModel(i18n, service, new MigrationRestoreManifestStore(), new RestoreStateStore());
+
+                var view = new RestoreView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>UI rollout (2026-07): the shared <see cref="ConfirmGate"/> overlay (used by Uninstall today, and
+    /// the same control every module's future gated flow reuses) was reskinned to the emerald tier-banner
+    /// language. Opens the Irreversible tier — the most visually complex branch: loud-red banner, the
+    /// type-to-confirm ceremony box, AND a populated evidence row — so all three render in both themes.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void ConfirmGate_renders_irreversible_tier_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                var gate = new ConfirmGateViewModel(i18n, onApprove: () => { }, onCancel: () => { }, isBusy: () => false);
+                var row = new PlanRow
+                {
+                    Text = "Delete: C:\\Users\\alice\\AppData\\Roaming\\Tool\\cache",
+                    RiskText = "Critical",
+                    RiskBrush = RiskVisuals.For(RiskLevel.Critical),
+                    Undo = "undo: None",
+                    Detail = "leftover cache, program-owned",
+                };
+                gate.Open(ConfirmTier.Irreversible, "Confirm — this will make changes", "Review the exact actions below.", [row]);
+
+                var view = new ConfirmGate { DataContext = gate };
+                var host = new ContentControl { Content = view, Width = 900, Height = 800 };
+                var size = new Size(900, 800);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                Assert.True(gate.IsOpen);
+                Assert.True(gate.IsIrreversibleTier);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
             }
         });
     }
@@ -162,6 +408,48 @@ public sealed class ViewRenderSmokeTests
                 Assert.Equal(
                     ["Ad", "Yayıncı", "Boyut", "Yükleme", "Sürüm", "Durum"],
                     grid.Columns.Skip(1).Select(c => c.Header?.ToString() ?? string.Empty).ToArray());
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>UI rollout (2026-07): the Uninstall grid + right-rail detail pane were reskinned to the emerald
+    /// evidence-row language (Backup.* tokens). Render-gate BOTH themes with a real selection so the detail
+    /// pane's populated branch (not just the empty prompt) is measured/arranged without a binding crash.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void UninstallView_renders_grid_and_detail_pane_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                var vm = new UninstallViewModel(
+                    i18n,
+                    new FakeInstalledAppReader(TestData.App("Sample App")),
+                    new FakeAppxReader(),
+                    TestData.Gate(),
+                    new FakeLeftoverProbe(),
+                    new FakeExecutor(),
+                    new FakeAppxRemover(),
+                    new FakeFolderOpener());
+                var view = new UninstallView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 720 };
+                var size = new Size(1000, 720);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                vm.SelectedRow = vm.AppsView.Cast<AppRow>().FirstOrDefault();
+                host.UpdateLayout();
             }
             finally
             {
@@ -441,9 +729,9 @@ public sealed class ViewRenderSmokeTests
         public ICommand DismissFirstRunCommand { get; }
     }
 
-    private sealed class FakeInstalledAppReader : IInstalledAppReader
+    private sealed class FakeInstalledAppReader(params InstalledApp[] apps) : IInstalledAppReader
     {
-        public IReadOnlyList<InstalledApp> ReadAll() => Array.Empty<InstalledApp>();
+        public IReadOnlyList<InstalledApp> ReadAll() => apps;
     }
 
     private sealed class FakeAppxReader : IAppxReader
@@ -465,5 +753,89 @@ public sealed class ViewRenderSmokeTests
     private sealed class FakeFolderOpener : IFolderOpener
     {
         public void OpenFolder(string path) { }
+    }
+
+    // ===== Render-only fakes for the CleanView / InstallView / MigrationView render-smoke cases. None of these
+    // are wired to any real filesystem/registry/process — they exist purely so the corresponding ViewModel can
+    // be constructed and its dry-run PlanRows populated for a render pass. =====
+
+    private sealed class RenderFakeJunkProbe(params JunkCandidate[] candidates) : IJunkProbe
+    {
+        public IReadOnlyList<JunkCandidate> FindJunk() => candidates;
+    }
+
+    private sealed class RenderFakeStartupProbe(params StartupEntry[] entries) : IStartupProbe
+    {
+        public IReadOnlyList<StartupEntry> ReadAll() => entries;
+    }
+
+    private sealed class RenderFakeBrowserExtensionInventory : IBrowserExtensionInventory
+    {
+        public IReadOnlyList<BrowserExtension> ReadAll() => Array.Empty<BrowserExtension>();
+    }
+
+    private sealed class RenderFakeRecycleBinService(RecycleBinStats stats) : IRecycleBinService
+    {
+        public RecycleBinStats Query() => stats;
+    }
+
+    private sealed class RenderFakeFolderOpener : IFolderOpener
+    {
+        public void OpenFolder(string path) { }
+    }
+
+    private sealed class RenderFakeManifestLoader(params InstallEntry[] entries) : IInstallManifestLoader
+    {
+        public InstallManifest Load(string manifestPath) => new(entries);
+        public InstallManifest Parse(string json) => new(entries);
+    }
+
+    private sealed class RenderAllNetDriverGuard : IDriverGuard
+    {
+        public bool IsNetClass(string driverIdentifier) => true;
+    }
+
+    /// <summary>Never called by LoadManifest/BuildPlan — only guards that ExportPlan (unused by this render test)
+    /// would be the sole caller in production.</summary>
+    private sealed class RenderThrowingPlanWriter : IInstallPlanWriter
+    {
+        public string WriteExport(InstallPlanExportDoc doc, string payloadRoot, ISafetyGate gate)
+            => throw new InvalidOperationException("ExportPlan must not be invoked by the render-smoke test.");
+    }
+
+    private sealed class RenderFakeAuthProbe : IAuthProbe
+    {
+        public bool Exists(string path) => false;
+    }
+
+    private sealed class RenderRecordingStateStore : IRestoreStateStore
+    {
+        private readonly Dictionary<string, RestoreState> _byDir = new(StringComparer.OrdinalIgnoreCase);
+
+        public RestoreState Load(string stateDirectory)
+            => _byDir.TryGetValue(stateDirectory, out RestoreState? s) ? s : RestoreState.Empty;
+
+        public void Save(string stateDirectory, RestoreState state) => _byDir[stateDirectory] = state;
+
+        public string PathFor(string stateDirectory) => Path.Combine(stateDirectory, ".kurulum_state.json");
+    }
+
+    /// <summary>Never invoked by the render test (no scan is triggered) — exists only so
+    /// <see cref="MigrationViewModel"/> can be constructed.</summary>
+    private sealed class RenderFakeMigrationScanService : IMigrationScanService
+    {
+        public MigrationScanResult Scan(CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Scan must not be invoked by the render-smoke test.");
+    }
+
+    /// <summary>Never invoked by the render test (no capture is triggered) — exists only so
+    /// <see cref="MigrationViewModel"/> can be constructed.</summary>
+    private sealed class RenderFakeMigrationBackupRunner : IMigrationBackupRunner
+    {
+        public MigrationBackupPlanResult BuildPlan(IEnumerable<MigrationRecipe> recipes, string packageDir, DateTime utc)
+            => throw new InvalidOperationException("BuildPlan must not be invoked by the render-smoke test.");
+
+        public MigrationBackupRunResult Run(MigrationBackupPlanResult plan, string approvedPlanHash, string packageDir)
+            => throw new InvalidOperationException("Run must not be invoked by the render-smoke test.");
     }
 }

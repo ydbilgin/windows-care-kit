@@ -7,16 +7,18 @@
     <UserControl.Resources>
         <mvvm:BindingProxy x:Key="Proxy" Data="{Binding}" />
 
-        <!-- ===== DataGrid look, scoped to this view (Strongbox tokens) ===== -->
+        <!-- ===== DataGrid look, scoped to this view (emerald evidence-row language, 2026-07 UI rollout) =====
+             Reuses the Backup.* tokens introduced by the Backup slice — the header/row/rail surfaces read as
+             the SAME design system as Backup/ConfirmGate, not a separate look. -->
 
         <!-- Column header: quiet, faint, no chrome — matches mockup B's thin header row. -->
         <Style x:Key="GridHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="{StaticResource Bg.Panel}" />
-            <Setter Property="Foreground" Value="{StaticResource Text.Faint}" />
+            <Setter Property="Background" Value="{StaticResource Backup.Chrome}" />
+            <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Padding" Value="10,7" />
-            <Setter Property="BorderBrush" Value="{StaticResource Border.Soft}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Backup.Line}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
         </Style>
@@ -25,26 +27,88 @@
             <Setter Property="HorizontalContentAlignment" Value="Right" />
         </Style>
 
-        <!-- Row container: fixed ~46px height, hover/selected fills from the Strongbox palette. -->
+        <!-- Row container: fixed ~46px height, hover/selected fills from the emerald evidence-row palette. -->
         <Style x:Key="GridRow" TargetType="DataGridRow">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
             <Setter Property="Height" Value="46" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Bg.Row.Hover}" />
+                    <Setter Property="Background" Value="{StaticResource Backup.CardHi}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Bg.Row.Selected}" />
+                    <Setter Property="Background" Value="{StaticResource Backup.EmWash}" />
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- Primary / secondary buttons — the SAME two-tier hierarchy as Backup's Scan/Run pair, so the one
+             action that moves the user forward (Uninstall →) reads as the emerald primary CTA, never a plain
+             ghost button indistinguishable from Refresh. -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
+            <Setter Property="Background" Value="{StaticResource Backup.Card}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="13,7" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.CardHi}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Faint}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Setter Property="Foreground" Value="{StaticResource Backup.EmInk}" />
+            <Setter Property="Background" Value="{StaticResource Backup.Primary.Background}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Backup.Primary.Border}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.Primary.Hover}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Primary.HoverBorder}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="GridCell" TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridCell">
@@ -56,9 +120,9 @@
             </Setter>
         </Style>
 
-        <!-- Right-aligned, tabular-figure cell for Boyut / Yükleme. -->
+        <!-- Right-aligned, tabular-figure cell for Size / Installed. -->
         <Style x:Key="NumCell" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Text.Muted}" />
+            <Setter Property="Foreground" Value="{StaticResource Backup.Muted}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -68,6 +132,10 @@
         </Style>
 
         <Style x:Key="SearchTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Background" Value="{StaticResource Backup.Card}" />
+            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+            <Setter Property="Padding" Value="12,8" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
@@ -75,12 +143,12 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
+                                CornerRadius="7">
                             <Grid>
                                 <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
                                 <TextBlock x:Name="Watermark"
                                            Text="{TemplateBinding Tag}"
-                                           Foreground="{StaticResource Text.Faint}"
+                                           Foreground="{StaticResource Backup.Faint}"
                                            Margin="{TemplateBinding Padding}"
                                            VerticalAlignment="Center"
                                            Visibility="{Binding Text.Length, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource ZeroToVis}}"
@@ -95,6 +163,9 @@
                                 </MultiTrigger.Conditions>
                                 <Setter TargetName="Watermark" Property="Opacity" Value="0.45" />
                             </MultiTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource Backup.Faint}" />
+                            </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Border" Property="Opacity" Value="0.6" />
                             </Trigger>
@@ -112,15 +183,17 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ===== Row 0: title strip ===== -->
-        <StackPanel Grid.Row="0" Margin="20,16,20,0">
-            <TextBlock Text="{Binding I18n[uninstall.title]}" Style="{StaticResource H1}" />
-            <TextBlock Text="{Binding I18n[uninstall.subtitle]}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+        <!-- ===== Row 0: title strip (Backup type scale: H1 24 semibold / subtitle 13 muted) ===== -->
+        <StackPanel Grid.Row="0" Margin="24,16,24,0">
+            <TextBlock Text="{Binding I18n[uninstall.title]}" Foreground="{StaticResource Backup.Ink}"
+                       FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding I18n[uninstall.subtitle]}" Foreground="{StaticResource Backup.Muted}"
+                       FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0" />
         </StackPanel>
 
         <!-- ===== Row 1: dense command bar (search + scope + sort + refresh), sits below the active top tab ===== -->
-        <Border Grid.Row="1" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
-                BorderThickness="0,1,0,1" Padding="20,10" Margin="0,14,0,0">
+        <Border Grid.Row="1" Background="{StaticResource Backup.Chrome}" BorderBrush="{StaticResource Backup.Line}"
+                BorderThickness="0,1,0,1" Padding="24,12" Margin="0,14,0,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -136,7 +209,7 @@
                          VerticalContentAlignment="Center"
                          Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
 
-                <!-- Trivial scope filter (Tümü / Masaüstü / Mağaza). Desktop/Store PILLS are deferred (§2). -->
+                <!-- Trivial scope filter (All / Desktop / Store). Desktop/Store PILLS are deferred (§2). -->
                 <ComboBox Grid.Column="1" Width="120" Margin="10,0,0,0" VerticalContentAlignment="Center"
                           SelectedIndex="{Binding ScopeIndex}">
                     <ComboBoxItem Content="{Binding I18n[uninstall.scope.all]}" />
@@ -145,24 +218,27 @@
                 </ComboBox>
 
                 <!-- Sort label (single A→Z order in v1 — name sort is applied at load; placeholder for §2 sort). -->
-                <TextBlock Grid.Column="2" Text="{Binding I18n[uninstall.sort]}" Style="{StaticResource Faint}"
-                           VerticalAlignment="Center" Margin="14,0,4,0" />
+                <TextBlock Grid.Column="2" Text="{Binding I18n[uninstall.sort]}" Foreground="{StaticResource Backup.Faint}"
+                           FontSize="11.5" VerticalAlignment="Center" Margin="14,0,4,0" />
 
-                <Button Grid.Column="3" Margin="10,0,0,0" Style="{StaticResource GhostButton}"
+                <Button Grid.Column="3" Margin="10,0,0,0" Style="{StaticResource SecondaryButton}"
                         Content="{Binding I18n[common.refresh]}" Command="{Binding RefreshCommand}" />
             </Grid>
         </Border>
 
         <!-- ===== Row 2: full-width content = grid + lean detail pane ===== -->
-        <Grid Grid.Row="2" Margin="20,14,20,16">
+        <Grid Grid.Row="2" Margin="24,14,24,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="318" />
             </Grid.ColumnDefinitions>
 
             <!-- ===== The single virtualized DataGrid (desktop + Store, flat, name-sorted) ===== -->
-            <Border Grid.Column="0" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
-                    BorderThickness="1" CornerRadius="8">
+            <Border Grid.Column="0" Background="{StaticResource Backup.Card}" BorderBrush="{StaticResource Backup.Line}"
+                    BorderThickness="1" CornerRadius="10">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="18" Direction="270" ShadowDepth="4" Opacity="0.14" Color="#000000" />
+                </Border.Effect>
                 <Grid>
                     <DataGrid x:Name="AppsGrid"
                               ItemsSource="{Binding AppsView}"
@@ -174,7 +250,7 @@
                               CanUserReorderColumns="False" CanUserResizeRows="False"
                               IsReadOnly="True" SelectionMode="Single"
                               Background="Transparent" BorderThickness="0" RowBackground="Transparent"
-                              Foreground="{StaticResource Text}"
+                              Foreground="{StaticResource Backup.Ink}"
                               ColumnHeaderStyle="{StaticResource GridHeader}"
                               RowStyle="{StaticResource GridRow}"
                               CellStyle="{StaticResource GridCell}"
@@ -193,35 +269,35 @@
                                     <DataTemplate>
                                         <TextBlock Text="{Binding IconGlyph}"
                                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                   FontSize="15" Foreground="{StaticResource Text.Muted}"
+                                                   FontSize="15" Foreground="{StaticResource Backup.Muted}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- Ad * (publisher as a small subline). -->
+                            <!-- Name * (publisher as a small subline). -->
                             <DataGridTemplateColumn Header="{Binding Data.I18n[uninstall.col.name], Source={StaticResource Proxy}}"
                                                     Width="*" CanUserSort="False">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Text}"
+                                            <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource Backup.Ink}"
                                                        FontSize="13" FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding Publisher}" Style="{StaticResource Faint}"
+                                            <TextBlock Text="{Binding Publisher}" Foreground="{StaticResource Backup.Faint}"
                                                        FontSize="10.5" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- Yayıncı 130 (hidden at narrow widths). -->
+                            <!-- Publisher 130 (hidden at narrow widths). -->
                             <DataGridTextColumn x:Name="PublisherColumn"
                                                 Header="{Binding Data.I18n[uninstall.col.publisher], Source={StaticResource Proxy}}"
                                                 Binding="{Binding Publisher}" Width="130" CanUserSort="False">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource Text.Muted}" />
+                                        <Setter Property="Foreground" Value="{StaticResource Backup.Muted}" />
                                         <Setter Property="FontSize" Value="12" />
                                         <Setter Property="VerticalAlignment" Value="Center" />
                                         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -243,13 +319,13 @@
                                                 HeaderStyle="{StaticResource GridHeaderRight}"
                                                 ElementStyle="{StaticResource NumCell}" />
 
-                            <!-- Sürüm 78 (hidden at narrow widths). -->
+                            <!-- Version 78 (hidden at narrow widths). -->
                             <DataGridTextColumn x:Name="VersionColumn"
                                                 Header="{Binding Data.I18n[uninstall.col.version], Source={StaticResource Proxy}}"
                                                 Binding="{Binding Version}" Width="78" CanUserSort="False">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource Text.Muted}" />
+                                        <Setter Property="Foreground" Value="{StaticResource Backup.Muted}" />
                                         <Setter Property="FontSize" Value="12" />
                                         <Setter Property="VerticalAlignment" Value="Center" />
                                         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -257,7 +333,8 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <!-- Durum 110 (human-language badge; neutral gray / amber, never green). -->
+                            <!-- Status 110 (human-language badge; neutral gray / amber, never green — honesty gate,
+                                 VM-driven BadgeBrush is untouched by this restyle). -->
                             <DataGridTemplateColumn Header="{Binding Data.I18n[uninstall.col.status], Source={StaticResource Proxy}}"
                                                     Width="110" CanUserSort="False">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -272,22 +349,23 @@
                     </DataGrid>
 
                     <!-- Loading overlay -->
-                    <Border Background="{StaticResource Bg.Scrim.Loading}" CornerRadius="8"
+                    <Border Background="{StaticResource Bg.Scrim.Loading}" CornerRadius="10"
                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{Binding I18n[uninstall.loading]}" Style="{StaticResource Muted}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding I18n[uninstall.loading]}" Foreground="{StaticResource Backup.Muted}"
+                                   FontSize="12.5" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                 </Grid>
             </Border>
 
-            <!-- ===== Lean, info-only detail pane (UI decision §3) ===== -->
-            <Border Grid.Column="1" Margin="14,0,0,0" Background="{StaticResource Bg.Card}"
-                    BorderBrush="{StaticResource Border.Soft}" BorderThickness="1" CornerRadius="10">
+            <!-- ===== Lean, info-only detail pane (UI decision §3) — the SAME right-rail treatment as Backup's
+                 summary rail: a subtle gradient card, quiet field labels, tabular-adjacent values. ===== -->
+            <Border Grid.Column="1" Margin="18,0,0,0" Background="{StaticResource Backup.Rail.Background}"
+                    BorderBrush="{StaticResource Backup.RailBorder}" BorderThickness="1" CornerRadius="10">
                 <Grid>
                     <!-- Empty prompt -->
-                    <TextBlock Text="{Binding I18n[uninstall.selectPrompt]}" Style="{StaticResource Muted}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="240"
-                               Margin="20" TextAlignment="Center"
+                    <TextBlock Text="{Binding I18n[uninstall.selectPrompt]}" Foreground="{StaticResource Backup.Muted}"
+                               FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="240"
+                               Margin="20" TextAlignment="Center" TextWrapping="Wrap"
                                Visibility="{Binding HasSelection, Converter={StaticResource InverseBoolToVis}}" />
 
                     <Grid Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}" Margin="18">
@@ -297,31 +375,39 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0">
-                            <TextBlock Text="{Binding DetailTitle}" Style="{StaticResource H2}"
-                                       TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <TextBlock Text="{Binding DetailTitle}" Foreground="{StaticResource Backup.Ink}"
+                                       FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" />
 
-                            <TextBlock Text="{Binding I18n[uninstall.detail.publisher]}" Style="{StaticResource Faint}" />
-                            <TextBlock Text="{Binding DetailPublisher}" Foreground="{StaticResource Text}"
+                            <TextBlock Text="{Binding I18n[uninstall.detail.publisher]}" Foreground="{StaticResource Backup.Faint}"
+                                       FontSize="11" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding DetailPublisher}" Foreground="{StaticResource Backup.Ink}"
                                        FontSize="12.5" Margin="0,1,0,10" TextWrapping="Wrap" />
 
-                            <TextBlock Text="{Binding I18n[uninstall.detail.version]}" Style="{StaticResource Faint}" />
-                            <TextBlock Text="{Binding DetailVersion}" Foreground="{StaticResource Text}"
+                            <TextBlock Text="{Binding I18n[uninstall.detail.version]}" Foreground="{StaticResource Backup.Faint}"
+                                       FontSize="11" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding DetailVersion}" Foreground="{StaticResource Backup.Ink}"
                                        FontSize="12.5" Margin="0,1,0,10" />
 
                             <StackPanel Visibility="{Binding HasDetailLocation, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{Binding I18n[uninstall.detail.location]}" Style="{StaticResource Faint}" />
-                                <TextBlock Text="{Binding DetailLocation}" Foreground="{StaticResource Text.Muted}"
-                                           FontSize="11.5" Margin="0,1,0,6" TextWrapping="Wrap" />
-                                <Button HorizontalAlignment="Left" Style="{StaticResource GhostButton}"
-                                        Padding="9,4" FontSize="11.5" FontWeight="Normal"
+                                <TextBlock Text="{Binding I18n[uninstall.detail.location]}" Foreground="{StaticResource Backup.Faint}"
+                                           FontSize="11" FontWeight="SemiBold" />
+                                <Border Background="{StaticResource Backup.PathBg}" BorderBrush="{StaticResource Backup.Line}"
+                                        BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,3,0,7">
+                                    <TextBlock Text="{Binding DetailLocation}" Foreground="{StaticResource Backup.Muted}"
+                                               FontFamily="Cascadia Code, Consolas, Courier New"
+                                               FontSize="11" TextWrapping="Wrap" />
+                                </Border>
+                                <Button HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}"
+                                        Padding="10,4" FontSize="11.5" FontWeight="Normal"
                                         Content="{Binding I18n[uninstall.detail.openLocation]}"
                                         Command="{Binding OpenLocationCommand}" />
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- The single primary action. For PR-2 it stages the EXISTING official-uninstaller /
-                             Store-removal flow (PR-4 swaps in the wizard). -->
-                        <Button Grid.Row="1" Style="{StaticResource GhostButton}" Margin="0,14,0,0"
+                        <!-- The single primary action. It STAGES the official-uninstaller / Store-removal flow —
+                             the actual delete only runs once the ConfirmGate (or the wizard) is approved, so this
+                             reads as the emerald "go look at the plan" CTA, not the final irreversible click. -->
+                        <Button Grid.Row="1" Style="{StaticResource PrimaryButton}" Margin="0,14,0,0"
                                 HorizontalAlignment="Stretch" Padding="12,9"
                                 Content="{Binding I18n[uninstall.detail.remove]}"
                                 Command="{Binding UninstallSelectedCommand}" />

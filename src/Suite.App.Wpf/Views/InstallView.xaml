@@ -1,33 +1,111 @@
 <UserControl x:Class="WindowsCareKit.App.Views.InstallView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Restyled to the emerald evidence-row language (2026-07 UI rollout): Backup.* tokens, two-tier rows,
+         a DRY-RUN badge, and a right-rail summary whose counts PROJECT the live PlanRows/ManualChecklist/
+         SkippedRows collections (Mode=OneWay — never a second source of truth). Presentation-only: the
+         Approve/Run/Cancel three-button flow is unchanged (IsPreviewApproved has a private setter in the VM,
+         so it stays button-driven, not a checkbox). -->
     <UserControl.Resources>
-        <!-- Dry-run / result row, mirroring the UninstallView PlanRow template. -->
+        <Style x:Key="InstallSectionLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="InstallMetaText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="InstallSecondaryButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
+            <Setter Property="Background" Value="{StaticResource Backup.Card}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14,7.5" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.CardHi}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Faint}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InstallPrimaryButton" TargetType="Button" BasedOn="{StaticResource InstallSecondaryButton}">
+            <Setter Property="Foreground" Value="{StaticResource Backup.EmInk}" />
+            <Setter Property="Background" Value="{StaticResource Backup.Primary.Background}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Backup.Primary.Border}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.Primary.Hover}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dry-run / result row: two-tier (action line + quiet meta), monospace on the action line only (it
+             IS the literal command/path from PlannedAction.Describe). Risk chip unchanged. -->
         <DataTemplate x:Key="PlanRowTemplate">
-            <Border Background="{StaticResource Bg.PanelAlt}" BorderBrush="{StaticResource Border.Soft}"
-                    BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
+            <Border Background="{StaticResource Backup.Row.Background}" BorderBrush="{StaticResource Backup.Line}"
+                    BorderThickness="1" CornerRadius="8" Padding="11,9" Margin="0,0,0,6">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="{Binding RiskBrush}" CornerRadius="4"
-                            Padding="6,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10"
-                                   FontWeight="Bold" />
+                    <Border Grid.Column="0" Background="{Binding RiskBrush}" BorderBrush="{Binding RiskBrush}"
+                            BorderThickness="1" CornerRadius="999" Padding="7,2" VerticalAlignment="Top" Margin="0,1,10,0">
+                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10" FontWeight="Bold" />
                     </Border>
                     <StackPanel Grid.Column="1">
-                        <TextBlock Text="{Binding Text}" Foreground="{StaticResource Text}"
-                                   FontSize="13" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Faint}" Margin="0,2,0,0" />
-                        <TextBlock Text="{Binding Undo}" Style="{StaticResource Faint}" />
+                        <TextBlock Text="{Binding Text}" Foreground="{StaticResource Backup.Ink}"
+                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontSize="12.5" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource InstallMetaText}" Margin="0,3,0,0"
+                                   Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                        <TextBlock Text="{Binding Undo}" Style="{StaticResource InstallMetaText}"
+                                   Visibility="{Binding Undo.Length, Converter={StaticResource PositiveToVis}}" />
                     </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="20">
+    <Grid Margin="24,14,24,8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -35,109 +113,213 @@
 
         <!-- Header + actions -->
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
-            <TextBlock Text="{Binding I18n[install.title]}" Style="{StaticResource H1}" />
-            <TextBlock Text="{Binding I18n[install.subtitle]}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
-            <TextBlock Text="{Binding I18n[install.driver.netOnly]}" Foreground="{StaticResource Gold.Dim}"
-                       FontSize="11.5" Margin="0,6,0,0" />
-            <TextBlock Text="{Binding I18n[install.reboot.note]}" Foreground="{StaticResource Gold.Dim}"
-                       FontSize="11.5" Margin="0,2,0,0" />
-            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                <Button Style="{StaticResource GhostButton}" Content="{Binding I18n[install.loadManifest]}"
-                        Command="{Binding LoadManifestCommand}" />
-                <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
-                        Content="{Binding I18n[install.buildPlan]}" Command="{Binding BuildPlanCommand}" />
-                <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
-                        Content="{Binding I18n[install.resume]}" Command="{Binding ResumeCommand}" />
-            </StackPanel>
-            <TextBlock Text="{Binding Summary}" Style="{StaticResource Faint}" Margin="0,8,0,0" />
-        </StackPanel>
-
-        <!-- Body -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-
-                <!-- Sign-in status (existence only — never read) -->
-                <TextBlock Text="{Binding I18n[install.auth.title]}" Style="{StaticResource H2}"
-                           Margin="0,0,0,8"
-                           Visibility="{Binding AuthRows.Count, Converter={StaticResource PositiveToVis}}" />
-                <ItemsControl ItemsSource="{Binding AuthRows}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Background="{StaticResource Bg.PanelAlt}" BorderBrush="{StaticResource Border.Soft}"
-                                    BorderThickness="1" CornerRadius="8" Padding="10,6" Margin="0,0,0,6">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Label}" Foreground="{StaticResource Text}"
-                                               FontSize="13" FontWeight="SemiBold" Width="120" />
-                                    <TextBlock Text="{Binding StatusText}" Style="{StaticResource Faint}"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!-- Restore-order plan (dry-run) -->
-                <TextBlock Text="{Binding I18n[install.order]}" Style="{StaticResource H2}"
-                           Margin="0,18,0,8"
-                           Visibility="{Binding PlanRows.Count, Converter={StaticResource PositiveToVis}}" />
-                <ItemsControl ItemsSource="{Binding PlanRows}" ItemTemplate="{StaticResource PlanRowTemplate}" />
-
-                <!-- Approve / run confirm gate -->
-                <Border Style="{StaticResource Card}" Margin="0,8,0,0"
-                        Visibility="{Binding HasPlan, Converter={StaticResource BoolToVis}}">
-                    <StackPanel>
-                        <TextBlock Text="{Binding I18n[install.confirm.title]}" Style="{StaticResource H2}" />
-                        <TextBlock Text="{Binding I18n[install.confirm.body]}" Style="{StaticResource Muted}"
-                                   Margin="0,6,0,0" />
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Style="{StaticResource GhostButton}"
-                                    Content="{Binding I18n[install.confirm.approve]}"
-                                    Command="{Binding ApproveCommand}" />
-                            <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
-                                    Content="{Binding I18n[install.run]}"
-                                    Command="{Binding RunCommand}" />
-                            <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0"
-                                    Content="{Binding I18n[install.confirm.cancel]}"
-                                    Command="{Binding CancelApprovalCommand}" />
-                        </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,2">
+                <TextBlock Text="{Binding I18n[install.title]}" Foreground="{StaticResource Backup.Ink}"
+                           FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border Background="{StaticResource Backup.EmWash}" BorderBrush="{StaticResource Backup.EmBorder}"
+                        BorderThickness="1" CornerRadius="999" Padding="12,4" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="7" Height="7" Fill="{StaticResource Backup.Em}" Margin="0,0,8,0" />
+                        <TextBlock Foreground="{StaticResource Backup.Em}" FontSize="10.5" FontWeight="Bold">
+                            <Run Text="{Binding I18n[common.dryRun.badge], Mode=OneWay}" />
+                            <Run Text="{Binding I18n[common.dryRun.caption], Mode=OneWay}"
+                                 Foreground="{StaticResource Backup.Muted}" FontSize="11" FontWeight="Normal" />
+                        </TextBlock>
                     </StackPanel>
                 </Border>
-
-                <!-- Manual-after checklist -->
-                <TextBlock Text="{Binding I18n[install.manual.title]}" Foreground="{StaticResource Gold}"
-                           FontSize="14" FontWeight="SemiBold" Margin="0,18,0,8"
-                           Visibility="{Binding ManualChecklist.Count, Converter={StaticResource PositiveToVis}}" />
-                <ItemsControl ItemsSource="{Binding ManualChecklist}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Background="{StaticResource Bg.PanelAlt}" BorderBrush="{StaticResource Border.Soft}"
-                                    BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Description}" Foreground="{StaticResource Text}"
-                                               FontSize="13" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding ManualUrl}" Style="{StaticResource Faint}"
-                                               Margin="0,2,0,0" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!-- Skipped -->
-                <TextBlock Text="{Binding I18n[install.skipped.title]}" Foreground="{StaticResource Text.Faint}"
-                           FontSize="13" FontWeight="SemiBold" Margin="0,18,0,8"
-                           Visibility="{Binding SkippedRows.Count, Converter={StaticResource PositiveToVis}}" />
-                <ItemsControl ItemsSource="{Binding SkippedRows}" ItemTemplate="{StaticResource PlanRowTemplate}" />
-
-                <!-- Results -->
-                <TextBlock Text="{Binding I18n[install.result.title]}" Style="{StaticResource H2}"
-                           Margin="0,18,0,8"
-                           Visibility="{Binding ExecutionResults.Count, Converter={StaticResource PositiveToVis}}" />
-                <TextBlock Text="{Binding ResultSummary}" Style="{StaticResource Muted}" Margin="0,0,0,8"
-                           Visibility="{Binding ExecutionResults.Count, Converter={StaticResource PositiveToVis}}" />
-                <ItemsControl ItemsSource="{Binding ExecutionResults}" ItemTemplate="{StaticResource PlanRowTemplate}" />
-
             </StackPanel>
-        </ScrollViewer>
+            <TextBlock Text="{Binding I18n[install.subtitle]}" Foreground="{StaticResource Backup.Muted}"
+                       FontSize="13" TextWrapping="Wrap" Margin="0,4,0,0" />
+            <TextBlock Text="{Binding I18n[install.reboot.note]}" Style="{StaticResource InstallMetaText}"
+                       Margin="0,8,0,0" />
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <Button Style="{StaticResource InstallSecondaryButton}" Content="{Binding I18n[install.loadManifest]}"
+                        Command="{Binding LoadManifestCommand}" />
+                <Button Style="{StaticResource InstallPrimaryButton}" Margin="8,0,0,0"
+                        Content="{Binding I18n[install.buildPlan]}" Command="{Binding BuildPlanCommand}" />
+                <Button Style="{StaticResource InstallSecondaryButton}" Margin="8,0,0,0"
+                        Content="{Binding I18n[install.resume]}" Command="{Binding ResumeCommand}" />
+            </StackPanel>
+        </StackPanel>
+
+        <Grid Grid.Row="1" MinHeight="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="292" />
+            </Grid.ColumnDefinitions>
+
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,2,0">
+                <StackPanel>
+
+                    <!-- Sign-in status (existence only — never read) -->
+                    <Grid Margin="2,2,2,7" Visibility="{Binding AuthRows.Count, Converter={StaticResource PositiveToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding I18n[install.auth.title]}" Style="{StaticResource InstallSectionLabel}" />
+                        <Border Grid.Column="1" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding AuthRows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Backup.Row.Background}" BorderBrush="{StaticResource Backup.Line}"
+                                        BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,0,0,6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Label}" Foreground="{StaticResource Backup.Ink}"
+                                                   FontSize="13" FontWeight="SemiBold" Width="130" />
+                                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource InstallMetaText}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Restore-order plan (dry-run) -->
+                    <Grid Margin="2,15,2,7" Visibility="{Binding PlanRows.Count, Converter={StaticResource PositiveToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding I18n[install.order]}" Style="{StaticResource InstallSectionLabel}" />
+                        <TextBlock Grid.Column="1" Text="{Binding PlanRows.Count, Mode=OneWay}" Style="{StaticResource InstallSectionLabel}" Margin="8,0,8,0" />
+                        <Border Grid.Column="2" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding PlanRows}" ItemTemplate="{StaticResource PlanRowTemplate}" />
+
+                    <!-- Approve / run confirm gate -->
+                    <Border Background="{StaticResource Backup.EmWash}" BorderBrush="{StaticResource Backup.EmBorder}"
+                            BorderThickness="1" CornerRadius="9" Padding="14,12" Margin="0,10,0,0"
+                            Visibility="{Binding HasPlan, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding I18n[install.confirm.title]}" Foreground="{StaticResource Backup.Ink}"
+                                       FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding I18n[install.confirm.body]}" Foreground="{StaticResource Backup.Muted}"
+                                       FontSize="12.5" TextWrapping="Wrap" Margin="0,7,0,0" />
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button Style="{StaticResource InstallPrimaryButton}"
+                                        Content="{Binding I18n[install.confirm.approve]}"
+                                        Command="{Binding ApproveCommand}" />
+                                <Button Style="{StaticResource InstallSecondaryButton}" Margin="8,0,0,0"
+                                        Content="{Binding I18n[install.run]}"
+                                        Command="{Binding RunCommand}" />
+                                <Button Style="{StaticResource InstallSecondaryButton}" Margin="8,0,0,0"
+                                        Content="{Binding I18n[install.confirm.cancel]}"
+                                        Command="{Binding CancelApprovalCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Manual-after checklist -->
+                    <Grid Margin="2,15,2,7" Visibility="{Binding ManualChecklist.Count, Converter={StaticResource PositiveToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding I18n[install.manual.title]}" Foreground="{StaticResource Backup.MedFg}"
+                                   FontSize="11" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="{Binding ManualChecklist.Count, Mode=OneWay}" Style="{StaticResource InstallSectionLabel}" Margin="8,0,8,0" />
+                        <Border Grid.Column="2" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding ManualChecklist}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Backup.MedWash}" BorderBrush="{StaticResource Backup.MedBorder}"
+                                        BorderThickness="1" CornerRadius="8" Padding="11,9" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Description}" Foreground="{StaticResource Backup.Ink}"
+                                                   FontSize="13" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ManualUrl}" Style="{StaticResource InstallMetaText}"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Skipped -->
+                    <Grid Margin="2,15,2,7" Visibility="{Binding SkippedRows.Count, Converter={StaticResource PositiveToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding I18n[install.skipped.title]}" Style="{StaticResource InstallSectionLabel}" />
+                        <TextBlock Grid.Column="1" Text="{Binding SkippedRows.Count, Mode=OneWay}" Style="{StaticResource InstallSectionLabel}" Margin="8,0,8,0" />
+                        <Border Grid.Column="2" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding SkippedRows}" ItemTemplate="{StaticResource PlanRowTemplate}" />
+
+                    <!-- Results -->
+                    <Grid Margin="2,15,2,7" Visibility="{Binding ExecutionResults.Count, Converter={StaticResource PositiveToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding I18n[install.result.title]}" Style="{StaticResource InstallSectionLabel}" />
+                        <Border Grid.Column="1" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </Grid>
+                    <TextBlock Text="{Binding ResultSummary}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5"
+                               Margin="0,0,0,8" Visibility="{Binding ExecutionResults.Count, Converter={StaticResource PositiveToVis}}" />
+                    <ItemsControl ItemsSource="{Binding ExecutionResults}" ItemTemplate="{StaticResource PlanRowTemplate}" Margin="0,0,0,20" />
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Right-rail summary: counts PROJECT the live collections (Mode=OneWay), never a second source. -->
+            <Border Grid.Column="1" Background="{StaticResource Backup.Rail.Background}"
+                    BorderBrush="{StaticResource Backup.RailBorder}" BorderThickness="1" CornerRadius="10"
+                    Padding="16" Margin="18,0,0,0" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Text="{Binding I18n[install.rail.title]}" Foreground="{StaticResource Backup.Ink}"
+                               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding I18n[install.summary.toInstall]}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5" />
+                        <TextBlock Grid.Column="1" Text="{Binding PlanRows.Count, Mode=OneWay}" Foreground="{StaticResource Backup.Em}"
+                                   FontSize="14" FontWeight="Bold" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource Backup.Line}" Margin="0,7,0,7" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding I18n[install.summary.manual]}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5" />
+                        <TextBlock Grid.Column="1" Text="{Binding ManualChecklist.Count, Mode=OneWay}" Foreground="{StaticResource Backup.Ink}"
+                                   FontSize="14" FontWeight="Bold" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource Backup.Line}" Margin="0,7,0,7" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding I18n[install.summary.skipped]}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5" />
+                        <TextBlock Grid.Column="1" Text="{Binding SkippedRows.Count, Mode=OneWay}" Foreground="{StaticResource Backup.Ink}"
+                                   FontSize="14" FontWeight="Bold" />
+                    </Grid>
+
+                    <Border Background="{StaticResource Backup.EmWash}" BorderBrush="{StaticResource Backup.EmBorder}"
+                            BorderThickness="1" CornerRadius="7" Padding="11,9" Margin="0,13,0,0">
+                        <TextBlock Text="{Binding I18n[install.driver.netOnly]}" Foreground="{StaticResource Backup.OkFg}"
+                                   FontSize="11.5" TextWrapping="Wrap" />
+                    </Border>
+
+                    <TextBlock Text="{Binding Summary}" Foreground="{StaticResource Backup.Faint}"
+                               FontSize="11.5" TextWrapping="Wrap" Margin="0,11,0,0"
+                               Visibility="{Binding Summary.Length, Converter={StaticResource PositiveToVis}}" />
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
