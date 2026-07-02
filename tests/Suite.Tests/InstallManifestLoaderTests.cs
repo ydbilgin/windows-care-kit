@@ -48,7 +48,7 @@ public class InstallManifestLoaderTests
     {
         var manifest = Loader.Parse("""
             { "entries": [
-              { "id": "install-vs", "category": "gelistirici", "method": "install-winget",
+              { "id": "install-vs", "category": "developer", "method": "install-winget",
                 "wingetId": "Microsoft.VisualStudio.2022.Community", "installTier": "manual-after" }
             ] }
             """);
@@ -74,11 +74,11 @@ public class InstallManifestLoaderTests
     [Fact]
     public void Restore_order_follows_the_category_sequence()
     {
-        // ai-cli before gelistirici in the FILE, but gelistirici must get a lower RestoreOrder band.
+        // ai-cli before developer in the FILE, but developer must get a lower RestoreOrder band.
         var manifest = Loader.Parse("""
             { "entries": [
               { "id": "a-ai", "category": "ai-cli", "method": "install-npm", "npmPackage": "x", "installTier": "auto" },
-              { "id": "b-dev", "category": "gelistirici", "method": "install-winget", "wingetId": "y", "installTier": "auto" }
+              { "id": "b-dev", "category": "developer", "method": "install-winget", "wingetId": "y", "installTier": "auto" }
             ] }
             """);
 
@@ -103,10 +103,10 @@ public class InstallManifestLoaderTests
     [Fact]
     public void The_bundled_install_manifest_parses_into_entries()
     {
-        // Mirrors the real 90-kurulum.json shape; ensures the schema the planner relies on is honored.
+        // Mirrors the real 90-install.json shape; ensures the schema the planner relies on is honored.
         var manifest = Loader.Parse("""
             { "schemaVersion": 1, "entries": [
-              { "id": "install-google-chrome", "phase": "install", "category": "tarayici",
+              { "id": "install-google-chrome", "phase": "install", "category": "browser",
                 "method": "install-winget", "wingetId": "Google.Chrome", "installTier": "auto",
                 "requiresAdmin": false, "rebootExpected": false, "description": "Chrome" },
               { "id": "install-everything", "phase": "install", "category": "arac",
@@ -118,5 +118,30 @@ public class InstallManifestLoaderTests
         Assert.Equal(2, manifest.Entries.Count);
         Assert.True(manifest.Entries.Single(e => e.Id == "install-google-chrome").IsAutomatable);
         Assert.False(manifest.Entries.Single(e => e.Id == "install-everything").IsAutomatable);
+    }
+
+    [Fact]
+    public void Load_reads_the_renamed_bundled_install_manifest()
+    {
+        string path = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "manifests", "90-install.json");
+
+        InstallManifest manifest = Loader.Load(path);
+
+        Assert.NotEmpty(manifest.Entries);
+        Assert.Contains(manifest.Entries, e => e.Id == "install-google-chrome" && e.Category == "browser");
+        Assert.DoesNotContain(manifest.Entries, e => e.Category.Contains("tarayici", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "WindowsCareKit.slnx")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("repository root not found");
     }
 }

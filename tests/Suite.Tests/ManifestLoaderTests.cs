@@ -40,9 +40,9 @@ public class ManifestLoaderTests
               "id": "chrome-profile",
               "enabled": true,
               "method": "copy",
-              "category": "tarayici",
+              "category": "browser",
               "source": "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default",
-              "target": "tarayici/Chrome/Default",
+              "target": "browser/Chrome/Default",
               "exclude": ["Cache/**"],
               "secretHandling": "metadata-only",
               "restore": { "order": 52, "mode": "merge-after-install" },
@@ -58,7 +58,7 @@ public class ManifestLoaderTests
         Assert.Equal("chrome-profile", e.Id);
         Assert.True(e.Enabled);
         Assert.Equal(@"C:\Users\alice\AppData\Local\Google\Chrome\User Data\Default", e.Source);
-        Assert.Equal("tarayici/Chrome/Default", e.Target);
+        Assert.Equal("browser/Chrome/Default", e.Target);
         Assert.Equal(52, e.RestoreOrder);
         Assert.Equal("merge-after-install", e.RestoreMode);
         Assert.Contains("Cache/**", e.Exclude);
@@ -133,5 +133,48 @@ public class ManifestLoaderTests
         Assert.Equal(2, manifest.Entries.Count);
         Assert.Equal("a", manifest.Entries[0].Id);
         Assert.Equal("b", manifest.Entries[1].Id);
+    }
+
+    [Fact]
+    public void LoadFromDirectory_discovers_renamed_backup_manifests_by_glob()
+    {
+        string manifestDirectory = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "manifests");
+        string[] expectedFiles =
+        [
+            "00-ai-tools.json",
+            "10-developer.json",
+            "20-browser.json",
+            "30-games.json",
+            "40-system.json",
+            "50-notes.json",
+            "60-wsl.json",
+            "70-general-user.json",
+            "80-network-drive.json",
+            "90-install.json",
+        ];
+        foreach (string file in expectedFiles)
+            Assert.True(File.Exists(Path.Combine(manifestDirectory, file)), file);
+
+        BackupManifest manifest = Loader().LoadFromDirectory(manifestDirectory);
+
+        Assert.NotEmpty(manifest.Entries);
+        Assert.Contains(manifest.Entries, e => e.Id == "vscode-user");
+        Assert.Contains(manifest.Entries, e => e.Id == "firefox-profiles");
+        Assert.Contains(manifest.Entries, e => e.Id == "network-driver-export");
+        Assert.DoesNotContain(manifest.Entries, e => e.Id.StartsWith("install-", StringComparison.Ordinal));
+        Assert.DoesNotContain(manifest.Entries, e => e.Category.Contains("tarayici", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "WindowsCareKit.slnx")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("repository root not found");
     }
 }

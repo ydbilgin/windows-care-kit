@@ -3,7 +3,9 @@
     {
       "id": "wsl-ubuntu-export",
       "enabled": false,
-      "profile": ["dev"],
+      "profile": [
+        "dev"
+      ],
       "phase": "backup",
       "category": "wsl",
       "tier": "T2",
@@ -12,22 +14,34 @@
       "target": "wsl/Ubuntu-22.04.tar",
       "requiresClosedProcesses": [],
       "secretHandling": "normal",
-      "verify": { "exists": [], "maxSizeMB": 40000 },
-      "restore": { "order": 85, "mode": "command", "notes": "wsl --import ile geri yukle; once disk alani kontrol." },
-      "description": "WSL Ubuntu-22.04 tam export (tar). BUYUK olabilir (ext4.vhdx boyutu kadar). Alan kurali: Free > vhdx*1.2 + 2GB. Bu makinede vhdx BasePath'te bulunamadi (BLOCKED — toplama sirasinda cozulecek). Varsayilan KAPALI; GUI'de 'Boyut olc' ile onayli acilir.",
-      "uiWarning": "BUYUK export (10-40 GB olabilir). Once 'Boyut olc' ile hedef diskte yer oldugunu dogrula. WSL dagitimi kapali olmali (wsl --terminate)."
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 40000
+      },
+      "restore": {
+        "order": 85,
+        "mode": "command",
+        "notes": "Use as reference when rebuilding the PC."
+      },
+      "description": "wsl-ubuntu-export: exports reference information into the payload for rebuilding the PC.",
+      "uiWarning": "Large optional data; enable only after checking destination capacity."
     },
     {
-      "id": "wsl-boyut-tespiti",
+      "id": "wsl-size-check",
       "enabled": true,
       "phase": "backup",
       "category": "wsl",
       "tier": "T3",
       "method": "manual-todo",
-      "instructions": "WSL export boyutunu olc: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss altinda DistributionName eslestir -> BasePath\\ext4.vhdx boyutunu oku -> hedef diskte Free > vhdx*1.2+2GB ise export'u ac. (Bu makinede BasePath bos cikti; vhdx yeri elle dogrulanmali.)",
+      "instructions": "Find the WSL distro VHDX path, check its size, and enable export only when the destination has enough free space.",
       "secretHandling": "normal",
-      "restore": { "order": 84, "mode": "manual", "notes": "Once boyut/alan dogrula." },
-      "description": "WSL VHDX boyut tespiti ve alan kurali. vhdx bulunamazsa export BLOCKED."
+      "restore": {
+        "order": 84,
+        "mode": "manual",
+        "notes": "Manual review required after formatting."
+      },
+      "description": "Find the WSL distro VHDX path, check its size, and enable export only when the destination has enough free space.",
+      "uiWarning": "Large optional data; enable only after checking destination capacity."
     }
   ]
 }

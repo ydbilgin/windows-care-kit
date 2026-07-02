@@ -66,7 +66,7 @@ public sealed class InstallPlanner
 {
     /// <summary>Categories whose entries are treated as drivers and must pass the <see cref="IDriverGuard"/>.</summary>
     private static readonly HashSet<string> DriverCategories =
-        new(StringComparer.OrdinalIgnoreCase) { "ag-surucusu", "surucu", "driver" };
+        new(StringComparer.OrdinalIgnoreCase) { "network-driver", "ag-surucusu", "surucu", "driver" };
 
     private readonly ISafetyGate _gate;
     private readonly IDriverGuard _driverGuard;

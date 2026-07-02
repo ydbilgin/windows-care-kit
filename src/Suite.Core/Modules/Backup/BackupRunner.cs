@@ -22,7 +22,7 @@ public sealed record BackupRunResult(
 /// <item>executes the plan through the <see cref="IBackupExecutor"/> seam (the sanctioned executor, adapted);</item>
 /// <item>shapes the per-action results into a <see cref="CopySkipReport"/> (copied / skipped + reason);</item>
 /// <item>walks the DESTINATION tree to build per-leaf integrity rows and writes <c>backup_integrity.json</c>;</item>
-/// <item>writes <c>RAPOR.md</c> + <c>MANUAL_TODO.md</c>.</item>
+/// <item>writes <c>REPORT.md</c> + <c>MANUAL_TODO.md</c>.</item>
 /// </list>
 /// The copy-report shaping (<see cref="BuildCopyReport"/>) and skip classification (<see cref="ClassifySkip"/>)
 /// moved here from the view-model verbatim, so the runner — not the UI — owns the testable core. It has no

@@ -1,0 +1,227 @@
+{
+  "entries": [
+    {
+      "id": "firefox-profiles",
+      "enabled": true,
+      "profile": [
+        "general",
+        "dev"
+      ],
+      "phase": "backup",
+      "category": "browser",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Mozilla\\Firefox\\Profiles",
+      "target": "browser/Firefox/Profiles",
+      "include": [
+        "places.sqlite",
+        "prefs.js",
+        "containers.json",
+        "extensions/**"
+      ],
+      "exclude": [
+        "cache2/**",
+        "startupCache/**",
+        "shader-cache/**",
+        "thumbnails/**",
+        "crashes/**",
+        "minidumps/**",
+        "safebrowsing/**"
+      ],
+      "requiresClosedProcesses": [
+        "firefox"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1000
+      },
+      "restore": {
+        "order": 50,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "firefox-profiles: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "firefox-logins",
+      "enabled": false,
+      "phase": "backup",
+      "category": "browser",
+      "tier": "T0",
+      "method": "copy",
+      "source": "%APPDATA%\\Mozilla\\Firefox\\Profiles",
+      "target": "browser/Firefox/Profiles-logins",
+      "include": [
+        "logins.json",
+        "key4.db"
+      ],
+      "exclude": [],
+      "requiresClosedProcesses": [
+        "firefox"
+      ],
+      "secretHandling": "never-read",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 50
+      },
+      "restore": {
+        "order": 51,
+        "mode": "manual",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "firefox-logins: backs up the configured files into the payload while leaving cache and protected secret material excluded.",
+      "uiWarning": "Contains credentials, tokens, or account/session data; do not copy automatically. Sign in again or export manually when needed."
+    },
+    {
+      "id": "operagx-profile",
+      "enabled": true,
+      "phase": "backup",
+      "category": "browser",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Opera Software\\Opera GX Stable",
+      "target": "browser/OperaGX",
+      "include": [
+        "Bookmarks",
+        "Preferences",
+        "Secure Preferences",
+        "Local State"
+      ],
+      "exclude": [
+        "Cache/**",
+        "Code Cache/**",
+        "GPUCache/**",
+        "Service Worker/**",
+        "ShaderCache/**",
+        "Crashpad/**",
+        "BrowserMetrics/**",
+        "Login Data",
+        "Cookies",
+        "Login Data For Account"
+      ],
+      "forbiddenSources": [
+        "%APPDATA%\\Opera Software\\Opera GX Stable\\Login Data",
+        "%APPDATA%\\Opera Software\\Opera GX Stable\\Cookies",
+        "%APPDATA%\\Opera Software\\Opera GX Stable\\Web Data",
+        "%APPDATA%\\Opera Software\\Opera GX Stable\\Login Data For Account"
+      ],
+      "requiresClosedProcesses": [
+        "opera"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [
+          "Bookmarks"
+        ],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 52,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "operagx-profile: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "opera-profile",
+      "enabled": true,
+      "phase": "backup",
+      "category": "browser",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\Opera Software\\Opera Stable",
+      "target": "browser/Opera",
+      "include": [
+        "Bookmarks",
+        "Preferences",
+        "Secure Preferences",
+        "Local State"
+      ],
+      "exclude": [
+        "Cache/**",
+        "Code Cache/**",
+        "GPUCache/**",
+        "Service Worker/**",
+        "ShaderCache/**",
+        "Crashpad/**",
+        "BrowserMetrics/**",
+        "Login Data",
+        "Cookies",
+        "Login Data For Account"
+      ],
+      "forbiddenSources": [
+        "%APPDATA%\\Opera Software\\Opera Stable\\Login Data",
+        "%APPDATA%\\Opera Software\\Opera Stable\\Cookies",
+        "%APPDATA%\\Opera Software\\Opera Stable\\Web Data",
+        "%APPDATA%\\Opera Software\\Opera Stable\\Login Data For Account"
+      ],
+      "requiresClosedProcesses": [
+        "opera"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [
+          "Bookmarks"
+        ],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 52,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "opera-profile: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "chrome-profile",
+      "enabled": true,
+      "phase": "backup",
+      "category": "browser",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default",
+      "target": "browser/Chrome/Default",
+      "include": [
+        "Bookmarks",
+        "Bookmarks.bak",
+        "Preferences",
+        "Secure Preferences"
+      ],
+      "exclude": [
+        "Cache/**",
+        "Code Cache/**",
+        "GPUCache/**",
+        "Service Worker/**",
+        "ShaderCache/**",
+        "Crashpad/**",
+        "Login Data",
+        "Cookies",
+        "Login Data For Account",
+        "Web Data"
+      ],
+      "forbiddenSources": [
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Login Data",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cookies",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Web Data",
+        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Login Data For Account"
+      ],
+      "requiresClosedProcesses": [
+        "chrome"
+      ],
+      "secretHandling": "metadata-only",
+      "verify": {
+        "exists": [
+          "Bookmarks"
+        ],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 52,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "chrome-profile: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    }
+  ]
+}

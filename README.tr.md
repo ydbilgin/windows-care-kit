@@ -98,7 +98,7 @@ Bakım daha format kararından önce başlar, Backup taşınabilir olanları yak
 - Format öncesinde vazgeçilmez şeyler için **manifest tabanlı plan**.
 - **Araç / payload ayrımı:** yeniden indirilebilir uygulamalar **asla kopyalanmaz** — yalnızca bir *kurulum listesi* yazılır, böylece yedeğiniz küçük kalır.
 - **Gizli veri deposu dışlama zorunludur:** tarayıcı çerezleri, kayıtlı parolalar, token depoları (`Login Data`, `Local State`, `key4.db`, …) yedeğe **kopyalanmaz**.
-- İnsan tarafından okunabilir **`RAPOR.md`** (rapor) ve **`MANUAL_TODO.md`** (yalnızca *sizin* yapabileceğiniz işler — ör. bir yerde yeniden oturum açma) üretir.
+- İnsan tarafından okunabilir **`REPORT.md`** (rapor) ve **`MANUAL_TODO.md`** (yalnızca *sizin* yapabileceğiniz işler — ör. bir yerde yeniden oturum açma) üretir.
 - Kişisel yedek veriniz uygulamanın **dışında** yaşar, asla repoda durmaz.
 
 ### 📦 Kur — Install / Restore

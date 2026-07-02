@@ -192,7 +192,7 @@ public partial class App : Application
         s.AddSingleton<IEnvironmentExpander, Win32EnvironmentExpander>();
         s.AddSingleton<IManifestLoader, ManifestLoader>();
         s.AddSingleton<BackupPlanner>();
-        // The report writer redacts the username/profile out of RAPOR.md/MANUAL_TODO.md (they land on
+        // The report writer redacts the username/profile out of REPORT.md/MANUAL_TODO.md (they land on
         // external/USB media); ILogRedactor is already registered (LogRedactor.ForCurrentUser) so this auto-wires.
         s.AddSingleton<BackupReportWriter>();
         // Backup integrity ring + headless runner (Step 3). Read-only ports + the integrity writer + the

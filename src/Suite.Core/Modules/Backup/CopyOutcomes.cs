@@ -79,7 +79,7 @@ public sealed record CopyFileOutcome(
 /// <summary>
 /// The shaped skip-report the Backup domain produces from the raw executor outcomes (spec §1.3). The
 /// <c>CopyAdapter</c> performs the IO and the executor records per-action results; this collects them into
-/// a copied/skipped split that <see cref="BackupReportWriter"/> turns into <c>RAPOR.md</c>.
+/// a copied/skipped split that <see cref="BackupReportWriter"/> turns into <c>REPORT.md</c>.
 /// </summary>
 /// <param name="Outcomes">One outcome per planned copy entry, in plan order.</param>
 public sealed record CopySkipReport(IReadOnlyList<CopyFileOutcome> Outcomes)

@@ -1,0 +1,287 @@
+{
+  "entries": [
+    {
+      "id": "saved-games",
+      "enabled": true,
+      "profile": [
+        "general"
+      ],
+      "phase": "backup",
+      "category": "games",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Saved Games",
+      "target": "games/Saved Games",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 5000
+      },
+      "restore": {
+        "order": 70,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "saved-games: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "documents-my-games",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Documents\\My Games",
+      "target": "games/My Games",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 5000
+      },
+      "restore": {
+        "order": 70,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "documents-my-games: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "steam-userdata",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%PROGRAMFILES(X86)%\\Steam\\userdata",
+      "target": "games/Steam-userdata",
+      "include": [],
+      "exclude": [
+        "**/htmlcache/**"
+      ],
+      "requiresClosedProcesses": [
+        "steam"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 5000
+      },
+      "restore": {
+        "order": 71,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "steam-userdata: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "larian-studios",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\Larian Studios",
+      "target": "games/Larian Studios",
+      "include": [],
+      "exclude": [
+        "**/cache/**"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 2000
+      },
+      "restore": {
+        "order": 70,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "larian-studios: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "ea-sports-fc26",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%USERPROFILE%\\Documents\\EA SPORTS FC 26",
+      "target": "games/EA SPORTS FC 26",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1000
+      },
+      "restore": {
+        "order": 70,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "ea-sports-fc26: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "riot-games-config",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\Riot Games",
+      "target": "games/Riot Games",
+      "include": [],
+      "exclude": [
+        "**/Cache/**",
+        "**/logs/**",
+        "**/Logs/**"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 72,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "riot-games-config: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "stardew-valley",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T2",
+      "method": "copy",
+      "source": "%APPDATA%\\StardewValley",
+      "target": "games/StardewValley",
+      "include": [],
+      "exclude": [],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 500
+      },
+      "restore": {
+        "order": 70,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "stardew-valley: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "aseprite-config",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%APPDATA%\\Aseprite",
+      "target": "games/Aseprite",
+      "include": [],
+      "exclude": [
+        "**/cache/**"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 100
+      },
+      "restore": {
+        "order": 73,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "aseprite-config: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "blender-config",
+      "enabled": true,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%APPDATA%\\Blender Foundation",
+      "target": "games/Blender Foundation",
+      "include": [],
+      "exclude": [
+        "**/cache/**"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200
+      },
+      "restore": {
+        "order": 73,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "blender-config: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "qbittorrent-state",
+      "enabled": false,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T3",
+      "method": "copy",
+      "source": "%LOCALAPPDATA%\\qBittorrent",
+      "target": "games/qBittorrent",
+      "include": [],
+      "exclude": [
+        "**/logs/**"
+      ],
+      "requiresClosedProcesses": [
+        "qbittorrent"
+      ],
+      "secretHandling": "normal",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 200
+      },
+      "restore": {
+        "order": 74,
+        "mode": "merge-after-install",
+        "notes": "Restore after the related app is installed; review the generated report before copying back."
+      },
+      "description": "qbittorrent-state: backs up the configured files into the payload while leaving cache and protected secret material excluded."
+    },
+    {
+      "id": "telegram-tdata",
+      "enabled": false,
+      "phase": "backup",
+      "category": "games",
+      "tier": "T0",
+      "method": "copy",
+      "source": "%APPDATA%\\Telegram Desktop\\tdata",
+      "target": "games/Telegram/tdata",
+      "include": [],
+      "exclude": [
+        "user_data/cache/**",
+        "**/temp/**"
+      ],
+      "requiresClosedProcesses": [
+        "Telegram"
+      ],
+      "secretHandling": "never-read",
+      "verify": {
+        "exists": [],
+        "maxSizeMB": 1000
+      },
+      "restore": {
+        "order": 75,
+        "mode": "manual",
+        "notes": "Manual restore only; prefer signing in again or following the checklist."
+      },
+      "description": "telegram-tdata: credential or session material is not copied automatically; use sign-in, sync, or manual export instead.",
+      "uiWarning": "Contains credentials, tokens, or account/session data; do not copy automatically. Sign in again or export manually when needed."
+    }
+  ]
+}

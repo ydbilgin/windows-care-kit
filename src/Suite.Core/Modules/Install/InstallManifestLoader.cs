@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace WindowsCareKit.Core.Modules.Install;
 
 /// <summary>
-/// Parses <c>90-kurulum.json</c> into a typed <see cref="InstallManifest"/> and assigns each entry a
+/// Parses <c>90-install.json</c> into a typed <see cref="InstallManifest"/> and assigns each entry a
 /// deterministic <see cref="InstallEntry.RestoreOrder"/> from the spec §1.4 restore sequence
 /// (driver(net) → winget → core tools → AI CLI → IDE → browser → launcher → WSL → registry → tasks).
 /// Pure: it only reads/parses JSON; it emits no plan and touches nothing destructive.
@@ -24,18 +24,28 @@ public sealed class InstallManifestLoader : IInstallManifestLoader
     /// </summary>
     private static readonly string[] CategoryOrder =
     {
+        "network-driver",  // driver (net) — Class=Net only, guarded
         "ag-surucusu",     // driver (net) — Class=Net only, guarded
         "surucu",          // generic driver alias
         "winget",          // winget core
+        "system",          // core system tools
         "sistem",          // core system tools
+        "tools",           // general tools
         "arac",            // general tools
+        "developer",       // developer core (Node lives here → must precede AI CLI)
         "gelistirici",     // developer core (Node lives here → must precede AI CLI)
         "ai-cli",          // AI CLI (npm) — after Node + PATH refresh
+        "browser",         // browser
         "tarayici",        // browser
+        "communication",   // communication
         "iletisim",        // communication
+        "notes",           // notes
         "notlar",          // notes
+        "design",          // design
         "tasarim",         // design
+        "game-launcher",   // game launchers
         "oyun-launcher",   // game launchers
+        "games",           // games
         "oyunlar",         // games
         "wsl",             // WSL
         "config",          // config / registry restore
@@ -120,7 +130,7 @@ public sealed class InstallManifestLoader : IInstallManifestLoader
     private static string? NullIfBlank(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    // ---- JSON DTOs (mirror the on-disk 90-kurulum.json schema) ----
+    // ---- JSON DTOs (mirror the on-disk 90-install.json schema) ----
 
     private sealed class ManifestDto
     {

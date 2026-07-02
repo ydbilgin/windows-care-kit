@@ -14,7 +14,7 @@ namespace WindowsCareKit.App.ViewModels;
 /// The Yedekle (Backup) view-model (spec §1.3). Flow: choose a payload folder OUTSIDE the app → load the
 /// manifest → build a dry-run plan of <see cref="CopyAction"/>s (secrets are never copied) → preview with
 /// <see cref="PlanRow"/> → explicit approve → execute via <see cref="BackupRunner"/> → write/show
-/// <c>RAPOR.md</c> + <c>MANUAL_TODO.md</c>. Nothing copies until the user approves the previewed plan and the
+/// <c>REPORT.md</c> + <c>MANUAL_TODO.md</c>. Nothing copies until the user approves the previewed plan and the
 /// approved hash matches at execution time. There is no other execution path.
 /// </summary>
 public sealed class BackupViewModel : ObservableObject

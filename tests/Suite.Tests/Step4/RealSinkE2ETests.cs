@@ -248,7 +248,7 @@ public class RealSinkE2ETests
     // ----------------------------------------------------------------------------------------------------
     // A5. BackupRunner real-copy integrity bridge: a hand-built BackupPlanResult (one real CopyAction) driven
     // through BackupRunner + BackupExecutorAdapter(realGatedExecutor) + BackupIntegrityWriter + Sha256Hasher.
-    // Proves the Step3→Step4 bridge: backup_integrity.json + RAPOR.md + the real copy + matching SHA-256.
+    // Proves the Step3→Step4 bridge: backup_integrity.json + REPORT.md + the real copy + matching SHA-256.
     // ----------------------------------------------------------------------------------------------------
 
     [Fact]

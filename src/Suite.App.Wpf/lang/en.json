@@ -242,6 +242,7 @@
   "migration.item.reason.lockedNow": "in use - close {0} and re-scan",
   "migration.item.reason.lockedNow.generic": "in use - close the app and re-scan",
   "migration.item.forced": "Selected to prevent silent data loss",
+  "migration.item.forcedTooltip": "required — always carried",
   "migration.preview.title": "Exact command preview",
   "migration.preview.body": "Preview-only strings are generated from the selection. No copy or restore runs here.",
   "migration.manual.title": "Manual steps for the new PC",

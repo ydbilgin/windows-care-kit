@@ -54,9 +54,9 @@
             </Grid>
         </Border>
 
-        <!-- Row 2: horizontal module tab strip (4 modules + far-right Settings) -->
+        <!-- Row 2: horizontal module tab strip. It can grow to two rows at narrow widths instead of clipping. -->
         <Border Grid.Row="1" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
-                BorderThickness="0,0,0,1" Height="58">
+                BorderThickness="0,0,0,1" MinHeight="58">
             <ListBox Style="{StaticResource TopNavList}" ItemContainerStyle="{StaticResource TopNavTab}"
                      ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}" Padding="10,0,10,0" />
         </Border>

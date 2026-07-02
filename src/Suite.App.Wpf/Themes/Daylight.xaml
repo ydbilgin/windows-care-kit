@@ -251,16 +251,17 @@
     </Style>
 
     <!-- ===== Top module tab strip (horizontal nav) ===== -->
-    <!-- The four module tabs flow left-to-right; the Settings tab docks right (LastChildFill=False). -->
+    <!-- Tabs wrap at narrower widths so the final Settings entry is never clipped. -->
     <Style x:Key="TopNavList" TargetType="ListBox">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
         <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="ItemsPanel">
             <Setter.Value>
                 <ItemsPanelTemplate>
-                    <DockPanel LastChildFill="False" />
+                    <WrapPanel />
                 </ItemsPanelTemplate>
             </Setter.Value>
         </Setter>
@@ -315,7 +316,6 @@
 
     <!-- Picks the module vs. settings inner template from NavItem.IsSettings. -->
     <Style x:Key="TopNavTab" TargetType="ListBoxItem">
-        <Setter Property="DockPanel.Dock" Value="Left" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="ContentTemplate" Value="{StaticResource TopNavModuleTemplate}" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -324,7 +324,7 @@
                 <ControlTemplate TargetType="ListBoxItem">
                     <!-- Bd carries hover/selected fill; Underline is the 2px gold active affordance. -->
                     <Border x:Name="Bd" Background="Transparent" CornerRadius="9,9,0,0"
-                            Padding="18,0" Margin="2,6,2,0" SnapsToDevicePixels="True">
+                            Padding="12,0" Margin="2,6,2,0" MinHeight="46" SnapsToDevicePixels="True">
                         <Border x:Name="Underline" BorderBrush="Transparent" BorderThickness="0,0,0,2">
                             <ContentPresenter VerticalAlignment="Center" />
                         </Border>
@@ -337,9 +337,8 @@
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource Bg.PanelAlt}" />
                             <Setter TargetName="Underline" Property="BorderBrush" Value="{StaticResource Gold.Bright}" />
                         </Trigger>
-                        <!-- Settings = far-right, quiet, icon-only template. -->
+                        <!-- Settings = quiet, compact template. -->
                         <DataTrigger Binding="{Binding IsSettings}" Value="True">
-                            <Setter Property="DockPanel.Dock" Value="Right" />
                             <Setter Property="ContentTemplate" Value="{StaticResource TopNavSettingsTemplate}" />
                             <Setter TargetName="Bd" Property="Padding" Value="13,0" />
                         </DataTrigger>

@@ -1,7 +1,7 @@
 namespace WindowsCareKit.Core.Modules.Install;
 
 /// <summary>
-/// Loads the reinstall manifest (<c>90-kurulum.json</c>) into the typed <see cref="InstallManifest"/>.
+/// Loads the reinstall manifest (<c>90-install.json</c>) into the typed <see cref="InstallManifest"/>.
 /// Declared as its own contract (not reusing the Backup <c>IManifestLoader</c>) so the two modules stay
 /// decoupled (contract §C.2). Reading the JSON is the only IO here — it is read-only.
 /// </summary>
