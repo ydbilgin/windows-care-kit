@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Tests.Execution;
 using Xunit;
 
@@ -8,6 +9,19 @@ namespace WindowsCareKit.Tests;
 public class GatedExecutorDispatchTests
 {
     private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void EmptyRecycleBinAction_defaults_to_high_risk_no_undo_and_is_explicitly_allowed_by_the_gate()
+    {
+        var action = new EmptyRecycleBinAction { Description = "empty recycle bin", Reason = "test" };
+
+        Assert.Equal(RiskLevel.High, action.Risk);
+        Assert.Equal(UndoCapability.None, action.Undo);
+        Assert.Equal("recyclebin.empty", action.Kind);
+
+        SafetyVerdict verdict = TestData.Gate().Evaluate(action);
+        Assert.True(verdict.Allowed, verdict.Reason);
+    }
 
     [Fact]
     public void Routes_each_action_type_to_the_right_adapter_in_plan_order()
@@ -22,9 +36,10 @@ public class GatedExecutorDispatchTests
         var cmd = TestData.Command(@"C:\Program Files\SomeApp\unins000.exe", "/S"); // rooted, gate-allowed
         var copy = TestData.Copy(@"C:\src\a.txt", @"D:\backup\a.txt");
         var merge = TestData.Restore(@"C:\src\b.txt", @"D:\dest\b.txt");
+        var emptyBin = new EmptyRecycleBinAction { Description = "empty recycle bin", Reason = "test" };
 
         var plan = new OperationPlan("t", "uninstall",
-            new PlannedAction[] { file, reg, svc, task, cmd, copy, merge }, T0);
+            new PlannedAction[] { file, reg, svc, task, cmd, copy, merge, emptyBin }, T0);
 
         var report = fx.Executor.ExecuteWithReport(plan, plan.ComputeHash());
 
@@ -40,6 +55,7 @@ public class GatedExecutorDispatchTests
             $"copy:{copy.Id}",
             $"merge:{merge.Id}",
         }, fx.Adapters.Calls);
+        Assert.Equal(1, fx.RecycleBinEmptier.CallCount);
     }
 
     [Fact]

@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.IO;
-using System.Security.Principal;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.Localization;
@@ -110,9 +109,13 @@ public partial class App : Application
 
         // Safety core
         s.AddSingleton<IPathCanonicalizer, Win32PathCanonicalizer>();
+        s.AddSingleton<ICurrentSidProvider, Win32CurrentSidProvider>();
         s.AddSingleton(_ => ProtectedResources.ForCurrentSystem());
         s.AddSingleton<ISafetyGate>(sp =>
-            new SafetyGate(sp.GetRequiredService<ProtectedResources>(), sp.GetRequiredService<IPathCanonicalizer>()));
+            new SafetyGate(
+                sp.GetRequiredService<ProtectedResources>(),
+                sp.GetRequiredService<IPathCanonicalizer>(),
+                sp.GetRequiredService<ICurrentSidProvider>()));
 
         // Logging + execution (the one sanctioned destructive layer — §A / §C.0).
         // Logs/backups live under per-user %LocalAppData% (not the app folder): writable even when installed
@@ -140,9 +143,18 @@ public partial class App : Application
         s.AddSingleton<IRestorePointCreator>(sp =>
             new Win32RestorePointCreator(sp.GetRequiredService<IRestorePointCapabilityProbe>()));
         // Register the concrete GatedExecutor once (CleanViewModel needs the concrete type for
-        // ExecuteWithReport) and alias IExecutor to that same instance. The IRestorePointCreator above is
-        // resolved into its (optional) ctor param.
-        s.AddSingleton<GatedExecutor>();
+        // ExecuteWithReport) and alias IExecutor to that same instance.
+        s.AddSingleton(sp => new GatedExecutor(
+            sp.GetRequiredService<ISafetyGate>(),
+            sp.GetRequiredService<ExecutionLog>(),
+            sp.GetRequiredService<IFileDeleteAdapter>(),
+            sp.GetRequiredService<IRegistryAdapter>(),
+            sp.GetRequiredService<IServiceAdapter>(),
+            sp.GetRequiredService<ITaskAdapter>(),
+            sp.GetRequiredService<IProcessAdapter>(),
+            sp.GetRequiredService<ICopyAdapter>(),
+            sp.GetRequiredService<IRestorePointCreator>(),
+            sp.GetRequiredService<IRecycleBinEmptier>()));
         s.AddSingleton<IExecutor>(sp => sp.GetRequiredService<GatedExecutor>());
 
         // Uninstall module (read-only readers + probe + per-user AppX remover).
@@ -173,8 +185,10 @@ public partial class App : Application
         s.AddSingleton<IRecipeFileSystem, Win32RecipeFileSystem>();
         s.AddSingleton<IProgramSource>(sp => new RegistryUninstallSource(
             sp.GetRequiredService<IInstalledAppReader>(), new Win32PathCanonicalizer()));
-        s.AddSingleton<IProgramSource>(_ => new MsiProductSource(
-            new Win32MsiCatalog(), new Win32PathCanonicalizer(), CurrentUserSid()));
+        s.AddSingleton<IProgramSource>(sp => new MsiProductSource(
+            new Win32MsiCatalog(),
+            new Win32PathCanonicalizer(),
+            sp.GetRequiredService<ICurrentSidProvider>().GetCurrentSid()));
         s.AddSingleton<IProgramSource>(sp => new AppxProgramSource(
             sp.GetRequiredService<IAppxReader>(), new Win32PathCanonicalizer()));
         s.AddSingleton<IProgramSource>(sp => new AppPathsSource(
@@ -242,16 +256,4 @@ public partial class App : Application
         s.AddSingleton<MainViewModel>();
     }
 
-    private static string? CurrentUserSid()
-    {
-        try
-        {
-            using WindowsIdentity identity = WindowsIdentity.GetCurrent();
-            return identity.User?.Value;
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }

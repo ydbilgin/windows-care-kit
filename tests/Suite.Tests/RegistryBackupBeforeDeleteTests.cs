@@ -124,6 +124,67 @@ public class RegistryBackupBeforeDeleteTests
         Assert.DoesNotContain(@"\Software\Vendor\App", writer.LastDestination); // backslashes sanitized out of the file name
     }
 
+    [Fact]
+    public void Same_key_value_deletes_get_distinct_value_scoped_backup_files_and_preserve_both_values()
+    {
+        string backupDir = Path.Combine(Path.GetTempPath(), "wck-regbak-" + Guid.NewGuid().ToString("N"));
+        string sub = @"Software\WindowsCareKit.Tests\regbak-collision-" + Guid.NewGuid().ToString("N");
+        var fixedUtc = new DateTime(2026, 7, 2, 12, 34, 56, DateTimeKind.Utc).AddTicks(1234567);
+        var fixedGuid = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        var adapter = new RegistryDeleteAdapter(
+            backupDir,
+            new RegFileBackupWriter(),
+            utcNow: () => fixedUtc,
+            newGuid: () => fixedGuid);
+
+        try
+        {
+            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(sub)!)
+            {
+                key.SetValue("FirstValue", "first-content");
+                key.SetValue("SecondValue", "second-content");
+            }
+
+            adapter.Delete(new RegistryDeleteAction
+            {
+                Hive = CoreHive.CurrentUser,
+                SubKeyPath = sub,
+                ValueName = "FirstValue",
+                View = CoreView.Registry64,
+                Description = "delete first value",
+                Reason = "test",
+            });
+            adapter.Delete(new RegistryDeleteAction
+            {
+                Hive = CoreHive.CurrentUser,
+                SubKeyPath = sub,
+                ValueName = "SecondValue",
+                View = CoreView.Registry64,
+                Description = "delete second value",
+                Reason = "test",
+            });
+
+            string[] files = Directory.GetFiles(backupDir, "*.reg");
+            Assert.Equal(2, files.Length);
+            Assert.Equal(2, files.Select(Path.GetFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.Contains(files, f => Path.GetFileName(f).Contains("value_FirstValue", StringComparison.Ordinal));
+            Assert.Contains(files, f => Path.GetFileName(f).Contains("value_SecondValue", StringComparison.Ordinal));
+
+            string firstBackup = File.ReadAllText(files.Single(f => Path.GetFileName(f).Contains("value_FirstValue", StringComparison.Ordinal)));
+            string secondBackup = File.ReadAllText(files.Single(f => Path.GetFileName(f).Contains("value_SecondValue", StringComparison.Ordinal)));
+            Assert.Contains("\"FirstValue\"=\"first-content\"", firstBackup);
+            Assert.DoesNotContain("SecondValue", firstBackup);
+            Assert.Contains("\"SecondValue\"=\"second-content\"", secondBackup);
+            Assert.DoesNotContain("FirstValue", secondBackup);
+        }
+        finally
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(sub, throwOnMissingSubKey: false);
+            if (Directory.Exists(backupDir))
+                Directory.Delete(backupDir, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData(@"Software\Vendor\App", null, "App")]                 // key delete → last segment
     [InlineData(@"Software\Vendor\App", "Vendor", "App")]

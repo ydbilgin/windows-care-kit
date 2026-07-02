@@ -223,14 +223,18 @@ public sealed class CopyAdapter : ICopyAdapter
                 if (File.Exists(longDest))
                 {
                     // Atomic in-place swap; no separate backup here (.bak already taken by Merge).
+#pragma warning disable RS0030 // Sanctioned atomic restore sink (Suite.Execution): File.Replace swaps staged bytes after gate-approved merge.
                     File.Replace(staging, longDest, destinationBackupFileName: null);
+#pragma warning restore RS0030
                 }
                 else
                 {
                     // No destination yet: create an empty placeholder, then atomically swap the staged
                     // content onto it. This keeps the create path atomic too (no torn first write).
                     using (File.Create(longDest)) { }
+#pragma warning disable RS0030 // Sanctioned atomic restore sink (Suite.Execution): File.Replace creates the first destination from staged bytes.
                     File.Replace(staging, longDest, destinationBackupFileName: null);
+#pragma warning restore RS0030
                 }
                 return;
             }

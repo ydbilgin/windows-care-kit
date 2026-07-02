@@ -195,12 +195,13 @@ public class LeftoverClassifierTests
     [Fact]
     public void Vendor_shaped_key_in_hku_is_shared_not_program_owned()
     {
-        // HKU\<SID>\Software\<Publisher>\<DisplayName> — wrong hive for both per-user and machine-wide → Shared.
+        // HKU\<current SID>\Software\<Publisher>\<DisplayName> — wrong hive for both per-user and machine-wide
+        // but gate-allowed because it is the current user's HKU hive → Shared.
         var app = TestData.App(displayName: "SomeApp", publisher: "SomeVendor",
             source: InstalledAppSource.CurrentUser);
         var probe = new FakeLeftoverProbe();
         probe.RegistryKeys.Add(new LeftoverRegistryKey(RegistryHive.Users,
-            @"S-1-5-21-1\SOFTWARE\SomeVendor\SomeApp", RegistryView.Registry64, "vendor-shaped key in HKU"));
+            TestData.CurrentUserSid + @"\SOFTWARE\SomeVendor\SomeApp", RegistryView.Registry64, "vendor-shaped key in HKU"));
 
         var candidates = new LeftoverClassifier().Classify(app, Scan(probe, app));
         var c = Candidate(candidates, a => a is RegistryDeleteAction);

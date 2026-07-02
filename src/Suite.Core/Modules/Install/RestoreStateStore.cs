@@ -112,7 +112,9 @@ public sealed class RestoreStateStore : IRestoreStateStore
         if (!File.Exists(path))
             using (File.Create(path)) { }
 
+#pragma warning disable RS0030 // Sanctioned own-file atomic checkpoint seam: replace only the Suite-owned restore state file.
         File.Replace(staging, path, destinationBackupFileName: null);
+#pragma warning restore RS0030
     }
 
     // ---- JSON DTOs ----

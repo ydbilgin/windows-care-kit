@@ -26,7 +26,6 @@ public sealed class CleanViewModel : ObservableObject
     private readonly IStartupProbe _startupProbe;
     private readonly IBrowserExtensionInventory _extensions;
     private readonly IRecycleBinService _recycleBin;
-    private readonly IRecycleBinEmptier _recycleBinEmptier;
     private readonly IFolderOpener _folderOpener;
     private readonly ISafetyGate _gate;
     private readonly GatedExecutor _executor;
@@ -46,7 +45,6 @@ public sealed class CleanViewModel : ObservableObject
         IStartupProbe startupProbe,
         IBrowserExtensionInventory extensions,
         IRecycleBinService recycleBin,
-        IRecycleBinEmptier recycleBinEmptier,
         IFolderOpener folderOpener,
         ISafetyGate gate,
         GatedExecutor executor)
@@ -56,7 +54,6 @@ public sealed class CleanViewModel : ObservableObject
         _startupProbe = startupProbe ?? throw new ArgumentNullException(nameof(startupProbe));
         _extensions = extensions ?? throw new ArgumentNullException(nameof(extensions));
         _recycleBin = recycleBin ?? throw new ArgumentNullException(nameof(recycleBin));
-        _recycleBinEmptier = recycleBinEmptier ?? throw new ArgumentNullException(nameof(recycleBinEmptier));
         _folderOpener = folderOpener ?? throw new ArgumentNullException(nameof(folderOpener));
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
@@ -244,19 +241,25 @@ public sealed class CleanViewModel : ObservableObject
     private async Task ConfirmEmptyRecycleAsync()
     {
         RecycleConfirmPending = false;
-        IsBusy = true;
+        var plan = new OperationPlan(
+            "Empty Recycle Bin",
+            "clean",
+            new PlannedAction[]
+            {
+                new EmptyRecycleBinAction
+                {
+                    Description = "Empty the Recycle Bin on all drives",
+                    Reason = "User approved irreversible Recycle Bin empty",
+                },
+            },
+            DateTime.UtcNow);
+
         try
         {
-            await Task.Run(() => _recycleBinEmptier.EmptyAll()); // logs the irreversible action itself
-            ResultSummary = I18n.Format("clean.result.summary", 1, 0, 0);
-        }
-        catch (Exception ex)
-        {
-            ResultSummary = $"{ex.GetType().Name}: {ex.Message}";
+            await RunPlanAsync(plan);
         }
         finally
         {
-            IsBusy = false;
             await RefreshRecycleAsync();
         }
     }

@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Execution.Adapters;
 
@@ -70,4 +71,11 @@ internal sealed class RecordingAdapters
 
         public void Merge(RestoreMergeAction action) => o.Hit("merge", action);
     }
+}
+
+internal sealed class RecordingRecycleBinEmptier : IRecycleBinEmptier
+{
+    public int CallCount { get; private set; }
+
+    public void EmptyAll() => CallCount++;
 }

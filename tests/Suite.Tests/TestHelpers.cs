@@ -32,9 +32,17 @@ internal sealed class FakeCanonicalizer : IPathCanonicalizer
         => _longPathMap.TryGetValue(path, out var expanded) ? expanded : System.IO.Path.GetFullPath(path);
 }
 
+internal sealed class FakeCurrentSidProvider(string? sid = TestData.CurrentUserSid) : ICurrentSidProvider
+{
+    public string? GetCurrentSid() => sid;
+}
+
 /// <summary>Shared deterministic policy + action factories for the tests.</summary>
 internal static class TestData
 {
+    public const string CurrentUserSid = "S-1-5-21-1234567890-1001";
+    public const string OtherUserSid = "S-1-5-21-1234567890-2002";
+
     public static ProtectedResources Policy() => new(
         protectedDirectories: new[]
         {
@@ -51,8 +59,8 @@ internal static class TestData
         usersRoot: @"C:\Users",
         currentUserProfile: @"C:\Users\alice");
 
-    public static SafetyGate Gate(IPathCanonicalizer? canon = null)
-        => new(Policy(), canon ?? new FakeCanonicalizer());
+    public static SafetyGate Gate(IPathCanonicalizer? canon = null, string? currentSid = CurrentUserSid)
+        => new(Policy(), canon ?? new FakeCanonicalizer(), new FakeCurrentSidProvider(currentSid));
 
     public static FileDeleteAction FileDelete(string path, bool recycle = true)
         => new() { Path = path, ToRecycleBin = recycle, Description = "delete " + path, Reason = "test" };

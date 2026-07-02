@@ -15,11 +15,13 @@ public sealed class SafetyGate : ISafetyGate
 {
     private readonly ProtectedResources _policy;
     private readonly IPathCanonicalizer _canonicalizer;
+    private readonly ICurrentSidProvider _currentSidProvider;
 
-    public SafetyGate(ProtectedResources policy, IPathCanonicalizer canonicalizer)
+    public SafetyGate(ProtectedResources policy, IPathCanonicalizer canonicalizer, ICurrentSidProvider? currentSidProvider = null)
     {
         _policy = policy ?? throw new ArgumentNullException(nameof(policy));
         _canonicalizer = canonicalizer ?? throw new ArgumentNullException(nameof(canonicalizer));
+        _currentSidProvider = currentSidProvider ?? NullCurrentSidProvider.Instance;
     }
 
     public SafetyVerdict Evaluate(PlannedAction action) => action switch
@@ -31,6 +33,9 @@ public sealed class SafetyGate : ISafetyGate
         CommandAction c => EvaluateCommand(c),
         CopyAction cp => EvaluateWriteTarget(cp.Destination, "copy destination"),
         RestoreMergeAction rm => EvaluateWriteTarget(rm.Destination, "restore destination"),
+        // Emptying the whole Recycle Bin is an all-drives permanent delete. It has no path under a protected
+        // resource to evaluate, so it must be admitted by this explicit high-risk action arm only.
+        EmptyRecycleBinAction => SafetyVerdict.Allow("empty recycle bin (explicit all-drives operation)"),
         // Creating a System Restore point is a pure system call that ADDS rollback state — it mutates no
         // protected resource, so it is allowed outright (UI decision §5(a)). This is an EXPLICIT arm, not a
         // catch-all: an unknown/unmodeled action type still falls through to the fail-closed `_ => Block`.
@@ -202,7 +207,7 @@ public sealed class SafetyGate : ISafetyGate
     /// Map a (hive, subkey) to the software-rooted form the policy tables expect. Returns false (with a Block
     /// verdict) for hives the policy does not model, so the gate fails closed instead of allowing.
     /// </summary>
-    private static bool TryEffectiveRegistryPath(RegistryHive hive, string? subKey, out string effective, out SafetyVerdict? block)
+    private bool TryEffectiveRegistryPath(RegistryHive hive, string? subKey, out string effective, out SafetyVerdict? block)
     {
         block = null;
         string sub = ProtectedResources.NormalizeRegistry(subKey);
@@ -217,7 +222,8 @@ public sealed class SafetyGate : ISafetyGate
                 effective = sub.Length == 0 ? "software\\classes" : "software\\classes\\" + sub;
                 return true;
             case RegistryHive.Users:
-                // HKU paths are "<SID>\Software\…"; strip the SID and evaluate the per-user remainder.
+                // HKU paths are "<SID>\Software\…". Only the current user's SID is in scope; template and
+                // service hives are always protected.
                 if (sub.Length == 0)
                 {
                     effective = string.Empty;
@@ -231,6 +237,30 @@ public sealed class SafetyGate : ISafetyGate
                     block = SafetyVerdict.Block("HKU without a user subkey");
                     return false;
                 }
+
+                string sid = sub[..slash];
+                if (IsBlockedHkuSid(sid))
+                {
+                    effective = string.Empty;
+                    block = SafetyVerdict.Block("protected HKU service/template hive");
+                    return false;
+                }
+
+                string currentSid = ProtectedResources.NormalizeRegistry(_currentSidProvider.GetCurrentSid());
+                if (currentSid.Length == 0)
+                {
+                    effective = string.Empty;
+                    block = SafetyVerdict.Block("current user SID unavailable");
+                    return false;
+                }
+
+                if (!string.Equals(sid, currentSid, StringComparison.OrdinalIgnoreCase))
+                {
+                    effective = string.Empty;
+                    block = SafetyVerdict.Block("HKU SID is not the current user");
+                    return false;
+                }
+
                 effective = sub[(slash + 1)..];
                 return true;
             default:
@@ -239,6 +269,12 @@ public sealed class SafetyGate : ISafetyGate
                 return false;
         }
     }
+
+    private static bool IsBlockedHkuSid(string sid)
+        => sid.Equals(".default", StringComparison.OrdinalIgnoreCase)
+           || sid.Equals("s-1-5-18", StringComparison.OrdinalIgnoreCase)
+           || sid.Equals("s-1-5-19", StringComparison.OrdinalIgnoreCase)
+           || sid.Equals("s-1-5-20", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Value deletes are allowed broadly (vendor settings, startup entries) EXCEPT inside a small set
@@ -547,5 +583,11 @@ public sealed class SafetyGate : ISafetyGate
             normalized = string.Empty;
             return false;
         }
+    }
+
+    private sealed class NullCurrentSidProvider : ICurrentSidProvider
+    {
+        public static readonly NullCurrentSidProvider Instance = new();
+        public string? GetCurrentSid() => null;
     }
 }

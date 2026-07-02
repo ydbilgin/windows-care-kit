@@ -74,6 +74,20 @@ public sealed record FileDeleteAction : PlannedAction
         => $"{Kind}|{Path.ToLowerInvariant()}|recycle={ToRecycleBin}";
 }
 
+/// <summary>Empty the Windows Recycle Bin for all drives. Irreversible: high risk, no undo.</summary>
+public sealed record EmptyRecycleBinAction : PlannedAction
+{
+    public EmptyRecycleBinAction()
+    {
+        Risk = RiskLevel.High;
+        Undo = UndoCapability.None;
+    }
+
+    public override string Kind => "recyclebin.empty";
+    public override string TargetSignature()
+        => $"{Kind}|all-drives";
+}
+
 /// <summary>Delete a registry key, or a single value when <see cref="ValueName"/> is set.</summary>
 public sealed record RegistryDeleteAction : PlannedAction
 {

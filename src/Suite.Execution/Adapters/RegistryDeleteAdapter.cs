@@ -24,6 +24,18 @@ public interface IRegBackupWriter
     void WriteBackup(string destinationPath, CoreHive hive, CoreView view, string subKeyPath, string? valueName);
 }
 
+/// <summary>Raised when a generated registry-backup destination already exists and the caller should retry.</summary>
+internal sealed class RegBackupCollisionException : IOException
+{
+    public RegBackupCollisionException(string path, Exception inner)
+        : base($"Registry backup file already exists: {path}", inner)
+    {
+        Path = path;
+    }
+
+    public string Path { get; }
+}
+
 /// <summary>
 /// Deletes a registry value or key — but always EXPORTS a <c>.reg</c> backup FIRST. If the backup cannot
 /// be written, the delete is refused (fail closed: no backup → no delete). The 64/32 view is honored
@@ -32,8 +44,13 @@ public interface IRegBackupWriter
 /// </summary>
 public sealed class RegistryDeleteAdapter : IRegistryAdapter
 {
+    private const int MaxBackupPathAttempts = 5;
+    private static readonly TimeSpan BackupPathRetryDelay = TimeSpan.FromMilliseconds(10);
+
     private readonly IRegBackupWriter _backupWriter;
     private readonly string _backupDir;
+    private readonly Func<DateTime> _utcNow;
+    private readonly Func<Guid> _newGuid;
 
     /// <summary>
     /// Default executor wiring: backups land under <c>&lt;logDir&gt;\regbak</c> when the action does not
@@ -45,10 +62,16 @@ public sealed class RegistryDeleteAdapter : IRegistryAdapter
     }
 
     /// <summary>Test/seam ctor allowing a fake backup writer.</summary>
-    public RegistryDeleteAdapter(string backupDir, IRegBackupWriter backupWriter)
+    public RegistryDeleteAdapter(
+        string backupDir,
+        IRegBackupWriter backupWriter,
+        Func<DateTime>? utcNow = null,
+        Func<Guid>? newGuid = null)
     {
         _backupDir = backupDir ?? throw new ArgumentNullException(nameof(backupDir));
         _backupWriter = backupWriter ?? throw new ArgumentNullException(nameof(backupWriter));
+        _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        _newGuid = newGuid ?? Guid.NewGuid;
     }
 
     /// <inheritdoc />
@@ -56,18 +79,32 @@ public sealed class RegistryDeleteAdapter : IRegistryAdapter
     {
         ArgumentNullException.ThrowIfNull(action);
 
+        string baseFull = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_backupDir));
+
         // 1) The backup path is ALWAYS derived by the adapter under its own regbak dir — never taken from the
         //    (publicly settable) action.BackupRegFile, which would be an un-gated arbitrary-path write sink.
-        string backupPath = ResolveBackupPath(action);
+        //    CreateNew collisions retry with a fresh high-resolution stamp/Guid. Any other backup failure
+        //    still fails closed before the delete.
+        for (int attempt = 1; ; attempt++)
+        {
+            string backupPath = ResolveBackupPath(action);
 
-        // Defense in depth: the resolved path must stay under the regbak base (no traversal).
-        string baseFull = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_backupDir));
-        string backupFull = Path.GetFullPath(backupPath);
-        if (!backupFull.StartsWith(baseFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Registry backup path escaped the backup directory.");
+            // Defense in depth: the resolved path must stay under the regbak base (no traversal).
+            string backupFull = Path.GetFullPath(backupPath);
+            if (!backupFull.StartsWith(baseFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Registry backup path escaped the backup directory.");
 
-        // 2) Export the backup FIRST. Any failure here means NO delete (fail closed).
-        _backupWriter.WriteBackup(backupPath, action.Hive, action.View, action.SubKeyPath, action.ValueName);
+            try
+            {
+                // 2) Export the backup FIRST. Any failure here means NO delete (fail closed).
+                _backupWriter.WriteBackup(backupPath, action.Hive, action.View, action.SubKeyPath, action.ValueName);
+                break;
+            }
+            catch (RegBackupCollisionException) when (attempt < MaxBackupPathAttempts)
+            {
+                Thread.Sleep(BackupPathRetryDelay);
+            }
+        }
 
         // 3) Delete, honoring the 64/32 view.
         using RegistryKey baseKey = RegistryKey.OpenBaseKey(MapHive(action.Hive), MapView(action.View));
@@ -101,9 +138,13 @@ public sealed class RegistryDeleteAdapter : IRegistryAdapter
 
     private string ResolveBackupPath(RegistryDeleteAction action)
     {
-        string stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
-        string sanitized = Sanitize(action.SubKeyPath);
-        return Path.Combine(_backupDir, $"{stamp}_{sanitized}.reg");
+        string stamp = _utcNow().ToString("yyyyMMdd_HHmmssfffffff", CultureInfo.InvariantCulture);
+        string key = Sanitize(action.SubKeyPath);
+        string target = action.ValueName is null
+            ? "key"
+            : "value_" + Sanitize(action.ValueName.Length == 0 ? "default" : action.ValueName);
+        string suffix = _newGuid().ToString("N")[..8];
+        return Path.Combine(_backupDir, $"{stamp}_{key}_{target}_{suffix}.reg");
     }
 
     internal static string Sanitize(string subKeyPath)
