@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Xml.Linq;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Selection;
@@ -29,6 +30,85 @@ public sealed class MigrationLocalizationTests
         }
 
         Assert.Empty(orphanKeys);
+    }
+
+    [Fact]
+    public void Shipped_language_files_define_identical_key_sets()
+    {
+        string langDir = LangDir();
+        string[] english = ReadKeys(Path.Combine(langDir, "en.json")).Order().ToArray();
+
+        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
+        {
+            string code = Path.GetFileNameWithoutExtension(file);
+            string[] keys = ReadKeys(file).Order().ToArray();
+
+            Assert.Equal(english, keys);
+        }
+    }
+
+    [Fact]
+    public void Backup_screen_localization_keys_exist_and_view_has_no_literal_text_labels()
+    {
+        string langDir = LangDir();
+        string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "Views", "BackupView.xaml");
+        string xaml = File.ReadAllText(viewPath);
+        string[] expected =
+        [
+            "backup.report.title",
+            "backup.report.manual",
+            "backup.report.skipped",
+            "backup.report.copied",
+            "backup.dryRun.badge",
+            "backup.dryRun.caption",
+            "backup.row.cantCarry",
+            "backup.row.medChip",
+            "backup.row.skipChip",
+            "backup.count.toCopy",
+            "backup.count.manual",
+            "backup.count.skipped",
+            "backup.summary.title",
+            "backup.summary.toCopy",
+            "backup.summary.manual",
+            "backup.summary.skipped",
+            "backup.summary.destination",
+            "backup.summary.trustPrefix",
+            "backup.summary.trustStrong",
+            "backup.summary.statusPrefix",
+            "backup.summary.statusDryRun",
+            "backup.footer",
+        ];
+
+        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
+        {
+            HashSet<string> keys = ReadKeys(file);
+            Assert.All(expected, key => Assert.Contains(key, keys));
+        }
+
+        Assert.All(expected, key => Assert.Contains($"I18n[{key}]", xaml));
+        Assert.DoesNotContain("backup.plan.willCopy", xaml);
+        Assert.Empty(UserVisibleLiteralAttributes(viewPath));
+    }
+
+    [Fact]
+    public void Backup_result_rows_bind_chip_brush_to_row_outcome()
+    {
+        string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "Views", "BackupView.xaml");
+        XNamespace xamlNs = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XDocument document = XDocument.Load(viewPath);
+        XElement resultTemplate = document.Descendants()
+            .Single(e => e.Name.LocalName == "DataTemplate" &&
+                         (string?)e.Attribute(xamlNs + "Key") == "ResultRowTemplate");
+
+        Assert.Contains(resultTemplate.Descendants(), e =>
+            e.Name.LocalName == "Border" &&
+            (string?)e.Attribute("Background") == "{Binding RiskBrush}" &&
+            (string?)e.Attribute("BorderBrush") == "{Binding RiskBrush}");
+
+        Assert.Contains(document.Descendants(), e =>
+            e.Name.LocalName == "ItemsControl" &&
+            (string?)e.Attribute("ItemsSource") == "{Binding ResultRows}" &&
+            (string?)e.Attribute("ItemTemplate") == "{StaticResource ResultRowTemplate}");
     }
 
     // Orphan checks alone would still pass if a key were missing from every file. The runtime
@@ -180,6 +260,20 @@ public sealed class MigrationLocalizationTests
         return document.RootElement.EnumerateObject()
             .Select(property => property.Name)
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static string[] UserVisibleLiteralAttributes(string path)
+    {
+        XDocument document = XDocument.Load(path);
+        return document.Descendants()
+            .Attributes()
+            .Where(attribute => attribute.Name.LocalName is "Text" or "Content" or "Header")
+            .Select(attribute => attribute.Value.Trim())
+            .Where(value => value.Length > 0 &&
+                            !value.StartsWith("{Binding", StringComparison.Ordinal) &&
+                            value.Any(char.IsLetter))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static string LangDir()

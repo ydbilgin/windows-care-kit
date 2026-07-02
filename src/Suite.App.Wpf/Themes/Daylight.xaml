@@ -2,55 +2,119 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
-    <!-- ===== Theme palette (ported from the FormatBackup reference) ===== -->
-    <SolidColorBrush x:Key="Bg.Window"   Color="#FBF5E8" />
-    <SolidColorBrush x:Key="Bg.Panel"    Color="#F5EAD7" />
-    <SolidColorBrush x:Key="Bg.PanelAlt" Color="#FFF6E8" />
-    <SolidColorBrush x:Key="Bg.Card"     Color="#FFF9EE" />
-    <SolidColorBrush x:Key="Bg.Scrim"    Color="#CCFFFAEF" />
-    <SolidColorBrush x:Key="Bg.Scrim.Confirm" Color="#CCFFF8EC" />
-    <SolidColorBrush x:Key="Bg.Scrim.Loading" Color="#AAFFF8EC" />
-    <SolidColorBrush x:Key="Bg.Scrim.Wizard" Color="#D8FFF8EA" />
-    <SolidColorBrush x:Key="Bg.Card.Alt" Color="#FFF4E3" />
-    <SolidColorBrush x:Key="Bg.Card.Warning" Color="#FFF0D0" />
-    <SolidColorBrush x:Key="Bg.Callout.Bad" Color="#FBE5DC" />
-    <SolidColorBrush x:Key="Bg.Chrome.Rail" Color="#EFE0C5" />
-    <SolidColorBrush x:Key="Bg.Footer" Color="#F2E2C5" />
-    <SolidColorBrush x:Key="Bg.Gold.Subtle" Color="#F4E5C8" />
-    <SolidColorBrush x:Key="Bg.Progress.Track" Color="#E0CFAD" />
-    <SolidColorBrush x:Key="Bg.Protected" Color="#E5F4EE" />
-    <SolidColorBrush x:Key="Bg.Row.Hover" Color="#E7D7BD" />
-    <SolidColorBrush x:Key="Bg.Row.Selected" Color="#F4DFAE" />
-    <SolidColorBrush x:Key="Bg.Status.Bad" Color="#F6D0CC" />
-    <SolidColorBrush x:Key="Bg.Status.Good" Color="#D7EEDB" />
-    <SolidColorBrush x:Key="Bg.Status.Warn" Color="#FFE6B0" />
-    <SolidColorBrush x:Key="Bg.Warning.Strong" Color="#FBE4DC" />
-    <SolidColorBrush x:Key="Border.Callout.Bad" Color="#D28A5A" />
-    <SolidColorBrush x:Key="Border.Card.Warning" Color="#C7A96B" />
-    <SolidColorBrush x:Key="Border.Protected" Color="#9BBFAF" />
-    <SolidColorBrush x:Key="Border.Soft" Color="#D8C6A8" />
-    <SolidColorBrush x:Key="Border.TopBar" Color="#E4D0AD" />
-    <SolidColorBrush x:Key="Border.Gold" Color="#B99146" />
-    <SolidColorBrush x:Key="Code.Bg"     Color="#EDF4FF" />
-    <SolidColorBrush x:Key="Code.Fg"     Color="#35527A" />
-    <SolidColorBrush x:Key="Gold"        Color="#8A5E13" />
-    <SolidColorBrush x:Key="Gold.Bright" Color="#A06B18" />
-    <SolidColorBrush x:Key="Gold.Dim"    Color="#5E3A08" />
-    <SolidColorBrush x:Key="Text"        Color="#2A2118" />
-    <SolidColorBrush x:Key="Text.Muted"  Color="#5B5144" />
-    <SolidColorBrush x:Key="Text.Faint"  Color="#786B58" />
-    <SolidColorBrush x:Key="Text.Disabled" Color="#5B5144" />
-    <SolidColorBrush x:Key="Success"     Color="#35743D" />
-    <SolidColorBrush x:Key="Danger"      Color="#A43A32" />
-    <SolidColorBrush x:Key="Accent.Teal" Color="#2D6F61" />
-    <SolidColorBrush x:Key="Accent.Amber" Color="#65400A" />
-    <SolidColorBrush x:Key="Bg.Input" Color="#FFF1DC" />
-    <SolidColorBrush x:Key="ScrollBar.Track" Color="#F1E2C9" />
-    <SolidColorBrush x:Key="ScrollBar.Thumb" Color="#C9AD7E" />
-    <SolidColorBrush x:Key="ScrollBar.Thumb.Hover" Color="#A77E39" />
-    <sys:Double x:Key="Opacity.Disabled.Button">1.0</sys:Double>
-    <Color x:Key="Brand.Mark.Start">#875D17</Color>
-    <Color x:Key="Brand.Mark.End">#5E3D0B</Color>
+    <!-- ===== Theme palette (emerald safety system) ===== -->
+    <SolidColorBrush x:Key="Bg.Window"   Color="#F6F7F9" />
+    <SolidColorBrush x:Key="Bg.Panel"    Color="#FCFCFD" />
+    <SolidColorBrush x:Key="Bg.PanelAlt" Color="#F3F5F9" />
+    <SolidColorBrush x:Key="Bg.Card"     Color="#FDFDFE" />
+    <SolidColorBrush x:Key="Bg.Scrim"    Color="#CCF6F7F9" />
+    <SolidColorBrush x:Key="Bg.Scrim.Confirm" Color="#CCF6F7F9" />
+    <SolidColorBrush x:Key="Bg.Scrim.Loading" Color="#AAF6F7F9" />
+    <SolidColorBrush x:Key="Bg.Scrim.Wizard" Color="#D8F6F7F9" />
+    <SolidColorBrush x:Key="Bg.Card.Alt" Color="#F3F5F9" />
+    <SolidColorBrush x:Key="Bg.Card.Warning" Color="#FBF3DD" />
+    <SolidColorBrush x:Key="Bg.Callout.Bad" Color="#FDF0EE" />
+    <SolidColorBrush x:Key="Bg.Chrome.Rail" Color="#FCFCFD" />
+    <SolidColorBrush x:Key="Bg.Footer" Color="#F6F7F9" />
+    <SolidColorBrush x:Key="Bg.Gold.Subtle" Color="#E9F5EE" />
+    <SolidColorBrush x:Key="Bg.Progress.Track" Color="#CCD3DD" />
+    <SolidColorBrush x:Key="Bg.Protected" Color="#E9F5EE" />
+    <SolidColorBrush x:Key="Bg.Row.Hover" Color="#F3F5F9" />
+    <SolidColorBrush x:Key="Bg.Row.Selected" Color="#E9F5EE" />
+    <SolidColorBrush x:Key="Bg.Status.Bad" Color="#FDF0EE" />
+    <SolidColorBrush x:Key="Bg.Status.Good" Color="#E9F5EE" />
+    <SolidColorBrush x:Key="Bg.Status.Warn" Color="#FBF3DD" />
+    <SolidColorBrush x:Key="Bg.Warning.Strong" Color="#FDF0EE" />
+    <SolidColorBrush x:Key="Border.Callout.Bad" Color="#F2C5BE" />
+    <SolidColorBrush x:Key="Border.Card.Warning" Color="#EAD9A8" />
+    <SolidColorBrush x:Key="Border.Protected" Color="#BFE0CD" />
+    <SolidColorBrush x:Key="Border.Soft" Color="#E5E8EE" />
+    <SolidColorBrush x:Key="Border.TopBar" Color="#E5E8EE" />
+    <SolidColorBrush x:Key="Border.Gold" Color="#BFE0CD" />
+    <SolidColorBrush x:Key="Code.Bg"     Color="#F3F5F9" />
+    <SolidColorBrush x:Key="Code.Fg"     Color="#1C2330" />
+    <SolidColorBrush x:Key="Gold"        Color="#0E7A54" />
+    <SolidColorBrush x:Key="Gold.Bright" Color="#0E7A54" />
+    <SolidColorBrush x:Key="Gold.Dim"    Color="#0B6142" />
+    <SolidColorBrush x:Key="Text"        Color="#1C2330" />
+    <SolidColorBrush x:Key="Text.Muted"  Color="#5C6675" />
+    <SolidColorBrush x:Key="Text.Faint"  Color="#727C8C" />
+    <SolidColorBrush x:Key="Text.Disabled" Color="#727C8C" />
+    <SolidColorBrush x:Key="Success"     Color="#0E7A54" />
+    <SolidColorBrush x:Key="Danger"      Color="#B42318" />
+    <SolidColorBrush x:Key="Accent.Teal" Color="#0E7A54" />
+    <SolidColorBrush x:Key="Accent.Amber" Color="#8A6210" />
+    <SolidColorBrush x:Key="Bg.Input" Color="#FDFDFE" />
+    <SolidColorBrush x:Key="ScrollBar.Track" Color="#E9EBEF" />
+    <SolidColorBrush x:Key="ScrollBar.Thumb" Color="#CCD3DD" />
+    <SolidColorBrush x:Key="ScrollBar.Thumb.Hover" Color="#727C8C" />
+    <sys:Double x:Key="Opacity.Disabled.Button">0.45</sys:Double>
+    <Color x:Key="Brand.Mark.Start">#17936A</Color>
+    <Color x:Key="Brand.Mark.End">#0B6242</Color>
+
+    <!-- ===== Backup slice tokens ===== -->
+    <SolidColorBrush x:Key="Backup.Backdrop" Color="#E9EBEF" />
+    <SolidColorBrush x:Key="Backup.Window.Border" Color="#CCD3DD" />
+    <SolidColorBrush x:Key="Backup.Chrome" Color="#FCFCFD" />
+    <SolidColorBrush x:Key="Backup.Card" Color="#FDFDFE" />
+    <SolidColorBrush x:Key="Backup.CardHi" Color="#F3F5F9" />
+    <SolidColorBrush x:Key="Backup.Line" Color="#E5E8EE" />
+    <SolidColorBrush x:Key="Backup.LineStrong" Color="#CCD3DD" />
+    <SolidColorBrush x:Key="Backup.Ink" Color="#1C2330" />
+    <SolidColorBrush x:Key="Backup.Muted" Color="#5C6675" />
+    <SolidColorBrush x:Key="Backup.Faint" Color="#8D95A3" />
+    <SolidColorBrush x:Key="Backup.Em" Color="#0E7A54" />
+    <SolidColorBrush x:Key="Backup.EmDeep" Color="#0B6142" />
+    <SolidColorBrush x:Key="Backup.EmInk" Color="#F5FBF8" />
+    <SolidColorBrush x:Key="Backup.EmWash" Color="#E9F5EE" />
+    <SolidColorBrush x:Key="Backup.EmBorder" Color="#BFE0CD" />
+    <SolidColorBrush x:Key="Backup.Primary.Border" Color="#0B6142" />
+    <SolidColorBrush x:Key="Backup.Primary.HoverBorder" Color="#0E7A54" />
+    <SolidColorBrush x:Key="Backup.OkFg" Color="#0E7A54" />
+    <SolidColorBrush x:Key="Backup.OkWash" Color="#E9F5EE" />
+    <SolidColorBrush x:Key="Backup.OkBorder" Color="#BFE0CD" />
+    <SolidColorBrush x:Key="Backup.MedFg" Color="#8A6210" />
+    <SolidColorBrush x:Key="Backup.MedWash" Color="#FBF3DD" />
+    <SolidColorBrush x:Key="Backup.MedBorder" Color="#EAD9A8" />
+    <SolidColorBrush x:Key="Backup.MedDot" Color="#D9A93E" />
+    <SolidColorBrush x:Key="Backup.Danger" Color="#D92D20" />
+    <SolidColorBrush x:Key="Backup.DangerDeep" Color="#B42318" />
+    <SolidColorBrush x:Key="Backup.DangerStrong" Color="#B42318" />
+    <SolidColorBrush x:Key="Backup.DangerText" Color="#FEF4F2" />
+    <SolidColorBrush x:Key="Backup.DangerBorder" Color="#F2C5BE" />
+    <SolidColorBrush x:Key="Backup.DangerBorderHover" Color="#E6A49B" />
+    <SolidColorBrush x:Key="Backup.SkipChip" Color="#F6F7F9" />
+    <SolidColorBrush x:Key="Backup.RailBorder" Color="#E5E8EE" />
+    <SolidColorBrush x:Key="Backup.PathBg" Color="#F6F7F9" />
+    <sys:Double x:Key="Backup.SkipRowOpacity">1.0</sys:Double>
+    <LinearGradientBrush x:Key="Backup.Mark" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#17936A" Offset="0" />
+        <GradientStop Color="#0B6242" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Backup.Primary.Background" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#12875E" Offset="0" />
+        <GradientStop Color="#0D6F4C" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Backup.Primary.Hover" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#179B6C" Offset="0" />
+        <GradientStop Color="#0F7D56" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Backup.Row.Background" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FDFDFE" Offset="0" />
+        <GradientStop Color="#FDFDFE" Offset="0.55" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Backup.Row.Hover" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#F3F5F9" Offset="0" />
+        <GradientStop Color="#F3F5F9" Offset="0.55" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Backup.Row.Danger" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FDF0EE" Offset="0" />
+        <GradientStop Color="#FDF0EE" Offset="0.55" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Backup.Rail.Background" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FDFDFE" Offset="0" />
+        <GradientStop Color="#FDFDFE" Offset="0.6" />
+    </LinearGradientBrush>
 
     <!-- ===== Text ===== -->
     <Style TargetType="TextBlock">

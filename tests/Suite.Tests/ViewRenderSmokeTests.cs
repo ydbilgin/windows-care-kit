@@ -13,10 +13,14 @@ using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.App.Theming;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.App.Views;
+using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Execution;
+using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -166,6 +170,41 @@ public sealed class ViewRenderSmokeTests
         });
     }
 
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void BackupView_renders_plan_surface_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
+                i18n.Load("en");
+                BackupViewModel vm = BuildBackupRenderViewModel(i18n);
+                vm.BuildPlanAsync().GetAwaiter().GetResult();
+
+                var view = new BackupView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 720 };
+                var size = new Size(1000, 720);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                Assert.True(vm.HasPlan);
+                Assert.Single(vm.PlanRows);
+                Assert.Single(vm.ManualRows);
+                Assert.Single(vm.SkippedRows);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
     [Fact]
     public void No_view_binds_TwoWay_to_the_I18n_indexer()
     {
@@ -222,24 +261,76 @@ public sealed class ViewRenderSmokeTests
     }
 
     private static ResourceDictionary LoadStrongboxTheme()
+        => LoadTheme("Strongbox");
+
+    private static ResourceDictionary LoadTheme(string themeName)
         => new()
         {
             Source = new Uri(
-                "pack://application:,,,/WindowsCareKit;component/Themes/Strongbox.xaml",
+                $"pack://application:,,,/WindowsCareKit;component/Themes/{themeName}.xaml",
                 UriKind.Absolute)
         };
 
     private static bool EnsureApplicationResources(out ResourceDictionary theme)
+        => EnsureApplicationResources("Strongbox", out theme);
+
+    private static bool EnsureApplicationResources(string themeName, out ResourceDictionary theme)
     {
         bool createdApplication = Application.Current is null;
         Application application = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        theme = LoadStrongboxTheme();
+        theme = LoadTheme(themeName);
         application.Resources.MergedDictionaries.Add(theme);
         application.Resources["BoolToVis"] = new BooleanToVisibilityConverter();
         application.Resources["ZeroToVis"] = new ZeroToVisibleConverter();
         application.Resources["PositiveToVis"] = new PositiveToVisibleConverter();
         application.Resources["InverseBoolToVis"] = new InverseBoolToVisibilityConverter();
         return createdApplication;
+    }
+
+    private static BackupViewModel BuildBackupRenderViewModel(I18n i18n)
+    {
+        var gate = TestData.Gate();
+        var planner = new BackupPlanner(gate, new FakeEnvironmentExpander());
+        var runner = new BackupRunner(
+            new NoOpBackupExecutor(),
+            new BackupIntegrityWriter(),
+            new BackupReportWriter(new LogRedactor(null, null)),
+            gate,
+            new FakeFileSystem(),
+            new FakeHasher(),
+            new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+
+        return new BackupViewModel(i18n, new BackupRenderManifestLoader(), planner, runner)
+        {
+            PayloadDir = @"D:\WCK-BackupOut"
+        };
+    }
+
+    private static BackupEntry BackupCopyEntry(string id, string source, string target)
+        => new(id, true, BackupMethod.Copy, "test", source, target,
+            Array.Empty<string>(), SecretHandling.Normal, 50, "merge-after-install", $"{id}: copy configured files", null);
+
+    private sealed class BackupRenderManifestLoader : IManifestLoader
+    {
+        public BackupManifest LoadFromDirectory(string manifestsDirectory) => Load();
+        public BackupManifest LoadFromJson(IEnumerable<string> jsonDocuments) => Load();
+
+        private static BackupManifest Load() => new(new[]
+        {
+            BackupCopyEntry("copy-one", @"C:\Users\alice\AppData\Roaming\Tool\settings.json", "tool/settings.json"),
+            new BackupEntry("manual-one", true, BackupMethod.Copy, "browser", @"C:\Users\alice\AppData\Local\Browser\Login Data",
+                "browser/login-data", Array.Empty<string>(), SecretHandling.NeverRead, 70, "manual",
+                "Browser passwords and sign-in", "DPAPI machine-bound; export or sign in again before formatting."),
+            new BackupEntry("skipped-one", false, BackupMethod.Copy, "cache", @"C:\Users\alice\AppData\Local\Tool\Cache",
+                "tool/cache", Array.Empty<string>(), SecretHandling.Normal, 80, "skip",
+                "Cache and tokens", null),
+        });
+    }
+
+    private sealed class NoOpBackupExecutor : IBackupExecutor
+    {
+        public BackupExecutionReport Execute(OperationPlan plan, string approvedPlanHash)
+            => new(false, Array.Empty<BackupActionResult>());
     }
 
     private static void CleanupApplicationResources(bool shutdownApplication, ResourceDictionary theme)
