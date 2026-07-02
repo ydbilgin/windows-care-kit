@@ -105,16 +105,35 @@ public class SafetyGateRegistryTests
     {
         var v = TestData.Gate().Evaluate(TestData.RegValue(
             RegistryHive.Users,
-            "S-1-5-21-1234567890-1\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", "Userinit"));
+            TestData.CurrentUserSid + "\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", "Userinit"));
         Assert.False(v.Allowed);
     }
 
     [Fact]
-    public void Allows_hku_vendor_key_delete()
+    public void Blocks_hku_other_user_sid()
     {
         var v = TestData.Gate().Evaluate(TestData.RegKey(
-            RegistryHive.Users, "S-1-5-21-1234567890-1\\Software\\SomeVendor\\App"));
+            RegistryHive.Users, TestData.OtherUserSid + "\\Software\\SomeVendor\\App"));
+        Assert.False(v.Allowed);
+    }
+
+    [Fact]
+    public void Allows_hku_current_user_vendor_key_delete()
+    {
+        var v = TestData.Gate().Evaluate(TestData.RegKey(
+            RegistryHive.Users, TestData.CurrentUserSid + "\\Software\\SomeVendor\\App"));
         Assert.True(v.Allowed, v.Reason);
+    }
+
+    [Theory]
+    [InlineData(".DEFAULT\\Software\\SomeVendor")]
+    [InlineData("S-1-5-18\\Software\\SomeVendor")]
+    [InlineData("S-1-5-19\\Software\\SomeVendor")]
+    [InlineData("S-1-5-20\\Software\\SomeVendor")]
+    public void Blocks_hku_template_and_service_sids(string subKey)
+    {
+        var v = TestData.Gate().Evaluate(TestData.RegKey(RegistryHive.Users, subKey));
+        Assert.False(v.Allowed);
     }
 
     [Theory]

@@ -50,13 +50,6 @@ public sealed class CleanViewModelTests
         public RecycleBinStats Query() => stats;
     }
 
-    /// <summary>A recording emptier — the load-bearing fake for the two-step irreversibility proof.</summary>
-    private sealed class RecordingRecycleBinEmptier : IRecycleBinEmptier
-    {
-        public int CallCount { get; private set; }
-        public void EmptyAll() => CallCount++;
-    }
-
     private sealed class RecordingFolderOpener : IFolderOpener
     {
         public string? LastPath { get; private set; }
@@ -66,7 +59,6 @@ public sealed class CleanViewModelTests
 
     private static CleanViewModel BuildVm(
         ExecutorFixture fx,
-        RecordingRecycleBinEmptier emptier,
         RecordingFolderOpener opener,
         IJunkProbe? junk = null,
         IStartupProbe? startup = null,
@@ -80,7 +72,6 @@ public sealed class CleanViewModelTests
             startup ?? new FakeStartupProbe(),
             extensions ?? new FakeBrowserExtensionInventory(),
             recycle ?? new FakeRecycleBinService(new RecycleBinStats(0, 0)),
-            emptier,
             opener,
             fx.Gate,
             fx.Executor);
@@ -92,7 +83,7 @@ public sealed class CleanViewModelTests
     public async Task ScanJunk_builds_a_dry_run_preview_and_RunJunk_is_disabled_until_it_is_non_empty()
     {
         using var fx = new ExecutorFixture();
-        var vm = BuildVm(fx, new RecordingRecycleBinEmptier(), new RecordingFolderOpener(),
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
             junk: new FakeJunkProbe(new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder")));
 
         Assert.False(vm.RunJunkCommand.CanExecute(null));   // no plan yet → disabled
@@ -110,7 +101,7 @@ public sealed class CleanViewModelTests
     {
         using var fx = new ExecutorFixture();
         var candidate = new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder");
-        var vm = BuildVm(fx, new RecordingRecycleBinEmptier(), new RecordingFolderOpener(),
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
             junk: new FakeJunkProbe(candidate));
 
         vm.ScanJunkCommand.Execute(null);
@@ -157,40 +148,38 @@ public sealed class CleanViewModelTests
     public void EmptyRecycle_only_stages_a_confirm_and_does_NOT_call_the_emptier()
     {
         using var fx = new ExecutorFixture();
-        var emptier = new RecordingRecycleBinEmptier();
-        var vm = BuildVm(fx, emptier, new RecordingFolderOpener());
+        var vm = BuildVm(fx, new RecordingFolderOpener());
 
         Assert.False(vm.RecycleConfirmPending);
         vm.EmptyRecycleCommand.Execute(null);
 
         Assert.True(vm.RecycleConfirmPending);  // staged the confirm panel
-        Assert.Equal(0, emptier.CallCount);     // FAIL-WITHOUT proof: nothing emptied at the stage step
+        Assert.Equal(0, fx.RecycleBinEmptier.CallCount); // FAIL-WITHOUT proof: nothing emptied at the stage step
     }
 
     [Fact]
-    public async Task ConfirmEmptyRecycle_calls_the_emptier_exactly_once()
+    public async Task ConfirmEmptyRecycle_routes_the_empty_action_through_the_gated_executor()
     {
         using var fx = new ExecutorFixture();
-        var emptier = new RecordingRecycleBinEmptier();
-        var vm = BuildVm(fx, emptier, new RecordingFolderOpener());
+        var vm = BuildVm(fx, new RecordingFolderOpener());
 
         vm.EmptyRecycleCommand.Execute(null);   // stage
-        Assert.Equal(0, emptier.CallCount);      // still not emptied before confirm (pass-with baseline)
+        Assert.Equal(0, fx.RecycleBinEmptier.CallCount); // still not emptied before confirm (pass-with baseline)
 
         vm.ConfirmEmptyRecycleCommand.Execute(null);
         await PumpAsync(() => vm.HasResult);
 
-        Assert.Equal(1, emptier.CallCount);      // PASS-WITH: emptied exactly once after confirm
+        Assert.Equal(1, fx.RecycleBinEmptier.CallCount); // PASS-WITH: emptied exactly once after confirm
         Assert.False(vm.RecycleConfirmPending);  // confirm consumed
-        Assert.Empty(fx.Adapters.Calls);         // the empty goes through the emptier, NEVER the typed executor
+        Assert.Contains(fx.LogLines(), l => l.Contains("plan.start") && l.Contains("Empty Recycle Bin"));
+        Assert.Contains(fx.LogLines(), l => l.Contains("action.done") && l.Contains("recyclebin.empty"));
     }
 
     [Fact]
     public void CancelEmptyRecycle_clears_the_pending_confirm_without_emptying()
     {
         using var fx = new ExecutorFixture();
-        var emptier = new RecordingRecycleBinEmptier();
-        var vm = BuildVm(fx, emptier, new RecordingFolderOpener());
+        var vm = BuildVm(fx, new RecordingFolderOpener());
 
         vm.EmptyRecycleCommand.Execute(null);
         Assert.True(vm.RecycleConfirmPending);
@@ -198,7 +187,7 @@ public sealed class CleanViewModelTests
         vm.CancelEmptyRecycleCommand.Execute(null);
 
         Assert.False(vm.RecycleConfirmPending);  // pending cleared
-        Assert.Equal(0, emptier.CallCount);      // cancel never empties
+        Assert.Equal(0, fx.RecycleBinEmptier.CallCount); // cancel never empties
     }
 
     // ---- startup: gate-blocked action shows skipped, never executed ----
@@ -209,7 +198,7 @@ public sealed class CleanViewModelTests
         using var fx = new ExecutorFixture();
         // An HKCU Run value-delete is gate-ALLOWED (the Run/RunOnce carve-out) → previewed as a runnable row.
         var entry = new StartupEntry("Steam", @"C:\Steam\steam.exe -silent", StartupSource.HkcuRun, FolderPath: null);
-        var vm = BuildVm(fx, new RecordingRecycleBinEmptier(), new RecordingFolderOpener(),
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
             startup: new FakeStartupProbe(entry));
 
         vm.LoadStartupCommand.Execute(null);
@@ -230,7 +219,7 @@ public sealed class CleanViewModelTests
         // ("inside the Windows directory"), so the preview row is BLOCKED, never runnable.
         string lnk = @"C:\Windows\System32\wck-evil-startup\Evil.lnk";
         var entry = new StartupEntry("Evil", lnk, StartupSource.StartupFolder, FolderPath: lnk);
-        var vm = BuildVm(fx, new RecordingRecycleBinEmptier(), new RecordingFolderOpener(),
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
             startup: new FakeStartupProbe(entry));
 
         vm.LoadStartupCommand.Execute(null);
@@ -255,7 +244,7 @@ public sealed class CleanViewModelTests
         using var fx = new ExecutorFixture();
         var opener = new RecordingFolderOpener();
         var ext = new BrowserExtension("Chrome", "Default", "abcdef", "Some Ext", @"C:\Users\alice\AppData\Local\Chrome\Ext\abcdef");
-        var vm = BuildVm(fx, new RecordingRecycleBinEmptier(), opener,
+        var vm = BuildVm(fx, opener,
             extensions: new FakeBrowserExtensionInventory(ext));
 
         vm.LoadExtensionsCommand.Execute(null);

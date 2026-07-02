@@ -27,6 +27,7 @@ public sealed class GatedExecutor : IExecutor
     private readonly IProcessAdapter _processAdapter;
     private readonly ICopyAdapter _copyAdapter;
     private readonly IRestorePointCreator _restorePointCreator;
+    private readonly IRecycleBinEmptier _recycleBinEmptier;
 
     /// <param name="restorePointCreator">
     /// The protective <see cref="CreateRestorePointAction"/> sink (PR-5). Optional for backward compatibility:
@@ -42,7 +43,8 @@ public sealed class GatedExecutor : IExecutor
         ITaskAdapter taskAdapter,
         IProcessAdapter processAdapter,
         ICopyAdapter copyAdapter,
-        IRestorePointCreator? restorePointCreator = null)
+        IRestorePointCreator? restorePointCreator = null,
+        IRecycleBinEmptier? recycleBinEmptier = null)
     {
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _log = log ?? throw new ArgumentNullException(nameof(log));
@@ -53,6 +55,7 @@ public sealed class GatedExecutor : IExecutor
         _processAdapter = processAdapter ?? throw new ArgumentNullException(nameof(processAdapter));
         _copyAdapter = copyAdapter ?? throw new ArgumentNullException(nameof(copyAdapter));
         _restorePointCreator = restorePointCreator ?? new UnavailableRestorePointCreator();
+        _recycleBinEmptier = recycleBinEmptier ?? new UnavailableRecycleBinEmptier();
     }
 
     /// <inheritdoc />
@@ -202,6 +205,9 @@ public sealed class GatedExecutor : IExecutor
             case RestoreMergeAction merge:
                 _copyAdapter.Merge(merge);
                 return Done(action);
+            case EmptyRecycleBinAction:
+                _recycleBinEmptier.EmptyAll();
+                return Done(action);
             case CreateRestorePointAction restorePoint:
                 _restorePointCreator.Create(restorePoint);
                 return Done(action);
@@ -273,5 +279,15 @@ public sealed class GatedExecutor : IExecutor
     {
         public void Create(CreateRestorePointAction action)
             => throw new NotSupportedException("No IRestorePointCreator is wired into this executor.");
+    }
+
+    /// <summary>
+    /// Fail-closed default when no <see cref="IRecycleBinEmptier"/> is wired: an empty-bin plan cannot silently
+    /// skip or bypass the destructive sink.
+    /// </summary>
+    private sealed class UnavailableRecycleBinEmptier : IRecycleBinEmptier
+    {
+        public void EmptyAll()
+            => throw new NotSupportedException("No IRecycleBinEmptier is wired into this executor.");
     }
 }

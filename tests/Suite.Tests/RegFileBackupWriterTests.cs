@@ -86,6 +86,24 @@ public class RegFileBackupWriterTests
     }
 
     [Fact]
+    public void Existing_destination_is_not_overwritten()
+    {
+        string sub = Root + @"\absent-" + Guid.NewGuid().ToString("N");
+        string regFile = Path.Combine(Path.GetTempPath(), "wck-existing-" + Guid.NewGuid().ToString("N") + ".reg");
+        File.WriteAllText(regFile, "keep me");
+        try
+        {
+            Assert.Throws<RegBackupCollisionException>(() =>
+                new RegFileBackupWriter().WriteBackup(regFile, CoreHive.CurrentUser, CoreView.Registry64, sub, valueName: null));
+            Assert.Equal("keep me", File.ReadAllText(regFile));
+        }
+        finally
+        {
+            if (File.Exists(regFile)) File.Delete(regFile);
+        }
+    }
+
+    [Fact]
     public void REG_SZ_with_newlines_or_nul_is_emitted_as_hex1_and_round_trips()
     {
         string sub = Root + @"\bak-hex1-" + Guid.NewGuid().ToString("N");

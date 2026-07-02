@@ -37,7 +37,7 @@ public sealed class RegFileBackupWriter : IRegBackupWriter
         {
             // Target already gone: still write a header-only backup so the file exists (the prior state
             // was "absent"). This keeps "backup before delete" honest without failing the delete.
-            File.WriteAllText(destinationPath, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            WriteTextCreateNew(destinationPath, sb.ToString());
             return;
         }
 
@@ -55,7 +55,24 @@ public sealed class RegFileBackupWriter : IRegBackupWriter
             AppendKeyRecursive(sb, key, hivePrefix + "\\" + subKeyPath.TrimEnd('\\'));
         }
 
-        File.WriteAllText(destinationPath, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        WriteTextCreateNew(destinationPath, sb.ToString());
+    }
+
+    private static void WriteTextCreateNew(string destinationPath, string text)
+    {
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        }
+        catch (IOException ex) when (File.Exists(destinationPath))
+        {
+            throw new RegBackupCollisionException(destinationPath, ex);
+        }
+
+        using (stream)
+        using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            writer.Write(text);
     }
 
     /// <summary>

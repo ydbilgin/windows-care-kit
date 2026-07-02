@@ -1,9 +1,17 @@
 M:System.IO.File.Delete(System.String);Destructive deletes must go through a SafetyGate-approved FileDeleteAction executed by the sanctioned executor (Suite.Execution).
+M:System.IO.FileInfo.Delete;Destructive deletes must go through a SafetyGate-approved FileDeleteAction executed by the sanctioned executor (Suite.Execution).
 M:System.IO.File.Move(System.String,System.String);Use a SafetyGate-approved action, not a direct move.
 M:System.IO.File.Move(System.String,System.String,System.Boolean);Use a SafetyGate-approved action, not a direct move.
+M:System.IO.FileInfo.MoveTo(System.String);Use a SafetyGate-approved action, not a direct move.
+M:System.IO.FileInfo.MoveTo(System.String,System.Boolean);Use a SafetyGate-approved action, not a direct move.
+M:System.IO.File.Replace(System.String,System.String,System.String);Atomic file replacement must be in a narrow sanctioned seam with a justification.
+M:System.IO.File.Replace(System.String,System.String,System.String,System.Boolean);Atomic file replacement must be in a narrow sanctioned seam with a justification.
 M:System.IO.Directory.Delete(System.String);Destructive deletes must go through the SafetyGate.
 M:System.IO.Directory.Delete(System.String,System.Boolean);Destructive deletes must go through the SafetyGate.
+M:System.IO.DirectoryInfo.Delete;Destructive deletes must go through the SafetyGate.
+M:System.IO.DirectoryInfo.Delete(System.Boolean);Destructive deletes must go through the SafetyGate.
 M:System.IO.Directory.Move(System.String,System.String);Use a SafetyGate-approved action, not a direct move.
+M:System.IO.DirectoryInfo.MoveTo(System.String);Use a SafetyGate-approved action, not a direct move.
 M:Microsoft.Win32.RegistryKey.DeleteValue(System.String);Registry value deletes must go through a SafetyGate-approved RegistryDeleteAction.
 M:Microsoft.Win32.RegistryKey.DeleteValue(System.String,System.Boolean);Registry value deletes must go through the SafetyGate.
 M:Microsoft.Win32.RegistryKey.DeleteSubKey(System.String);Registry key deletes must go through the SafetyGate.
@@ -11,7 +19,16 @@ M:Microsoft.Win32.RegistryKey.DeleteSubKey(System.String,System.Boolean);Registr
 M:Microsoft.Win32.RegistryKey.DeleteSubKeyTree(System.String);Registry key deletes must go through the SafetyGate.
 M:Microsoft.Win32.RegistryKey.DeleteSubKeyTree(System.String,System.Boolean);Registry key deletes must go through the SafetyGate.
 M:Microsoft.Win32.RegistryKey.SetValue(System.String,System.Object);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.RegistryKey.SetValue(System.String,System.Object,Microsoft.Win32.RegistryValueKind);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.Registry.SetValue(System.String,System.String,System.Object);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.Registry.SetValue(System.String,System.String,System.Object,Microsoft.Win32.RegistryValueKind);Registry writes are not part of the read-only inventory; use the sanctioned executor.
 M:Microsoft.Win32.RegistryKey.CreateSubKey(System.String);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.RegistryKey.CreateSubKey(System.String,System.Boolean);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.RegistryKey.CreateSubKey(System.String,Microsoft.Win32.RegistryKeyPermissionCheck);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.RegistryKey.CreateSubKey(System.String,System.Boolean,Microsoft.Win32.RegistryOptions);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.RegistryKey.CreateSubKey(System.String,Microsoft.Win32.RegistryKeyPermissionCheck,System.Security.AccessControl.RegistrySecurity);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.RegistryKey.CreateSubKey(System.String,Microsoft.Win32.RegistryKeyPermissionCheck,Microsoft.Win32.RegistryOptions);Registry writes are not part of the read-only inventory; use the sanctioned executor.
+M:Microsoft.Win32.RegistryKey.CreateSubKey(System.String,Microsoft.Win32.RegistryKeyPermissionCheck,Microsoft.Win32.RegistryOptions,System.Security.AccessControl.RegistrySecurity);Registry writes are not part of the read-only inventory; use the sanctioned executor.
 T:System.Diagnostics.Process;Process launching must go through the sanctioned (optionally elevated) executor, never directly.
 M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(System.String);Use GatedExecutor sanctioned sink
 M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(System.String,Microsoft.VisualBasic.FileIO.UIOption,Microsoft.VisualBasic.FileIO.RecycleOption);Use GatedExecutor sanctioned sink
