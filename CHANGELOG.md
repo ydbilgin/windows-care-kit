@@ -11,6 +11,51 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.1.2-beta] - 2026-07-03
+
+### Changed
+
+- **Complete visual redesign — emerald light/dark theme pair** across every
+  screen (Uninstall, Clean, Back up, Migration, Restore, Reinstall, Settings,
+  the confirm gate, and the uninstall wizard): DRY-RUN badges on every dry-run
+  screen, two-tier evidence rows, right-rail plan summaries, and risk pills
+  colored by outcome. Emerald is reserved for genuinely safe/reversible
+  actions; **red is reserved for irreversible ones** — beauty never repaints
+  risk as safe.
+- README screenshots refreshed to the new theme (captured from a clean VM).
+
+### Security
+
+- **Recycle Bin emptying now runs through the safety gate** like every other
+  destructive operation (previously it could execute outside the gated
+  pipeline).
+- **Banned destructive-API analyzer hole closed** — destructive filesystem
+  calls outside the execution layer are surfaced again instead of slipping
+  past the analyzer.
+- **Per-user registry protection scoped to the actual user SID** — other
+  users' hives under HKU are always blocked; only the current user's remainder
+  is evaluated against the protected tables.
+- **Registry-delete rollback backups hardened** — per-value, collision-proof
+  backup filenames (high-resolution stamp + unique suffix), a 120-character
+  filename cap so deep backup folders cannot exceed Windows path limits, and a
+  short identity hash so two keys that sanitize to the same name remain
+  distinguishable.
+
+### Fixed
+
+- **Confirm-gate hover honesty** — on the irreversible tier the Approve button
+  stayed loud-red at rest but flipped to emerald while hovered (i.e. during
+  the click); it now stays loud-red through the whole interaction.
+- **Detection honesty for cloud placeholders** — a folder whose files are
+  OneDrive-dehydrated placeholders can no longer present as "analyzed clean";
+  skipped placeholders are counted and cap the claim at *not analyzed*
+  (read-only scans still never hydrate).
+- **Detection honesty for unreadable subtrees** — one unreadable subfolder no
+  longer marks the whole folder inaccessible; reachable files are still
+  sampled and the partial state honestly blocks any "works" claim.
+
+---
+
 ## [0.1.1-beta] - 2026-07-02
 
 ### Security
