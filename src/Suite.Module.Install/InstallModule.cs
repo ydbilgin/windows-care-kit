@@ -22,6 +22,10 @@ public sealed class InstallModule : IWckModule
         services.AddSingleton<IInstallManifestLoader, InstallManifestLoader>();
         services.AddSingleton<IAuthProbe, Win32AuthProbe>();
         services.AddSingleton<IDriverGuard, Win32DriverGuard>();
+        // InstallPlanner is Install-owned: its only DI consumer is InstallViewModel and it needs the
+        // Install-owned IDriverGuard. In base it was a dead/unsatisfiable registration whenever Install
+        // is not composed — moved here per the Opus batch review (2026-07-08).
+        services.AddSingleton<InstallPlanner>();
         services.AddSingleton<IInstallPlanWriter, InstallPlanWriter>();
         services.AddSingleton(sp => new InstallRunner(
             sp.GetRequiredService<IInstallPlanWriter>(), sp.GetRequiredService<IClock>()));

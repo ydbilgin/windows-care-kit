@@ -304,7 +304,7 @@ public sealed class ModuleCompositionTests
         {
             var baseServices = new ServiceCollection();
             WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
-            Assert.Contains(baseServices, d => d.ServiceType == typeof(InstallPlanner));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(InstallPlanner));
             Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IInstallManifestLoader));
             Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IAuthProbe));
             Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IDriverGuard));
@@ -322,6 +322,7 @@ public sealed class ModuleCompositionTests
             Assert.Null(baseProvider.GetService<IInstallPlanWriter>());
             Assert.Null(baseProvider.GetService<InstallRunner>());
             Assert.Null(baseProvider.GetService<InstallViewModel>());
+            Assert.Null(baseProvider.GetService<InstallPlanner>());
 
             var services = new ServiceCollection();
             WpfApp.AddBaseServices(services, Array.Empty<string>());
@@ -342,6 +343,7 @@ public sealed class ModuleCompositionTests
             Assert.IsType<Win32DriverGuard>(provider.GetRequiredService<IDriverGuard>());
             Assert.IsType<InstallPlanWriter>(provider.GetRequiredService<IInstallPlanWriter>());
             Assert.NotNull(provider.GetRequiredService<InstallRunner>());
+            Assert.NotNull(provider.GetRequiredService<InstallPlanner>());
             Assert.NotNull(provider.GetRequiredService<IPlanExecutor>());
         });
     }

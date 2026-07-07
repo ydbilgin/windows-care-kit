@@ -203,9 +203,8 @@ public partial class App : Application
         s.AddSingleton<IBackupExecutor>(sp => new BackupExecutorAdapter(sp.GetRequiredService<GatedExecutor>()));
         s.AddSingleton<MigrationRestoreManifestStore>();
 
-        // Shared install/restore state and planning primitives.
+        // Shared install/restore checkpoint state (Install + Restore both use it).
         s.AddSingleton<IRestoreStateStore, RestoreStateStore>();
-        s.AddSingleton<InstallPlanner>();
 
         // Shell view-models.
         s.AddSingleton<SettingsViewModel>();
