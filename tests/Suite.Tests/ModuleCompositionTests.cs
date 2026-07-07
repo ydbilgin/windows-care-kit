@@ -2,12 +2,14 @@ using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using WindowsCareKit.App.Controls;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.App.Views;
 using WindowsCareKit.Core.Abstractions;
+using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Install;
@@ -193,6 +195,71 @@ public sealed class ModuleCompositionTests
             Assert.NotNull(provider.GetRequiredService<IHasher>());
             Assert.NotNull(provider.GetRequiredService<IFileSystem>());
         });
+    }
+
+    [Fact]
+    public void UninstallModule_creates_content_and_view_from_uninstall_assembly_and_registers_only_uninstall_services()
+    {
+        RunOnStaThread(() =>
+        {
+            var baseServices = new ServiceCollection();
+            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IInstalledAppReader));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IAppxReader));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IRegistryProbe));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IFolderOpener));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IExecutor));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IRestorePointCapabilityProbe));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(ILeftoverProbe));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IAppxRemover));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(UninstallViewModel));
+            using ServiceProvider baseProvider = baseServices.BuildServiceProvider();
+
+            Assert.NotNull(baseProvider.GetService<I18n>());
+            Assert.NotNull(baseProvider.GetService<ISafetyGate>());
+            Assert.NotNull(baseProvider.GetService<IInstalledAppReader>());
+            Assert.NotNull(baseProvider.GetService<IAppxReader>());
+            Assert.NotNull(baseProvider.GetService<IRegistryProbe>());
+            Assert.NotNull(baseProvider.GetService<IFolderOpener>());
+            Assert.NotNull(baseProvider.GetService<IExecutor>());
+            Assert.NotNull(baseProvider.GetService<IRestorePointCapabilityProbe>());
+            Assert.Null(baseProvider.GetService<ILeftoverProbe>());
+            Assert.Null(baseProvider.GetService<IAppxRemover>());
+            Assert.Null(baseProvider.GetService<UninstallViewModel>());
+
+            var services = new ServiceCollection();
+            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            var module = new UninstallModule();
+            module.RegisterServices(services);
+            using ServiceProvider provider = services.BuildServiceProvider();
+
+            object content = module.CreateContent(provider);
+            FrameworkElement view = Assert.IsAssignableFrom<FrameworkElement>(module.CreateView());
+
+            var vm = Assert.IsType<UninstallViewModel>(content);
+            var uninstallView = Assert.IsType<UninstallView>(view);
+            Assert.Equal("Suite.Module.Uninstall", module.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Uninstall", vm.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Uninstall", vm.Wizard.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Uninstall", typeof(AppRow).Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Uninstall", typeof(LeftoverNode).Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Uninstall", uninstallView.GetType().Assembly.GetName().Name);
+            Assert.IsType<Win32LeftoverProbe>(provider.GetRequiredService<ILeftoverProbe>());
+            Assert.IsType<Win32AppxRemover>(provider.GetRequiredService<IAppxRemover>());
+            Assert.NotNull(provider.GetRequiredService<IInstalledAppReader>());
+            Assert.NotNull(provider.GetRequiredService<IAppxReader>());
+            Assert.NotNull(provider.GetRequiredService<IRegistryProbe>());
+            Assert.NotNull(provider.GetRequiredService<IFolderOpener>());
+            Assert.NotNull(provider.GetRequiredService<IExecutor>());
+            Assert.NotNull(provider.GetRequiredService<IRestorePointCapabilityProbe>());
+        });
+    }
+
+    [Fact]
+    public void ConfirmGate_types_live_in_app_abstractions()
+    {
+        Assert.Equal("Suite.App.Abstractions", typeof(ConfirmGateViewModel).Assembly.GetName().Name);
+        Assert.Equal("Suite.App.Abstractions", typeof(ConfirmGate).Assembly.GetName().Name);
     }
 
     [Fact]

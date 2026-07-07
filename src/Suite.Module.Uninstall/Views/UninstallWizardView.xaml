@@ -3,10 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:WindowsCareKit.App.ViewModels"
              xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions"
-             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls">
+             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls;assembly=Suite.App.Abstractions">
     <!-- The 4-beat uninstall wizard (PR-4). DataContext = an UninstallWizardViewModel. The whole control is
          collapsed until the wizard is open, so it sits as an overlay in UninstallView. -->
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+        <mvvm:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+
         <!-- Maps the int ScanDepthIndex to a bool for a RadioButton's IsChecked (one option per index). -->
         <mvvm:IndexEqualsConverter x:Key="IndexEq" />
 
@@ -14,22 +18,22 @@
         <Style x:Key="DepthOption" TargetType="RadioButton">
             <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Bd" Background="{StaticResource Backup.Card}" BorderBrush="{StaticResource Backup.Line}"
+                        <Border x:Name="Bd" Background="{DynamicResource Backup.Card}" BorderBrush="{DynamicResource Backup.Line}"
                                 BorderThickness="1" CornerRadius="8" Padding="13">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Backup.CardHi}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Backup.CardHi}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Backup.EmBorder}" />
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Backup.EmWash}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Backup.EmBorder}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Backup.EmWash}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -38,9 +42,9 @@
         </Style>
 
         <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
-            <Setter Property="Background" Value="{StaticResource Backup.Card}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="13,7" />
             <Setter Property="FontSize" Value="12.5" />
@@ -56,11 +60,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.CardHi}" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Faint}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Backup.CardHi}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Backup.Faint}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Opacity" Value="{DynamicResource Opacity.Disabled.Button}" />
                                 <Setter Property="Cursor" Value="Arrow" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -70,9 +74,9 @@
         </Style>
 
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-            <Setter Property="Foreground" Value="{StaticResource Backup.EmInk}" />
-            <Setter Property="Background" Value="{StaticResource Backup.Primary.Background}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.Primary.Border}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.EmInk}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Primary.Background}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.Primary.Border}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -83,11 +87,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.Primary.Hover}" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Primary.HoverBorder}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Backup.Primary.Hover}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Backup.Primary.HoverBorder}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Opacity" Value="{DynamicResource Opacity.Disabled.Button}" />
                                 <Setter Property="Cursor" Value="Arrow" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -103,8 +107,8 @@
                     BorderThickness="1">
                 <Border.Style>
                     <Style TargetType="Border">
-                        <Setter Property="Background" Value="{StaticResource Backup.Row.Background}" />
-                        <Setter Property="BorderBrush" Value="{StaticResource Backup.Line}" />
+                        <Setter Property="Background" Value="{DynamicResource Backup.Row.Background}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Backup.Line}" />
                         <Setter Property="Effect">
                             <Setter.Value>
                                 <DropShadowEffect BlurRadius="18" Direction="270" ShadowDepth="4" Opacity="0.14" Color="#000000" />
@@ -112,13 +116,13 @@
                         </Setter>
                         <Style.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Backup.Row.Hover}" />
-                                <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+                                <Setter Property="Background" Value="{DynamicResource Backup.Row.Hover}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
                             </Trigger>
                             <!-- Protected rows take the protected evidence tint. -->
                             <DataTrigger Binding="{Binding IsProtected}" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Backup.EmWash}" />
-                                <Setter Property="BorderBrush" Value="{StaticResource Backup.EmBorder}" />
+                                <Setter Property="Background" Value="{DynamicResource Backup.EmWash}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource Backup.EmBorder}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -135,7 +139,7 @@
                               IsEnabled="{Binding CanCheck}"
                               Visibility="{Binding HasCheckbox, Converter={StaticResource BoolToVis}}"
                               Checked="OnNodeCheckChanged" Unchecked="OnNodeCheckChanged" />
-                    <TextBlock Grid.Column="0" Text="🛡" FontSize="13" Foreground="{StaticResource Backup.Em}"
+                    <TextBlock Grid.Column="0" Text="🛡" FontSize="13" Foreground="{DynamicResource Backup.Em}"
                                VerticalAlignment="Top" Margin="0,0,10,0"
                                Visibility="{Binding HasCheckbox, Converter={StaticResource InverseBoolToVis}}" />
 
@@ -143,7 +147,7 @@
                         <TextBlock Text="{Binding TargetText}" Foreground="{Binding TargetBrush}"
                                    FontWeight="{Binding TargetWeight}" FontSize="12.5"
                                    FontFamily="Cascadia Mono, Consolas, monospace" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding SubText}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5"
+                        <TextBlock Text="{Binding SubText}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5"
                                    TextWrapping="Wrap" Margin="0,3,0,0" />
                     </StackPanel>
                 </Grid>
@@ -155,18 +159,18 @@
         <Style x:Key="RegistryTabButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsRegistryTab}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Backup.EmWash}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource Backup.EmBorder}" />
-                    <Setter Property="Foreground" Value="{StaticResource Backup.Em}" />
+                    <Setter Property="Background" Value="{DynamicResource Backup.EmWash}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Backup.EmBorder}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Backup.Em}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="FilesTabButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsFilesTab}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Backup.EmWash}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource Backup.EmBorder}" />
-                    <Setter Property="Foreground" Value="{StaticResource Backup.Em}" />
+                    <Setter Property="Background" Value="{DynamicResource Backup.EmWash}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Backup.EmBorder}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Backup.Em}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -177,16 +181,16 @@
             <Setter Property="Height" Value="22" />
             <Setter Property="CornerRadius" Value="11" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
-            <Setter Property="Background" Value="{StaticResource Backup.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </UserControl.Resources>
 
     <!-- Scrim + centered wizard card. Collapsed entirely when the wizard is closed. -->
     <Grid Visibility="{Binding IsOpen, Converter={StaticResource BoolToVis}}">
-        <Border Background="{StaticResource Bg.Scrim.Wizard}" />
-        <Border Background="{StaticResource Backup.Card}" BorderBrush="{StaticResource Backup.LineStrong}"
+        <Border Background="{DynamicResource Bg.Scrim.Wizard}" />
+        <Border Background="{DynamicResource Backup.Card}" BorderBrush="{DynamicResource Backup.LineStrong}"
                 BorderThickness="1" CornerRadius="10" Width="780" MaxHeight="640"
                 HorizontalAlignment="Center" VerticalAlignment="Center">
             <Border.Effect>
@@ -201,7 +205,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- ===== Step rail (4 beats) ===== -->
-                <Border Grid.Row="0" Background="{StaticResource Backup.Chrome}" BorderBrush="{StaticResource Backup.Line}"
+                <Border Grid.Row="0" Background="{DynamicResource Backup.Chrome}" BorderBrush="{DynamicResource Backup.Line}"
                         BorderThickness="0,0,0,1" CornerRadius="10,10,0,0" Padding="24,14">
                     <StackPanel Orientation="Horizontal">
                         <!-- 1 Hazırlık -->
@@ -209,80 +213,80 @@
                             <Border Style="{StaticResource StepDot}">
                                 <TextBlock Text="1" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            FontSize="11" FontWeight="Bold"
-                                           Foreground="{StaticResource Backup.Faint}" />
+                                           Foreground="{DynamicResource Backup.Faint}" />
                             </Border>
                             <TextBlock Text="{Binding I18n[uninstall.wizard.step.prep]}" Margin="8,0,0,0"
                                        VerticalAlignment="Center" FontSize="12"
-                                       Foreground="{StaticResource Backup.Faint}">
+                                       Foreground="{DynamicResource Backup.Faint}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsPrepBeat}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource Backup.Em}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Backup.Em}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
-                        <Border Width="26" Height="1" Background="{StaticResource Backup.Line}" Margin="10,0" VerticalAlignment="Center" />
+                        <Border Width="26" Height="1" Background="{DynamicResource Backup.Line}" Margin="10,0" VerticalAlignment="Center" />
                         <!-- 2 Tarama -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource StepDot}">
                                 <TextBlock Text="2" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           FontSize="11" FontWeight="Bold" Foreground="{StaticResource Backup.Faint}" />
+                                           FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Backup.Faint}" />
                             </Border>
                             <TextBlock Text="{Binding I18n[uninstall.wizard.step.scan]}" Margin="8,0,0,0"
                                        VerticalAlignment="Center" FontSize="12">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsScanBeat}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource Backup.Em}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Backup.Em}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
-                        <Border Width="26" Height="1" Background="{StaticResource Backup.Line}" Margin="10,0" VerticalAlignment="Center" />
+                        <Border Width="26" Height="1" Background="{DynamicResource Backup.Line}" Margin="10,0" VerticalAlignment="Center" />
                         <!-- 3 Kalıntılar -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource StepDot}">
                                 <TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           FontSize="11" FontWeight="Bold" Foreground="{StaticResource Backup.Faint}" />
+                                           FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Backup.Faint}" />
                             </Border>
                             <TextBlock Text="{Binding I18n[uninstall.wizard.step.leftovers]}" Margin="8,0,0,0"
                                        VerticalAlignment="Center" FontSize="12">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsLeftoversBeat}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource Backup.Em}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Backup.Em}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
-                        <Border Width="26" Height="1" Background="{StaticResource Backup.Line}" Margin="10,0" VerticalAlignment="Center" />
+                        <Border Width="26" Height="1" Background="{DynamicResource Backup.Line}" Margin="10,0" VerticalAlignment="Center" />
                         <!-- 4 Sonuç -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource StepDot}">
                                 <TextBlock Text="4" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           FontSize="11" FontWeight="Bold" Foreground="{StaticResource Backup.Faint}" />
+                                           FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Backup.Faint}" />
                             </Border>
                             <TextBlock Text="{Binding I18n[uninstall.wizard.step.result]}" Margin="8,0,0,0"
                                        VerticalAlignment="Center" FontSize="12">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsResultBeat}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource Backup.Em}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource Backup.Em}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -293,12 +297,12 @@
                 </Border>
 
                 <!-- ===== App summary ===== -->
-                <Border Grid.Row="1" Background="{StaticResource Backup.CardHi}" BorderBrush="{StaticResource Backup.Line}"
+                <Border Grid.Row="1" Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.Line}"
                         BorderThickness="0,0,0,1" Padding="24,13">
                     <StackPanel>
                         <TextBlock Text="{Binding AppTitle}" FontSize="14.5" FontWeight="SemiBold"
-                                   Foreground="{StaticResource Backup.Ink}" />
-                        <TextBlock Text="{Binding AppMeta}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5"
+                                   Foreground="{DynamicResource Backup.Ink}" />
+                        <TextBlock Text="{Binding AppMeta}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5"
                                    Margin="0,2,0,0" />
                     </StackPanel>
                 </Border>
@@ -308,15 +312,15 @@
                     <Grid>
                         <!-- ===== BEAT 1: Hazırlık & Resmî kaldırıcı ===== -->
                         <StackPanel Visibility="{Binding IsPrepBeat, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding I18n[uninstall.wizard.prep.title]}" Style="{StaticResource H2}"
-                                       Foreground="{StaticResource Backup.Ink}" FontSize="16" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding I18n[uninstall.wizard.prep.subtitle]}" Style="{StaticResource Muted}"
-                                       Foreground="{StaticResource Backup.Muted}" FontSize="13" Margin="0,5,0,16" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding I18n[uninstall.wizard.prep.title]}" Style="{DynamicResource H2}"
+                                       Foreground="{DynamicResource Backup.Ink}" FontSize="16" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding I18n[uninstall.wizard.prep.subtitle]}" Style="{DynamicResource Muted}"
+                                       Foreground="{DynamicResource Backup.Muted}" FontSize="13" Margin="0,5,0,16" TextWrapping="Wrap" />
 
                             <!-- Restore-point toggle: ENABLED only when SR is available (PR-5). When unavailable the
                                  row is dimmed and the checkbox disabled, keeping the honest reason. The reason text
                                  binds to RestorePointReason (available vs. needs-admin/SR-off). -->
-                            <Border Background="{StaticResource Backup.Row.Background}" BorderBrush="{StaticResource Backup.Line}"
+                            <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
                                     BorderThickness="1" CornerRadius="8" Padding="14">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -338,19 +342,19 @@
                                               Margin="0,2,12,0" />
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="{Binding I18n[uninstall.wizard.prep.restorePoint.title]}"
-                                                   Foreground="{StaticResource Backup.Ink}" FontSize="13.5" FontWeight="SemiBold" />
+                                                   Foreground="{DynamicResource Backup.Ink}" FontSize="13.5" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding I18n[uninstall.wizard.prep.restorePoint.desc]}"
-                                                   Foreground="{StaticResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap"
                                                    Margin="0,3,0,0" />
                                         <TextBlock Text="{Binding RestorePointReason}"
-                                                   Foreground="{StaticResource Backup.MedFg}" FontSize="11.5"
+                                                   Foreground="{DynamicResource Backup.MedFg}" FontSize="11.5"
                                                    Margin="0,5,0,0" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
 
                             <!-- Honest rollback framing: .reg backup (adapter-internal) + Recycle Bin. -->
-                            <Border Background="{StaticResource Backup.EmWash}" BorderBrush="{StaticResource Backup.EmBorder}"
+                            <Border Background="{DynamicResource Backup.EmWash}" BorderBrush="{DynamicResource Backup.EmBorder}"
                                     BorderThickness="1" CornerRadius="8" Padding="12,11" Margin="0,12,0,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -358,86 +362,86 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="1" Text="{Binding I18n[uninstall.wizard.prep.honest]}"
-                                               Foreground="{StaticResource Backup.OkFg}" FontSize="11.5" TextWrapping="Wrap" />
+                                               Foreground="{DynamicResource Backup.OkFg}" FontSize="11.5" TextWrapping="Wrap" />
                                 </Grid>
                             </Border>
 
                             <!-- Broken-uninstaller honest note. -->
-                            <Border Background="{StaticResource Backup.MedWash}" BorderBrush="{StaticResource Backup.MedBorder}" BorderThickness="1" CornerRadius="8"
+                            <Border Background="{DynamicResource Backup.MedWash}" BorderBrush="{DynamicResource Backup.MedBorder}" BorderThickness="1" CornerRadius="8"
                                     Padding="11,9" Margin="0,14,0,0"
                                     Visibility="{Binding OfficialUnavailable, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding I18n[uninstall.wizard.official.unavailable]}"
-                                           Foreground="{StaticResource Backup.MedFg}" FontSize="12" TextWrapping="Wrap" />
+                                           Foreground="{DynamicResource Backup.MedFg}" FontSize="12" TextWrapping="Wrap" />
                             </Border>
 
                             <!-- Live status line during the official run. -->
                             <StackPanel Margin="0,16,0,0"
                                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                                <Border Height="6" CornerRadius="4" Background="{StaticResource Bg.Progress.Track}">
-                                    <Border Background="{StaticResource Backup.Em}" Width="120" HorizontalAlignment="Left"
+                                <Border Height="6" CornerRadius="4" Background="{DynamicResource Bg.Progress.Track}">
+                                    <Border Background="{DynamicResource Backup.Em}" Width="120" HorizontalAlignment="Left"
                                             CornerRadius="4" />
                                 </Border>
                                 <TextBlock Margin="0,9,0,0" TextWrapping="Wrap">
                                     <Run Text="{Binding I18n[uninstall.wizard.statusPrefix], Mode=OneWay}"
-                                         Foreground="{StaticResource Backup.Muted}" />
-                                    <Run Text="{Binding StatusLine, Mode=OneWay}" Foreground="{StaticResource Backup.Em}" FontWeight="SemiBold" />
+                                         Foreground="{DynamicResource Backup.Muted}" />
+                                    <Run Text="{Binding StatusLine, Mode=OneWay}" Foreground="{DynamicResource Backup.Em}" FontWeight="SemiBold" />
                                 </TextBlock>
                             </StackPanel>
                         </StackPanel>
 
                         <!-- ===== BEAT 2: Tarama (scan depth) ===== -->
                         <StackPanel Visibility="{Binding IsScanBeat, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding I18n[uninstall.wizard.scan.title]}" Style="{StaticResource H2}"
-                                       Foreground="{StaticResource Backup.Ink}" FontSize="16" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding I18n[uninstall.wizard.scan.subtitle]}" Style="{StaticResource Muted}"
-                                       Foreground="{StaticResource Backup.Muted}" FontSize="13" Margin="0,5,0,16" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding I18n[uninstall.wizard.scan.title]}" Style="{DynamicResource H2}"
+                                       Foreground="{DynamicResource Backup.Ink}" FontSize="16" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding I18n[uninstall.wizard.scan.subtitle]}" Style="{DynamicResource Muted}"
+                                       Foreground="{DynamicResource Backup.Muted}" FontSize="13" Margin="0,5,0,16" TextWrapping="Wrap" />
 
                             <UniformGrid Columns="3">
                                 <!-- Quick -->
                                 <RadioButton GroupName="depth" IsChecked="{Binding ScanDepthIndex, Converter={StaticResource IndexEq}, ConverterParameter=0}"
                                              Style="{StaticResource DepthOption}" Margin="0,0,5,0">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.quick]}" Foreground="{StaticResource Backup.Ink}" FontWeight="SemiBold" FontSize="13.5" />
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.quick.desc]}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.quick]}" Foreground="{DynamicResource Backup.Ink}" FontWeight="SemiBold" FontSize="13.5" />
+                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.quick.desc]}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0" />
                                     </StackPanel>
                                 </RadioButton>
                                 <!-- Standard (recommended) -->
                                 <RadioButton GroupName="depth" IsChecked="{Binding ScanDepthIndex, Converter={StaticResource IndexEq}, ConverterParameter=1}"
                                              Style="{StaticResource DepthOption}" Margin="5,0">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.standard]}" Foreground="{StaticResource Backup.Ink}" FontWeight="SemiBold" FontSize="13.5" />
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.standard.desc]}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.recommended]}" Foreground="{StaticResource Backup.Em}" FontSize="10.5" FontWeight="Bold" Margin="0,6,0,0" />
+                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.standard]}" Foreground="{DynamicResource Backup.Ink}" FontWeight="SemiBold" FontSize="13.5" />
+                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.standard.desc]}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.recommended]}" Foreground="{DynamicResource Backup.Em}" FontSize="10.5" FontWeight="Bold" Margin="0,6,0,0" />
                                     </StackPanel>
                                 </RadioButton>
                                 <!-- Deep -->
                                 <RadioButton GroupName="depth" IsChecked="{Binding ScanDepthIndex, Converter={StaticResource IndexEq}, ConverterParameter=2}"
                                              Style="{StaticResource DepthOption}" Margin="5,0,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.deep]}" Foreground="{StaticResource Backup.Ink}" FontWeight="SemiBold" FontSize="13.5" />
-                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.deep.desc]}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.deep]}" Foreground="{DynamicResource Backup.Ink}" FontWeight="SemiBold" FontSize="13.5" />
+                                        <TextBlock Text="{Binding I18n[uninstall.wizard.depth.deep.desc]}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0" />
                                     </StackPanel>
                                 </RadioButton>
                             </UniformGrid>
 
                             <StackPanel Margin="0,16,0,0"
                                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
-                                <Border Height="6" CornerRadius="4" Background="{StaticResource Bg.Progress.Track}">
-                                    <Border Background="{StaticResource Backup.Em}" Width="120" HorizontalAlignment="Left" CornerRadius="4" />
+                                <Border Height="6" CornerRadius="4" Background="{DynamicResource Bg.Progress.Track}">
+                                    <Border Background="{DynamicResource Backup.Em}" Width="120" HorizontalAlignment="Left" CornerRadius="4" />
                                 </Border>
                                 <TextBlock Margin="0,9,0,0" TextWrapping="Wrap">
-                                    <Run Text="{Binding I18n[uninstall.wizard.statusPrefix], Mode=OneWay}" Foreground="{StaticResource Backup.Muted}" />
-                                    <Run Text="{Binding StatusLine, Mode=OneWay}" Foreground="{StaticResource Backup.Em}" FontWeight="SemiBold" />
+                                    <Run Text="{Binding I18n[uninstall.wizard.statusPrefix], Mode=OneWay}" Foreground="{DynamicResource Backup.Muted}" />
+                                    <Run Text="{Binding StatusLine, Mode=OneWay}" Foreground="{DynamicResource Backup.Em}" FontWeight="SemiBold" />
                                 </TextBlock>
                             </StackPanel>
                         </StackPanel>
 
                         <!-- ===== BEAT 3: Kalıntılar (3-tier registry tree + files) ===== -->
                         <StackPanel Visibility="{Binding IsLeftoversBeat, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding I18n[uninstall.wizard.leftovers.title]}" Style="{StaticResource H2}"
-                                       Foreground="{StaticResource Backup.Ink}" FontSize="16" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding I18n[uninstall.wizard.leftovers.subtitle]}" Style="{StaticResource Muted}"
-                                       Foreground="{StaticResource Backup.Muted}" FontSize="13" Margin="0,5,0,12" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding I18n[uninstall.wizard.leftovers.title]}" Style="{DynamicResource H2}"
+                                       Foreground="{DynamicResource Backup.Ink}" FontSize="16" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding I18n[uninstall.wizard.leftovers.subtitle]}" Style="{DynamicResource Muted}"
+                                       Foreground="{DynamicResource Backup.Muted}" FontSize="13" Margin="0,5,0,12" TextWrapping="Wrap" />
 
                             <!-- Sub-tabs: Registry / Files (active tab highlighted via IsRegistryTab/IsFilesTab). -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -456,17 +460,17 @@
                             </StackPanel>
 
                             <!-- Helper -->
-                            <Border Background="{StaticResource Backup.EmWash}" BorderBrush="{StaticResource Backup.EmBorder}" BorderThickness="1"
+                            <Border Background="{DynamicResource Backup.EmWash}" BorderBrush="{DynamicResource Backup.EmBorder}" BorderThickness="1"
                                     CornerRadius="8" Padding="11,9" Margin="0,0,0,12">
-                                <TextBlock Text="{Binding I18n[uninstall.wizard.helper]}" Foreground="{StaticResource Backup.OkFg}"
+                                <TextBlock Text="{Binding I18n[uninstall.wizard.helper]}" Foreground="{DynamicResource Backup.OkFg}"
                                            FontSize="12" TextWrapping="Wrap" />
                             </Border>
 
                             <!-- Fail-loud build-guard error (normally unreachable): amber, non-destructive, never green. -->
-                            <Border Background="{StaticResource Backup.MedWash}" BorderBrush="{StaticResource Backup.MedBorder}" BorderThickness="1" CornerRadius="8"
+                            <Border Background="{DynamicResource Backup.MedWash}" BorderBrush="{DynamicResource Backup.MedBorder}" BorderThickness="1" CornerRadius="8"
                                     Padding="11,9" Margin="0,0,0,12"
                                     Visibility="{Binding HasBuildError, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{Binding BuildError}" Foreground="{StaticResource Backup.MedFg}"
+                                <TextBlock Text="{Binding BuildError}" Foreground="{DynamicResource Backup.MedFg}"
                                            FontSize="12" TextWrapping="Wrap" />
                             </Border>
 
@@ -481,39 +485,39 @@
                                         Style="{StaticResource SecondaryButton}" Padding="10,5" FontSize="11.5" FontWeight="Normal"
                                         Content="{Binding I18n[uninstall.wizard.selectAll]}" />
                                 <TextBlock Grid.Column="1" Text="{Binding I18n[uninstall.wizard.selectAll.scope]}"
-                                           Foreground="{StaticResource Backup.Faint}" FontSize="11.5" VerticalAlignment="Center" Margin="9,0,0,0" />
-                                <TextBlock Grid.Column="2" Text="{Binding SelectionSummary}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5"
+                                           Foreground="{DynamicResource Backup.Faint}" FontSize="11.5" VerticalAlignment="Center" Margin="9,0,0,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding SelectionSummary}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5"
                                            VerticalAlignment="Center" />
                             </Grid>
 
                             <!-- Registry tab: the 3-tier node list -->
                             <Border Visibility="{Binding IsRegistryTab, Converter={StaticResource BoolToVis}}"
-                                    Background="{StaticResource Backup.CardHi}" BorderBrush="{StaticResource Backup.Line}"
+                                    Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.Line}"
                                     BorderThickness="1" CornerRadius="8" Padding="10">
                                 <ItemsControl ItemsSource="{Binding RegistryNodes}" ItemTemplate="{StaticResource LeftoverNodeTemplate}" />
                             </Border>
 
                             <!-- Files tab: same selectable rules + Recycle-Bin note -->
                             <StackPanel Visibility="{Binding IsFilesTab, Converter={StaticResource BoolToVis}}">
-                                <Border Background="{StaticResource Backup.CardHi}" BorderBrush="{StaticResource Backup.Line}"
+                                <Border Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.Line}"
                                         BorderThickness="1" CornerRadius="8" Padding="10">
                                     <ItemsControl ItemsSource="{Binding FileNodes}" ItemTemplate="{StaticResource LeftoverNodeTemplate}" />
                                 </Border>
-                                <TextBlock Text="{Binding I18n[uninstall.wizard.files.recycleNote]}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5"
+                                <TextBlock Text="{Binding I18n[uninstall.wizard.files.recycleNote]}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5"
                                            Margin="2,8,0,0" />
                             </StackPanel>
                         </StackPanel>
 
                         <!-- ===== BEAT 4: Sonuç ===== -->
                         <StackPanel Visibility="{Binding IsResultBeat, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding ResultSummary}" Style="{StaticResource H2}" Foreground="{StaticResource Backup.Ink}" FontSize="16"
+                            <TextBlock Text="{Binding ResultSummary}" Style="{DynamicResource H2}" Foreground="{DynamicResource Backup.Ink}" FontSize="16"
                                        TextWrapping="Wrap" />
 
                             <!-- Result rows -->
                             <ItemsControl ItemsSource="{Binding ExecutionResults}" Margin="0,12,0,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="{StaticResource Backup.Row.Background}" BorderBrush="{StaticResource Backup.Line}"
+                                        <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
                                                 BorderThickness="1" CornerRadius="8" Padding="13,9" Margin="0,0,0,6">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -526,9 +530,9 @@
                                                     <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10" FontWeight="Bold" />
                                                 </Border>
                                                 <StackPanel Grid.Column="1">
-                                                    <TextBlock Text="{Binding Text}" Foreground="{StaticResource Backup.Ink}" FontSize="13"
+                                                    <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}" FontSize="13"
                                                                FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                    <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Backup.Faint}" FontSize="11.5"
+                                                    <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Backup.Faint}" FontSize="11.5"
                                                                TextWrapping="Wrap" Margin="0,4,0,0" />
                                                 </StackPanel>
                                             </Grid>
@@ -542,25 +546,25 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                            <TextBlock Text="🛡" Foreground="{StaticResource Backup.Em}" FontSize="13" Margin="0,0,8,0" />
-                                            <TextBlock Text="{Binding}" Foreground="{StaticResource Backup.OkFg}" FontSize="12.5" TextWrapping="Wrap" />
+                                            <TextBlock Text="🛡" Foreground="{DynamicResource Backup.Em}" FontSize="13" Margin="0,0,8,0" />
+                                            <TextBlock Text="{Binding}" Foreground="{DynamicResource Backup.OkFg}" FontSize="12.5" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
                             <!-- Honest System-Restore-unavailable line -->
-                            <Border Background="{StaticResource Backup.EmWash}" BorderBrush="{StaticResource Backup.EmBorder}" BorderThickness="1"
+                            <Border Background="{DynamicResource Backup.EmWash}" BorderBrush="{DynamicResource Backup.EmBorder}" BorderThickness="1"
                                     CornerRadius="8" Padding="12,11" Margin="0,14,0,0">
                                 <TextBlock Text="{Binding I18n[uninstall.wizard.result.restoreNote]}"
-                                           Foreground="{StaticResource Backup.OkFg}" FontSize="12" TextWrapping="Wrap" />
+                                           Foreground="{DynamicResource Backup.OkFg}" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>
 
                 <!-- ===== Footer (per-beat actions) ===== -->
-                <Border Grid.Row="3" Background="{StaticResource Backup.Chrome}" BorderBrush="{StaticResource Backup.Line}"
+                <Border Grid.Row="3" Background="{DynamicResource Backup.Chrome}" BorderBrush="{DynamicResource Backup.Line}"
                         BorderThickness="0,1,0,0" CornerRadius="0,0,10,10" Padding="24,14">
                     <Grid>
                         <Grid.ColumnDefinitions>

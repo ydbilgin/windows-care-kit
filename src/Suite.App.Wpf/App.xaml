@@ -15,9 +15,6 @@
             <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
             <mvvm:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
 
-            <DataTemplate DataType="{x:Type vm:UninstallViewModel}">
-                <views:UninstallView />
-            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:MigrationViewModel}">
                 <views:MigrationView />
             </DataTemplate>

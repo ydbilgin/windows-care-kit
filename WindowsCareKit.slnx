@@ -8,6 +8,7 @@
     <Project Path="src/Suite.Module.Install/Suite.Module.Install.csproj" />
     <Project Path="src/Suite.Module.Restore/Suite.Module.Restore.csproj" />
     <Project Path="src/Suite.Module.Backup/Suite.Module.Backup.csproj" />
+    <Project Path="src/Suite.Module.Uninstall/Suite.Module.Uninstall.csproj" />
     <Project Path="src/Suite.App.Wpf/Suite.App.Wpf.csproj" />
   </Folder>
   <Folder Name="/tests/">
