@@ -15,6 +15,7 @@ using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Execution;
 using WindowsCareKit.Win32;
 using Xunit;
 using WpfApp = WindowsCareKit.App.App;
@@ -178,6 +179,53 @@ public sealed class ModuleCompositionTests
             Assert.IsType<InstallPlanWriter>(provider.GetRequiredService<IInstallPlanWriter>());
             Assert.NotNull(provider.GetRequiredService<InstallRunner>());
             Assert.NotNull(provider.GetRequiredService<IPlanExecutor>());
+        });
+    }
+
+    [Fact]
+    public void RestoreModule_creates_content_and_view_from_restore_assembly_and_registers_only_restore_services()
+    {
+        RunOnStaThread(() =>
+        {
+            var baseServices = new ServiceCollection();
+            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(MigrationRestoreManifestStore));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IRestoreStateStore));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(GatedExecutor));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(MigrationRestoreService));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(RestoreViewModel));
+            using ServiceProvider baseProvider = baseServices.BuildServiceProvider();
+
+            Assert.NotNull(baseProvider.GetService<I18n>());
+            Assert.NotNull(baseProvider.GetService<ISafetyGate>());
+            Assert.NotNull(baseProvider.GetService<MigrationRestoreManifestStore>());
+            Assert.NotNull(baseProvider.GetService<IRestoreStateStore>());
+            Assert.NotNull(baseProvider.GetService<GatedExecutor>());
+            Assert.Null(baseProvider.GetService<MigrationRestoreService>());
+            Assert.Null(baseProvider.GetService<RestoreViewModel>());
+
+            var services = new ServiceCollection();
+            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            var module = new RestoreModule();
+            module.RegisterServices(services);
+            using ServiceProvider provider = services.BuildServiceProvider();
+
+            object content = module.CreateContent(provider);
+            FrameworkElement view = Assert.IsAssignableFrom<FrameworkElement>(module.CreateView());
+
+            var vm = Assert.IsType<RestoreViewModel>(content);
+            var restoreView = Assert.IsType<RestoreView>(view);
+            Assert.Equal("Suite.Module.Restore", module.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Restore", vm.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Restore", restoreView.GetType().Assembly.GetName().Name);
+            Assert.NotNull(provider.GetRequiredService<MigrationRestoreService>());
+            Assert.NotNull(provider.GetRequiredService<MigrationRestoreManifestStore>());
+            Assert.NotNull(provider.GetRequiredService<IRestoreStateStore>());
+            Assert.NotNull(provider.GetRequiredService<GatedExecutor>());
+            Assert.Equal("Suite.Execution", typeof(MigrationRestoreExecutionResult).Assembly.GetName().Name);
+            Assert.Equal("Suite.Execution", typeof(MigrationRestorePreviewResult).Assembly.GetName().Name);
+            Assert.Equal("Suite.Execution", typeof(MigrationRestoreUndoResult).Assembly.GetName().Name);
+            Assert.Equal("Suite.Execution", typeof(MigrationRestoreUndoPreviewResult).Assembly.GetName().Name);
         });
     }
 

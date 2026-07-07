@@ -554,6 +554,7 @@ public sealed class ViewRenderSmokeTests
         string[] xamlFiles = Directory.EnumerateFiles(ViewsPath, "*.xaml", SearchOption.TopDirectoryOnly)
             .Concat(Directory.EnumerateFiles(CleanModuleViewsPath, "*.xaml", SearchOption.TopDirectoryOnly))
             .Concat(Directory.EnumerateFiles(InstallModuleViewsPath, "*.xaml", SearchOption.TopDirectoryOnly))
+            .Concat(Directory.EnumerateFiles(RestoreModuleViewsPath, "*.xaml", SearchOption.TopDirectoryOnly))
             .Append(MainWindowPath)
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
@@ -561,6 +562,7 @@ public sealed class ViewRenderSmokeTests
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("SettingsView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("CleanView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("InstallView.xaml", StringComparison.Ordinal));
+        Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("RestoreView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("MainWindow.xaml", StringComparison.Ordinal));
 
         var failures = new List<string>();
@@ -735,6 +737,7 @@ public sealed class ViewRenderSmokeTests
     private static string ViewsPath => Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "Views");
     private static string CleanModuleViewsPath => Path.Combine(RepoRoot, "src", "Suite.Module.Clean", "Views");
     private static string InstallModuleViewsPath => Path.Combine(RepoRoot, "src", "Suite.Module.Install", "Views");
+    private static string RestoreModuleViewsPath => Path.Combine(RepoRoot, "src", "Suite.Module.Restore", "Views");
     private static string MainWindowPath => Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "MainWindow.xaml");
 
     private static string RepoRoot
