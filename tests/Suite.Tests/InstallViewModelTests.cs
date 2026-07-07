@@ -1,4 +1,5 @@
 using System.IO;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
@@ -80,7 +81,7 @@ public sealed class InstallViewModelTests
         var loader = new FakeManifestLoader(entries);
         var planner = new InstallPlanner(fx.Gate, new AllNetDriverGuard());
         return new InstallViewModel(
-            i18n, loader, planner, new FakeAuthProbe(), stateStore, fx.Gate, fx.Executor, runner);
+            i18n, loader, planner, new FakeAuthProbe(), stateStore, fx.Gate, new GatedPlanExecutor(fx.Executor), runner);
     }
 
     private static InstallRunner NoopRunner()
@@ -246,7 +247,7 @@ public sealed class InstallViewModelTests
         var i18n = new I18n();
         var planner = new InstallPlanner(exportGate, new AllNetDriverGuard());
         var vm = new InstallViewModel(i18n, new FakeManifestLoader(Winget("git", "Git.Git")), planner,
-            new FakeAuthProbe(), new RecordingStateStore(), exportGate, fx.Executor, runner)
+            new FakeAuthProbe(), new RecordingStateStore(), exportGate, new GatedPlanExecutor(fx.Executor), runner)
         {
             StateDirectory = ws.Root,
         };
@@ -276,7 +277,7 @@ public sealed class InstallViewModelTests
         // A protected/system write target — the writer re-gates it and refuses.
         string refusedTarget = Path.Combine(@"C:\Windows", "wck-install-refused-" + Guid.NewGuid().ToString("N"));
         var vm = new InstallViewModel(i18n, new FakeManifestLoader(Winget("git", "Git.Git")), planner,
-            new FakeAuthProbe(), new RecordingStateStore(), exportGate, fx.Executor, runner)
+            new FakeAuthProbe(), new RecordingStateStore(), exportGate, new GatedPlanExecutor(fx.Executor), runner)
         {
             StateDirectory = refusedTarget,
         };

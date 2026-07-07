@@ -1,13 +1,12 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
-using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
@@ -23,7 +22,7 @@ public sealed class AuthRow
 /// The Kur (Install/Restore) view-model (spec §1.4): loads the reinstall manifest, builds an ordered
 /// restore plan of typed <see cref="CommandAction"/> (winget/npm) and <see cref="RestoreMergeAction"/>
 /// (config) actions, previews it as a dry-run, and — only after an explicit approve — runs it through the
-/// <see cref="IExecutor"/>. It persists a <see cref="RestoreState"/> checkpoint after execution so a reboot
+/// <see cref="IPlanExecutor"/>. It persists a <see cref="RestoreState"/> checkpoint after execution so a reboot
 /// mid-restore can resume. Auth probes show only present/absent; secrets are never read.
 /// </summary>
 public sealed class InstallViewModel : ObservableObject
@@ -33,7 +32,7 @@ public sealed class InstallViewModel : ObservableObject
     private readonly IAuthProbe _authProbe;
     private readonly IRestoreStateStore _stateStore;
     private readonly ISafetyGate _gate;
-    private readonly IExecutor _executor;
+    private readonly IPlanExecutor _executor;
     private readonly InstallRunner _runner;
 
     private InstallManifest _manifest = InstallManifest.Empty;
@@ -59,7 +58,7 @@ public sealed class InstallViewModel : ObservableObject
         IAuthProbe authProbe,
         IRestoreStateStore stateStore,
         ISafetyGate gate,
-        IExecutor executor,
+        IPlanExecutor executor,
         InstallRunner runner)
     {
         I18n = i18n;
@@ -221,16 +220,16 @@ public sealed class InstallViewModel : ObservableObject
         try
         {
             _approvedHash = _plan.ComputeHash();
-            ExecutionReport report = ExecuteWithReport(_plan, _approvedHash);
+            PlanExecutionReport report = _executor.ExecuteWithReport(_plan, _approvedHash);
 
             ExecutionResults.Clear();
-            foreach (ActionResult r in report.Results)
+            foreach (PlanActionResult r in report.Results)
                 ExecutionResults.Add(ResultRow(r));
 
             PersistCheckpoint(report);
 
             ResultSummary = I18n.Format("install.result.summary",
-                report.DoneCount, report.Results.Count - report.DoneCount - report.FailedCount, report.FailedCount);
+                report.DoneCount, report.SkippedOrNotRunCount, report.FailedCount);
 
             // After a run, approval is consumed; further runs (resume) re-plan from the checkpoint.
             IsPreviewApproved = false;
@@ -270,28 +269,10 @@ public sealed class InstallViewModel : ObservableObject
 
     // ---- helpers ----
 
-    /// <summary>
-    /// Runs the plan and returns the per-action report. The registered <see cref="IExecutor"/> is the
-    /// <see cref="GatedExecutor"/>, whose richer <c>ExecuteWithReport</c> the UI needs; if a different
-    /// implementation is ever injected, fall back to <c>Execute</c> and synthesize a minimal report.
-    /// </summary>
-    private ExecutionReport ExecuteWithReport(OperationPlan plan, string approvedHash)
-    {
-        if (_executor is GatedExecutor gated)
-            return gated.ExecuteWithReport(plan, approvedHash);
-
-        ExecutionOutcome outcome = _executor.Execute(plan, approvedHash);
-        ActionStatus status = outcome.Ran ? ActionStatus.Done : ActionStatus.NotRun;
-        var results = plan.Actions
-            .Select(a => new ActionResult(a.Id, a.Kind, status, outcome.Reason))
-            .ToArray();
-        return new ExecutionReport(outcome.Ran, plan.ComputeHash(), results);
-    }
-
     private RestoreState LoadState()
         => string.IsNullOrWhiteSpace(_stateDirectory) ? RestoreState.Empty : _stateStore.Load(_stateDirectory);
 
-    private void PersistCheckpoint(ExecutionReport report)
+    private void PersistCheckpoint(PlanExecutionReport report)
     {
         if (string.IsNullOrWhiteSpace(_stateDirectory))
             return;
@@ -301,14 +282,14 @@ public sealed class InstallViewModel : ObservableObject
             state = state with { PlanHash = report.PlanHash, StartedUtc = DateTime.UtcNow };
 
         var now = DateTime.UtcNow;
-        foreach (ActionResult r in report.Results)
+        foreach (PlanActionResult r in report.Results)
         {
             if (!_actionToEntry.TryGetValue(r.ActionId, out string? entryId) || entryId is null)
                 continue;
             RestoreEntryStatus status = r.Status switch
             {
-                ActionStatus.Done => RestoreEntryStatus.Done,
-                ActionStatus.Failed or ActionStatus.Blocked => RestoreEntryStatus.Failed,
+                PlanActionStatus.Done => RestoreEntryStatus.Done,
+                PlanActionStatus.Failed or PlanActionStatus.Blocked => RestoreEntryStatus.Failed,
                 _ => RestoreEntryStatus.Pending,
             };
             state = state.With(entryId, status, now);
@@ -375,10 +356,10 @@ public sealed class InstallViewModel : ObservableObject
         };
     }
 
-    private PlanRow ResultRow(ActionResult r)
+    private PlanRow ResultRow(PlanActionResult r)
     {
-        bool ok = r.Status == ActionStatus.Done;
-        bool skipped = r.Status is ActionStatus.NotRun or ActionStatus.Skipped;
+        bool ok = r.Status == PlanActionStatus.Done;
+        bool skipped = r.Status is PlanActionStatus.NotRun or PlanActionStatus.Skipped;
         return new PlanRow
         {
             Text = $"{r.Kind}: {r.Detail}",

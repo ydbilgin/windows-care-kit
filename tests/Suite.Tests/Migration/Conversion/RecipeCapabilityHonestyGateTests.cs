@@ -53,7 +53,10 @@ public class RecipeCapabilityHonestyGateTests
     public void Legacy_manifest_entries_convert_or_reject_fail_closed()
     {
         string manifestDirectory = FindRepoPath("src", "Suite.App.Wpf", "manifests");
-        string[] files = Directory.GetFiles(manifestDirectory, "*.json");
+        string installManifest = FindRepoFile("src", "Suite.Module.Install", "manifests", "90-install.json");
+        string[] files = Directory.GetFiles(manifestDirectory, "*.json")
+            .Append(installManifest)
+            .ToArray();
         var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
         int total = 0;
@@ -116,5 +119,19 @@ public class RecipeCapabilityHonestyGateTests
         }
 
         throw new DirectoryNotFoundException("Could not find repository path: " + Path.Combine(parts));
+    }
+
+    private static string FindRepoFile(params string[] parts)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            string candidate = Path.Combine(new[] { dir.FullName }.Concat(parts).ToArray());
+            if (File.Exists(candidate))
+                return candidate;
+            dir = dir.Parent;
+        }
+
+        throw new FileNotFoundException("Could not find repository file: " + Path.Combine(parts));
     }
 }

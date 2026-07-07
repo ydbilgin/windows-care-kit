@@ -132,6 +132,55 @@ public sealed class ModuleCompositionTests
         });
     }
 
+    [Fact]
+    public void InstallModule_creates_content_and_view_from_install_assembly_and_registers_only_install_services()
+    {
+        RunOnStaThread(() =>
+        {
+            var baseServices = new ServiceCollection();
+            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(InstallPlanner));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IInstallManifestLoader));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IAuthProbe));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IDriverGuard));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IInstallPlanWriter));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(InstallRunner));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(InstallViewModel));
+            using ServiceProvider baseProvider = baseServices.BuildServiceProvider();
+
+            Assert.NotNull(baseProvider.GetService<I18n>());
+            Assert.NotNull(baseProvider.GetService<ISafetyGate>());
+            Assert.NotNull(baseProvider.GetService<IRestoreStateStore>());
+            Assert.Null(baseProvider.GetService<IInstallManifestLoader>());
+            Assert.Null(baseProvider.GetService<IAuthProbe>());
+            Assert.Null(baseProvider.GetService<IDriverGuard>());
+            Assert.Null(baseProvider.GetService<IInstallPlanWriter>());
+            Assert.Null(baseProvider.GetService<InstallRunner>());
+            Assert.Null(baseProvider.GetService<InstallViewModel>());
+
+            var services = new ServiceCollection();
+            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            var module = new InstallModule();
+            module.RegisterServices(services);
+            using ServiceProvider provider = services.BuildServiceProvider();
+
+            object content = module.CreateContent(provider);
+            FrameworkElement view = Assert.IsAssignableFrom<FrameworkElement>(module.CreateView());
+
+            var vm = Assert.IsType<InstallViewModel>(content);
+            var installView = Assert.IsType<InstallView>(view);
+            Assert.Equal("Suite.Module.Install", module.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Install", vm.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Install", installView.GetType().Assembly.GetName().Name);
+            Assert.IsType<InstallManifestLoader>(provider.GetRequiredService<IInstallManifestLoader>());
+            Assert.IsType<Win32AuthProbe>(provider.GetRequiredService<IAuthProbe>());
+            Assert.IsType<Win32DriverGuard>(provider.GetRequiredService<IDriverGuard>());
+            Assert.IsType<InstallPlanWriter>(provider.GetRequiredService<IInstallPlanWriter>());
+            Assert.NotNull(provider.GetRequiredService<InstallRunner>());
+            Assert.NotNull(provider.GetRequiredService<IPlanExecutor>());
+        });
+    }
+
     private static ServiceProvider BuildProvider(IReadOnlyList<IWckModule> modules)
     {
         var services = new ServiceCollection();

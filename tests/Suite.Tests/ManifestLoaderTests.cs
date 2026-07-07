@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Modules.Backup;
+using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -138,7 +139,9 @@ public class ManifestLoaderTests
     [Fact]
     public void LoadFromDirectory_discovers_renamed_backup_manifests_by_glob()
     {
-        string manifestDirectory = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "manifests");
+        string repositoryRoot = FindRepositoryRoot();
+        string backupManifestDirectory = Path.Combine(repositoryRoot, "src", "Suite.App.Wpf", "manifests");
+        string installManifestPath = Path.Combine(repositoryRoot, "src", "Suite.Module.Install", "manifests", "90-install.json");
         string[] expectedFiles =
         [
             "00-ai-tools.json",
@@ -150,12 +153,17 @@ public class ManifestLoaderTests
             "60-wsl.json",
             "70-general-user.json",
             "80-network-drive.json",
-            "90-install.json",
         ];
         foreach (string file in expectedFiles)
-            Assert.True(File.Exists(Path.Combine(manifestDirectory, file)), file);
+            Assert.True(File.Exists(Path.Combine(backupManifestDirectory, file)), file);
+        Assert.True(File.Exists(installManifestPath), installManifestPath);
 
-        BackupManifest manifest = Loader().LoadFromDirectory(manifestDirectory);
+        using var ws = new TempWorkspace("wck-backup-manifests-");
+        foreach (string file in expectedFiles)
+            File.Copy(Path.Combine(backupManifestDirectory, file), Path.Combine(ws.Root, file));
+        File.Copy(installManifestPath, Path.Combine(ws.Root, "90-install.json"));
+
+        BackupManifest manifest = Loader().LoadFromDirectory(ws.Root);
 
         Assert.NotEmpty(manifest.Entries);
         Assert.Contains(manifest.Entries, e => e.Id == "vscode-user");

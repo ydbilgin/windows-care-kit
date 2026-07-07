@@ -123,13 +123,25 @@ public class InstallManifestLoaderTests
     [Fact]
     public void Load_reads_the_renamed_bundled_install_manifest()
     {
-        string path = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "manifests", "90-install.json");
+        string path = Path.Combine(FindRepositoryRoot(), "src", "Suite.Module.Install", "manifests", "90-install.json");
 
         InstallManifest manifest = Loader.Load(path);
 
         Assert.NotEmpty(manifest.Entries);
         Assert.Contains(manifest.Entries, e => e.Id == "install-google-chrome" && e.Category == "browser");
         Assert.DoesNotContain(manifest.Entries, e => e.Category.Contains("tarayici", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Load_finds_the_bundled_install_manifest_at_the_runtime_output_path()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "manifests", "90-install.json");
+
+        Assert.True(File.Exists(path), path);
+        InstallManifest manifest = Loader.Load(path);
+
+        Assert.NotEmpty(manifest.Entries);
+        Assert.Contains(manifest.Entries, e => e.Id == "install-google-chrome" && e.Category == "browser");
     }
 
     private static string FindRepositoryRoot()

@@ -186,7 +186,7 @@ public sealed class ViewRenderSmokeTests
                 var planner = new InstallPlanner(fx.Gate, new RenderAllNetDriverGuard());
                 var runner = new InstallRunner(new RenderThrowingPlanWriter(), new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
                 var vm = new InstallViewModel(
-                    i18n, loader, planner, new RenderFakeAuthProbe(), new RenderRecordingStateStore(), fx.Gate, fx.Executor, runner);
+                    i18n, loader, planner, new RenderFakeAuthProbe(), new RenderRecordingStateStore(), fx.Gate, new RenderPlanExecutor(fx.Executor), runner);
                 vm.LoadManifestCommand.Execute(null);
                 vm.BuildPlanCommand.Execute(null);
 
@@ -553,12 +553,14 @@ public sealed class ViewRenderSmokeTests
     {
         string[] xamlFiles = Directory.EnumerateFiles(ViewsPath, "*.xaml", SearchOption.TopDirectoryOnly)
             .Concat(Directory.EnumerateFiles(CleanModuleViewsPath, "*.xaml", SearchOption.TopDirectoryOnly))
+            .Concat(Directory.EnumerateFiles(InstallModuleViewsPath, "*.xaml", SearchOption.TopDirectoryOnly))
             .Append(MainWindowPath)
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("SettingsView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("CleanView.xaml", StringComparison.Ordinal));
+        Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("InstallView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("MainWindow.xaml", StringComparison.Ordinal));
 
         var failures = new List<string>();
@@ -732,6 +734,7 @@ public sealed class ViewRenderSmokeTests
 
     private static string ViewsPath => Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "Views");
     private static string CleanModuleViewsPath => Path.Combine(RepoRoot, "src", "Suite.Module.Clean", "Views");
+    private static string InstallModuleViewsPath => Path.Combine(RepoRoot, "src", "Suite.Module.Install", "Views");
     private static string MainWindowPath => Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "MainWindow.xaml");
 
     private static string RepoRoot
@@ -844,12 +847,26 @@ public sealed class ViewRenderSmokeTests
 
     private sealed class RenderPlanExecutor(GatedExecutor executor) : IPlanExecutor
     {
-        public PlanExecutionSummary ExecuteWithSummary(OperationPlan plan, string approvedPlanHash)
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
         {
             ExecutionReport report = executor.ExecuteWithReport(plan, approvedPlanHash);
-            int skippedOrNotRun = report.Results.Count(r => r.Status is ActionStatus.Skipped or ActionStatus.NotRun);
-            return new PlanExecutionSummary(report.DoneCount, skippedOrNotRun, report.FailedCount);
+            return new PlanExecutionReport(
+                report.Authorized,
+                report.PlanHash,
+                report.Results
+                    .Select(r => new PlanActionResult(r.ActionId, r.Kind, MapStatus(r.Status), r.Detail))
+                    .ToArray());
         }
+
+        private static PlanActionStatus MapStatus(ActionStatus status) => status switch
+        {
+            ActionStatus.Done => PlanActionStatus.Done,
+            ActionStatus.Skipped => PlanActionStatus.Skipped,
+            ActionStatus.Blocked => PlanActionStatus.Blocked,
+            ActionStatus.Failed => PlanActionStatus.Failed,
+            ActionStatus.NotRun => PlanActionStatus.NotRun,
+            _ => PlanActionStatus.Failed,
+        };
     }
 
     private sealed class RenderFakeManifestLoader(params InstallEntry[] entries) : IInstallManifestLoader

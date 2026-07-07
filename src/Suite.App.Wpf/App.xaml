@@ -21,9 +21,6 @@
             <DataTemplate DataType="{x:Type vm:BackupViewModel}">
                 <views:BackupView />
             </DataTemplate>
-            <DataTemplate DataType="{x:Type vm:InstallViewModel}">
-                <views:InstallView />
-            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:MigrationViewModel}">
                 <views:MigrationView />
             </DataTemplate>
