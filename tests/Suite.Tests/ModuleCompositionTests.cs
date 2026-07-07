@@ -77,36 +77,71 @@ public sealed class ModuleCompositionTests
     }
 
     [Fact]
-    public void MigrationModule_registration_is_isolated_from_base_and_other_modules()
+    public void MigrationModule_creates_content_and_view_from_migration_assembly_and_registers_only_migration_services()
     {
-        var withMigration = new ServiceCollection();
-        WpfApp.AddBaseServices(withMigration, Array.Empty<string>());
-        new MigrationModule().RegisterServices(withMigration);
-        using ServiceProvider migrationProvider = withMigration.BuildServiceProvider();
+        RunOnStaThread(() =>
+        {
+            var baseServices = new ServiceCollection();
+            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IInstalledAppReader));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IAppxReader));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IRegistryProbe));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(ICurrentSidProvider));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IBackupExecutor));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IHasher));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IFileSystem));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IClock));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(MigrationRestoreManifestStore));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IMsiCatalog));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IMigrationScanService));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IRecipeFileSystem));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IContentSignatureProbe));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(MigrationViewModel));
+            using ServiceProvider baseProvider = baseServices.BuildServiceProvider();
 
-        Assert.NotNull(migrationProvider.GetService<I18n>());
-        Assert.NotNull(migrationProvider.GetService<ISafetyGate>());
-        Assert.NotNull(migrationProvider.GetService<IInstalledAppReader>());
-        Assert.NotNull(migrationProvider.GetService<IMigrationScanService>());
-        Assert.NotNull(migrationProvider.GetService<IRecipeFileSystem>());
-        Assert.NotNull(migrationProvider.GetService<IContentSignatureProbe>());
-        Assert.Equal(5, migrationProvider.GetServices<IProgramSource>().Count());
-        Assert.Null(migrationProvider.GetService<ILeftoverProbe>());
-        Assert.Null(migrationProvider.GetService<IJunkProbe>());
-        Assert.Null(migrationProvider.GetService<IManifestLoader>());
-        Assert.Null(migrationProvider.GetService<IInstallManifestLoader>());
+            Assert.NotNull(baseProvider.GetService<I18n>());
+            Assert.NotNull(baseProvider.GetService<ISafetyGate>());
+            Assert.NotNull(baseProvider.GetService<IInstalledAppReader>());
+            Assert.NotNull(baseProvider.GetService<IAppxReader>());
+            Assert.NotNull(baseProvider.GetService<IRegistryProbe>());
+            Assert.NotNull(baseProvider.GetService<ICurrentSidProvider>());
+            Assert.NotNull(baseProvider.GetService<IBackupExecutor>());
+            Assert.NotNull(baseProvider.GetService<IHasher>());
+            Assert.NotNull(baseProvider.GetService<IFileSystem>());
+            Assert.NotNull(baseProvider.GetService<IClock>());
+            Assert.NotNull(baseProvider.GetService<MigrationRestoreManifestStore>());
+            Assert.Null(baseProvider.GetService<IMsiCatalog>());
+            Assert.Null(baseProvider.GetService<IMigrationScanService>());
+            Assert.Null(baseProvider.GetService<IRecipeFileSystem>());
+            Assert.Null(baseProvider.GetService<IContentSignatureProbe>());
+            Assert.Empty(baseProvider.GetServices<IProgramSource>());
+            Assert.Null(baseProvider.GetService<MigrationViewModel>());
 
-        var withoutMigration = new ServiceCollection();
-        WpfApp.AddBaseServices(withoutMigration, Array.Empty<string>());
-        using ServiceProvider baseProvider = withoutMigration.BuildServiceProvider();
+            var services = new ServiceCollection();
+            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            var module = new MigrationModule();
+            module.RegisterServices(services);
+            using ServiceProvider provider = services.BuildServiceProvider();
 
-        Assert.NotNull(baseProvider.GetService<I18n>());
-        Assert.NotNull(baseProvider.GetService<ISafetyGate>());
-        Assert.NotNull(baseProvider.GetService<IInstalledAppReader>());
-        Assert.Null(baseProvider.GetService<IMigrationScanService>());
-        Assert.Null(baseProvider.GetService<IRecipeFileSystem>());
-        Assert.Null(baseProvider.GetService<IContentSignatureProbe>());
-        Assert.Empty(baseProvider.GetServices<IProgramSource>());
+            object content = module.CreateContent(provider);
+            FrameworkElement view = Assert.IsAssignableFrom<FrameworkElement>(module.CreateView());
+
+            var vm = Assert.IsType<MigrationViewModel>(content);
+            var migrationView = Assert.IsType<MigrationView>(view);
+            Assert.Equal("Suite.Module.Migration", module.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Migration", vm.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Migration", migrationView.GetType().Assembly.GetName().Name);
+            Assert.IsType<Win32MsiCatalog>(provider.GetRequiredService<IMsiCatalog>());
+            Assert.IsType<Win32StartMenuShortcutReader>(provider.GetRequiredService<IStartMenuShortcutReader>());
+            Assert.IsType<Win32RecipeFileSystem>(provider.GetRequiredService<IRecipeFileSystem>());
+            Assert.IsType<Win32ContentSignatureProbe>(provider.GetRequiredService<IContentSignatureProbe>());
+            Assert.Equal(5, provider.GetServices<IProgramSource>().Count());
+            Assert.NotNull(provider.GetRequiredService<IMigrationScanService>());
+            Assert.NotNull(provider.GetRequiredService<RecipeResolver>());
+            Assert.NotNull(provider.GetRequiredService<MigrationInstallManifestStore>());
+            Assert.NotNull(provider.GetRequiredService<MigrationBackupRunner>());
+            Assert.NotNull(provider.GetRequiredService<IMigrationBackupRunner>());
+        });
     }
 
     [Fact]

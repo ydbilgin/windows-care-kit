@@ -24,6 +24,7 @@
     <ProjectReference Include="..\Suite.Module.Restore\Suite.Module.Restore.csproj" />
     <ProjectReference Include="..\Suite.Module.Backup\Suite.Module.Backup.csproj" />
     <ProjectReference Include="..\Suite.Module.Uninstall\Suite.Module.Uninstall.csproj" />
+    <ProjectReference Include="..\Suite.Module.Migration\Suite.Module.Migration.csproj" />
     <ProjectReference Include="..\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\Suite.Win32\Suite.Win32.csproj" />
     <ProjectReference Include="..\Suite.Execution\Suite.Execution.csproj" />
