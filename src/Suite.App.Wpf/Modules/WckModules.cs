@@ -1,9 +1,9 @@
+using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Backup;
-using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
@@ -32,27 +32,8 @@ public sealed class UninstallModule : IWckModule
     }
 
     public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<UninstallViewModel>();
-}
 
-public sealed class CleanModule : IWckModule
-{
-    public string Id => "clean";
-    public string TitleKey => "nav.clean";
-    public string DescKey => "nav.clean.desc";
-    public string IconKey => "\uE75C";
-    public int Order => 20;
-    public bool IsSettings => false;
-
-    public void RegisterServices(IServiceCollection services)
-    {
-        services.AddSingleton<IJunkProbe, Win32JunkProbe>();
-        services.AddSingleton<IStartupProbe, Win32StartupProbe>();
-        services.AddSingleton<IBrowserExtensionInventory, Win32BrowserExtensionInventory>();
-        services.AddSingleton<IRecycleBinService, Win32RecycleBinService>();
-        services.AddSingleton<CleanViewModel>();
-    }
-
-    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<CleanViewModel>();
+    public FrameworkElement? CreateView() => null;
 }
 
 public sealed class BackupModule : IWckModule
@@ -76,6 +57,8 @@ public sealed class BackupModule : IWckModule
     }
 
     public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<BackupViewModel>();
+
+    public FrameworkElement? CreateView() => null;
 }
 
 public sealed class MigrationModule : IWckModule
@@ -121,6 +104,8 @@ public sealed class MigrationModule : IWckModule
     }
 
     public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<MigrationViewModel>();
+
+    public FrameworkElement? CreateView() => null;
 }
 
 public sealed class RestoreModule : IWckModule
@@ -144,6 +129,8 @@ public sealed class RestoreModule : IWckModule
     }
 
     public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<RestoreViewModel>();
+
+    public FrameworkElement? CreateView() => null;
 }
 
 public sealed class InstallModule : IWckModule
@@ -167,6 +154,8 @@ public sealed class InstallModule : IWckModule
     }
 
     public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<InstallViewModel>();
+
+    public FrameworkElement? CreateView() => null;
 }
 
 public sealed class SettingsModule : IWckModule
@@ -183,4 +172,6 @@ public sealed class SettingsModule : IWckModule
     }
 
     public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<SettingsViewModel>();
+
+    public FrameworkElement? CreateView() => null;
 }

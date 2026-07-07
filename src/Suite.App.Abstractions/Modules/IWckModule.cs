@@ -1,3 +1,4 @@
+using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace WindowsCareKit.App.Modules;
@@ -12,4 +13,5 @@ public interface IWckModule
     bool IsSettings { get; }
     void RegisterServices(IServiceCollection services);
     object CreateContent(IServiceProvider sp);
+    FrameworkElement? CreateView();
 }

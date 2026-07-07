@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
@@ -9,6 +10,8 @@ namespace WindowsCareKit.App.ViewModels;
 /// <summary>The shell: the navigation rail, the selected content, and the language selector.</summary>
 public sealed class MainViewModel : ObservableObject
 {
+    private readonly IReadOnlyDictionary<string, IWckModule> _modulesById;
+    private readonly Dictionary<string, FrameworkElement> _moduleViews = new(StringComparer.OrdinalIgnoreCase);
     private NavItem _selectedNav = null!;
 
     public MainViewModel(I18n i18n, IReadOnlyList<IWckModule> modules)
@@ -19,6 +22,7 @@ public sealed class MainViewModel : ObservableObject
     internal MainViewModel(I18n i18n, IReadOnlyList<IWckModule> modules, IServiceProvider services)
     {
         I18n = i18n;
+        _modulesById = modules.ToDictionary(m => m.Id, StringComparer.OrdinalIgnoreCase);
 
         // Glyphs are Segoe MDL2 Assets / Segoe Fluent Icons code points (delete / clean / save / migrate / restore / download / gear).
         Nav = new ObservableCollection<NavItem>(
@@ -64,7 +68,7 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public object CurrentContent => _selectedNav.Content;
+    public object CurrentContent => HostContent(_selectedNav);
 
     /// <summary>
     /// Opens a module by its short key (e.g. "migration" → the nav.migration tab). Used by the
@@ -95,6 +99,23 @@ public sealed class MainViewModel : ObservableObject
     private T Content<T>(string id) where T : class
         => Nav.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Content as T
            ?? throw new InvalidOperationException($"Navigation module '{id}' is not available.");
+
+    private object HostContent(NavItem item)
+    {
+        if (!_modulesById.TryGetValue(item.Id, out IWckModule? module))
+            return item.Content;
+
+        if (_moduleViews.TryGetValue(item.Id, out FrameworkElement? cached))
+            return cached;
+
+        FrameworkElement? view = module.CreateView();
+        if (view is null)
+            return item.Content;
+
+        view.DataContext = item.Content;
+        _moduleViews[item.Id] = view;
+        return view;
+    }
 
     private sealed class EmptyServiceProvider : IServiceProvider
     {

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Execution;
@@ -7,14 +8,13 @@ using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
 /// <summary>
 /// The Temizle (Clean) view-model. Four read-only sections each feed the one execution path: build a
 /// dry-run <see cref="OperationPlan"/> → the user previews it (risk-colored <see cref="PlanRow"/>) →
-/// approve → <c>hash = plan.ComputeHash()</c> → <see cref="GatedExecutor.ExecuteWithReport"/>. Junk and
+/// approve → <c>hash = plan.ComputeHash()</c> → the UI plan executor. Junk and
 /// the recycle bin are the only destructive sections; startup is a per-entry disable plan; browser
 /// extensions are inventory-only (removal is out of scope, spec §1.2). Nothing runs without an explicit
 /// approve, and never outside the executor (spec §3). Command enable/disable is re-queried automatically
@@ -28,7 +28,7 @@ public sealed class CleanViewModel : ObservableObject
     private readonly IRecycleBinService _recycleBin;
     private readonly IFolderOpener _folderOpener;
     private readonly ISafetyGate _gate;
-    private readonly GatedExecutor _executor;
+    private readonly IPlanExecutor _executor;
 
     private OperationPlan? _pendingJunkPlan;
     private OperationPlan? _pendingStartupPlan;
@@ -47,7 +47,7 @@ public sealed class CleanViewModel : ObservableObject
         IRecycleBinService recycleBin,
         IFolderOpener folderOpener,
         ISafetyGate gate,
-        GatedExecutor executor)
+        IPlanExecutor executor)
     {
         I18n = i18n;
         _junkProbe = junkProbe ?? throw new ArgumentNullException(nameof(junkProbe));
@@ -305,9 +305,12 @@ public sealed class CleanViewModel : ObservableObject
         try
         {
             string hash = plan.ComputeHash();
-            ExecutionReport report = await Task.Run(() => _executor.ExecuteWithReport(plan, hash));
-            int notRun = report.Results.Count(r => r.Status is ActionStatus.NotRun or ActionStatus.Skipped);
-            ResultSummary = I18n.Format("clean.result.summary", report.DoneCount, notRun, report.FailedCount);
+            PlanExecutionSummary summary = await Task.Run(() => _executor.ExecuteWithSummary(plan, hash));
+            ResultSummary = I18n.Format(
+                "clean.result.summary",
+                summary.DoneCount,
+                summary.SkippedOrNotRunCount,
+                summary.FailedCount);
         }
         finally
         {

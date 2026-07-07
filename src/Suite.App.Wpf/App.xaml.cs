@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Theming;
@@ -166,8 +167,7 @@ public partial class App : Application
         // the Win32 call and never reports a fake success against a disabled System Restore (PR-5 audit FIX 2).
         s.AddSingleton<IRestorePointCreator>(sp =>
             new Win32RestorePointCreator(sp.GetRequiredService<IRestorePointCapabilityProbe>()));
-        // Register the concrete GatedExecutor once (CleanViewModel needs the concrete type for
-        // ExecuteWithReport) and alias IExecutor to that same instance.
+        // Register the concrete GatedExecutor once and expose UI/core aliases to that same instance.
         s.AddSingleton(sp => new GatedExecutor(
             sp.GetRequiredService<ISafetyGate>(),
             sp.GetRequiredService<ExecutionLog>(),
@@ -180,6 +180,7 @@ public partial class App : Application
             sp.GetRequiredService<IRestorePointCreator>(),
             sp.GetRequiredService<IRecycleBinEmptier>()));
         s.AddSingleton<IExecutor>(sp => sp.GetRequiredService<GatedExecutor>());
+        s.AddSingleton<IPlanExecutor>(sp => new GatedPlanExecutor(sp.GetRequiredService<GatedExecutor>()));
 
         // Shared read-only Win32 ports.
         s.AddSingleton<IRegistryProbe, Win32RegistryProbe>();

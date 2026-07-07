@@ -23,6 +23,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Suite.App.Abstractions\Suite.App.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Suite.Module.Clean\Suite.Module.Clean.csproj" />
     <ProjectReference Include="..\..\src\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\..\src\Suite.Win32\Suite.Win32.csproj" />
     <ProjectReference Include="..\..\src\Suite.Execution\Suite.Execution.csproj" />

@@ -1,14 +1,18 @@
 <UserControl x:Class="WindowsCareKit.App.Views.CleanView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions">
     <!-- Restyled to the emerald evidence-row language (2026-07 UI rollout): Backup.* tokens, two-tier rows
          (action line + quiet meta, monospace only where the text is a literal path/command), a DRY-RUN badge
          beside the H1, and a loud-red treatment for the one truly irreversible action (emptying the Recycle
          Bin). Presentation-only — no ViewModel/command/binding-source change. -->
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+
         <Style x:Key="CleanCard" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource Backup.Card}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.Line}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.Line}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Padding" Value="18" />
@@ -20,21 +24,21 @@
         </Style>
 
         <Style x:Key="CleanSectionTitle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
             <Setter Property="FontSize" Value="15.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
         <Style x:Key="CleanMeta" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
             <Setter Property="FontSize" Value="11.5" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
         <Style x:Key="CleanSecondaryButton" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
-            <Setter Property="Background" Value="{StaticResource Backup.CardHi}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.CardHi}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,6.5" />
             <Setter Property="FontSize" Value="12.5" />
@@ -50,10 +54,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Faint}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Backup.Faint}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Opacity" Value="{DynamicResource Opacity.Disabled.Button}" />
                                 <Setter Property="Cursor" Value="Arrow" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -63,9 +67,9 @@
         </Style>
 
         <Style x:Key="CleanPrimaryButton" TargetType="Button" BasedOn="{StaticResource CleanSecondaryButton}">
-            <Setter Property="Foreground" Value="{StaticResource Backup.EmInk}" />
-            <Setter Property="Background" Value="{StaticResource Backup.Primary.Background}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.Primary.Border}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.EmInk}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Primary.Background}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.Primary.Border}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -76,10 +80,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.Primary.Hover}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Backup.Primary.Hover}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Opacity" Value="{DynamicResource Opacity.Disabled.Button}" />
                                 <Setter Property="Cursor" Value="Arrow" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -90,15 +94,15 @@
 
         <!-- Irreversible action (empty Recycle Bin) — loud red, never emerald. -->
         <Style x:Key="CleanDangerButton" TargetType="Button" BasedOn="{StaticResource CleanSecondaryButton}">
-            <Setter Property="Foreground" Value="{StaticResource Backup.DangerText}" />
-            <Setter Property="Background" Value="{StaticResource Backup.Danger}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.DangerDeep}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.DangerText}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Danger}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.DangerDeep}" />
         </Style>
 
         <!-- Dry-run row: two-tier (action line + quiet meta), monospace only for the action line (it IS the
              literal path/command from PlannedAction.Describe). Risk chip binds RiskBrush/RiskText — unchanged. -->
         <DataTemplate x:Key="PlanRowTemplate">
-            <Border Background="{StaticResource Backup.Row.Background}" BorderBrush="{StaticResource Backup.Line}"
+            <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
                     BorderThickness="1" CornerRadius="8" Padding="11,9" Margin="0,0,0,6">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -110,7 +114,7 @@
                         <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10" FontWeight="Bold" />
                     </Border>
                     <StackPanel Grid.Column="1">
-                        <TextBlock Text="{Binding Text}" Foreground="{StaticResource Backup.Ink}"
+                        <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontFamily="Cascadia Code, Consolas, Courier New"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource CleanMeta}" Margin="0,3,0,0"
@@ -132,30 +136,30 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,2">
-                <TextBlock Text="{Binding I18n[clean.title]}" Foreground="{StaticResource Backup.Ink}"
+                <TextBlock Text="{Binding I18n[clean.title]}" Foreground="{DynamicResource Backup.Ink}"
                            FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Background="{StaticResource Backup.EmWash}" BorderBrush="{StaticResource Backup.EmBorder}"
+                <Border Background="{DynamicResource Backup.EmWash}" BorderBrush="{DynamicResource Backup.EmBorder}"
                         BorderThickness="1" CornerRadius="999" Padding="12,4" Margin="12,0,0,0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="7" Height="7" Fill="{StaticResource Backup.Em}" Margin="0,0,8,0" />
-                        <TextBlock Foreground="{StaticResource Backup.Em}" FontSize="10.5" FontWeight="Bold">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource Backup.Em}" Margin="0,0,8,0" />
+                        <TextBlock Foreground="{DynamicResource Backup.Em}" FontSize="10.5" FontWeight="Bold">
                             <Run Text="{Binding I18n[clean.dryRun.badge], Mode=OneWay}" />
                             <Run Text="{Binding I18n[clean.dryRun.caption], Mode=OneWay}"
-                                 Foreground="{StaticResource Backup.Muted}" FontSize="11" FontWeight="Normal" />
+                                 Foreground="{DynamicResource Backup.Muted}" FontSize="11" FontWeight="Normal" />
                         </TextBlock>
                     </StackPanel>
                 </Border>
             </StackPanel>
-            <TextBlock Text="{Binding I18n[clean.subtitle]}" Foreground="{StaticResource Backup.Muted}"
+            <TextBlock Text="{Binding I18n[clean.subtitle]}" Foreground="{DynamicResource Backup.Muted}"
                        FontSize="13" TextWrapping="Wrap" Margin="0,4,0,0" />
 
-            <Border Background="{StaticResource Backup.Rail.Background}" BorderBrush="{StaticResource Backup.RailBorder}"
+            <Border Background="{DynamicResource Backup.Rail.Background}" BorderBrush="{DynamicResource Backup.RailBorder}"
                     BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,12,0,0" HorizontalAlignment="Left"
                     Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding I18n[clean.result.title]}" Foreground="{StaticResource Backup.Ink}"
+                    <TextBlock Text="{Binding I18n[clean.result.title]}" Foreground="{DynamicResource Backup.Ink}"
                                FontWeight="SemiBold" FontSize="12.5" Margin="0,0,9,0" />
-                    <TextBlock Text="{Binding ResultSummary}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5" />
+                    <TextBlock Text="{Binding ResultSummary}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5" />
                 </StackPanel>
             </Border>
         </StackPanel>
@@ -184,7 +188,7 @@
                             <TextBlock Grid.Column="0" Text="{Binding I18n[clean.junk.title]}" Style="{StaticResource CleanSectionTitle}" />
                             <TextBlock Grid.Column="1" Style="{StaticResource CleanMeta}" VerticalAlignment="Center"
                                        Visibility="{Binding JunkPreview.Count, Converter={StaticResource PositiveToVis}}">
-                                <Run Text="{Binding JunkPreview.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Backup.Ink}" />
+                                <Run Text="{Binding JunkPreview.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
                                 <Run Text="{Binding I18n[clean.count.found], Mode=OneWay}" />
                             </TextBlock>
                         </Grid>
@@ -198,7 +202,7 @@
                                    Visibility="{Binding JunkEmpty, Converter={StaticResource BoolToVis}}" />
                         <ItemsControl ItemsSource="{Binding JunkPreview}" Margin="0,12,0,0"
                                       ItemTemplate="{StaticResource PlanRowTemplate}" />
-                        <TextBlock Text="{Binding I18n[uninstall.leftovers.skippedTitle]}" Foreground="{StaticResource Backup.DangerStrong}"
+                        <TextBlock Text="{Binding I18n[uninstall.leftovers.skippedTitle]}" Foreground="{DynamicResource Backup.DangerStrong}"
                                    FontSize="11.5" FontWeight="SemiBold" Margin="0,8,0,8"
                                    Visibility="{Binding JunkSkipped.Count, Converter={StaticResource PositiveToVis}}" />
                         <ItemsControl ItemsSource="{Binding JunkSkipped}" ItemTemplate="{StaticResource PlanRowTemplate}" />
@@ -209,28 +213,28 @@
                 <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource CleanCard}">
                     <StackPanel>
                         <TextBlock Text="{Binding I18n[clean.recycle.title]}" Style="{StaticResource CleanSectionTitle}" />
-                        <TextBlock Text="{Binding RecycleStats}" Foreground="{StaticResource Backup.Muted}" FontSize="13"
+                        <TextBlock Text="{Binding RecycleStats}" Foreground="{DynamicResource Backup.Muted}" FontSize="13"
                                    TextWrapping="Wrap" Margin="0,10,0,0" />
                         <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                             <Button Style="{StaticResource CleanSecondaryButton}" Content="{Binding I18n[common.refresh]}"
                                     Command="{Binding RefreshRecycleCommand}" />
                             <Button Style="{StaticResource CleanDangerButton}" Margin="8,0,0,0"
                                     Content="{Binding I18n[clean.recycle.empty]}" Command="{Binding EmptyRecycleCommand}" />
-                            <Border Background="{StaticResource Backup.Danger}" BorderBrush="{StaticResource Backup.DangerDeep}"
+                            <Border Background="{DynamicResource Backup.Danger}" BorderBrush="{DynamicResource Backup.DangerDeep}"
                                     BorderThickness="1" CornerRadius="999" Padding="8,3" Margin="8,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding I18n[clean.recycle.irreversible]}" Foreground="{StaticResource Backup.DangerText}"
+                                <TextBlock Text="{Binding I18n[clean.recycle.irreversible]}" Foreground="{DynamicResource Backup.DangerText}"
                                            FontSize="10" FontWeight="Bold" />
                             </Border>
                         </StackPanel>
 
                         <!-- Irreversible: explicit confirm before emptying — loud red, never softened. -->
-                        <Border Background="{StaticResource Backup.Row.Danger}" BorderBrush="{StaticResource Backup.DangerBorder}"
+                        <Border Background="{DynamicResource Backup.Row.Danger}" BorderBrush="{DynamicResource Backup.DangerBorder}"
                                 BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,14,0,0"
                                 Visibility="{Binding RecycleConfirmPending, Converter={StaticResource BoolToVis}}">
                             <StackPanel>
-                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.title]}" Foreground="{StaticResource Backup.DangerStrong}"
+                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.title]}" Foreground="{DynamicResource Backup.DangerStrong}"
                                            FontWeight="SemiBold" FontSize="13.5" />
-                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.body]}" Foreground="{StaticResource Backup.Muted}"
+                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.body]}" Foreground="{DynamicResource Backup.Muted}"
                                            FontSize="12.5" TextWrapping="Wrap" Margin="0,7,0,12" />
                                 <StackPanel Orientation="Horizontal">
                                     <Button Style="{StaticResource CleanDangerButton}"
@@ -257,21 +261,21 @@
                                 <TextBlock Text="{Binding I18n[clean.startup.title]}" Style="{StaticResource CleanSectionTitle}" />
                                 <TextBlock Style="{StaticResource CleanMeta}" Margin="8,2,0,0" VerticalAlignment="Center"
                                            Visibility="{Binding StartupEntries.Count, Converter={StaticResource PositiveToVis}}">
-                                    <Run Text="{Binding StartupEntries.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Backup.Ink}" />
+                                    <Run Text="{Binding StartupEntries.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
                                     <Run Text="{Binding I18n[clean.count.entries], Mode=OneWay}" />
                                 </TextBlock>
                             </StackPanel>
                             <Button Grid.Column="1" Style="{StaticResource CleanSecondaryButton}"
                                     Content="{Binding I18n[common.refresh]}" Command="{Binding LoadStartupCommand}" />
                         </Grid>
-                        <ListBox Style="{StaticResource AppList}" ItemContainerStyle="{StaticResource AppItem}"
-                                 Background="{StaticResource Backup.CardHi}" BorderBrush="{StaticResource Backup.Line}"
+                        <ListBox Style="{DynamicResource AppList}" ItemContainerStyle="{DynamicResource AppItem}"
+                                 Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.Line}"
                                  Margin="0,12,0,0" MaxHeight="220" BorderThickness="1"
                                  ItemsSource="{Binding StartupEntries}" SelectedItem="{Binding SelectedStartup}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Margin="0,2">
-                                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource Backup.Ink}"
+                                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Backup.Ink}"
                                                    FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{Binding SourceLabel}" Style="{StaticResource CleanMeta}" Margin="0,2,0,0" />
                                         <TextBlock Text="{Binding Command}" Style="{StaticResource CleanMeta}"
@@ -301,7 +305,7 @@
                                 <TextBlock Text="{Binding I18n[clean.ext.title]}" Style="{StaticResource CleanSectionTitle}" />
                                 <TextBlock Style="{StaticResource CleanMeta}" Margin="8,2,0,0" VerticalAlignment="Center"
                                            Visibility="{Binding Extensions.Count, Converter={StaticResource PositiveToVis}}">
-                                    <Run Text="{Binding Extensions.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Backup.Ink}" />
+                                    <Run Text="{Binding Extensions.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
                                     <Run Text="{Binding I18n[clean.count.found], Mode=OneWay}" />
                                 </TextBlock>
                             </StackPanel>
@@ -312,7 +316,7 @@
                         <ItemsControl ItemsSource="{Binding Extensions}" Margin="0,12,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource Backup.Row.Background}" BorderBrush="{StaticResource Backup.Line}"
+                                    <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
                                             BorderThickness="1" CornerRadius="8" Padding="11,9" Margin="0,0,0,6">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -320,7 +324,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource Backup.Ink}"
+                                                <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Backup.Ink}"
                                                            FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                                     <TextBlock Text="{Binding Browser}" Style="{StaticResource CleanMeta}" />

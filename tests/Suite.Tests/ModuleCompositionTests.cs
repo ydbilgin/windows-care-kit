@@ -1,7 +1,12 @@
+using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.ViewModels;
+using WindowsCareKit.App.Views;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Install;
@@ -10,6 +15,7 @@ using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Win32;
 using Xunit;
 using WpfApp = WindowsCareKit.App.App;
 
@@ -99,6 +105,33 @@ public sealed class ModuleCompositionTests
         Assert.Empty(baseProvider.GetServices<IProgramSource>());
     }
 
+    [Fact]
+    public void CleanModule_creates_content_and_view_from_clean_assembly_and_registers_win32_probes()
+    {
+        RunOnStaThread(() =>
+        {
+            var services = new ServiceCollection();
+            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            var module = new CleanModule();
+            module.RegisterServices(services);
+            using ServiceProvider provider = services.BuildServiceProvider();
+
+            object content = module.CreateContent(provider);
+            FrameworkElement view = Assert.IsAssignableFrom<FrameworkElement>(module.CreateView());
+
+            var vm = Assert.IsType<CleanViewModel>(content);
+            var cleanView = Assert.IsType<CleanView>(view);
+            Assert.Equal("Suite.Module.Clean", module.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Clean", vm.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Clean", cleanView.GetType().Assembly.GetName().Name);
+            Assert.IsType<Win32JunkProbe>(provider.GetRequiredService<IJunkProbe>());
+            Assert.IsType<Win32StartupProbe>(provider.GetRequiredService<IStartupProbe>());
+            Assert.IsType<Win32BrowserExtensionInventory>(provider.GetRequiredService<IBrowserExtensionInventory>());
+            Assert.IsType<Win32RecycleBinService>(provider.GetRequiredService<IRecycleBinService>());
+            Assert.NotNull(provider.GetRequiredService<IPlanExecutor>());
+        });
+    }
+
     private static ServiceProvider BuildProvider(IReadOnlyList<IWckModule> modules)
     {
         var services = new ServiceCollection();
@@ -145,6 +178,8 @@ public sealed class ModuleCompositionTests
         }
 
         public object CreateContent(IServiceProvider sp) => contentFactory(sp);
+
+        public FrameworkElement? CreateView() => null;
     }
 
     private sealed class RecordingNavigationAware : IWckNavigationAware
@@ -152,5 +187,28 @@ public sealed class ModuleCompositionTests
         public int NavigatedToCount { get; private set; }
 
         public void OnNavigatedTo() => NavigatedToCount++;
+    }
+
+    private static void RunOnStaThread(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Capture(failure).Throw();
     }
 }

@@ -8,6 +8,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
 using WindowsCareKit.App;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Controls;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
@@ -142,7 +143,7 @@ public sealed class ViewRenderSmokeTests
                     new RenderFakeRecycleBinService(new RecycleBinStats(3, 2048)),
                     new RenderFakeFolderOpener(),
                     fx.Gate,
-                    fx.Executor);
+                    new RenderPlanExecutor(fx.Executor));
                 vm.ScanJunkCommand.Execute(null);
                 vm.LoadStartupCommand.Execute(null);
 
@@ -551,11 +552,13 @@ public sealed class ViewRenderSmokeTests
     public void No_view_binds_TwoWay_to_the_I18n_indexer()
     {
         string[] xamlFiles = Directory.EnumerateFiles(ViewsPath, "*.xaml", SearchOption.TopDirectoryOnly)
+            .Concat(Directory.EnumerateFiles(CleanModuleViewsPath, "*.xaml", SearchOption.TopDirectoryOnly))
             .Append(MainWindowPath)
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("SettingsView.xaml", StringComparison.Ordinal));
+        Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("CleanView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("MainWindow.xaml", StringComparison.Ordinal));
 
         var failures = new List<string>();
@@ -728,6 +731,7 @@ public sealed class ViewRenderSmokeTests
     }
 
     private static string ViewsPath => Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "Views");
+    private static string CleanModuleViewsPath => Path.Combine(RepoRoot, "src", "Suite.Module.Clean", "Views");
     private static string MainWindowPath => Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "MainWindow.xaml");
 
     private static string RepoRoot
@@ -836,6 +840,16 @@ public sealed class ViewRenderSmokeTests
     private sealed class RenderFakeFolderOpener : IFolderOpener
     {
         public void OpenFolder(string path) { }
+    }
+
+    private sealed class RenderPlanExecutor(GatedExecutor executor) : IPlanExecutor
+    {
+        public PlanExecutionSummary ExecuteWithSummary(OperationPlan plan, string approvedPlanHash)
+        {
+            ExecutionReport report = executor.ExecuteWithReport(plan, approvedPlanHash);
+            int skippedOrNotRun = report.Results.Count(r => r.Status is ActionStatus.Skipped or ActionStatus.NotRun);
+            return new PlanExecutionSummary(report.DoneCount, skippedOrNotRun, report.FailedCount);
+        }
     }
 
     private sealed class RenderFakeManifestLoader(params InstallEntry[] entries) : IInstallManifestLoader
