@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Theming;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
@@ -100,6 +101,29 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection s, string[] args)
     {
+        AddBaseServices(s, args);
+
+        IReadOnlyList<IWckModule> modules = CreateDefaultModules();
+        foreach (IWckModule module in modules)
+            module.RegisterServices(s);
+
+        s.AddSingleton(modules);
+    }
+
+    internal static IReadOnlyList<IWckModule> CreateDefaultModules()
+        => new IWckModule[]
+        {
+            new UninstallModule(),
+            new CleanModule(),
+            new BackupModule(),
+            new MigrationModule(),
+            new RestoreModule(),
+            new InstallModule(),
+            new SettingsModule(),
+        };
+
+    internal static void AddBaseServices(IServiceCollection s, string[] args)
+    {
         s.AddSingleton<I18n>();
         s.AddSingleton<IThemePreferenceStore>(_ => new JsonThemePreferenceStore(JsonThemePreferenceStore.DefaultBaseDirectory));
         s.AddSingleton<IThemeService>(sp => new ThemeService(
@@ -157,15 +181,11 @@ public partial class App : Application
             sp.GetRequiredService<IRecycleBinEmptier>()));
         s.AddSingleton<IExecutor>(sp => sp.GetRequiredService<GatedExecutor>());
 
-        // Uninstall module (read-only readers + probe + per-user AppX remover).
+        // Shared read-only Win32 ports.
         s.AddSingleton<IRegistryProbe, Win32RegistryProbe>();
         s.AddSingleton<IInstalledAppReader, Win32InstalledAppReader>();
         s.AddSingleton<IAppxReader, Win32AppxReader>();
-        s.AddSingleton<IMsiCatalog, Win32MsiCatalog>();
-        s.AddSingleton<IStartMenuShortcutReader, Win32StartMenuShortcutReader>();
-        s.AddSingleton<IContentSignatureProbe>(_ => new Win32ContentSignatureProbe());
-        s.AddSingleton<ILeftoverProbe, Win32LeftoverProbe>();
-        s.AddSingleton<IAppxRemover>(sp => new Win32AppxRemover(sp.GetRequiredService<ExecutionLog>()));
+
         // Restore-point capability probe (PR-5): availability = SR enabled on the system drive AND elevated
         // (NOT mere service presence — SRSetRestorePointW can succeed when SR is off). The wizard flips its
         // toggle from this. The composing LOGIC is host-testable; the real signals are the two Win32 probes.
@@ -174,86 +194,24 @@ public partial class App : Application
         s.AddSingleton<IRestorePointCapabilityProbe>(sp => new DefaultRestorePointCapabilityProbe(
             sp.GetRequiredService<ISystemRestoreConfigProbe>(), sp.GetRequiredService<IElevationProbe>()));
 
-        // Clean module (read-only probes/services).
-        s.AddSingleton<IJunkProbe, Win32JunkProbe>();
-        s.AddSingleton<IStartupProbe, Win32StartupProbe>();
-        s.AddSingleton<IBrowserExtensionInventory, Win32BrowserExtensionInventory>();
-        s.AddSingleton<IRecycleBinService, Win32RecycleBinService>();
-
-        // Migration Slice-A: read-only sources are only enumerated when MainViewModel navigates to Migration.
-        // Construction stores seams only; no registry/filesystem scan or restore run happens at startup.
-        s.AddSingleton<IRecipeFileSystem, Win32RecipeFileSystem>();
-        s.AddSingleton<IProgramSource>(sp => new RegistryUninstallSource(
-            sp.GetRequiredService<IInstalledAppReader>(), new Win32PathCanonicalizer()));
-        s.AddSingleton<IProgramSource>(sp => new MsiProductSource(
-            new Win32MsiCatalog(),
-            new Win32PathCanonicalizer(),
-            sp.GetRequiredService<ICurrentSidProvider>().GetCurrentSid()));
-        s.AddSingleton<IProgramSource>(sp => new AppxProgramSource(
-            sp.GetRequiredService<IAppxReader>(), new Win32PathCanonicalizer()));
-        s.AddSingleton<IProgramSource>(sp => new AppPathsSource(
-            sp.GetRequiredService<IRegistryProbe>(), new Win32PathCanonicalizer()));
-        s.AddSingleton<IProgramSource>(sp => new StartMenuSource(
-            sp.GetRequiredService<IStartMenuShortcutReader>(), new Win32PathCanonicalizer()));
-        s.AddSingleton<IMigrationScanService>(sp => new MigrationScanService(
-            sp.GetServices<IProgramSource>(),
-            ProfileRoots.ForCurrentUser,
-            sp.GetRequiredService<IRecipeFileSystem>(),
-            sp.GetRequiredService<IContentSignatureProbe>()));
-        s.AddSingleton<Func<IReadOnlyList<MigrationRecipe>>>(_ => BuiltinRecipeSource.LoadAll);
-
-        // Backup module (manifest loader + env expander + planner + report writer).
-        s.AddSingleton<IEnvironmentExpander, Win32EnvironmentExpander>();
-        s.AddSingleton<IManifestLoader, ManifestLoader>();
-        s.AddSingleton<BackupPlanner>();
-        // The report writer redacts the username/profile out of REPORT.md/MANUAL_TODO.md (they land on
-        // external/USB media); ILogRedactor is already registered (LogRedactor.ForCurrentUser) so this auto-wires.
-        s.AddSingleton<BackupReportWriter>();
         // Backup integrity ring + headless runner (Step 3). Read-only ports + the integrity writer + the
         // execution adapter that bridges the sanctioned GatedExecutor onto the Core IBackupExecutor seam.
         s.AddSingleton<IClock, SystemClock>();
         s.AddSingleton<IHasher, Sha256Hasher>();
         s.AddSingleton<IFileSystem, PhysicalFileSystem>();
-        s.AddSingleton<IIntegrityWriter, BackupIntegrityWriter>();
         s.AddSingleton<IBackupExecutor>(sp => new BackupExecutorAdapter(sp.GetRequiredService<GatedExecutor>()));
-        s.AddSingleton<BackupRunner>();
-        s.AddSingleton(sp => new RecipeResolver(
-            new RecipePathResolver(ProfileRoots.ForCurrentUser()),
-            sp.GetRequiredService<IRecipeFileSystem>()));
         s.AddSingleton<MigrationRestoreManifestStore>();
-        s.AddSingleton<MigrationInstallManifestStore>();
-        s.AddSingleton<MigrationBackupRunner>();
-        s.AddSingleton<IMigrationBackupRunner>(sp => sp.GetRequiredService<MigrationBackupRunner>());
 
-        // Install/Restore (Kur) module (manifest loader + driver/auth guards + state store + planner).
-        s.AddSingleton<IInstallManifestLoader, InstallManifestLoader>();
-        s.AddSingleton<IAuthProbe, Win32AuthProbe>();
-        s.AddSingleton<IDriverGuard, Win32DriverGuard>();
+        // Shared install/restore state and planning primitives.
         s.AddSingleton<IRestoreStateStore, RestoreStateStore>();
         s.AddSingleton<InstallPlanner>();
-        s.AddSingleton<MigrationRestoreService>(sp => new MigrationRestoreService(
-            new MigrationRestoreRunner(
-                new RecipePathResolver(ProfileRoots.ForCurrentUser()),
-                sp.GetRequiredService<ISafetyGate>()),
-            sp.GetRequiredService<GatedExecutor>(),
-            sp.GetRequiredService<IRestoreStateStore>()));
-        // Host-safe EXPORT slice (Step 3): the plan writer + the thin runner that projects a built plan into
-        // install_plan.json (the writer re-gates the payload root). The IInstallExecutor seam is declared in Core
-        // but intentionally NOT wired here — execute mode is Step 4, so the runner's optional executor stays null
-        // and no dormant adapter exists. IClock is already registered (Backup ring).
-        s.AddSingleton<IInstallPlanWriter, InstallPlanWriter>();
-        s.AddSingleton(sp => new InstallRunner(
-            sp.GetRequiredService<IInstallPlanWriter>(), sp.GetRequiredService<IClock>()));
 
-        // View-models
-        s.AddSingleton<UninstallViewModel>();
-        s.AddSingleton<CleanViewModel>();
-        s.AddSingleton<BackupViewModel>();
-        s.AddSingleton<MigrationViewModel>();
-        s.AddSingleton<RestoreViewModel>();
-        s.AddSingleton<InstallViewModel>();
+        // Shell view-models.
         s.AddSingleton<SettingsViewModel>();
-        s.AddSingleton<MainViewModel>();
+        s.AddSingleton<MainViewModel>(sp => new MainViewModel(
+            sp.GetRequiredService<I18n>(),
+            sp.GetRequiredService<IReadOnlyList<IWckModule>>(),
+            sp));
     }
 
 }

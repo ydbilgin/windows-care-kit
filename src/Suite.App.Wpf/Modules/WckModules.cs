@@ -1,0 +1,186 @@
+using Microsoft.Extensions.DependencyInjection;
+using WindowsCareKit.App.ViewModels;
+using WindowsCareKit.Core.Abstractions;
+using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Modules.Backup;
+using WindowsCareKit.Core.Modules.Clean;
+using WindowsCareKit.Core.Modules.Install;
+using WindowsCareKit.Core.Modules.Migration;
+using WindowsCareKit.Core.Modules.Migration.Detection;
+using WindowsCareKit.Core.Modules.Migration.Execution;
+using WindowsCareKit.Core.Modules.Uninstall;
+using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Execution;
+using WindowsCareKit.Win32;
+
+namespace WindowsCareKit.App.Modules;
+
+public sealed class UninstallModule : IWckModule
+{
+    public string Id => "uninstall";
+    public string TitleKey => "nav.uninstall";
+    public string DescKey => "nav.uninstall.desc";
+    public string IconKey => "\uE74D";
+    public int Order => 10;
+    public bool IsSettings => false;
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<ILeftoverProbe, Win32LeftoverProbe>();
+        services.AddSingleton<IAppxRemover>(sp => new Win32AppxRemover(sp.GetRequiredService<ExecutionLog>()));
+        services.AddSingleton<UninstallViewModel>();
+    }
+
+    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<UninstallViewModel>();
+}
+
+public sealed class CleanModule : IWckModule
+{
+    public string Id => "clean";
+    public string TitleKey => "nav.clean";
+    public string DescKey => "nav.clean.desc";
+    public string IconKey => "\uE75C";
+    public int Order => 20;
+    public bool IsSettings => false;
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<IJunkProbe, Win32JunkProbe>();
+        services.AddSingleton<IStartupProbe, Win32StartupProbe>();
+        services.AddSingleton<IBrowserExtensionInventory, Win32BrowserExtensionInventory>();
+        services.AddSingleton<IRecycleBinService, Win32RecycleBinService>();
+        services.AddSingleton<CleanViewModel>();
+    }
+
+    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<CleanViewModel>();
+}
+
+public sealed class BackupModule : IWckModule
+{
+    public string Id => "backup";
+    public string TitleKey => "nav.backup";
+    public string DescKey => "nav.backup.desc";
+    public string IconKey => "\uE74E";
+    public int Order => 30;
+    public bool IsSettings => false;
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<IEnvironmentExpander, Win32EnvironmentExpander>();
+        services.AddSingleton<IManifestLoader, ManifestLoader>();
+        services.AddSingleton<BackupPlanner>();
+        services.AddSingleton<BackupReportWriter>();
+        services.AddSingleton<IIntegrityWriter, BackupIntegrityWriter>();
+        services.AddSingleton<BackupRunner>();
+        services.AddSingleton<BackupViewModel>();
+    }
+
+    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<BackupViewModel>();
+}
+
+public sealed class MigrationModule : IWckModule
+{
+    public string Id => "migration";
+    public string TitleKey => "nav.migration";
+    public string DescKey => "nav.migration.desc";
+    public string IconKey => "\uE7AD";
+    public int Order => 40;
+    public bool IsSettings => false;
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<IMsiCatalog, Win32MsiCatalog>();
+        services.AddSingleton<IStartMenuShortcutReader, Win32StartMenuShortcutReader>();
+        services.AddSingleton<IContentSignatureProbe>(_ => new Win32ContentSignatureProbe());
+        services.AddSingleton<IRecipeFileSystem, Win32RecipeFileSystem>();
+        services.AddSingleton<IProgramSource>(sp => new RegistryUninstallSource(
+            sp.GetRequiredService<IInstalledAppReader>(), new Win32PathCanonicalizer()));
+        services.AddSingleton<IProgramSource>(sp => new MsiProductSource(
+            new Win32MsiCatalog(),
+            new Win32PathCanonicalizer(),
+            sp.GetRequiredService<ICurrentSidProvider>().GetCurrentSid()));
+        services.AddSingleton<IProgramSource>(sp => new AppxProgramSource(
+            sp.GetRequiredService<IAppxReader>(), new Win32PathCanonicalizer()));
+        services.AddSingleton<IProgramSource>(sp => new AppPathsSource(
+            sp.GetRequiredService<IRegistryProbe>(), new Win32PathCanonicalizer()));
+        services.AddSingleton<IProgramSource>(sp => new StartMenuSource(
+            sp.GetRequiredService<IStartMenuShortcutReader>(), new Win32PathCanonicalizer()));
+        services.AddSingleton<IMigrationScanService>(sp => new MigrationScanService(
+            sp.GetServices<IProgramSource>(),
+            ProfileRoots.ForCurrentUser,
+            sp.GetRequiredService<IRecipeFileSystem>(),
+            sp.GetRequiredService<IContentSignatureProbe>()));
+        services.AddSingleton<Func<IReadOnlyList<MigrationRecipe>>>(_ => BuiltinRecipeSource.LoadAll);
+        services.AddSingleton(sp => new RecipeResolver(
+            new RecipePathResolver(ProfileRoots.ForCurrentUser()),
+            sp.GetRequiredService<IRecipeFileSystem>()));
+        services.AddSingleton<MigrationInstallManifestStore>();
+        services.AddSingleton<MigrationBackupRunner>();
+        services.AddSingleton<IMigrationBackupRunner>(sp => sp.GetRequiredService<MigrationBackupRunner>());
+        services.AddSingleton<MigrationViewModel>();
+    }
+
+    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<MigrationViewModel>();
+}
+
+public sealed class RestoreModule : IWckModule
+{
+    public string Id => "restore";
+    public string TitleKey => "nav.restore";
+    public string DescKey => "nav.restore.desc";
+    public string IconKey => "\uE81C";
+    public int Order => 50;
+    public bool IsSettings => false;
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<MigrationRestoreService>(sp => new MigrationRestoreService(
+            new MigrationRestoreRunner(
+                new RecipePathResolver(ProfileRoots.ForCurrentUser()),
+                sp.GetRequiredService<ISafetyGate>()),
+            sp.GetRequiredService<GatedExecutor>(),
+            sp.GetRequiredService<IRestoreStateStore>()));
+        services.AddSingleton<RestoreViewModel>();
+    }
+
+    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<RestoreViewModel>();
+}
+
+public sealed class InstallModule : IWckModule
+{
+    public string Id => "install";
+    public string TitleKey => "nav.install";
+    public string DescKey => "nav.install.desc";
+    public string IconKey => "\uE896";
+    public int Order => 60;
+    public bool IsSettings => false;
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        services.AddSingleton<IInstallManifestLoader, InstallManifestLoader>();
+        services.AddSingleton<IAuthProbe, Win32AuthProbe>();
+        services.AddSingleton<IDriverGuard, Win32DriverGuard>();
+        services.AddSingleton<IInstallPlanWriter, InstallPlanWriter>();
+        services.AddSingleton(sp => new InstallRunner(
+            sp.GetRequiredService<IInstallPlanWriter>(), sp.GetRequiredService<IClock>()));
+        services.AddSingleton<InstallViewModel>();
+    }
+
+    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<InstallViewModel>();
+}
+
+public sealed class SettingsModule : IWckModule
+{
+    public string Id => "settings";
+    public string TitleKey => "nav.settings";
+    public string DescKey => "nav.settings.desc";
+    public string IconKey => "\uE713";
+    public int Order => 900;
+    public bool IsSettings => true;
+
+    public void RegisterServices(IServiceCollection services)
+    {
+    }
+
+    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<SettingsViewModel>();
+}

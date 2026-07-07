@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Migration;
@@ -19,7 +20,7 @@ namespace WindowsCareKit.App.ViewModels;
 /// selection → display-only command preview/manual checklist, plus a runner-backed dry-run → hash → explicit
 /// approval → capture flow. The existing <see cref="IMigrationBackupRunner"/> is the only execution path.
 /// </summary>
-public sealed class MigrationViewModel : ObservableObject
+public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
 {
     private readonly IMigrationScanService _scanService;
     private readonly IMigrationBackupRunner _backupRunner;
@@ -208,6 +209,8 @@ public sealed class MigrationViewModel : ObservableObject
         get => _scanError;
         private set => SetField(ref _scanError, value);
     }
+
+    public void OnNavigatedTo() => _ = StartScanAsync();
 
     /// <summary>Runs the read-only scan once, off the UI thread, then applies the result on the caller's UI context.</summary>
     public async Task StartScanAsync(CancellationToken cancellationToken = default)

@@ -12,8 +12,15 @@ public sealed class NavItem : ObservableObject
 
     public NavItem(I18n i18n, string nameKey, string glyph, object content,
         string descriptorKey = "", bool isSettings = false)
+        : this(i18n, IdFromNameKey(nameKey), nameKey, glyph, content, descriptorKey, isSettings)
+    {
+    }
+
+    public NavItem(I18n i18n, string id, string nameKey, string glyph, object content,
+        string descriptorKey = "", bool isSettings = false)
     {
         _i18n = i18n;
+        Id = id;
         NameKey = nameKey;
         Glyph = glyph;
         Content = content;
@@ -22,6 +29,7 @@ public sealed class NavItem : ObservableObject
         _i18n.PropertyChanged += OnI18nChanged;
     }
 
+    public string Id { get; }
     public string NameKey { get; }
     public string Glyph { get; }
     public object Content { get; }
@@ -40,4 +48,9 @@ public sealed class NavItem : ObservableObject
         Raise(nameof(Title));
         Raise(nameof(Descriptor));
     }
+
+    private static string IdFromNameKey(string nameKey)
+        => nameKey.StartsWith("nav.", StringComparison.OrdinalIgnoreCase)
+            ? nameKey["nav.".Length..]
+            : nameKey;
 }

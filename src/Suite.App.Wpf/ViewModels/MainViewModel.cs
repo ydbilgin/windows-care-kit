@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
 
 namespace WindowsCareKit.App.ViewModels;
@@ -10,37 +11,39 @@ public sealed class MainViewModel : ObservableObject
 {
     private NavItem _selectedNav = null!;
 
-    public MainViewModel(I18n i18n, UninstallViewModel uninstall, CleanViewModel clean,
-        BackupViewModel backup, MigrationViewModel migration, RestoreViewModel restore, InstallViewModel install,
-        SettingsViewModel settings)
+    public MainViewModel(I18n i18n, IReadOnlyList<IWckModule> modules)
+        : this(i18n, modules, EmptyServiceProvider.Instance)
+    {
+    }
+
+    internal MainViewModel(I18n i18n, IReadOnlyList<IWckModule> modules, IServiceProvider services)
     {
         I18n = i18n;
-        Uninstall = uninstall;
-        Migration = migration;
-        Restore = restore;
-        Settings = settings;
 
         // Glyphs are Segoe MDL2 Assets / Segoe Fluent Icons code points (delete / clean / save / migrate / restore / download / gear).
-        Nav = new ObservableCollection<NavItem>
-        {
-            new(i18n, "nav.uninstall", "", uninstall, "nav.uninstall.desc"),
-            new(i18n, "nav.clean", "", clean, "nav.clean.desc"),
-            new(i18n, "nav.backup", "", backup, "nav.backup.desc"),
-            new(i18n, "nav.migration", "", migration, "nav.migration.desc"),
-            new(i18n, "nav.restore", "", restore, "nav.restore.desc"),
-            new(i18n, "nav.install", "", install, "nav.install.desc"),
-            new(i18n, "nav.settings", "", settings, "nav.settings.desc", isSettings: true),
-        };
+        Nav = new ObservableCollection<NavItem>(
+            modules
+                .OrderBy(m => m.IsSettings ? 1 : 0)
+                .ThenBy(m => m.Order)
+                .Select(m => new NavItem(
+                    i18n,
+                    m.Id,
+                    m.TitleKey,
+                    m.IconKey,
+                    m.CreateContent(services),
+                    m.DescKey,
+                    m.IsSettings)));
 
         DismissFirstRunCommand = new RelayCommand(() => ShowFirstRun = false);
-        SelectedNav = Nav[0];
+        if (Nav.Count > 0)
+            SelectedNav = Nav[0];
     }
 
     public I18n I18n { get; }
-    public UninstallViewModel Uninstall { get; }
-    public MigrationViewModel Migration { get; }
-    public RestoreViewModel Restore { get; }
-    public SettingsViewModel Settings { get; }
+    public UninstallViewModel Uninstall => Content<UninstallViewModel>("uninstall");
+    public MigrationViewModel Migration => Content<MigrationViewModel>("migration");
+    public RestoreViewModel Restore => Content<RestoreViewModel>("restore");
+    public SettingsViewModel Settings => Content<SettingsViewModel>("settings");
     public ObservableCollection<NavItem> Nav { get; }
     public ICommand DismissFirstRunCommand { get; }
 
@@ -55,8 +58,8 @@ public sealed class MainViewModel : ObservableObject
             if (SetField(ref _selectedNav, value))
             {
                 OnPropertyChanged(nameof(CurrentContent));
-                if (ReferenceEquals(value.Content, Migration))
-                    _ = Migration.StartScanAsync();
+                if (value.Content is IWckNavigationAware aware)
+                    aware.OnNavigatedTo();
             }
         }
     }
@@ -73,10 +76,13 @@ public sealed class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(key))
             return false;
 
-        string nameKey = "nav." + key.Trim().ToLowerInvariant();
+        string id = key.Trim().ToLowerInvariant();
+        if (id.StartsWith("nav.", StringComparison.OrdinalIgnoreCase))
+            id = id["nav.".Length..];
+
         foreach (NavItem item in Nav)
         {
-            if (item.NameKey.Equals(nameKey, StringComparison.OrdinalIgnoreCase))
+            if (item.Id.Equals(id, StringComparison.OrdinalIgnoreCase))
             {
                 SelectedNav = item;
                 return true;
@@ -84,5 +90,20 @@ public sealed class MainViewModel : ObservableObject
         }
 
         return false;
+    }
+
+    private T Content<T>(string id) where T : class
+        => Nav.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Content as T
+           ?? throw new InvalidOperationException($"Navigation module '{id}' is not available.");
+
+    private sealed class EmptyServiceProvider : IServiceProvider
+    {
+        public static EmptyServiceProvider Instance { get; } = new();
+
+        private EmptyServiceProvider()
+        {
+        }
+
+        public object? GetService(Type serviceType) => null;
     }
 }
