@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows.Data;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
@@ -17,7 +18,7 @@ namespace WindowsCareKit.App.ViewModels;
 /// gated call via <see cref="IAppxRemover"/> behind an explicit type-to-confirm. Store removal is the one
 /// destructive path this VM owns: stage → confirm → remove (spec §1.1, §3).
 /// </summary>
-public sealed class UninstallViewModel : ObservableObject
+public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 {
     private readonly IInstalledAppReader _appReader;
     private readonly IAppxReader _appxReader;
@@ -227,6 +228,9 @@ public sealed class UninstallViewModel : ObservableObject
         _selectedApp?.InstallLocation ?? _selectedAppx?.InstallLocation ?? string.Empty;
 
     public bool HasDetailLocation => !string.IsNullOrWhiteSpace(DetailLocation);
+
+    /// <summary>IWckStartupAware entry point: kick off the same read-only inventory load as today.</summary>
+    public Task OnShellStartupAsync() => LoadAsync();
 
     public async Task LoadAsync()
     {

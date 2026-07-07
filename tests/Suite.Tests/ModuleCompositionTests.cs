@@ -77,6 +77,60 @@ public sealed class ModuleCompositionTests
     }
 
     [Fact]
+    public void OnShellStartup_is_safe_when_uninstall_module_is_absent_and_invokes_only_startup_aware_content()
+    {
+        var subsetConstructed = new List<string>();
+        var subset = new IWckModule[]
+        {
+            TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), subsetConstructed),
+            TestModule.For("settings", "nav.settings", "nav.settings.desc", "", 900, new object(), subsetConstructed, isSettings: true),
+        };
+        var subsetVm = new MainViewModel(new I18n(), subset);
+
+        Exception? thrown = Record.Exception(() => subsetVm.OnShellStartup());
+        Assert.Null(thrown);
+
+        var startupAware = new RecordingStartupAware();
+        var mixedConstructed = new List<string>();
+        var mixed = new IWckModule[]
+        {
+            TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), mixedConstructed),
+            new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => startupAware),
+        };
+        var mixedVm = new MainViewModel(new I18n(), mixed);
+
+        mixedVm.OnShellStartup();
+
+        Assert.Equal(1, startupAware.StartupCount);
+    }
+
+    [Fact]
+    public void StaticModuleCatalog_LoadModules_yields_pinned_ids_in_order_with_existing_glyphs()
+    {
+        IReadOnlyList<IWckModule> modules = new StaticModuleCatalog().LoadModules();
+
+        Assert.Equal(
+            new[] { "uninstall", "clean", "backup", "migration", "restore", "install", "settings" },
+            modules.Select(m => m.Id).ToArray());
+        Assert.Equal(
+            new[] { "", "", "", "", "", "", "" },
+            modules.Select(m => m.IconKey).ToArray());
+    }
+
+    [Fact]
+    public void Default_catalog_has_uninstall_as_the_only_startup_aware_nav_content()
+    {
+        using ServiceProvider provider = BuildProvider(WpfApp.CreateDefaultModules());
+        var vm = provider.GetRequiredService<MainViewModel>();
+
+        List<NavItem> startupAwareItems = vm.Nav.Where(item => item.Content is IWckStartupAware).ToList();
+
+        NavItem only = Assert.Single(startupAwareItems);
+        Assert.Equal("uninstall", only.Id);
+        Assert.IsType<UninstallViewModel>(only.Content);
+    }
+
+    [Fact]
     public void MigrationModule_creates_content_and_view_from_migration_assembly_and_registers_only_migration_services()
     {
         RunOnStaThread(() =>
@@ -450,6 +504,17 @@ public sealed class ModuleCompositionTests
         public int NavigatedToCount { get; private set; }
 
         public void OnNavigatedTo() => NavigatedToCount++;
+    }
+
+    private sealed class RecordingStartupAware : IWckStartupAware
+    {
+        public int StartupCount { get; private set; }
+
+        public Task OnShellStartupAsync()
+        {
+            StartupCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private static void RunOnStaThread(Action action)

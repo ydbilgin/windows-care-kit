@@ -44,10 +44,6 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public I18n I18n { get; }
-    public UninstallViewModel Uninstall => Content<UninstallViewModel>("uninstall");
-    public MigrationViewModel Migration => Content<MigrationViewModel>("migration");
-    public RestoreViewModel Restore => Content<RestoreViewModel>("restore");
-    public SettingsViewModel Settings => Content<SettingsViewModel>("settings");
     public ObservableCollection<NavItem> Nav { get; }
     public ICommand DismissFirstRunCommand { get; }
 
@@ -96,9 +92,13 @@ public sealed class MainViewModel : ObservableObject
         return false;
     }
 
-    private T Content<T>(string id) where T : class
-        => Nav.FirstOrDefault(item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase))?.Content as T
-           ?? throw new InvalidOperationException($"Navigation module '{id}' is not available.");
+    /// <summary>Fire-and-forget startup loads for any nav content that opts in (IWckStartupAware).</summary>
+    public void OnShellStartup()
+    {
+        foreach (NavItem item in Nav)
+            if (item.Content is IWckStartupAware aware)
+                _ = aware.OnShellStartupAsync();
+    }
 
     private object HostContent(NavItem item)
     {

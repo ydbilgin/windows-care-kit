@@ -48,7 +48,7 @@ public partial class App : Application
         var window = new MainWindow { DataContext = main };
         window.Show();
 
-        _ = main.Uninstall.LoadAsync(); // kick off the read-only inventory load
+        main.OnShellStartup(); // kick off the read-only inventory load
     }
 
     /// <summary>
@@ -104,24 +104,15 @@ public partial class App : Application
     {
         AddBaseServices(s, args);
 
-        IReadOnlyList<IWckModule> modules = CreateDefaultModules();
+        IReadOnlyList<IWckModule> modules = new StaticModuleCatalog().LoadModules();
         foreach (IWckModule module in modules)
             module.RegisterServices(s);
 
         s.AddSingleton(modules);
     }
 
-    internal static IReadOnlyList<IWckModule> CreateDefaultModules()
-        => new IWckModule[]
-        {
-            new UninstallModule(),
-            new CleanModule(),
-            new BackupModule(),
-            new MigrationModule(),
-            new RestoreModule(),
-            new InstallModule(),
-            new SettingsModule(),
-        };
+    /// <summary>Delegates to <see cref="StaticModuleCatalog"/>; kept as the M4 swap point (also avoids test churn).</summary>
+    internal static IReadOnlyList<IWckModule> CreateDefaultModules() => new StaticModuleCatalog().LoadModules();
 
     internal static void AddBaseServices(IServiceCollection s, string[] args)
     {
