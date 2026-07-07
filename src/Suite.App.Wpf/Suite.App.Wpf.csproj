@@ -22,6 +22,7 @@
     <ProjectReference Include="..\Suite.Module.Clean\Suite.Module.Clean.csproj" />
     <ProjectReference Include="..\Suite.Module.Install\Suite.Module.Install.csproj" />
     <ProjectReference Include="..\Suite.Module.Restore\Suite.Module.Restore.csproj" />
+    <ProjectReference Include="..\Suite.Module.Backup\Suite.Module.Backup.csproj" />
     <ProjectReference Include="..\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\Suite.Win32\Suite.Win32.csproj" />
     <ProjectReference Include="..\Suite.Execution\Suite.Execution.csproj" />
@@ -40,8 +41,6 @@
     <!-- i18n string tables ship next to the exe. -->
     <Content Include="lang\en.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="lang\tr.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Backup/Install manifests ship next to the exe (read at runtime by the Backup/Kur loaders). -->
-    <Content Include="manifests\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

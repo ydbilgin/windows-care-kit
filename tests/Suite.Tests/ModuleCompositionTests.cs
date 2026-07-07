@@ -7,6 +7,7 @@ using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.App.Views;
+using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Install;
@@ -130,6 +131,67 @@ public sealed class ModuleCompositionTests
             Assert.IsType<Win32BrowserExtensionInventory>(provider.GetRequiredService<IBrowserExtensionInventory>());
             Assert.IsType<Win32RecycleBinService>(provider.GetRequiredService<IRecycleBinService>());
             Assert.NotNull(provider.GetRequiredService<IPlanExecutor>());
+        });
+    }
+
+    [Fact]
+    public void BackupModule_creates_content_and_view_from_backup_assembly_and_registers_only_backup_services()
+    {
+        RunOnStaThread(() =>
+        {
+            var baseServices = new ServiceCollection();
+            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IBackupExecutor));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IClock));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IHasher));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IFileSystem));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IEnvironmentExpander));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IManifestLoader));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(BackupPlanner));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(BackupReportWriter));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IIntegrityWriter));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(BackupRunner));
+            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(BackupViewModel));
+            using ServiceProvider baseProvider = baseServices.BuildServiceProvider();
+
+            Assert.NotNull(baseProvider.GetService<I18n>());
+            Assert.NotNull(baseProvider.GetService<ISafetyGate>());
+            Assert.NotNull(baseProvider.GetService<IBackupExecutor>());
+            Assert.NotNull(baseProvider.GetService<IClock>());
+            Assert.NotNull(baseProvider.GetService<IHasher>());
+            Assert.NotNull(baseProvider.GetService<IFileSystem>());
+            Assert.Null(baseProvider.GetService<IEnvironmentExpander>());
+            Assert.Null(baseProvider.GetService<IManifestLoader>());
+            Assert.Null(baseProvider.GetService<BackupPlanner>());
+            Assert.Null(baseProvider.GetService<BackupReportWriter>());
+            Assert.Null(baseProvider.GetService<IIntegrityWriter>());
+            Assert.Null(baseProvider.GetService<BackupRunner>());
+            Assert.Null(baseProvider.GetService<BackupViewModel>());
+
+            var services = new ServiceCollection();
+            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            var module = new BackupModule();
+            module.RegisterServices(services);
+            using ServiceProvider provider = services.BuildServiceProvider();
+
+            object content = module.CreateContent(provider);
+            FrameworkElement view = Assert.IsAssignableFrom<FrameworkElement>(module.CreateView());
+
+            var vm = Assert.IsType<BackupViewModel>(content);
+            var backupView = Assert.IsType<BackupView>(view);
+            Assert.Equal("Suite.Module.Backup", module.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Backup", vm.GetType().Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Backup", backupView.GetType().Assembly.GetName().Name);
+            Assert.IsType<Win32EnvironmentExpander>(provider.GetRequiredService<IEnvironmentExpander>());
+            Assert.IsType<ManifestLoader>(provider.GetRequiredService<IManifestLoader>());
+            Assert.NotNull(provider.GetRequiredService<BackupPlanner>());
+            Assert.NotNull(provider.GetRequiredService<BackupReportWriter>());
+            Assert.IsType<BackupIntegrityWriter>(provider.GetRequiredService<IIntegrityWriter>());
+            Assert.NotNull(provider.GetRequiredService<BackupRunner>());
+            Assert.NotNull(provider.GetRequiredService<IBackupExecutor>());
+            Assert.NotNull(provider.GetRequiredService<IClock>());
+            Assert.NotNull(provider.GetRequiredService<IHasher>());
+            Assert.NotNull(provider.GetRequiredService<IFileSystem>());
         });
     }
 

@@ -18,9 +18,6 @@
             <DataTemplate DataType="{x:Type vm:UninstallViewModel}">
                 <views:UninstallView />
             </DataTemplate>
-            <DataTemplate DataType="{x:Type vm:BackupViewModel}">
-                <views:BackupView />
-            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:MigrationViewModel}">
                 <views:MigrationView />
             </DataTemplate>

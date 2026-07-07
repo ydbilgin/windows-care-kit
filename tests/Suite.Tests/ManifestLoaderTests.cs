@@ -140,26 +140,14 @@ public class ManifestLoaderTests
     public void LoadFromDirectory_discovers_renamed_backup_manifests_by_glob()
     {
         string repositoryRoot = FindRepositoryRoot();
-        string backupManifestDirectory = Path.Combine(repositoryRoot, "src", "Suite.App.Wpf", "manifests");
+        string backupManifestDirectory = Path.Combine(repositoryRoot, "src", "Suite.Module.Backup", "manifests");
         string installManifestPath = Path.Combine(repositoryRoot, "src", "Suite.Module.Install", "manifests", "90-install.json");
-        string[] expectedFiles =
-        [
-            "00-ai-tools.json",
-            "10-developer.json",
-            "20-browser.json",
-            "30-games.json",
-            "40-system.json",
-            "50-notes.json",
-            "60-wsl.json",
-            "70-general-user.json",
-            "80-network-drive.json",
-        ];
-        foreach (string file in expectedFiles)
+        foreach (string file in BackupManifestFiles)
             Assert.True(File.Exists(Path.Combine(backupManifestDirectory, file)), file);
         Assert.True(File.Exists(installManifestPath), installManifestPath);
 
         using var ws = new TempWorkspace("wck-backup-manifests-");
-        foreach (string file in expectedFiles)
+        foreach (string file in BackupManifestFiles)
             File.Copy(Path.Combine(backupManifestDirectory, file), Path.Combine(ws.Root, file));
         File.Copy(installManifestPath, Path.Combine(ws.Root, "90-install.json"));
 
@@ -172,6 +160,37 @@ public class ManifestLoaderTests
         Assert.DoesNotContain(manifest.Entries, e => e.Id.StartsWith("install-", StringComparison.Ordinal));
         Assert.DoesNotContain(manifest.Entries, e => e.Category.Contains("tarayici", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Module_manifest_content_lands_in_runtime_manifests_directory_and_skips_install_manifest()
+    {
+        string manifestsDirectory = Path.Combine(AppContext.BaseDirectory, "manifests");
+        Assert.True(Directory.Exists(manifestsDirectory), manifestsDirectory);
+        foreach (string file in BackupManifestFiles)
+            Assert.True(File.Exists(Path.Combine(manifestsDirectory, file)), file);
+        Assert.True(File.Exists(Path.Combine(manifestsDirectory, "90-install.json")), "90-install.json");
+
+        BackupManifest manifest = Loader().LoadFromDirectory(manifestsDirectory);
+
+        Assert.NotEmpty(manifest.Entries);
+        Assert.Contains(manifest.Entries, e => e.Id == "vscode-user");
+        Assert.Contains(manifest.Entries, e => e.Id == "firefox-profiles");
+        Assert.Contains(manifest.Entries, e => e.Id == "network-driver-export");
+        Assert.DoesNotContain(manifest.Entries, e => e.Id.StartsWith("install-", StringComparison.Ordinal));
+    }
+
+    private static readonly string[] BackupManifestFiles =
+    [
+        "00-ai-tools.json",
+        "10-developer.json",
+        "20-browser.json",
+        "30-games.json",
+        "40-system.json",
+        "50-notes.json",
+        "60-wsl.json",
+        "70-general-user.json",
+        "80-network-drive.json",
+    ];
 
     private static string FindRepositoryRoot()
     {

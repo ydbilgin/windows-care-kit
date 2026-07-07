@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Logging;
-using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Execution;
@@ -30,31 +29,6 @@ public sealed class UninstallModule : IWckModule
     }
 
     public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<UninstallViewModel>();
-
-    public FrameworkElement? CreateView() => null;
-}
-
-public sealed class BackupModule : IWckModule
-{
-    public string Id => "backup";
-    public string TitleKey => "nav.backup";
-    public string DescKey => "nav.backup.desc";
-    public string IconKey => "\uE74E";
-    public int Order => 30;
-    public bool IsSettings => false;
-
-    public void RegisterServices(IServiceCollection services)
-    {
-        services.AddSingleton<IEnvironmentExpander, Win32EnvironmentExpander>();
-        services.AddSingleton<IManifestLoader, ManifestLoader>();
-        services.AddSingleton<BackupPlanner>();
-        services.AddSingleton<BackupReportWriter>();
-        services.AddSingleton<IIntegrityWriter, BackupIntegrityWriter>();
-        services.AddSingleton<BackupRunner>();
-        services.AddSingleton<BackupViewModel>();
-    }
-
-    public object CreateContent(IServiceProvider sp) => sp.GetRequiredService<BackupViewModel>();
 
     public FrameworkElement? CreateView() => null;
 }

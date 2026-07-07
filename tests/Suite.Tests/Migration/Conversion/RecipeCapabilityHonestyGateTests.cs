@@ -52,7 +52,7 @@ public class RecipeCapabilityHonestyGateTests
     [Fact]
     public void Legacy_manifest_entries_convert_or_reject_fail_closed()
     {
-        string manifestDirectory = FindRepoPath("src", "Suite.App.Wpf", "manifests");
+        string manifestDirectory = FindRepoPath("src", "Suite.Module.Backup", "manifests");
         string installManifest = FindRepoFile("src", "Suite.Module.Install", "manifests", "90-install.json");
         string[] files = Directory.GetFiles(manifestDirectory, "*.json")
             .Append(installManifest)

@@ -51,7 +51,7 @@ public sealed class MigrationLocalizationTests
     public void Backup_screen_localization_keys_exist_and_view_has_no_literal_text_labels()
     {
         string langDir = LangDir();
-        string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "Views", "BackupView.xaml");
+        string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.Module.Backup", "Views", "BackupView.xaml");
         string xaml = File.ReadAllText(viewPath);
         string[] expected =
         [
@@ -93,7 +93,7 @@ public sealed class MigrationLocalizationTests
     [Fact]
     public void Backup_result_rows_bind_chip_brush_to_row_outcome()
     {
-        string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "Views", "BackupView.xaml");
+        string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.Module.Backup", "Views", "BackupView.xaml");
         XNamespace xamlNs = "http://schemas.microsoft.com/winfx/2006/xaml";
         XDocument document = XDocument.Load(viewPath);
         XElement resultTemplate = document.Descendants()

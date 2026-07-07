@@ -1,10 +1,15 @@
 <UserControl x:Class="WindowsCareKit.App.Views.BackupView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+        <mvvm:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+
         <Style x:Key="BackupRowBorder" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource Backup.Row.Background}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.Line}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Row.Background}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.Line}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="13,9" />
@@ -16,47 +21,47 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Backup.Row.Hover}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+                    <Setter Property="Background" Value="{DynamicResource Backup.Row.Hover}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="BackupManualRowBorder" TargetType="Border" BasedOn="{StaticResource BackupRowBorder}">
-            <Setter Property="Background" Value="{StaticResource Backup.Row.Danger}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.DangerBorder}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Row.Danger}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.DangerBorder}" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource Backup.DangerBorderHover}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource Backup.DangerBorderHover}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="BackupSkippedRowBorder" TargetType="Border" BasedOn="{StaticResource BackupRowBorder}">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.Line}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Opacity" Value="{StaticResource Backup.SkipRowOpacity}" />
+            <Setter Property="Opacity" Value="{DynamicResource Backup.SkipRowOpacity}" />
             <Setter Property="Effect" Value="{x:Null}" />
         </Style>
 
         <Style x:Key="BackupSectionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
         </Style>
 
         <Style x:Key="BackupMetaText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Faint}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
             <Setter Property="FontSize" Value="11.5" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
         <Style x:Key="BackupSecondaryButton" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
-            <Setter Property="Background" Value="{StaticResource Backup.Card}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.LineStrong}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="15,8" />
             <Setter Property="FontSize" Value="13" />
@@ -75,11 +80,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.CardHi}" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Faint}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Backup.CardHi}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Backup.Faint}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Opacity" Value="{DynamicResource Opacity.Disabled.Button}" />
                                 <Setter Property="Cursor" Value="Arrow" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -89,9 +94,9 @@
         </Style>
 
         <Style x:Key="BackupPrimaryButton" TargetType="Button" BasedOn="{StaticResource BackupSecondaryButton}">
-            <Setter Property="Foreground" Value="{StaticResource Backup.EmInk}" />
-            <Setter Property="Background" Value="{StaticResource Backup.Primary.Background}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Backup.Primary.Border}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.EmInk}" />
+            <Setter Property="Background" Value="{DynamicResource Backup.Primary.Background}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.Primary.Border}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -105,11 +110,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource Backup.Primary.Hover}" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Backup.Primary.HoverBorder}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Backup.Primary.Hover}" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Backup.Primary.HoverBorder}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Opacity" Value="{DynamicResource Opacity.Disabled.Button}" />
                                 <Setter Property="Cursor" Value="Arrow" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -119,7 +124,7 @@
         </Style>
 
         <Style x:Key="BackupApproveCheckBox" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{StaticResource Backup.Ink}" />
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
@@ -132,12 +137,12 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border x:Name="Box" Width="15" Height="15" CornerRadius="3"
-                                    Background="{StaticResource Backup.Card}"
-                                    BorderBrush="{StaticResource Backup.EmBorder}"
+                                    Background="{DynamicResource Backup.Card}"
+                                    BorderBrush="{DynamicResource Backup.EmBorder}"
                                     BorderThickness="1"
                                     VerticalAlignment="Center">
                                 <Path x:Name="Check" Data="M3,7 L6,10 L12,4"
-                                      Stroke="{StaticResource Backup.EmInk}"
+                                      Stroke="{DynamicResource Backup.EmInk}"
                                       StrokeThickness="2"
                                       StrokeStartLineCap="Round"
                                       StrokeEndLineCap="Round"
@@ -149,15 +154,15 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Backup.Em}" />
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Backup.Em}" />
+                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource Backup.Em}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Backup.Em}" />
                                 <Setter TargetName="Check" Property="Visibility" Value="Visible" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Backup.EmDeep}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Backup.EmDeep}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="{StaticResource Opacity.Disabled.Button}" />
+                                <Setter Property="Opacity" Value="{DynamicResource Opacity.Disabled.Button}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -177,13 +182,13 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{StaticResource Backup.OkWash}"
-                                BorderBrush="{StaticResource Backup.OkBorder}" BorderThickness="1"
+                        <Border Grid.Column="0" Background="{DynamicResource Backup.OkWash}"
+                                BorderBrush="{DynamicResource Backup.OkBorder}" BorderThickness="1"
                                 CornerRadius="999" Padding="7,2" Margin="0,1,9,0" VerticalAlignment="Top">
-                            <TextBlock Text="{Binding RiskText}" Foreground="{StaticResource Backup.OkFg}"
+                            <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Backup.OkFg}"
                                        FontSize="10" FontWeight="Bold" />
                         </Border>
-                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{StaticResource Backup.Ink}"
+                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                     </Grid>
                     <TextBlock Grid.Row="1" Text="{Binding Detail}" Style="{StaticResource BackupMetaText}"
@@ -211,7 +216,7 @@
                             <TextBlock Text="{Binding RiskText}" Foreground="#181410"
                                        FontSize="10" FontWeight="Bold" />
                         </Border>
-                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{StaticResource Backup.Ink}"
+                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                     </Grid>
                     <TextBlock Grid.Row="1" Text="{Binding Detail}" Style="{StaticResource BackupMetaText}"
@@ -234,20 +239,20 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{StaticResource Backup.MedWash}"
-                                BorderBrush="{StaticResource Backup.MedBorder}" BorderThickness="1"
+                        <Border Grid.Column="0" Background="{DynamicResource Backup.MedWash}"
+                                BorderBrush="{DynamicResource Backup.MedBorder}" BorderThickness="1"
                                 CornerRadius="999" Padding="7,2" Margin="0,1,9,0" VerticalAlignment="Top">
                             <TextBlock Text="{Binding DataContext.I18n[backup.row.medChip], RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                       Foreground="{StaticResource Backup.MedFg}"
+                                       Foreground="{DynamicResource Backup.MedFg}"
                                        FontSize="10" FontWeight="Bold" />
                         </Border>
-                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{StaticResource Backup.Ink}"
+                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <Border Grid.Column="2" Background="{StaticResource Backup.Danger}"
-                                BorderBrush="{StaticResource Backup.DangerDeep}" BorderThickness="1"
+                        <Border Grid.Column="2" Background="{DynamicResource Backup.Danger}"
+                                BorderBrush="{DynamicResource Backup.DangerDeep}" BorderThickness="1"
                                 CornerRadius="6" Padding="9,2.5" Margin="10,0,0,0" VerticalAlignment="Top">
                             <TextBlock Text="{Binding DataContext.I18n[backup.row.cantCarry], RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                       Foreground="{StaticResource Backup.DangerText}"
+                                       Foreground="{DynamicResource Backup.DangerText}"
                                        FontSize="11" FontWeight="Bold" />
                         </Border>
                     </Grid>
@@ -270,14 +275,14 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{StaticResource Backup.SkipChip}"
-                                BorderBrush="{StaticResource Backup.Line}" BorderThickness="1"
+                        <Border Grid.Column="0" Background="{DynamicResource Backup.SkipChip}"
+                                BorderBrush="{DynamicResource Backup.Line}" BorderThickness="1"
                                 CornerRadius="999" Padding="7,2" Margin="0,1,9,0" VerticalAlignment="Top">
                             <TextBlock Text="{Binding DataContext.I18n[backup.row.skipChip], RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                       Foreground="{StaticResource Backup.Faint}"
+                                       Foreground="{DynamicResource Backup.Faint}"
                                        FontSize="10" FontWeight="Bold" />
                         </Border>
-                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{StaticResource Backup.Muted}"
+                        <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{DynamicResource Backup.Muted}"
                                    FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                     </Grid>
                     <TextBlock Grid.Row="1" Text="{Binding Detail}" Style="{StaticResource BackupMetaText}"
@@ -297,26 +302,26 @@
 
         <StackPanel Grid.Row="0" Margin="0,0,0,10">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,2">
-                <TextBlock Text="{Binding I18n[backup.title]}" Foreground="{StaticResource Backup.Ink}"
+                <TextBlock Text="{Binding I18n[backup.title]}" Foreground="{DynamicResource Backup.Ink}"
                            FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Background="{StaticResource Backup.EmWash}"
-                        BorderBrush="{StaticResource Backup.EmBorder}"
+                <Border Background="{DynamicResource Backup.EmWash}"
+                        BorderBrush="{DynamicResource Backup.EmBorder}"
                         BorderThickness="1"
                         CornerRadius="999"
                         Padding="12,4"
                         Margin="12,0,0,0"
                         VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="7" Height="7" Fill="{StaticResource Backup.Em}" Margin="0,0,8,0" />
-                        <TextBlock Foreground="{StaticResource Backup.Em}" FontSize="10.5" FontWeight="Bold">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource Backup.Em}" Margin="0,0,8,0" />
+                        <TextBlock Foreground="{DynamicResource Backup.Em}" FontSize="10.5" FontWeight="Bold">
                             <Run Text="{Binding I18n[backup.dryRun.badge], Mode=OneWay}" />
                             <Run Text="{Binding I18n[backup.dryRun.caption], Mode=OneWay}"
-                                 Foreground="{StaticResource Backup.Muted}" FontSize="11" FontWeight="Normal" />
+                                 Foreground="{DynamicResource Backup.Muted}" FontSize="11" FontWeight="Normal" />
                         </TextBlock>
                     </StackPanel>
                 </Border>
             </StackPanel>
-            <TextBlock Text="{Binding I18n[backup.subtitle]}" Foreground="{StaticResource Backup.Muted}"
+            <TextBlock Text="{Binding I18n[backup.subtitle]}" Foreground="{DynamicResource Backup.Muted}"
                        FontSize="13" TextWrapping="Wrap" Margin="0,0,0,12" />
 
             <Grid Margin="0,0,0,7">
@@ -327,9 +332,9 @@
                 </Grid.ColumnDefinitions>
                 <TextBox Grid.Column="0"
                          Text="{Binding PayloadDir, UpdateSourceTrigger=PropertyChanged}"
-                         Background="{StaticResource Backup.Card}"
-                         Foreground="{StaticResource Backup.Ink}"
-                         BorderBrush="{StaticResource Backup.LineStrong}"
+                         Background="{DynamicResource Backup.Card}"
+                         Foreground="{DynamicResource Backup.Ink}"
+                         BorderBrush="{DynamicResource Backup.LineStrong}"
                          BorderThickness="1"
                          FontFamily="Cascadia Code, Consolas, Courier New"
                          FontSize="12.5"
@@ -340,14 +345,14 @@
                 <Button Grid.Column="2" Margin="9,0,0,0" Style="{StaticResource BackupSecondaryButton}"
                         Content="{Binding I18n[backup.run]}" Command="{Binding ApproveAndRunCommand}" />
             </Grid>
-            <TextBlock Foreground="{StaticResource Backup.Faint}" FontSize="11.5" Margin="2,0,0,0"
+            <TextBlock Foreground="{DynamicResource Backup.Faint}" FontSize="11.5" Margin="2,0,0,0"
                        Text="{Binding I18n[backup.chooseDir]}" />
-            <TextBlock Text="{Binding PayloadWarning}" Foreground="{StaticResource Backup.DangerStrong}"
+            <TextBlock Text="{Binding PayloadWarning}" Foreground="{DynamicResource Backup.DangerStrong}"
                        FontSize="12" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap"
                        Visibility="{Binding PayloadWarning.Length, Converter={StaticResource PositiveToVis}}" />
 
-            <Border Background="{StaticResource Backup.EmWash}"
-                    BorderBrush="{StaticResource Backup.EmBorder}"
+            <Border Background="{DynamicResource Backup.EmWash}"
+                    BorderBrush="{DynamicResource Backup.EmBorder}"
                     BorderThickness="1"
                     CornerRadius="9"
                     Padding="14,10"
@@ -369,24 +374,24 @@
                             <ColumnDefinition Width="16*" />
                             <ColumnDefinition Width="24*" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{StaticResource Backup.Em}" CornerRadius="3,0,0,3" />
-                        <Border Grid.Column="1" Background="{StaticResource Backup.MedDot}" />
-                        <Border Grid.Column="2" Background="{StaticResource Backup.LineStrong}" CornerRadius="0,3,3,0" />
+                        <Border Grid.Column="0" Background="{DynamicResource Backup.Em}" CornerRadius="3,0,0,3" />
+                        <Border Grid.Column="1" Background="{DynamicResource Backup.MedDot}" />
+                        <Border Grid.Column="2" Background="{DynamicResource Backup.LineStrong}" CornerRadius="0,3,3,0" />
                     </Grid>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="7" Height="7" Fill="{StaticResource Backup.Em}" Margin="0,0,6,0" />
-                        <TextBlock Foreground="{StaticResource Backup.Muted}" FontSize="12.5" Margin="0,0,14,0">
-                            <Run Text="{Binding PlanRows.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Backup.Ink}" />
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource Backup.Em}" Margin="0,0,6,0" />
+                        <TextBlock Foreground="{DynamicResource Backup.Muted}" FontSize="12.5" Margin="0,0,14,0">
+                            <Run Text="{Binding PlanRows.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
                             <Run Text="{Binding I18n[backup.count.toCopy], Mode=OneWay}" />
                         </TextBlock>
-                        <Rectangle Width="7" Height="7" Fill="{StaticResource Backup.MedDot}" RadiusX="2" RadiusY="2" Margin="0,0,6,0" />
-                        <TextBlock Foreground="{StaticResource Backup.Muted}" FontSize="12.5" Margin="0,0,14,0">
-                            <Run Text="{Binding ManualRows.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Backup.Ink}" />
+                        <Rectangle Width="7" Height="7" Fill="{DynamicResource Backup.MedDot}" RadiusX="2" RadiusY="2" Margin="0,0,6,0" />
+                        <TextBlock Foreground="{DynamicResource Backup.Muted}" FontSize="12.5" Margin="0,0,14,0">
+                            <Run Text="{Binding ManualRows.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
                             <Run Text="{Binding I18n[backup.count.manual], Mode=OneWay}" />
                         </TextBlock>
-                        <Rectangle Width="7" Height="7" Fill="{StaticResource Backup.LineStrong}" RadiusX="2" RadiusY="2" Margin="0,0,6,0" />
-                        <TextBlock Foreground="{StaticResource Backup.Muted}" FontSize="12.5">
-                            <Run Text="{Binding SkippedRows.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{StaticResource Backup.Ink}" />
+                        <Rectangle Width="7" Height="7" Fill="{DynamicResource Backup.LineStrong}" RadiusX="2" RadiusY="2" Margin="0,0,6,0" />
+                        <TextBlock Foreground="{DynamicResource Backup.Muted}" FontSize="12.5">
+                            <Run Text="{Binding SkippedRows.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
                             <Run Text="{Binding I18n[backup.count.skipped], Mode=OneWay}" />
                         </TextBlock>
                     </StackPanel>
@@ -402,7 +407,7 @@
 
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,2,0">
                 <StackPanel>
-                    <TextBlock Text="{Binding I18n[backup.empty.prompt]}" Foreground="{StaticResource Backup.Muted}"
+                    <TextBlock Text="{Binding I18n[backup.empty.prompt]}" Foreground="{DynamicResource Backup.Muted}"
                                FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center"
                                Margin="0,40,0,0" MaxWidth="420" TextAlignment="Center"
                                Visibility="{Binding HasPlan, Converter={StaticResource InverseBoolToVis}}" />
@@ -416,7 +421,7 @@
                         <TextBlock Grid.Column="0" Text="{Binding I18n[backup.report.title]}" Style="{StaticResource BackupSectionLabel}" />
                         <TextBlock Grid.Column="1" Text="{Binding PlanRows.Count, Mode=OneWay}" Style="{StaticResource BackupSectionLabel}"
                                    Margin="8,0,8,0" />
-                        <Border Grid.Column="2" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="1" Background="{DynamicResource Backup.Line}" VerticalAlignment="Center" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding PlanRows}" ItemTemplate="{StaticResource CopyRowTemplate}" />
 
@@ -429,7 +434,7 @@
                         <TextBlock Grid.Column="0" Text="{Binding I18n[backup.report.manual]}" Style="{StaticResource BackupSectionLabel}" />
                         <TextBlock Grid.Column="1" Text="{Binding ManualRows.Count, Mode=OneWay}" Style="{StaticResource BackupSectionLabel}"
                                    Margin="8,0,8,0" />
-                        <Border Grid.Column="2" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="1" Background="{DynamicResource Backup.Line}" VerticalAlignment="Center" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding ManualRows}" ItemTemplate="{StaticResource ManualRowTemplate}" />
 
@@ -442,7 +447,7 @@
                         <TextBlock Grid.Column="0" Text="{Binding I18n[backup.report.skipped]}" Style="{StaticResource BackupSectionLabel}" />
                         <TextBlock Grid.Column="1" Text="{Binding SkippedRows.Count, Mode=OneWay}" Style="{StaticResource BackupSectionLabel}"
                                    Margin="8,0,8,0" />
-                        <Border Grid.Column="2" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Height="1" Background="{DynamicResource Backup.Line}" VerticalAlignment="Center" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding SkippedRows}" ItemTemplate="{StaticResource SkippedRowTemplate}" />
 
@@ -452,21 +457,21 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="{Binding I18n[backup.report.copied]}" Style="{StaticResource BackupSectionLabel}" />
-                        <Border Grid.Column="1" Height="1" Background="{StaticResource Backup.Line}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        <Border Grid.Column="1" Height="1" Background="{DynamicResource Backup.Line}" VerticalAlignment="Center" Margin="8,0,0,0" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding ResultRows}" ItemTemplate="{StaticResource ResultRowTemplate}" />
                 </StackPanel>
             </ScrollViewer>
 
-            <Border Grid.Column="1" Background="{StaticResource Backup.Rail.Background}"
-                    BorderBrush="{StaticResource Backup.RailBorder}"
+            <Border Grid.Column="1" Background="{DynamicResource Backup.Rail.Background}"
+                    BorderBrush="{DynamicResource Backup.RailBorder}"
                     BorderThickness="1"
                     CornerRadius="10"
                     Padding="16"
                     Margin="18,0,0,0"
                     VerticalAlignment="Top">
                 <StackPanel>
-                    <TextBlock Text="{Binding I18n[backup.summary.title]}" Foreground="{StaticResource Backup.Ink}"
+                    <TextBlock Text="{Binding I18n[backup.summary.title]}" Foreground="{DynamicResource Backup.Ink}"
                                FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10" />
 
                     <Grid Margin="0,0,0,0">
@@ -474,47 +479,47 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding I18n[backup.summary.toCopy]}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5" />
-                        <TextBlock Grid.Column="1" Text="{Binding PlanRows.Count, Mode=OneWay}" Foreground="{StaticResource Backup.Em}"
+                        <TextBlock Text="{Binding I18n[backup.summary.toCopy]}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5" />
+                        <TextBlock Grid.Column="1" Text="{Binding PlanRows.Count, Mode=OneWay}" Foreground="{DynamicResource Backup.Em}"
                                    FontSize="14" FontWeight="Bold" />
                     </Grid>
-                    <Border Height="1" Background="{StaticResource Backup.Line}" Margin="0,7,0,7" />
+                    <Border Height="1" Background="{DynamicResource Backup.Line}" Margin="0,7,0,7" />
 
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding I18n[backup.summary.manual]}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5" />
-                        <TextBlock Grid.Column="1" Text="{Binding ManualRows.Count, Mode=OneWay}" Foreground="{StaticResource Backup.Ink}"
+                        <TextBlock Text="{Binding I18n[backup.summary.manual]}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5" />
+                        <TextBlock Grid.Column="1" Text="{Binding ManualRows.Count, Mode=OneWay}" Foreground="{DynamicResource Backup.Ink}"
                                    FontSize="14" FontWeight="Bold" />
                     </Grid>
-                    <Border Height="1" Background="{StaticResource Backup.Line}" Margin="0,7,0,7" />
+                    <Border Height="1" Background="{DynamicResource Backup.Line}" Margin="0,7,0,7" />
 
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding I18n[backup.summary.skipped]}" Foreground="{StaticResource Backup.Muted}" FontSize="12.5" />
-                        <TextBlock Grid.Column="1" Text="{Binding SkippedRows.Count, Mode=OneWay}" Foreground="{StaticResource Backup.Ink}"
+                        <TextBlock Text="{Binding I18n[backup.summary.skipped]}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5" />
+                        <TextBlock Grid.Column="1" Text="{Binding SkippedRows.Count, Mode=OneWay}" Foreground="{DynamicResource Backup.Ink}"
                                    FontSize="14" FontWeight="Bold" />
                     </Grid>
 
-                    <TextBlock Text="{Binding I18n[backup.summary.destination]}" Foreground="{StaticResource Backup.Faint}"
+                    <TextBlock Text="{Binding I18n[backup.summary.destination]}" Foreground="{DynamicResource Backup.Faint}"
                                FontSize="11" FontWeight="SemiBold" Margin="0,12,0,5" />
-                    <Border Background="{StaticResource Backup.PathBg}"
-                            BorderBrush="{StaticResource Backup.Line}"
+                    <Border Background="{DynamicResource Backup.PathBg}"
+                            BorderBrush="{DynamicResource Backup.Line}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="9,7">
-                        <TextBlock Text="{Binding PayloadDir}" Foreground="{StaticResource Backup.Ink}"
+                        <TextBlock Text="{Binding PayloadDir}" Foreground="{DynamicResource Backup.Ink}"
                                    FontFamily="Cascadia Code, Consolas, Courier New"
                                    FontSize="11.5" TextWrapping="Wrap" />
                     </Border>
 
-                    <Border Background="{StaticResource Backup.EmWash}"
-                            BorderBrush="{StaticResource Backup.EmBorder}"
+                    <Border Background="{DynamicResource Backup.EmWash}"
+                            BorderBrush="{DynamicResource Backup.EmBorder}"
                             BorderThickness="1"
                             CornerRadius="7"
                             Padding="11,9"
@@ -526,10 +531,10 @@
                             </Grid.ColumnDefinitions>
                             <Path Grid.Column="0" Width="14" Height="14" Margin="0,1,8,0"
                                   Stretch="Uniform"
-                                  Stroke="{StaticResource Backup.OkFg}"
+                                  Stroke="{DynamicResource Backup.OkFg}"
                                   StrokeThickness="1.8"
                                   Data="M12,3 L19,6 L19,12 C19,16 16,19 12,21 C8,19 5,16 5,12 L5,6 Z" />
-                            <TextBlock Grid.Column="1" Foreground="{StaticResource Backup.OkFg}"
+                            <TextBlock Grid.Column="1" Foreground="{DynamicResource Backup.OkFg}"
                                        FontSize="11.5" TextWrapping="Wrap">
                                 <Run Text="{Binding I18n[backup.summary.trustPrefix], Mode=OneWay}" />
                                 <Run Text="{Binding I18n[backup.summary.trustStrong], Mode=OneWay}" FontWeight="Bold" />
@@ -537,12 +542,12 @@
                         </Grid>
                     </Border>
 
-                    <TextBlock Foreground="{StaticResource Backup.Faint}" FontSize="11.5"
+                    <TextBlock Foreground="{DynamicResource Backup.Faint}" FontSize="11.5"
                                TextWrapping="Wrap" Margin="0,11,0,0">
-                        <Run Text="{Binding I18n[backup.summary.statusPrefix], Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Backup.Muted}" />
+                        <Run Text="{Binding I18n[backup.summary.statusPrefix], Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource Backup.Muted}" />
                         <Run Text="{Binding I18n[backup.summary.statusDryRun], Mode=OneWay}" />
                     </TextBlock>
-                    <TextBlock Text="{Binding Summary}" Foreground="{StaticResource Backup.Muted}"
+                    <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource Backup.Muted}"
                                FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0"
                                Visibility="{Binding Summary.Length, Converter={StaticResource PositiveToVis}}" />
                 </StackPanel>
@@ -550,7 +555,7 @@
         </Grid>
 
         <TextBlock Grid.Row="2" Text="{Binding I18n[backup.footer]}"
-                   Foreground="{StaticResource Backup.Faint}"
+                   Foreground="{DynamicResource Backup.Faint}"
                    FontSize="10.5"
                    TextAlignment="Center"
                    Padding="0,5,0,2" />
