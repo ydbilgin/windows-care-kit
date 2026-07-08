@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\..\src\Suite.Win32\Suite.Win32.csproj" />
+    <ProjectReference Include="..\..\src\Suite.Module.Migration.Recipes\Suite.Module.Migration.Recipes.csproj" />
   </ItemGroup>
 
 </Project>

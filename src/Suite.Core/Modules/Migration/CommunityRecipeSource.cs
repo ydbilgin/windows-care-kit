@@ -103,8 +103,9 @@ public static class CommunityRecipeSource
     /// <summary>
     /// Build a single tier-tagged view of trusted builtins + already-accepted community recipes for a future
     /// detection/UI slice. CONTRACT: <paramref name="trustedRecipes"/> MUST be the vetted builtin set
-    /// (<see cref="BuiltinRecipeSource.LoadAll"/>) — it is re-stamped <see cref="CatalogTier.Trusted"/>
-    /// unconditionally, so passing a community recipe here would silently promote it to Trusted. The accepted
+    /// (the vetted builtin set — BuiltinRecipeSource.LoadAll, module-owned since M2) — it is re-stamped
+    /// <see cref="CatalogTier.Trusted"/> unconditionally, so passing a community recipe here would silently
+    /// promote it to Trusted. The accepted
     /// community list must come from <see cref="LoadCandidates"/>/<see cref="LoadFromDirectory"/>'s
     /// <see cref="CommunityRecipeLoadResult.Loaded"/> (already gated + forced Community). Unwired this slice.
     /// </summary>

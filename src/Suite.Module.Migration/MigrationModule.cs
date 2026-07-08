@@ -38,12 +38,13 @@ public sealed class MigrationModule : IWckModule
             sp.GetRequiredService<IRegistryProbe>(), new Win32PathCanonicalizer()));
         services.AddSingleton<IProgramSource>(sp => new StartMenuSource(
             sp.GetRequiredService<IStartMenuShortcutReader>(), new Win32PathCanonicalizer()));
+        services.AddSingleton<Func<IReadOnlyList<MigrationRecipe>>>(_ => BuiltinRecipeSource.LoadAll);
         services.AddSingleton<IMigrationScanService>(sp => new MigrationScanService(
             sp.GetServices<IProgramSource>(),
             ProfileRoots.ForCurrentUser,
             sp.GetRequiredService<IRecipeFileSystem>(),
-            sp.GetRequiredService<IContentSignatureProbe>()));
-        services.AddSingleton<Func<IReadOnlyList<MigrationRecipe>>>(_ => BuiltinRecipeSource.LoadAll);
+            sp.GetRequiredService<IContentSignatureProbe>(),
+            sp.GetRequiredService<Func<IReadOnlyList<MigrationRecipe>>>()));
         services.AddSingleton(sp => new RecipeResolver(
             new RecipePathResolver(ProfileRoots.ForCurrentUser()),
             sp.GetRequiredService<IRecipeFileSystem>()));

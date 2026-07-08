@@ -1,3 +1,4 @@
+using System.Reflection;
 using WindowsCareKit.Core.Modules.Migration;
 using Xunit;
 
@@ -282,5 +283,19 @@ public class BuiltinRecipeSourceTests
         Assert.DoesNotContain(item.Include, value => value.Equals("Secure Preferences", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(item.Include, value => value.Equals("Extensions/**", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(RestoreTier.InventoryOnly, opera.RestoreTier);
+    }
+
+    [Fact]
+    public void Recipes_are_module_owned_and_core_is_recipe_free()
+    {
+        Assembly recipesAsm = typeof(BuiltinRecipeSource).Assembly;
+        Assert.Equal("Suite.Module.Migration.Recipes", recipesAsm.GetName().Name);
+
+        string[] names = recipesAsm.GetManifestResourceNames();
+        Assert.Equal(40, names.Length);
+        Assert.All(names, n => Assert.StartsWith("WindowsCareKit.Module.Migration.Recipes.", n, StringComparison.Ordinal));
+
+        // Base must carry zero embedded payloads after M2.
+        Assert.Empty(typeof(MigrationRecipeLoader).Assembly.GetManifestResourceNames());
     }
 }

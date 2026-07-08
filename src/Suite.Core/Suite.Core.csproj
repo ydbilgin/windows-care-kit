@@ -14,11 +14,6 @@
     <InternalsVisibleTo Include="Suite.Tests" />
   </ItemGroup>
 
-  <!-- L1 built-in migration seed recipes are shipped as embedded resources (Slice 1). -->
-  <ItemGroup>
-    <EmbeddedResource Include="Modules\Migration\Recipes\*.json" />
-  </ItemGroup>
-
   <!-- Build-level gate: destructive OS APIs are banned outside the sanctioned executor (spec §2/§8). -->
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">

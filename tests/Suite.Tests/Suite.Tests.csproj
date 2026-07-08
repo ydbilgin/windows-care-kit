@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\src\Suite.Module.Backup\Suite.Module.Backup.csproj" />
     <ProjectReference Include="..\..\src\Suite.Module.Uninstall\Suite.Module.Uninstall.csproj" />
     <ProjectReference Include="..\..\src\Suite.Module.Migration\Suite.Module.Migration.csproj" />
+    <ProjectReference Include="..\..\src\Suite.Module.Migration.Recipes\Suite.Module.Migration.Recipes.csproj" />
     <ProjectReference Include="..\..\src\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\..\src\Suite.Win32\Suite.Win32.csproj" />
     <ProjectReference Include="..\..\src\Suite.Execution\Suite.Execution.csproj" />

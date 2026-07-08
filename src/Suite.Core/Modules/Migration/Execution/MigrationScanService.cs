@@ -85,7 +85,7 @@ public sealed class MigrationScanService : IMigrationScanService
         Func<ProfileRoots> profileRoots,
         IRecipeFileSystem fileSystem,
         IContentSignatureProbe contentProbe,
-        Func<IReadOnlyList<MigrationRecipe>>? recipeSource = null,
+        Func<IReadOnlyList<MigrationRecipe>> recipeSource,
         ICloudBackupSignal? cloudBackupSignal = null)
     {
         ArgumentNullException.ThrowIfNull(programSources);
@@ -93,7 +93,7 @@ public sealed class MigrationScanService : IMigrationScanService
         _profileRoots = profileRoots ?? throw new ArgumentNullException(nameof(profileRoots));
         _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
         _contentProbe = contentProbe ?? throw new ArgumentNullException(nameof(contentProbe));
-        _recipeSource = recipeSource ?? BuiltinRecipeSource.LoadAll;
+        _recipeSource = recipeSource ?? throw new ArgumentNullException(nameof(recipeSource));
         _cloudBackupSignal = cloudBackupSignal ?? NoCloudBackupSignal.Instance;
     }
 

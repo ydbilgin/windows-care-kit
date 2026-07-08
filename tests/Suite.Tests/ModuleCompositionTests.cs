@@ -195,6 +195,7 @@ public sealed class ModuleCompositionTests
             Assert.NotNull(provider.GetRequiredService<MigrationInstallManifestStore>());
             Assert.NotNull(provider.GetRequiredService<MigrationBackupRunner>());
             Assert.NotNull(provider.GetRequiredService<IMigrationBackupRunner>());
+            Assert.Equal(40, provider.GetRequiredService<Func<IReadOnlyList<MigrationRecipe>>>()().Count);
         });
     }
 
