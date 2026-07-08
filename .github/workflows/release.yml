@@ -1,7 +1,11 @@
 # Tag-triggered release build for Windows Care Kit.
 # Produces a self-contained win-x64 folder layout (WindowsCareKit.exe + dependency
-# DLLs incl. Suite.Module.*), packages it as a ZIP with a SHA256 hash, and
-# publishes a GitHub Prerelease.
+# DLLs incl. Suite.Module.*), packages it as a ZIP with a SHA256 hash, builds a
+# component installer (installer/WindowsCareKit.iss, compiled by a pinned
+# hash-verified Inno Setup ISCC — modular M5: base mandatory, each Modules\<id>\
+# folder an optional component), and publishes a GitHub Prerelease with both
+# assets. Non-tag (workflow_dispatch) runs build the same installer as a CI
+# artifact only — no release/tag is created (M5's VM gate consumes that build).
 #
 # Security posture (matches ci.yml):
 #   - Pinned action SHAs.
@@ -9,13 +13,19 @@
 #     create a GitHub Release and upload an asset).
 #   - Only GITHUB_TOKEN is used — no hardcoded secrets or PATs.
 #   - Destructive tests are NEVER executed (Category!=Destructive filter).
+#   - ISCC is downloaded from the official jrsoftware/issrc GitHub release and
+#     SHA256-verified before it is ever executed (same pattern as ci.yml's
+#     gitleaks step) — no third-party action, no chocolatey hop.
 name: Release
 
-# Run only when a version tag is pushed (e.g. v0.1.0).
+# Run when a version tag is pushed (e.g. v0.1.0), or manually via
+# workflow_dispatch to gate-build the installer (dispatch run) before cutting
+# a tag — used by the M5 VM gate. Dispatch runs never create a release/tag.
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch: {}
 
 # Least-privilege default; the single job needs write only to create the Release.
 permissions:
@@ -89,37 +99,116 @@ jobs:
           "ZIP_NAME=$zipName"  >> $env:GITHUB_ENV
           "SHA256=$hash"       >> $env:GITHUB_ENV
 
+      - name: Acquire ISCC (Inno Setup 6.7.3, pinned + SHA256-verified)
+        # windows-2025 (windows-latest) has no preinstalled Inno Setup. Download the
+        # official jrsoftware/issrc release binary, hard-fail on any hash mismatch
+        # (same supply-chain pattern as ci.yml's gitleaks CLI download), then extract
+        # a portable ISCC.exe with /PORTABLE=1 (no registry writes, no elevation).
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version         = '6.7.3'
+          $expectedSha256  = '9C73C3BAE7ED48D44112A0F48E66742C00090BDB5BEF71D9D3C056C66E97B732'
+          $url             = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-$version.exe"
+          $installerExe    = Join-Path $env:RUNNER_TEMP 'innosetup-installer.exe'
+          $isccDir         = Join-Path $env:RUNNER_TEMP 'innosetup'
+
+          Write-Host "Downloading Inno Setup $version..."
+          curl.exe -sSL --fail $url -o $installerExe
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup download failed (exit $LASTEXITCODE)" }
+
+          $actualSha256 = (Get-FileHash $installerExe -Algorithm SHA256).Hash
+          if ($actualSha256 -ne $expectedSha256) {
+            throw "Inno Setup installer SHA256 mismatch: expected $expectedSha256, got $actualSha256 — refusing to run an unverified binary."
+          }
+          Write-Host "SHA256 verified: $actualSha256"
+
+          & $installerExe /PORTABLE=1 /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="$isccDir"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup portable extraction failed (exit $LASTEXITCODE)" }
+
+          $iscc = Join-Path $isccDir 'ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc after extraction" }
+          Write-Host "ISCC: $iscc"
+          "ISCC=$iscc" >> $env:GITHUB_ENV
+
+      - name: Build installer (Inno Setup component installer, M5)
+        # Base (mandatory) + one optional component per Modules\<id>\ folder. AppVer/
+        # AppVerNum/OutputName derive from the tag on a tag run; a workflow_dispatch
+        # (gate) run uses the fixed dev placeholder "v0.0.0-dev" so the artifact name
+        # is stable and unmistakably non-released.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $refType = "${{ github.ref_type }}"
+          if ($refType -eq 'tag') {
+            $refName = "${{ github.ref_name }}"
+          } else {
+            $refName = 'v0.0.0-dev'
+          }
+          $appVer = $refName.TrimStart('v')
+          if ($appVer -match '^(\d+\.\d+\.\d+)') { $appVerNum = $Matches[1] } else { $appVerNum = '0.0.0' }
+          $outputName = "WindowsCareKit-Setup-$refName-win-x64"
+
+          Write-Host "AppVer=$appVer AppVerNum=$appVerNum OutputName=$outputName"
+
+          & $env:ISCC "/DAppVer=$appVer" "/DAppVerNum=$appVerNum" "/DPublishDir=..\publish\win-x64" "/DOutputName=$outputName" installer\WindowsCareKit.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC build failed (exit $LASTEXITCODE)" }
+
+          $setupPath = "publish\installer\$outputName.exe"
+          if (-not (Test-Path $setupPath)) { throw "installer output not found: $setupPath" }
+
+          $setupHash = (Get-FileHash $setupPath -Algorithm SHA256).Hash
+          Write-Host "Installer: $setupPath"
+          Write-Host "SHA256: $setupHash"
+
+          # Pass values to subsequent steps via environment file.
+          "SETUP_PATH=$setupPath"      >> $env:GITHUB_ENV
+          "SETUP_NAME=$outputName.exe" >> $env:GITHUB_ENV
+          "SETUP_SHA256=$setupHash"    >> $env:GITHUB_ENV
+
       - name: Create GitHub Release
+        # Only on an actual tag push — a workflow_dispatch (gate) run never creates a
+        # release or tag; it stops at the artifact-upload step below.
         # Uses the pre-installed gh CLI (available on all GitHub-hosted runners).
         # Authenticates via the built-in GITHUB_TOKEN — no PAT or hardcoded secret.
         # v0.x releases are marked --prerelease to signal beta status.
         #
         # Idempotent: if a release for this tag already exists (e.g. it was
-        # created manually before the tag was pushed), upload/refresh the asset
+        # created manually before the tag was pushed), upload/refresh the assets
         # instead of failing. This keeps the workflow green even when the
         # release predates the workflow run.
+        if: github.ref_type == 'tag'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = "${{ github.ref_name }}"
-          $zip = "${{ env.ZIP_NAME }}"
+          $tag   = "${{ github.ref_name }}"
+          $zip   = "${{ env.ZIP_NAME }}"
+          $setup = "${{ env.SETUP_PATH }}"
           # Notes are kept backtick-free on purpose so neither YAML nor the
           # PowerShell here-string parser has to escape Markdown code fences.
           $body = @"
           ## Windows Care Kit $tag
 
+          ### Installer (recommended)
+          A component installer for Windows x64. Base (Settings) is mandatory;
+          Uninstall/Clean/Back up/Migration/Restore/Reinstall are optional
+          components you pick during Setup, or add later by re-running Setup.
+          Attach the ${{ env.SETUP_NAME }} asset from the assets below.
+
+          ### SHA256 checksum (installer)
+          ${{ env.SETUP_SHA256 }}  ${{ env.SETUP_NAME }}
+
+          ### Portable ZIP (alternative)
           Portable self-contained build for Windows x64.
           No .NET runtime installation required.
           Extract the ENTIRE ZIP (the app needs its DLLs beside WindowsCareKit.exe), then run WindowsCareKit.exe.
-
-          ### Download
           Attach the $zip asset from the assets below.
 
-          ### SHA256 checksum
+          ### SHA256 checksum (ZIP)
           ${{ env.SHA256 }}  $zip
 
-          Verify with: Get-FileHash <zip> -Algorithm SHA256
+          Verify with: Get-FileHash <file> -Algorithm SHA256
 
           > **BETA:** Real-world destructive operations are under supervised
           > testing. Review the safety model before use on a production machine.
@@ -129,10 +218,24 @@ jobs:
 
           gh release view "$tag" 2>$null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists — refreshing asset + notes."
-            gh release upload "$tag" "$zip" --clobber
+            Write-Host "Release $tag already exists — refreshing assets + notes."
+            gh release upload "$tag" "$zip" "$setup" --clobber
             gh release edit "$tag" --prerelease --notes "$body"
           } else {
             Write-Host "Creating release $tag."
-            gh release create "$tag" "$zip" --title "Windows Care Kit $tag" --prerelease --notes "$body"
+            gh release create "$tag" "$zip" "$setup" --title "Windows Care Kit $tag" --prerelease --notes "$body"
           }
+
+      - name: Upload gate-build artifact (workflow_dispatch only)
+        # A non-tag run never publishes a release — it uploads the installer + zip as
+        # a short-lived CI artifact so the M5 VM gate can download and exercise the
+        # exact bits a tag run would have produced.
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wck-gate-build
+          path: |
+            ${{ env.SETUP_PATH }}
+            ${{ env.ZIP_NAME }}
+          if-no-files-found: error
+          retention-days: 7

@@ -9,8 +9,8 @@
     <NoWarn>$(NoWarn);CA1416</NoWarn>
     <Company>Windows Care Kit (open source, MIT)</Company>
     <Product>Windows Care Kit</Product>
-    <!-- Release metadata (first beta target). -->
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <!-- Release metadata (M5: component installer; artifact shape changed since v0.1.2-beta). -->
+    <VersionPrefix>0.2.0</VersionPrefix>
     <Authors>Yasin Derya Bilgin</Authors>
     <RepositoryUrl>https://github.com/ydbilgin/windows-care-kit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
