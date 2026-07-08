@@ -4,7 +4,7 @@
   Capture clean, watermark-free, English per-module screenshots of the WCK WPF app from the
   WCK-E2E guest, for the README / docs. Headless (no host window).
 .DESCRIPTION
-  1. Publishes the WPF app (self-contained single-file win-x64) on the host.
+  1. Publishes the WPF app (self-contained folder win-x64) on the host.
   2. Starts the guest + ensures the resident capture agent is running (Install-CaptureAgent.ps1).
   3. Deploys the fresh publish into the guest at C:\WCK-App over PowerShell Direct.
   4. For each module, launches the app with `--lang en --screen <module>` and captures JUST the
@@ -49,10 +49,10 @@ $modules = [ordered]@{
 }
 
 if (-not $SkipPublish) {
-    Step "Publishing WPF app (self-contained single-file win-x64)..."
+    Step "Publishing WPF app (self-contained folder win-x64)..."
     if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
     & $dotnet publish $csproj -c Release --runtime win-x64 --self-contained true `
-        -p:PublishSingleFile=true --output $publishDir 2>&1 | Select-Object -Last 3
+        --output $publishDir 2>&1 | Select-Object -Last 3
     if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
     Remove-Item (Join-Path $publishDir '*.pdb') -Force -ErrorAction SilentlyContinue
 }

@@ -41,10 +41,10 @@ $modules = [ordered]@{
 }
 
 if (-not $SkipPublish) {
-    Step "Publishing WPF app (self-contained single-file win-x64, with the theme toggle)..."
+    Step "Publishing WPF app (self-contained folder win-x64, with the theme toggle)..."
     if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
     & $dotnet publish $csproj -c Release --runtime win-x64 --self-contained true `
-        -p:PublishSingleFile=true --output $publishDir 2>&1 | Select-Object -Last 3
+        --output $publishDir 2>&1 | Select-Object -Last 3
     if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
     Remove-Item (Join-Path $publishDir '*.pdb') -Force -ErrorAction SilentlyContinue
 }

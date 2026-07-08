@@ -10,11 +10,11 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- App opens as standard user (asInvoker). Elevation is per-action via a helper (spec §3). -->
 
-    <!-- Self-contained single-file portable ZIP target (spec §6). -->
+    <!-- Self-contained folder-publish ZIP target: WindowsCareKit.exe + dependency DLLs
+         (incl. Suite.Module.*) beside it (spec §6; prereq for M4 module loader). -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishSingleFile>false</PublishSingleFile>
   </PropertyGroup>
 
   <ItemGroup>

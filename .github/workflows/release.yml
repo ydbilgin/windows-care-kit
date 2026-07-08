@@ -1,6 +1,7 @@
 # Tag-triggered release build for Windows Care Kit.
-# Produces a self-contained single-file win-x64 portable EXE, packages it as a
-# ZIP with a SHA256 hash, and publishes a GitHub Prerelease.
+# Produces a self-contained win-x64 folder layout (WindowsCareKit.exe + dependency
+# DLLs incl. Suite.Module.*), packages it as a ZIP with a SHA256 hash, and
+# publishes a GitHub Prerelease.
 #
 # Security posture (matches ci.yml):
 #   - Pinned action SHAs.
@@ -53,15 +54,15 @@ jobs:
         # machine. This is the same filter used in ci.yml.
         run: dotnet test tests/Suite.Tests/Suite.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=Destructive"
 
-      - name: Publish (self-contained single-file win-x64)
-        # Produces a single portable EXE. Self-contained means the .NET runtime
+      - name: Publish (self-contained folder win-x64)
+        # Produces a folder: WindowsCareKit.exe + dependency DLLs (folder layout
+        # required by modular-install M4). Self-contained means the .NET runtime
         # is bundled — no pre-installed runtime required on the end-user machine.
         run: >
           dotnet publish src/Suite.App.Wpf/Suite.App.Wpf.csproj
           --configuration Release
           --runtime win-x64
           --self-contained true
-          -p:PublishSingleFile=true
           --output publish/win-x64
 
       - name: Package ZIP and compute SHA256
@@ -110,6 +111,7 @@ jobs:
 
           Portable self-contained build for Windows x64.
           No .NET runtime installation required.
+          Extract the ENTIRE ZIP (the app needs its DLLs beside WindowsCareKit.exe), then run WindowsCareKit.exe.
 
           ### Download
           Attach the $zip asset from the assets below.
