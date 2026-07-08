@@ -100,11 +100,18 @@ jobs:
           "SHA256=$hash"       >> $env:GITHUB_ENV
 
       - name: Acquire ISCC (Inno Setup 6.7.3, pinned + SHA256-verified)
-        # windows-2025 (windows-latest) has no preinstalled Inno Setup. Download the
-        # official jrsoftware/issrc release binary, hard-fail on any hash mismatch
-        # (same supply-chain pattern as ci.yml's gitleaks CLI download), then extract
-        # a portable ISCC.exe with /PORTABLE=1 (no registry writes, no elevation).
+        # The runner image ships an UNPINNED InnoSetup (6.7.1 on windows-2025 today;
+        # drifts with image updates) which we deliberately do NOT use. Instead the
+        # official jrsoftware/issrc release binary is downloaded and SHA256-verified
+        # before it is ever executed (same supply-chain pattern as ci.yml's gitleaks
+        # step), then extracted portably with /PORTABLE=1 (no uninstaller, no registry
+        # writes; ISCC.exe lands in the root of /DIR per issrc/setup.iss).
+        # F1 lesson: the Inno installer is a GUI-subsystem exe -- pwsh's '&' operator
+        # does NOT wait for it and leaves $LASTEXITCODE stale, so it MUST be run via
+        # Start-Process -Wait (waits for the full process tree, covering Inno's
+        # second-stage spawned setup process) with the exit code read via -PassThru.
         shell: pwsh
+        timeout-minutes: 10
         run: |
           $ErrorActionPreference = 'Stop'
           $version         = '6.7.3'
@@ -112,23 +119,49 @@ jobs:
           $url             = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-$version.exe"
           $installerExe    = Join-Path $env:RUNNER_TEMP 'innosetup-installer.exe'
           $isccDir         = Join-Path $env:RUNNER_TEMP 'innosetup'
+          $installLog      = Join-Path $env:RUNNER_TEMP 'innosetup-install.log'
 
           Write-Host "Downloading Inno Setup $version..."
-          curl.exe -sSL --fail $url -o $installerExe
+          curl.exe -sSL --fail --retry 3 $url -o $installerExe
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup download failed (exit $LASTEXITCODE)" }
 
           $actualSha256 = (Get-FileHash $installerExe -Algorithm SHA256).Hash
           if ($actualSha256 -ne $expectedSha256) {
-            throw "Inno Setup installer SHA256 mismatch: expected $expectedSha256, got $actualSha256 — refusing to run an unverified binary."
+            throw "Inno Setup installer SHA256 mismatch: expected $expectedSha256, got $actualSha256 -- refusing to run an unverified binary."
           }
           Write-Host "SHA256 verified: $actualSha256"
 
-          & $installerExe /PORTABLE=1 /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="$isccDir"
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup portable extraction failed (exit $LASTEXITCODE)" }
+          # GUI-subsystem exe: Start-Process -Wait is the only correct wait here.
+          # /CURRENTUSER pins the install mode (setup.iss allows a mode dialog);
+          # /SP- disables the startup prompt; /LOG enables post-mortem diagnosis.
+          $installArgs = "/PORTABLE=1 /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /LOG=""$installLog"" /DIR=""$isccDir"""
+          Write-Host "Running: innosetup-installer.exe $installArgs"
+          $proc = Start-Process -FilePath $installerExe -ArgumentList $installArgs -Wait -PassThru
+          if ($proc.ExitCode -ne 0) {
+            if (Test-Path $installLog) { Get-Content $installLog -Tail 40 | Write-Host }
+            throw "Inno Setup portable extraction failed (setup exit code $($proc.ExitCode))"
+          }
 
+          # Belt-and-suspenders after the tree-wait: brief bounded poll, then verify.
           $iscc = Join-Path $isccDir 'ISCC.exe'
-          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc after extraction" }
-          Write-Host "ISCC: $iscc"
+          $deadline = [DateTime]::UtcNow.AddSeconds(30)
+          while (-not (Test-Path $iscc) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Seconds 1 }
+
+          if (-not (Test-Path $iscc)) {
+            Write-Host "--- contents of $isccDir ---"
+            if (Test-Path $isccDir) { Get-ChildItem $isccDir -Recurse | ForEach-Object { Write-Host $_.FullName } }
+            Write-Host "--- install log (tail) ---"
+            if (Test-Path $installLog) { Get-Content $installLog -Tail 60 | Write-Host }
+            throw "ISCC.exe not found at $iscc after portable extraction"
+          }
+
+          # Self-verify the PINNED compiler landed (guards against ever compiling with a different ISCC).
+          $vi = (Get-Item $iscc).VersionInfo
+          Write-Host "ISCC: $iscc (FileVersion=$($vi.FileVersion) ProductVersion=$($vi.ProductVersion))"
+          if ("$($vi.FileVersion) $($vi.ProductVersion)" -notlike "*$version*") {
+            throw "ISCC.exe version mismatch: expected $version, got FileVersion=$($vi.FileVersion) ProductVersion=$($vi.ProductVersion)"
+          }
+
           "ISCC=$iscc" >> $env:GITHUB_ENV
 
       - name: Build installer (Inno Setup component installer, M5)
