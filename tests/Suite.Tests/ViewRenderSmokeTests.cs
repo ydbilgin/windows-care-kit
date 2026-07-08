@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
@@ -141,8 +142,11 @@ public sealed class ViewRenderSmokeTests
                     new RenderFakeFolderOpener(),
                     fx.Gate,
                     new RenderPlanExecutor(fx.Executor));
+                InstallDispatcherSyncContext();
                 vm.ScanJunkCommand.Execute(null);
+                PumpAsyncWork(() => vm.JunkScanned && !vm.IsBusy, TimeSpan.FromSeconds(5));
                 vm.LoadStartupCommand.Execute(null);
+                PumpAsyncWork(() => !vm.IsBusy && vm.StartupEntries.Count > 0, TimeSpan.FromSeconds(5));
 
                 var view = new CleanView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
@@ -481,8 +485,10 @@ public sealed class ViewRenderSmokeTests
                     source: InstalledAppSource.MachineWide64,
                     uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
                     installLocation: @"C:\Program Files\SomeApp"));
+                InstallDispatcherSyncContext();
                 vm.SkipToScanCommand.Execute(null);
-                Assert.True(SpinWait.SpinUntil(() => vm.IsLeftoversBeat, TimeSpan.FromSeconds(5)));
+                PumpAsyncWork(() => vm.IsLeftoversBeat, TimeSpan.FromSeconds(5));
+                Assert.True(vm.IsLeftoversBeat);
 
                 var view = new UninstallWizardView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1000, Height = 760 };
@@ -704,6 +710,38 @@ public sealed class ViewRenderSmokeTests
         Assert.True(bounds.Left >= -0.5, $"{label} left edge was clipped: {bounds}");
         Assert.True(bounds.Right <= maxWidth + 0.5, $"{label} right edge was clipped: {bounds}");
         Assert.True(element.ActualWidth > 0, $"{label} had no rendered width.");
+    }
+
+    /// <summary>
+    /// Render-smoke tests that fire fire-and-forget async commands must marshal the awaited
+    /// continuations back to THIS STA thread. Without a SynchronizationContext an
+    /// <c>await Task.Run(...)</c> continuation resumes on a ThreadPool thread and mutates a
+    /// UI-bound <see cref="System.Collections.ObjectModel.ObservableCollection{T}"/> off the
+    /// Dispatcher thread — a NotSupportedException that crashes the whole test host (surfaces only
+    /// under the full suite's ThreadPool pressure, so it reads as a flaky CI failure). Installing a
+    /// <see cref="DispatcherSynchronizationContext"/> makes the continuations post here;
+    /// <see cref="PumpAsyncWork"/> then drains them before the view binds a CollectionView. Scoped
+    /// to the async-command tests so the blocking <c>.GetAwaiter().GetResult()</c> render cases keep
+    /// working (installing it globally would deadlock those).
+    /// </summary>
+    private static void InstallDispatcherSyncContext()
+        => SynchronizationContext.SetSynchronizationContext(
+            new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+
+    /// <summary>Pump the STA thread's Dispatcher until <paramref name="settled"/> holds (or the
+    /// timeout elapses), running any posted async continuations on THIS thread, then flush once more
+    /// so trailing PropertyChanged/RaiseAll work also runs here rather than racing the render.</summary>
+    private static void PumpAsyncWork(Func<bool> settled, TimeSpan timeout)
+    {
+        Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
+        DateTime deadline = DateTime.UtcNow + timeout;
+        while (!settled() && DateTime.UtcNow < deadline)
+        {
+            dispatcher.Invoke(() => { }, DispatcherPriority.Background);
+            Thread.Sleep(5);
+        }
+
+        dispatcher.Invoke(() => { }, DispatcherPriority.Background);
     }
 
     private static void RunOnStaThread(Action action)
