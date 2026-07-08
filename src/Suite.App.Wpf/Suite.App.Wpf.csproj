@@ -19,16 +19,47 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Suite.App.Abstractions\Suite.App.Abstractions.csproj" />
-    <ProjectReference Include="..\Suite.Module.Clean\Suite.Module.Clean.csproj" />
-    <ProjectReference Include="..\Suite.Module.Install\Suite.Module.Install.csproj" />
-    <ProjectReference Include="..\Suite.Module.Restore\Suite.Module.Restore.csproj" />
-    <ProjectReference Include="..\Suite.Module.Backup\Suite.Module.Backup.csproj" />
-    <ProjectReference Include="..\Suite.Module.Uninstall\Suite.Module.Uninstall.csproj" />
-    <ProjectReference Include="..\Suite.Module.Migration\Suite.Module.Migration.csproj" />
+
+    <!-- Modules are NOT compile-referenced (modular M4): the shell carries zero module code and
+         discovers modules at runtime from <appdir>\Modules\<id>\ (see DirectoryModuleCatalog).
+         These P2P edges exist only to (1) guarantee build order and (2) export each module's built
+         DLL path as @(WckModuleDll) so WckModuleLayout.targets can lay it out under Modules\<id>\.
+           ReferenceOutputAssembly="false" -> no compile link (the seam that decouples the shell)
+           Private="false"                 -> the module DLL is NOT copied beside the exe (root stays clean)
+         Migration.Recipes is a module-PRIVATE dep of Migration (ModuleId=migration), so it lands in
+         Modules\migration\ alongside Suite.Module.Migration.dll and is resolved by ModuleAssemblyResolver.
+         Trust policy (ratified M4): loaded ONLY from <appdir>\Modules\, default ALC, no network, no
+         signature check (install-dir trust; M6 adds signing). -->
+    <ProjectReference Include="..\Suite.Module.Uninstall\Suite.Module.Uninstall.csproj"
+                      ReferenceOutputAssembly="false" Private="false"
+                      OutputItemType="WckModuleDll" ModuleId="uninstall" />
+    <ProjectReference Include="..\Suite.Module.Clean\Suite.Module.Clean.csproj"
+                      ReferenceOutputAssembly="false" Private="false"
+                      OutputItemType="WckModuleDll" ModuleId="clean" />
+    <ProjectReference Include="..\Suite.Module.Backup\Suite.Module.Backup.csproj"
+                      ReferenceOutputAssembly="false" Private="false"
+                      OutputItemType="WckModuleDll" ModuleId="backup" />
+    <ProjectReference Include="..\Suite.Module.Migration\Suite.Module.Migration.csproj"
+                      ReferenceOutputAssembly="false" Private="false"
+                      OutputItemType="WckModuleDll" ModuleId="migration" />
+    <ProjectReference Include="..\Suite.Module.Restore\Suite.Module.Restore.csproj"
+                      ReferenceOutputAssembly="false" Private="false"
+                      OutputItemType="WckModuleDll" ModuleId="restore" />
+    <ProjectReference Include="..\Suite.Module.Install\Suite.Module.Install.csproj"
+                      ReferenceOutputAssembly="false" Private="false"
+                      OutputItemType="WckModuleDll" ModuleId="install" />
+    <ProjectReference Include="..\Suite.Module.Migration.Recipes\Suite.Module.Migration.Recipes.csproj"
+                      ReferenceOutputAssembly="false" Private="false"
+                      OutputItemType="WckModuleDll" ModuleId="migration" />
+
+    <!-- Shared spine: compile-referenced + copied beside the exe (both the shell and every module
+         bind these same assemblies; default probing resolves them for the runtime-loaded modules). -->
     <ProjectReference Include="..\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\Suite.Win32\Suite.Win32.csproj" />
     <ProjectReference Include="..\Suite.Execution\Suite.Execution.csproj" />
   </ItemGroup>
+
+  <Import Project="..\WckModuleLayout.targets" />
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />

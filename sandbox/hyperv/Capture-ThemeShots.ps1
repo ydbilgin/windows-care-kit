@@ -38,6 +38,7 @@ $modules = [ordered]@{
     'migration' = '04-migration'
     'install'   = '05-reinstall'
     'settings'  = '06-settings'
+    'restore'   = '07-restore'   # M4: Restore view is runtime-loaded (was a render blind spot) -> 14 shots total
 }
 
 if (-not $SkipPublish) {

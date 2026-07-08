@@ -104,15 +104,18 @@ public partial class App : Application
     {
         AddBaseServices(s, args);
 
-        IReadOnlyList<IWckModule> modules = new StaticModuleCatalog().LoadModules();
+        IReadOnlyList<IWckModule> modules = new DirectoryModuleCatalog().LoadModules();
         foreach (IWckModule module in modules)
             module.RegisterServices(s);
 
         s.AddSingleton(modules);
     }
 
-    /// <summary>Delegates to <see cref="StaticModuleCatalog"/>; kept as the M4 swap point (also avoids test churn).</summary>
-    internal static IReadOnlyList<IWckModule> CreateDefaultModules() => new StaticModuleCatalog().LoadModules();
+    /// <summary>
+    /// The default module set, discovered from <c>&lt;appdir&gt;\Modules\</c> per the ratified M4 trust
+    /// policy (see <see cref="DirectoryModuleCatalog"/>). Single production/test seam.
+    /// </summary>
+    internal static IReadOnlyList<IWckModule> CreateDefaultModules() => new DirectoryModuleCatalog().LoadModules();
 
     internal static void AddBaseServices(IServiceCollection s, string[] args)
     {

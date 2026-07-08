@@ -24,17 +24,31 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Suite.App.Abstractions\Suite.App.Abstractions.csproj" />
-    <ProjectReference Include="..\..\src\Suite.Module.Clean\Suite.Module.Clean.csproj" />
-    <ProjectReference Include="..\..\src\Suite.Module.Install\Suite.Module.Install.csproj" />
-    <ProjectReference Include="..\..\src\Suite.Module.Restore\Suite.Module.Restore.csproj" />
-    <ProjectReference Include="..\..\src\Suite.Module.Backup\Suite.Module.Backup.csproj" />
-    <ProjectReference Include="..\..\src\Suite.Module.Uninstall\Suite.Module.Uninstall.csproj" />
-    <ProjectReference Include="..\..\src\Suite.Module.Migration\Suite.Module.Migration.csproj" />
-    <ProjectReference Include="..\..\src\Suite.Module.Migration.Recipes\Suite.Module.Migration.Recipes.csproj" />
+    <!-- Modules stay COMPILE-referenced here (tests exercise the concrete module types directly) but ALSO
+         gain OutputItemType/ModuleId so WckModuleLayout.targets lays them out under bin\...\Modules\<id>\.
+         The test bin therefore holds BOTH the module DLLs at root (compile refs) AND the Modules\ tree, so
+         DirectoryModuleCatalog runs for real against the same bits. Because a module's root copy and its
+         Modules\ copy share an MVID, default-ALC LoadFromAssemblyPath dedupes them (no identity split). -->
+    <ProjectReference Include="..\..\src\Suite.Module.Clean\Suite.Module.Clean.csproj"
+                      OutputItemType="WckModuleDll" ModuleId="clean" />
+    <ProjectReference Include="..\..\src\Suite.Module.Install\Suite.Module.Install.csproj"
+                      OutputItemType="WckModuleDll" ModuleId="install" />
+    <ProjectReference Include="..\..\src\Suite.Module.Restore\Suite.Module.Restore.csproj"
+                      OutputItemType="WckModuleDll" ModuleId="restore" />
+    <ProjectReference Include="..\..\src\Suite.Module.Backup\Suite.Module.Backup.csproj"
+                      OutputItemType="WckModuleDll" ModuleId="backup" />
+    <ProjectReference Include="..\..\src\Suite.Module.Uninstall\Suite.Module.Uninstall.csproj"
+                      OutputItemType="WckModuleDll" ModuleId="uninstall" />
+    <ProjectReference Include="..\..\src\Suite.Module.Migration\Suite.Module.Migration.csproj"
+                      OutputItemType="WckModuleDll" ModuleId="migration" />
+    <ProjectReference Include="..\..\src\Suite.Module.Migration.Recipes\Suite.Module.Migration.Recipes.csproj"
+                      OutputItemType="WckModuleDll" ModuleId="migration" />
     <ProjectReference Include="..\..\src\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\..\src\Suite.Win32\Suite.Win32.csproj" />
     <ProjectReference Include="..\..\src\Suite.Execution\Suite.Execution.csproj" />
     <ProjectReference Include="..\..\src\Suite.App.Wpf\Suite.App.Wpf.csproj" />
   </ItemGroup>
+
+  <Import Project="..\..\src\WckModuleLayout.targets" />
 
 </Project>

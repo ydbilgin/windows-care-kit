@@ -105,19 +105,6 @@ public sealed class ModuleCompositionTests
     }
 
     [Fact]
-    public void StaticModuleCatalog_LoadModules_yields_pinned_ids_in_order_with_existing_glyphs()
-    {
-        IReadOnlyList<IWckModule> modules = new StaticModuleCatalog().LoadModules();
-
-        Assert.Equal(
-            new[] { "uninstall", "clean", "backup", "migration", "restore", "install", "settings" },
-            modules.Select(m => m.Id).ToArray());
-        Assert.Equal(
-            new[] { "", "", "", "", "", "", "" },
-            modules.Select(m => m.IconKey).ToArray());
-    }
-
-    [Fact]
     public void Default_catalog_has_uninstall_as_the_only_startup_aware_nav_content()
     {
         using ServiceProvider provider = BuildProvider(WpfApp.CreateDefaultModules());

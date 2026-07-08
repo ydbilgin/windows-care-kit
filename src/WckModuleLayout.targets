@@ -1,0 +1,61 @@
+<Project>
+  <!--
+    WckModuleLayout.targets — shared module folder-layout contract (modular M4).
+
+    Imported by the shell (Suite.App.Wpf) and the test project. Each carries ProjectReference edges to the
+    module projects with:
+
+        OutputItemType="WckModuleDll"    (the P2P-negotiated built path is emitted as @(WckModuleDll))
+        ModuleId="<id>"                  (owning module id; migration.recipes => migration)
+
+    plus, in the SHELL only, ReferenceOutputAssembly="false" Private="false" (no compile link, not copied
+    beside the exe — the shell holds zero module code). The test project keeps the module refs compiling
+    (tests use the concrete module types) and simply gains the two attributes above.
+
+    Two things are laid out after Build (dev F5 / tests) and after Publish (release / capture harnesses):
+
+    1. Each @(WckModuleDll) -> <root>\Modules\<id>\ so the running shell can DISCOVER it at
+       <appdir>\Modules\<id>\Suite.Module.<id>.dll (+ that module's private deps in the same folder, e.g.
+       Suite.Module.Migration.Recipes.dll under Modules\migration\). The ModuleId metadata rides through
+       the OutputItemType hand-off (verified M4), so the destination folder is taken straight from it.
+
+    2. Module-owned <module>\...\manifests\*.json content (Backup: nine recipe manifests; Install:
+       90-install.json) -> <root>\manifests\ (FLAT, at root). Those manifests are still read from
+       AppContext.BaseDirectory\manifests by BackupViewModel / InstallViewModel (module reader code is
+       unchanged — a hard M4 scope line). Before M4 they reached the shell root transitively via the
+       compile references; with the shell's references now non-copying (ReferenceOutputAssembly="false"),
+       that flow stops, so they are copied explicitly here (globbed generically from each module's output
+       directory — a module with no manifests\ folder contributes nothing).
+
+    Trust policy (ratified M4, owner Gate3): the shell loads modules ONLY from <appdir>\Modules\ with the
+    explicit Suite.Module.<folder>.dll pattern, default AssemblyLoadContext, no network, no signature check
+    (install-dir trust; signing arrives with M6). See DirectoryModuleCatalog / ModuleAssemblyResolver.
+  -->
+
+  <Target Name="WckLayoutModulesOnBuild" AfterTargets="Build" Condition="'@(WckModuleDll)' != ''">
+    <Copy SourceFiles="@(WckModuleDll)"
+          DestinationFolder="$(OutDir)Modules\%(WckModuleDll.ModuleId)"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <_WckModuleManifestBuild Include="%(WckModuleDll.RootDir)%(WckModuleDll.Directory)manifests\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WckModuleManifestBuild)"
+          DestinationFolder="$(OutDir)manifests"
+          SkipUnchangedFiles="true"
+          Condition="'@(_WckModuleManifestBuild)' != ''" />
+  </Target>
+
+  <Target Name="WckLayoutModulesOnPublish" AfterTargets="Publish" Condition="'@(WckModuleDll)' != ''">
+    <Copy SourceFiles="@(WckModuleDll)"
+          DestinationFolder="$(PublishDir)Modules\%(WckModuleDll.ModuleId)"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <_WckModuleManifestPublish Include="%(WckModuleDll.RootDir)%(WckModuleDll.Directory)manifests\*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WckModuleManifestPublish)"
+          DestinationFolder="$(PublishDir)manifests"
+          SkipUnchangedFiles="true"
+          Condition="'@(_WckModuleManifestPublish)' != ''" />
+  </Target>
+
+</Project>
