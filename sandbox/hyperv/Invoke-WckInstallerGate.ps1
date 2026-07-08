@@ -206,12 +206,15 @@ try {
         $badPrincipals = @('BUILTIN\Users', 'NT AUTHORITY\Authenticated Users', 'Everyone', 'BUILTIN\Everyone')
         $acl = Invoke-Command -Session $session -ArgumentList $AppDir, $badPrincipals -ScriptBlock {
             param($dir, $bad)
+            # Only WRITE-CAPABLE bits. Do NOT use Modify/FullControl as the mask: they are
+            # composites that also carry Synchronize (0x100000) and Read/Execute bits, so a
+            # harmless read-only "ReadAndExecute, Synchronize" ACE would false-match. Write
+            # already = WriteData|AppendData|WriteEA|WriteAttributes; add the delete/ACL rights.
             $writeMask = [System.Security.AccessControl.FileSystemRights]::Write -bor
-                         [System.Security.AccessControl.FileSystemRights]::Modify -bor
-                         [System.Security.AccessControl.FileSystemRights]::FullControl -bor
-                         [System.Security.AccessControl.FileSystemRights]::CreateFiles -bor
-                         [System.Security.AccessControl.FileSystemRights]::AppendData -bor
-                         [System.Security.AccessControl.FileSystemRights]::WriteData
+                         [System.Security.AccessControl.FileSystemRights]::Delete -bor
+                         [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+                         [System.Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+                         [System.Security.AccessControl.FileSystemRights]::TakeOwnership
             $violations = @()
             foreach ($target in @($dir, (Join-Path $dir 'Modules'))) {
                 if (-not (Test-Path $target)) { $violations += "$target : path missing"; continue }
