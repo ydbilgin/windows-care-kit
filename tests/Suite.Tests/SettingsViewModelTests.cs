@@ -41,10 +41,9 @@ public sealed class SettingsViewModelTests
     [Fact]
     public void Setting_selected_culture_through_view_model_switches_language()
     {
-        var i18n = new I18n();
+        I18n i18n = TestI18n.Full("en");
         var vm = new SettingsViewModel(i18n, new FakeThemeService());
 
-        vm.I18n.Load("en");
         vm.I18n.SelectedCulture = "tr";
 
         Assert.Equal("tr", vm.I18n.Culture);

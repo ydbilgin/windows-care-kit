@@ -29,8 +29,7 @@ public class UninstallWizardTests
 
     private static UninstallWizardViewModel BuildWizard(FakeLeftoverProbe probe, FakeExecutor executor)
     {
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         return new UninstallWizardViewModel(i18n, TestData.Gate(), probe, executor, () => T0);
     }
 
@@ -288,8 +287,7 @@ public class UninstallWizardTests
     {
         var executor = new FakeExecutor();
         var app = TestData.App(displayName: "Broken", uninstall: null, quietUninstall: null);
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), new FakeLeftoverProbe(), executor, () => T0);
         wizard.Open(app);
 
@@ -316,8 +314,7 @@ public class UninstallWizardTests
             displayName: "MachineWideNoLoc", source: InstalledAppSource.MachineWide64,
             uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
             installLocation: null); // stale/missing → the elevated uninstaller cannot anchor
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), new FakeLeftoverProbe(), executor, () => T0);
         wizard.Open(app);
 
@@ -341,8 +338,7 @@ public class UninstallWizardTests
             displayName: "MachineWideWithLoc", source: InstalledAppSource.MachineWide64,
             uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
             installLocation: @"C:\Program Files\SomeApp");
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), new FakeLeftoverProbe(), executor, () => T0);
         wizard.Open(app);
 
@@ -358,8 +354,7 @@ public class UninstallWizardTests
         // The wizard → LeftoverPlanBuilder → stage → REAL GatedExecutor path. Select the ProgramOwned leaf,
         // delete, approve, and assert the recording registry adapter ran EXACTLY ONCE — for the leaf only.
         using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), ProbeWithAllThreeTiers(), fx.Executor, () => T0);
         wizard.Open(MachineWideApp());
         wizard.ScanCommand.Execute(null);
@@ -393,8 +388,7 @@ public class UninstallWizardTests
         // wizard's StageLeftovers with that same forced candidate and asserts NOTHING reaches the recording
         // adapter, the gate never opens, and the failure surfaces loudly (fix #8: fail-loud, not crash).
         using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), ProbeWithAllThreeTiers(), fx.Executor, () => T0);
         wizard.Open(MachineWideApp());
         wizard.ScanCommand.Execute(null);

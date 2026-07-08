@@ -19,8 +19,7 @@ public class UninstallGridViewTests
     private static UninstallViewModel BuildVm(
         IReadOnlyList<InstalledApp>? apps = null, IReadOnlyList<InstalledAppx>? appx = null)
     {
-        var i18n = new I18n();
-        i18n.Load("tr"); // exercise the localized badge mapping
+        I18n i18n = TestI18n.Full("tr"); // exercise the localized badge mapping
         var appReader = new FakeReader(apps ?? Array.Empty<InstalledApp>());
         var appxReader = new FakeAppxReader(appx ?? Array.Empty<InstalledAppx>());
         return new UninstallViewModel(i18n, appReader, appxReader, TestData.Gate(),

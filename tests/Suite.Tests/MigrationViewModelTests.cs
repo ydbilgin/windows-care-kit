@@ -61,8 +61,7 @@ public sealed class MigrationViewModelTests
     [Fact]
     public void Locked_now_candidate_renders_close_app_reason()
     {
-        var i18n = new I18n();
-        i18n.Load("en");
+        I18n i18n = TestI18n.Full("en");
         MigrationViewModel vm = CreateVm(i18n: i18n);
         MigrationSelectionCandidate locked = Candidate("firefox-profile", "browsers") with
         {
@@ -134,8 +133,7 @@ public sealed class MigrationViewModelTests
     [Fact]
     public void Forced_item_rejects_uncheck_and_notifies_the_checkbox_to_snap_back()
     {
-        var i18n = new I18n();
-        i18n.Load("en");
+        I18n i18n = TestI18n.Full("en");
         MigrationViewModel vm = CreateVm(i18n: i18n);
         MigrationSelectionCandidate forced = Candidate("forced", "personal") with
         {
@@ -478,7 +476,7 @@ public sealed class MigrationViewModelTests
 
     private static HashSet<string> ReadLangKeys(string code)
     {
-        string path = Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "lang", code + ".json");
+        string path = Path.Combine(FindRepositoryRoot(), "src", "Suite.Module.Migration", "lang", code + ".json");
         using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
         return document.RootElement.EnumerateObject()
             .Select(property => property.Name)

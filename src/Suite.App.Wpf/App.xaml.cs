@@ -116,7 +116,11 @@ public partial class App : Application
 
     internal static void AddBaseServices(IServiceCollection s, string[] args)
     {
-        s.AddSingleton<I18n>();
+        // The graceful `?? empty` is REQUIRED: ModuleCompositionTests builds base-only providers with no
+        // module list registered and still resolves I18n (shell-only strings, the modular truth). The
+        // real app registers the module list at ConfigureServices below, so the app singleton gets the
+        // full merged set (lazy resolution — I18n itself isn't Load()ed until OnStartup).
+        s.AddSingleton<I18n>(sp => new I18n(sp.GetService<IReadOnlyList<IWckModule>>() ?? Array.Empty<IWckModule>()));
         s.AddSingleton<IThemePreferenceStore>(_ => new JsonThemePreferenceStore(JsonThemePreferenceStore.DefaultBaseDirectory));
         s.AddSingleton<IThemeService>(sp => new ThemeService(
             args,

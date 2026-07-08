@@ -7,26 +7,35 @@ using Xunit;
 
 namespace WindowsCareKit.Tests;
 
+/// <summary>
+/// Localization keys are now partitioned across the shell base file and six module-owned fragments
+/// (modular M2b). These facts run per-SOURCE (shell pair + each module's fragment pair) instead of
+/// against one monolith, and key-existence facts are sharpened to the fragment that actually OWNS the
+/// key (SPEC §D3) — a key checked against the wrong source would pass vacuously.
+/// </summary>
 public sealed class MigrationLocalizationTests
 {
     [Fact]
     public void Non_english_language_files_do_not_define_keys_missing_from_english()
     {
-        string langDir = LangDir();
-        HashSet<string> english = ReadKeys(Path.Combine(langDir, "en.json"));
         var orphanKeys = new List<string>();
 
-        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
+        foreach ((string label, string dir) in Sources())
         {
-            string code = Path.GetFileNameWithoutExtension(file);
-            if (code.Equals("en", StringComparison.OrdinalIgnoreCase))
-                continue;
+            HashSet<string> english = ReadKeys(Path.Combine(dir, "en.json"));
 
-            // meta.* keys are file-descriptive (e.g. meta.languageName), not UI content — a language
-            // may carry its own without it being an "orphan" against English.
-            foreach (string key in ReadKeys(file).Except(english)
-                         .Where(k => !k.StartsWith("meta.", StringComparison.Ordinal)).Order())
-                orphanKeys.Add($"{code}:{key}");
+            foreach (string file in Directory.EnumerateFiles(dir, "*.json"))
+            {
+                string code = Path.GetFileNameWithoutExtension(file);
+                if (code.Equals("en", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // meta.* keys are file-descriptive (e.g. meta.languageName), not UI content — a language
+                // may carry its own without it being an "orphan" against English.
+                foreach (string key in ReadKeys(file).Except(english)
+                             .Where(k => !k.StartsWith("meta.", StringComparison.Ordinal)).Order())
+                    orphanKeys.Add($"{label}:{code}:{key}");
+            }
         }
 
         Assert.Empty(orphanKeys);
@@ -35,22 +44,33 @@ public sealed class MigrationLocalizationTests
     [Fact]
     public void Shipped_language_files_define_identical_key_sets()
     {
-        string langDir = LangDir();
-        string[] english = ReadKeys(Path.Combine(langDir, "en.json")).Order().ToArray();
-
-        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
+        foreach ((string _, string dir) in Sources())
         {
-            string code = Path.GetFileNameWithoutExtension(file);
-            string[] keys = ReadKeys(file).Order().ToArray();
+            string[] english = ReadKeys(Path.Combine(dir, "en.json")).Order().ToArray();
 
-            Assert.Equal(english, keys);
+            foreach (string file in Directory.EnumerateFiles(dir, "*.json"))
+            {
+                string[] keys = ReadKeys(file).Order().ToArray();
+                Assert.Equal(english, keys);
+            }
         }
+    }
+
+    [Fact]
+    public void Merged_en_and_tr_runtime_tables_carry_identical_key_sets()
+    {
+        WindowsCareKit.App.Localization.I18n en = TestI18n.Full("en");
+        WindowsCareKit.App.Localization.I18n tr = TestI18n.Full("tr");
+
+        Assert.Equal(
+            en.Map.Keys.Order(StringComparer.Ordinal),
+            tr.Map.Keys.Order(StringComparer.Ordinal));
     }
 
     [Fact]
     public void Backup_screen_localization_keys_exist_and_view_has_no_literal_text_labels()
     {
-        string langDir = LangDir();
+        string backupLangDir = ModuleLangDir("Suite.Module.Backup");
         string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.Module.Backup", "Views", "BackupView.xaml");
         string xaml = File.ReadAllText(viewPath);
         string[] expected =
@@ -79,7 +99,7 @@ public sealed class MigrationLocalizationTests
             "backup.footer",
         ];
 
-        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
+        foreach (string file in Directory.EnumerateFiles(backupLangDir, "*.json"))
         {
             HashSet<string> keys = ReadKeys(file);
             Assert.All(expected, key => Assert.Contains(key, keys));
@@ -113,35 +133,40 @@ public sealed class MigrationLocalizationTests
 
     // Orphan checks alone would still pass if a key were missing from every file. The runtime
     // builds these keys dynamically from enum values (MigrationSourceRow.Text, the group headers), so a new enum
-    // member would silently render its raw key. Assert every enum-derived key actually exists in the English base.
+    // member would silently render its raw key. Assert every enum-derived key actually exists in the OWNING
+    // fragment's English file: scan.source/group ∈ Migration, restore.disposition ∈ Restore (SPEC §D3).
     [Fact]
     public void Every_enum_derived_migration_key_exists_in_english()
     {
-        HashSet<string> english = ReadKeys(Path.Combine(LangDir(), "en.json"));
+        HashSet<string> migrationEnglish = ReadKeys(Path.Combine(ModuleLangDir("Suite.Module.Migration"), "en.json"));
+        HashSet<string> restoreEnglish = ReadKeys(Path.Combine(ModuleLangDir("Suite.Module.Restore"), "en.json"));
 
-        var expected = new List<string>();
+        var expectedInMigration = new List<string>();
         foreach (ProgramSourceKind kind in Enum.GetValues<ProgramSourceKind>())
-            expected.Add($"migration.scan.source.{kind}");
+            expectedInMigration.Add($"migration.scan.source.{kind}");
         foreach (ProgramSourceStatus status in Enum.GetValues<ProgramSourceStatus>())
-            expected.Add($"migration.scan.source.{status}");
+            expectedInMigration.Add($"migration.scan.source.{status}");
         foreach (MigrationCategory category in Enum.GetValues<MigrationCategory>())
         {
-            expected.Add($"migration.group.{category}.title");
-            expected.Add($"migration.group.{category}.subtitle");
+            expectedInMigration.Add($"migration.group.{category}.title");
+            expectedInMigration.Add($"migration.group.{category}.subtitle");
         }
+
+        var expectedInRestore = new List<string>();
         foreach (RestoreDisposition disposition in Enum.GetValues<RestoreDisposition>())
-            expected.Add($"migration.restore.disposition.{disposition}");
+            expectedInRestore.Add($"migration.restore.disposition.{disposition}");
 
-        string[] missingEnglish = expected.Where(key => !english.Contains(key)).Order().ToArray();
+        string[] missingMigration = expectedInMigration.Where(key => !migrationEnglish.Contains(key)).Order().ToArray();
+        string[] missingRestore = expectedInRestore.Where(key => !restoreEnglish.Contains(key)).Order().ToArray();
 
-        Assert.Empty(missingEnglish);
+        Assert.Empty(missingMigration);
+        Assert.Empty(missingRestore);
     }
 
     [Fact]
     public void Capture_keys_exist_in_english_and_dead_restore_keys_are_removed()
     {
-        string langDir = LangDir();
-        HashSet<string> english = ReadKeys(Path.Combine(langDir, "en.json"));
+        HashSet<string> migrationEnglish = ReadKeys(Path.Combine(ModuleLangDir("Suite.Module.Migration"), "en.json"));
         string[] expected =
         [
             "migration.capture.title",
@@ -158,20 +183,24 @@ public sealed class MigrationLocalizationTests
             "migration.capture.refused",
         ];
 
-        Assert.All(expected, key => Assert.Contains(key, english));
+        Assert.All(expected, key => Assert.Contains(key, migrationEnglish));
 
-        foreach (string file in Directory.EnumerateFiles(langDir, "*.json"))
+        // Dead keys must be gone everywhere — run against the merged union of every source, not just one.
+        foreach ((string _, string dir) in Sources())
         {
-            HashSet<string> keys = ReadKeys(file);
-            Assert.DoesNotContain("migration.button.restore", keys);
-            Assert.DoesNotContain("migration.restore.disabledHelper", keys);
+            foreach (string file in Directory.EnumerateFiles(dir, "*.json"))
+            {
+                HashSet<string> keys = ReadKeys(file);
+                Assert.DoesNotContain("migration.button.restore", keys);
+                Assert.DoesNotContain("migration.restore.disabledHelper", keys);
+            }
         }
     }
 
     [Fact]
     public void Restore_screen_keys_exist_in_english()
     {
-        HashSet<string> english = ReadKeys(Path.Combine(LangDir(), "en.json"));
+        HashSet<string> restoreEnglish = ReadKeys(Path.Combine(ModuleLangDir("Suite.Module.Restore"), "en.json"));
         string[] expected =
         [
             "nav.restore",
@@ -217,13 +246,13 @@ public sealed class MigrationLocalizationTests
             "migration.restore.status.rejected",
         ];
 
-        Assert.All(expected, key => Assert.Contains(key, english));
+        Assert.All(expected, key => Assert.Contains(key, restoreEnglish));
     }
 
     [Fact]
     public void Settings_screen_keys_exist_in_english()
     {
-        HashSet<string> english = ReadKeys(Path.Combine(LangDir(), "en.json"));
+        HashSet<string> shellEnglish = ReadKeys(Path.Combine(LangDir(), "en.json"));
         string[] expected =
         [
             "nav.settings",
@@ -251,7 +280,18 @@ public sealed class MigrationLocalizationTests
             "settings.about.releasesLink",
         ];
 
-        Assert.All(expected, key => Assert.Contains(key, english));
+        Assert.All(expected, key => Assert.Contains(key, shellEnglish));
+    }
+
+    private static IEnumerable<(string Label, string Dir)> Sources()
+    {
+        yield return ("shell", LangDir());
+        yield return ("Suite.Module.Uninstall", ModuleLangDir("Suite.Module.Uninstall"));
+        yield return ("Suite.Module.Clean", ModuleLangDir("Suite.Module.Clean"));
+        yield return ("Suite.Module.Backup", ModuleLangDir("Suite.Module.Backup"));
+        yield return ("Suite.Module.Migration", ModuleLangDir("Suite.Module.Migration"));
+        yield return ("Suite.Module.Restore", ModuleLangDir("Suite.Module.Restore"));
+        yield return ("Suite.Module.Install", ModuleLangDir("Suite.Module.Install"));
     }
 
     private static HashSet<string> ReadKeys(string path)
@@ -278,6 +318,9 @@ public sealed class MigrationLocalizationTests
 
     private static string LangDir()
         => Path.Combine(FindRepositoryRoot(), "src", "Suite.App.Wpf", "lang");
+
+    private static string ModuleLangDir(string project)
+        => Path.Combine(FindRepositoryRoot(), "src", project, "lang");
 
     private static string FindRepositoryRoot()
     {

@@ -56,8 +56,7 @@ public sealed class ViewRenderSmokeTests
 
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
 
                 var view = new SettingsView
                 {
@@ -100,8 +99,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources("Daylight", out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
 
                 var view = new SettingsView { DataContext = new SettingsViewModel(i18n, new FakeThemeService()) };
                 var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
@@ -132,8 +130,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 using var fx = new ExecutorFixture();
                 var vm = new CleanViewModel(
                     i18n,
@@ -175,8 +172,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 using var fx = new ExecutorFixture();
                 var entries = new[]
                 {
@@ -218,8 +214,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 var vm = new MigrationViewModel(
                     i18n,
                     new RenderFakeMigrationScanService(),
@@ -254,8 +249,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 const string profile = @"C:\Users\render-smoke";
                 const string usersRoot = @"C:\Users";
                 var gate = MigrationRestoreTestData.GateForProfile(profile, usersRoot);
@@ -297,8 +291,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 var gate = new ConfirmGateViewModel(i18n, onApprove: () => { }, onCancel: () => { }, isBusy: () => false);
                 var row = new PlanRow
                 {
@@ -336,8 +329,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 var vm = new ShellProbeViewModel(i18n);
                 var window = new MainWindow { DataContext = vm, Width = 1030, Height = 720 };
                 var root = Assert.IsAssignableFrom<FrameworkElement>(window.Content);
@@ -375,8 +367,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 var vm = new UninstallViewModel(
                     i18n,
                     new FakeInstalledAppReader(),
@@ -430,8 +421,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 var vm = new UninstallViewModel(
                     i18n,
                     new FakeInstalledAppReader(TestData.App("Sample App")),
@@ -472,8 +462,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 var probe = new FakeLeftoverProbe();
                 probe.RegistryKeys.Add(new LeftoverRegistryKey(
                     RegistryHive.LocalMachine,
@@ -523,8 +512,7 @@ public sealed class ViewRenderSmokeTests
             bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
             try
             {
-                var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-                i18n.Load("en");
+                I18n i18n = TestI18n.Full("en");
                 BackupViewModel vm = BuildBackupRenderViewModel(i18n);
                 vm.BuildPlanAsync().GetAwaiter().GetResult();
 

@@ -26,8 +26,7 @@ public class RestorePointWizardTests
 
     private static UninstallWizardViewModel BuildWizard(FakeExecutor executor, bool restorePointAvailable)
     {
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         return new UninstallWizardViewModel(i18n, TestData.Gate(), new FakeLeftoverProbe(), executor,
             utcNow: () => T0, restorePointCapability: new FakeCapability(restorePointAvailable));
     }
@@ -58,8 +57,7 @@ public class RestorePointWizardTests
     public void Toggle_absent_capability_probe_is_unavailable()
     {
         // No capability probe injected at all (the PR-4 shape) → hard-unavailable, never crashes.
-        var i18n = new I18n();
-        i18n.Load("tr");
+        I18n i18n = TestI18n.Full("tr");
         var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), new FakeLeftoverProbe(),
             new FakeExecutor(), () => T0);
         wizard.Open(MachineWideApp());

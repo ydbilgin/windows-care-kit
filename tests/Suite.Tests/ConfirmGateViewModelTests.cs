@@ -18,8 +18,7 @@ public class ConfirmGateViewModelTests
 {
     private static ConfirmGateViewModel BuildGate(string culture = "tr")
     {
-        var i18n = new I18n();
-        i18n.Load(culture);
+        I18n i18n = TestI18n.Full(culture);
         return new ConfirmGateViewModel(i18n, onApprove: () => { }, onCancel: () => { }, isBusy: () => false);
     }
 

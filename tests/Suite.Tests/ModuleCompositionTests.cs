@@ -196,6 +196,15 @@ public sealed class ModuleCompositionTests
             Assert.NotNull(provider.GetRequiredService<MigrationBackupRunner>());
             Assert.NotNull(provider.GetRequiredService<IMigrationBackupRunner>());
             Assert.Equal(40, provider.GetRequiredService<Func<IReadOnlyList<MigrationRecipe>>>()().Count);
+
+            // i18n fragment ownership (modular M2b, SPEC §D3): migration.restore.* belongs to Restore,
+            // NOT Migration, even though the prefix says otherwise.
+            IReadOnlyDictionary<string, string> migrationEn = ((IWckModule)module).GetLangFragment("en");
+            IReadOnlyDictionary<string, string> migrationTr = ((IWckModule)module).GetLangFragment("tr");
+            Assert.Contains("nav.migration", migrationEn.Keys);
+            Assert.Contains("migration.title", migrationEn.Keys);
+            Assert.DoesNotContain("migration.restore.title", migrationEn.Keys);
+            Assert.Equal(migrationEn.Keys.Order(StringComparer.Ordinal), migrationTr.Keys.Order(StringComparer.Ordinal));
         });
     }
 
@@ -223,6 +232,14 @@ public sealed class ModuleCompositionTests
             Assert.IsType<Win32BrowserExtensionInventory>(provider.GetRequiredService<IBrowserExtensionInventory>());
             Assert.IsType<Win32RecycleBinService>(provider.GetRequiredService<IRecycleBinService>());
             Assert.NotNull(provider.GetRequiredService<IPlanExecutor>());
+
+            // i18n fragment ownership (modular M2b, SPEC §D3): uninstall.leftovers.skippedTitle belongs to
+            // Clean (sole consumer CleanView.xaml), NOT Uninstall, even though the prefix says otherwise.
+            IReadOnlyDictionary<string, string> cleanEn = ((IWckModule)module).GetLangFragment("en");
+            IReadOnlyDictionary<string, string> cleanTr = ((IWckModule)module).GetLangFragment("tr");
+            Assert.Contains("nav.clean", cleanEn.Keys);
+            Assert.Contains("uninstall.leftovers.skippedTitle", cleanEn.Keys);
+            Assert.Equal(cleanEn.Keys.Order(StringComparer.Ordinal), cleanTr.Keys.Order(StringComparer.Ordinal));
         });
     }
 
@@ -284,6 +301,11 @@ public sealed class ModuleCompositionTests
             Assert.NotNull(provider.GetRequiredService<IClock>());
             Assert.NotNull(provider.GetRequiredService<IHasher>());
             Assert.NotNull(provider.GetRequiredService<IFileSystem>());
+
+            IReadOnlyDictionary<string, string> backupEn = ((IWckModule)module).GetLangFragment("en");
+            IReadOnlyDictionary<string, string> backupTr = ((IWckModule)module).GetLangFragment("tr");
+            Assert.Contains("nav.backup", backupEn.Keys);
+            Assert.Equal(backupEn.Keys.Order(StringComparer.Ordinal), backupTr.Keys.Order(StringComparer.Ordinal));
         });
     }
 
@@ -342,6 +364,14 @@ public sealed class ModuleCompositionTests
             Assert.NotNull(provider.GetRequiredService<IFolderOpener>());
             Assert.NotNull(provider.GetRequiredService<IExecutor>());
             Assert.NotNull(provider.GetRequiredService<IRestorePointCapabilityProbe>());
+
+            // i18n fragment ownership (modular M2b): uninstall.leftovers.skippedTitle moved to Clean —
+            // Uninstall's own fragment must not carry it.
+            IReadOnlyDictionary<string, string> uninstallEn = ((IWckModule)module).GetLangFragment("en");
+            IReadOnlyDictionary<string, string> uninstallTr = ((IWckModule)module).GetLangFragment("tr");
+            Assert.Contains("nav.uninstall", uninstallEn.Keys);
+            Assert.DoesNotContain("uninstall.leftovers.skippedTitle", uninstallEn.Keys);
+            Assert.Equal(uninstallEn.Keys.Order(StringComparer.Ordinal), uninstallTr.Keys.Order(StringComparer.Ordinal));
         });
     }
 
@@ -400,6 +430,11 @@ public sealed class ModuleCompositionTests
             Assert.NotNull(provider.GetRequiredService<InstallRunner>());
             Assert.NotNull(provider.GetRequiredService<InstallPlanner>());
             Assert.NotNull(provider.GetRequiredService<IPlanExecutor>());
+
+            IReadOnlyDictionary<string, string> installEn = ((IWckModule)module).GetLangFragment("en");
+            IReadOnlyDictionary<string, string> installTr = ((IWckModule)module).GetLangFragment("tr");
+            Assert.Contains("nav.install", installEn.Keys);
+            Assert.Equal(installEn.Keys.Order(StringComparer.Ordinal), installTr.Keys.Order(StringComparer.Ordinal));
         });
     }
 
@@ -447,6 +482,15 @@ public sealed class ModuleCompositionTests
             Assert.Equal("Suite.Execution", typeof(MigrationRestorePreviewResult).Assembly.GetName().Name);
             Assert.Equal("Suite.Execution", typeof(MigrationRestoreUndoResult).Assembly.GetName().Name);
             Assert.Equal("Suite.Execution", typeof(MigrationRestoreUndoPreviewResult).Assembly.GetName().Name);
+
+            // i18n fragment ownership (modular M2b, SPEC §D3): migration.restore.* belongs to Restore,
+            // NOT Migration, even though the prefix says otherwise.
+            IReadOnlyDictionary<string, string> restoreEn = ((IWckModule)module).GetLangFragment("en");
+            IReadOnlyDictionary<string, string> restoreTr = ((IWckModule)module).GetLangFragment("tr");
+            Assert.Contains("nav.restore", restoreEn.Keys);
+            Assert.Contains("migration.restore.title", restoreEn.Keys);
+            Assert.DoesNotContain("migration.title", restoreEn.Keys);
+            Assert.Equal(restoreEn.Keys.Order(StringComparer.Ordinal), restoreTr.Keys.Order(StringComparer.Ordinal));
         });
     }
 

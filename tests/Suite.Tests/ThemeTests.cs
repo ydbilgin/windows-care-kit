@@ -235,8 +235,7 @@ public sealed class ThemeTests
     [Fact]
     public void SettingsViewModel_exposes_themes_and_persists_selection()
     {
-        var i18n = new I18n(Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "lang"));
-        i18n.Load("en");
+        I18n i18n = TestI18n.Full("en");
         var themeService = new RecordingThemeService();
         var vm = new SettingsViewModel(i18n, themeService);
         var raised = new List<string?>();
