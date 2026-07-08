@@ -155,12 +155,11 @@ jobs:
             throw "ISCC.exe not found at $iscc after portable extraction"
           }
 
-          # Self-verify the PINNED compiler landed (guards against ever compiling with a different ISCC).
+          # The pin guarantee is the SHA256 verification of the DOWNLOADED installer above;
+          # ISCC.exe itself carries no VersionInfo stamp (reports 0.0.0.0), so a version
+          # assert on it would false-fail. Informational log only.
           $vi = (Get-Item $iscc).VersionInfo
           Write-Host "ISCC: $iscc (FileVersion=$($vi.FileVersion) ProductVersion=$($vi.ProductVersion))"
-          if ("$($vi.FileVersion) $($vi.ProductVersion)" -notlike "*$version*") {
-            throw "ISCC.exe version mismatch: expected $version, got FileVersion=$($vi.FileVersion) ProductVersion=$($vi.ProductVersion)"
-          }
 
           "ISCC=$iscc" >> $env:GITHUB_ENV
 
