@@ -24,6 +24,7 @@
   "migration.restore.disposition.Restored": "Geri yüklendi",
   "migration.restore.disposition.ReinstallEnqueued": "Yeniden kurulacak",
   "migration.restore.disposition.Manual": "Elle yapılacak",
+  "migration.restore.disposition.NotRestored": "Geri yüklenmedi",
   "migration.restore.results": "Geri yükleme sonuçları",
   "migration.restore.undo.title": "Üzerine yazılan dosyalar için .bak geri alma",
   "migration.restore.undo.body": "Geri alma, üzerine yazılan dosyaları günlüğe yazılmış .bak dosyalarından aynı kapılı geri yükleme yoluyla geri koyar. Geri yüklemenin oluşturduğu dosyalar geri alınamaz satırı olarak gösterilir ve kalır.",

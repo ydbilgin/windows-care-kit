@@ -54,8 +54,10 @@ public sealed class Win32LeftoverProbe : ILeftoverProbe
         if (RegistryInterop.SubKeyExists(uninstallHive, app.View, uninstallSub))
             found.Add(new LeftoverRegistryKey(uninstallHive, uninstallSub, app.View, "The app's own uninstall registry entry"));
 
-        // Vendor settings key Software\<Publisher>\<DisplayName>, in both HKCU and HKLM.
-        if (!string.IsNullOrWhiteSpace(app.Publisher))
+        // Vendor settings key Software\<Publisher>\<DisplayName>, in both HKCU and HKLM. Publisher/DisplayName come
+        // from untrusted uninstall metadata: only use them when each is a single, clean registry segment so a crafted
+        // value like "Policies" + "Contoso\InjectedPolicy" cannot inject a path under a protected subtree (S4).
+        if (IsSafeRegistrySegment(app.Publisher) && IsSafeRegistrySegment(app.DisplayName))
         {
             string vendorSub = $"SOFTWARE\\{app.Publisher}\\{app.DisplayName}";
             foreach (var hive in new[] { CoreHive.CurrentUser, CoreHive.LocalMachine })
@@ -66,6 +68,15 @@ public sealed class Win32LeftoverProbe : ILeftoverProbe
         }
 
         return found;
+    }
+
+    /// <summary>True when a value is a single, non-empty registry path segment (no separators, no traversal).</summary>
+    internal static bool IsSafeRegistrySegment(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+        string v = value.Trim();
+        return !v.Contains('\\') && !v.Contains('/') && v != "." && v != "..";
     }
 
     public IReadOnlyList<LeftoverService> FindRelatedServices(InstalledApp app)

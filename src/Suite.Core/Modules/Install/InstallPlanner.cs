@@ -20,6 +20,9 @@ public enum InstallSkipReason
     GateBlocked,
     /// <summary>The entry's method/fields were incomplete (e.g. winget with no id) — nothing to run.</summary>
     Incomplete,
+    /// <summary>S3: an untrusted manifest requested admin for a winget/npm install; WCK will not auto-elevate a
+    /// user-writable resolver — the user must run it themselves. Listed as a manual step, never auto-run.</summary>
+    RequiresAdminManual,
 }
 
 /// <summary>One manifest entry that did not enter the executable plan, with the reason and a UI note.</summary>
@@ -129,6 +132,19 @@ public sealed class InstallPlanner
                 continue;
             }
 
+            // 4b) S3: never auto-elevate a winget/npm install requested by (untrusted) recipe metadata — the resolver
+            //     lives in a user-writable root (%LOCALAPPDATA%\...\winget.exe, %APPDATA%\npm\npm.cmd). Surface it as a
+            //     manual step so the user elevates it themselves; the app never runs `runas` on recipe-sourced metadata.
+            if (entry.RequiresAdmin
+                && (string.Equals(entry.Method, InstallMethod.Winget, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(entry.Method, InstallMethod.Npm, StringComparison.OrdinalIgnoreCase)))
+            {
+                manual.Add(entry);
+                skipped.Add(new InstallSkip(entry, InstallSkipReason.RequiresAdminManual,
+                    "Requires admin: run this install yourself; WCK will not auto-elevate a community-recipe command."));
+                continue;
+            }
+
             // 5) Build the typed action for this entry's method.
             PlannedAction? action = BuildAction(entry);
             if (action is null)
@@ -222,7 +238,7 @@ public sealed class InstallPlanner
                 "install", "--id", id, "-e", "--silent",
                 "--accept-source-agreements", "--accept-package-agreements",
             },
-            RequiresElevation = entry.RequiresAdmin,
+            RequiresElevation = false, // S3: winget installs are never auto-elevated
             Profile = CommandPolicyProfile.WingetInstall, // Command-policy Phase 2: built fresh, not forgeable.
             Description = $"Install {id} (winget)",
             Reason = string.IsNullOrWhiteSpace(entry.Description)
@@ -242,7 +258,7 @@ public sealed class InstallPlanner
         {
             FileName = ResolveNpm(),
             Arguments = new[] { "install", "-g", "--ignore-scripts", entry.NpmPackage!.Trim() },
-            RequiresElevation = entry.RequiresAdmin,
+            RequiresElevation = false, // S3: npm installs are never auto-elevated
             Profile = CommandPolicyProfile.NpmInstall, // Command-policy Phase 2: built fresh, not forgeable.
             Description = $"Install {entry.NpmPackage} (npm global)",
             Reason = string.IsNullOrWhiteSpace(entry.Description)

@@ -24,6 +24,7 @@
   "migration.restore.disposition.Restored": "Restored",
   "migration.restore.disposition.ReinstallEnqueued": "Will reinstall",
   "migration.restore.disposition.Manual": "Manual",
+  "migration.restore.disposition.NotRestored": "Not restored",
   "migration.restore.results": "Restore results",
   "migration.restore.undo.title": ".bak undo for overwritten files",
   "migration.restore.undo.body": "Undo restores overwritten files from journaled .bak files through the same gated restore path. Files created by restore are shown as cannot-undo rows and will remain.",

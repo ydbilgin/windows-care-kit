@@ -379,7 +379,6 @@ public sealed class ViewRenderSmokeTests
                     TestData.Gate(),
                     new FakeLeftoverProbe(),
                     new FakeExecutor(),
-                    new FakeAppxRemover(),
                     new FakeFolderOpener());
                 var view = new UninstallView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1000, Height = 720 };
@@ -433,7 +432,6 @@ public sealed class ViewRenderSmokeTests
                     TestData.Gate(),
                     new FakeLeftoverProbe(),
                     new FakeExecutor(),
-                    new FakeAppxRemover(),
                     new FakeFolderOpener());
                 var view = new UninstallView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1000, Height = 720 };
@@ -842,12 +840,6 @@ public sealed class ViewRenderSmokeTests
     private sealed class FakeExecutor : IExecutor
     {
         public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash) => new(true, "not used");
-    }
-
-    private sealed class FakeAppxRemover : IAppxRemover
-    {
-        public Task<AppxRemovalResult> RemoveCurrentUserAsync(InstalledAppx package, CancellationToken ct = default)
-            => Task.FromResult(new AppxRemovalResult(true, "not used"));
     }
 
     private sealed class FakeFolderOpener : IFolderOpener

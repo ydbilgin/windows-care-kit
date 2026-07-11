@@ -73,6 +73,7 @@ public sealed class RestoreViewModel : ObservableObject
     public ObservableCollection<PlanRow> RestoredRows { get; } = new();
     public ObservableCollection<PlanRow> ReinstallEnqueuedRows { get; } = new();
     public ObservableCollection<PlanRow> ManualRows { get; } = new();
+    public ObservableCollection<PlanRow> NotRestoredRows { get; } = new();
     public ObservableCollection<PlanRow> UndoRows { get; } = new();
 
     public string PackageDir
@@ -112,6 +113,7 @@ public sealed class RestoreViewModel : ObservableObject
     public bool HasRestoredRows => RestoredRows.Count > 0;
     public bool HasReinstallEnqueuedRows => ReinstallEnqueuedRows.Count > 0;
     public bool HasManualRows => ManualRows.Count > 0;
+    public bool HasNotRestoredRows => NotRestoredRows.Count > 0;
     public bool HasUndoRows => UndoRows.Count > 0;
     public bool HasUndoJournalEntries => _completedState?.Journal.Count > 0;
     public string RestoredDispositionTitle => I18n[
@@ -391,6 +393,7 @@ public sealed class RestoreViewModel : ObservableObject
         RestoredRows.Clear();
         ReinstallEnqueuedRows.Clear();
         ManualRows.Clear();
+        NotRestoredRows.Clear();
         UndoRows.Clear();
         _previewPlan = null;
         _undoPreviewBuild = null;
@@ -423,6 +426,7 @@ public sealed class RestoreViewModel : ObservableObject
         RestoredRows.Clear();
         ReinstallEnqueuedRows.Clear();
         ManualRows.Clear();
+        NotRestoredRows.Clear();
 
         foreach (RestoreReportEntry entry in report.Restored)
             RestoredRows.Add(ReportRow(entry));
@@ -430,6 +434,8 @@ public sealed class RestoreViewModel : ObservableObject
             ReinstallEnqueuedRows.Add(ReportRow(entry));
         foreach (RestoreReportEntry entry in report.Manual)
             ManualRows.Add(ReportRow(entry));
+        foreach (RestoreReportEntry entry in report.NotRestored)
+            NotRestoredRows.Add(ReportRow(entry));
     }
 
     private PlanRow SkipRow(RestoreSkip skip)
@@ -459,6 +465,7 @@ public sealed class RestoreViewModel : ObservableObject
         {
             RestoreDisposition.Restored => RiskLevel.Low,
             RestoreDisposition.ReinstallEnqueued => RiskLevel.Medium,
+            RestoreDisposition.NotRestored => RiskLevel.Critical,
             _ => RiskLevel.High,
         };
 
@@ -584,6 +591,7 @@ public sealed class RestoreViewModel : ObservableObject
         OnPropertyChanged(nameof(HasRestoredRows));
         OnPropertyChanged(nameof(HasReinstallEnqueuedRows));
         OnPropertyChanged(nameof(HasManualRows));
+        OnPropertyChanged(nameof(HasNotRestoredRows));
         OnPropertyChanged(nameof(HasUndoRows));
         OnPropertyChanged(nameof(HasUndoJournalEntries));
         OnPropertyChanged(nameof(RestoredDispositionTitle));

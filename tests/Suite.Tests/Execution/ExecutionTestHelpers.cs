@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Logging;
+using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
 
@@ -14,7 +15,10 @@ internal sealed class ExecutorFixture : IDisposable
     public RecordingRecycleBinEmptier RecycleBinEmptier { get; }
     public GatedExecutor Executor { get; }
 
-    public ExecutorFixture(SafetyGate? gate = null, RecordingRecycleBinEmptier? recycleBinEmptier = null)
+    public ExecutorFixture(
+        SafetyGate? gate = null,
+        RecordingRecycleBinEmptier? recycleBinEmptier = null,
+        IAppxRemover? appxRemover = null)
     {
         LogPath = Path.Combine(Path.GetTempPath(), "wck-exec-" + Guid.NewGuid().ToString("N") + ".jsonl");
         Log = new ExecutionLog(LogPath, new LogRedactor(null, null));
@@ -24,7 +28,8 @@ internal sealed class ExecutorFixture : IDisposable
             Gate, Log,
             Adapters.File, Adapters.Registry, Adapters.Service,
             Adapters.Task, Adapters.Process, Adapters.Copy,
-            recycleBinEmptier: RecycleBinEmptier);
+            recycleBinEmptier: RecycleBinEmptier,
+            appxRemover: appxRemover);
     }
 
     /// <summary>The lines written to the execution log so far.</summary>

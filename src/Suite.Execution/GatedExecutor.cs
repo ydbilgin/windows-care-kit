@@ -1,6 +1,7 @@
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Backup;
+using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution.Adapters;
@@ -28,6 +29,7 @@ public sealed class GatedExecutor : IExecutor
     private readonly ICopyAdapter _copyAdapter;
     private readonly IRestorePointCreator _restorePointCreator;
     private readonly IRecycleBinEmptier _recycleBinEmptier;
+    private readonly IAppxRemover _appxRemover;
 
     /// <param name="restorePointCreator">
     /// The protective <see cref="CreateRestorePointAction"/> sink (PR-5). Optional for backward compatibility:
@@ -44,7 +46,8 @@ public sealed class GatedExecutor : IExecutor
         IProcessAdapter processAdapter,
         ICopyAdapter copyAdapter,
         IRestorePointCreator? restorePointCreator = null,
-        IRecycleBinEmptier? recycleBinEmptier = null)
+        IRecycleBinEmptier? recycleBinEmptier = null,
+        IAppxRemover? appxRemover = null)
     {
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _log = log ?? throw new ArgumentNullException(nameof(log));
@@ -56,6 +59,7 @@ public sealed class GatedExecutor : IExecutor
         _copyAdapter = copyAdapter ?? throw new ArgumentNullException(nameof(copyAdapter));
         _restorePointCreator = restorePointCreator ?? new UnavailableRestorePointCreator();
         _recycleBinEmptier = recycleBinEmptier ?? new UnavailableRecycleBinEmptier();
+        _appxRemover = appxRemover ?? new UnavailableAppxRemover();
     }
 
     /// <inheritdoc />
@@ -211,6 +215,13 @@ public sealed class GatedExecutor : IExecutor
             case CreateRestorePointAction restorePoint:
                 _restorePointCreator.Create(restorePoint);
                 return Done(action);
+            case AppxRemoveAction appx:
+            {
+                AppxRemovalResult removal = RemoveAppx(appx);
+                if (!removal.Removed)
+                    throw new InvalidOperationException(removal.Reason);
+                return Done(action);
+            }
             default:
                 throw new NotSupportedException($"No adapter for action kind '{action.Kind}'.");
         }
@@ -270,6 +281,20 @@ public sealed class GatedExecutor : IExecutor
     private static string FirstDetailOr(ExecutionReport report, string fallback)
         => report.Results.Count > 0 ? report.Results[0].Detail : fallback;
 
+    private AppxRemovalResult RemoveAppx(AppxRemoveAction appx)
+    {
+        var package = new InstalledAppx
+        {
+            PackageFullName = appx.PackageFullName,
+            PackageFamilyName = appx.PackageFamilyName,
+            DisplayName = appx.PackageDisplayName,
+            IsFrameworkOrSystem = appx.IsFrameworkOrSystem,
+        };
+        // The Win32 adapter re-enumerates the current user's packages and re-checks framework/system flags
+        // before removing (execution-time identity re-resolution). Sync-wait: this runs on a background thread.
+        return _appxRemover.RemoveCurrentUserAsync(package).GetAwaiter().GetResult();
+    }
+
     /// <summary>
     /// Fail-closed default when no <see cref="IRestorePointCreator"/> is wired: dispatching a
     /// <see cref="CreateRestorePointAction"/> THROWS, so a plan that staged a restore point can never run
@@ -279,6 +304,13 @@ public sealed class GatedExecutor : IExecutor
     {
         public void Create(CreateRestorePointAction action)
             => throw new NotSupportedException("No IRestorePointCreator is wired into this executor.");
+    }
+
+    /// <summary>Fail-closed default: dispatching an AppxRemoveAction with no remover wired throws.</summary>
+    private sealed class UnavailableAppxRemover : IAppxRemover
+    {
+        public Task<AppxRemovalResult> RemoveCurrentUserAsync(InstalledAppx package, CancellationToken ct = default)
+            => throw new NotSupportedException("No IAppxRemover is wired into this executor.");
     }
 
     /// <summary>

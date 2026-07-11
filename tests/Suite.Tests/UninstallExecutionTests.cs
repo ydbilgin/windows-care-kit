@@ -5,13 +5,14 @@ using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
+using WindowsCareKit.Tests.Execution;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
 
 /// <summary>
 /// The Sil execution wiring for the paths UninstallViewModel still owns: AppX removal is gated behind an
-/// explicit confirm and goes through <see cref="IAppxRemover"/>, never the typed-action executor. The
+/// explicit confirm and flows through the gated typed-action executor to <see cref="IAppxRemover"/>. The
 /// path-independent FAIL-WITHOUT proof shows the classifier filter is what keeps a Shared key out of the
 /// adapter. (The desktop official-run wiring now lives in UninstallWizardTests.) No real OS destruction
 /// happens — everything is faked (spec §1.1, §3).
@@ -21,7 +22,7 @@ public class UninstallExecutionTests
     private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     private static UninstallViewModel BuildVm(
-        IExecutor executor, FakeAppxRemover remover,
+        IExecutor executor,
         FakeLeftoverProbe? probe = null, IReadOnlyList<InstalledApp>? apps = null, IReadOnlyList<InstalledAppx>? appx = null)
     {
         var i18n = new I18n();
@@ -29,7 +30,7 @@ public class UninstallExecutionTests
         var appxReader = new FakeAppxReader(appx ?? Array.Empty<InstalledAppx>());
         var gate = TestData.Gate();
         probe ??= new FakeLeftoverProbe();
-        return new UninstallViewModel(i18n, appReader, appxReader, gate, probe, executor, remover, new FakeFolderOpener());
+        return new UninstallViewModel(i18n, appReader, appxReader, gate, probe, executor, new FakeFolderOpener());
     }
 
     /// <summary>Selects the unified-grid row backed by the first Store app.</summary>
@@ -111,12 +112,12 @@ public class UninstallExecutionTests
     }
 
     [Fact]
-    public async Task Appx_removal_goes_through_the_remover_not_the_executor()
+    public async Task Appx_removal_flows_through_the_gated_executor_to_the_remover()
     {
-        var executor = new FakeExecutor();
         var remover = new FakeAppxRemover { Result = new AppxRemovalResult(true, "removed") };
+        using var executor = new ExecutorFixture(appxRemover: remover);
         var package = new InstalledAppx { PackageFullName = "Contoso.App_1.0.0.0_x64__abc", DisplayName = "Contoso" };
-        var vm = BuildVm(executor, remover, appx: new[] { package });
+        var vm = BuildVm(executor.Executor, appx: new[] { package });
 
         await vm.LoadAsync();
         SelectFirstAppx(vm);
@@ -127,7 +128,6 @@ public class UninstallExecutionTests
         vm.ApproveCommand.Execute(null);
         await PumpAsync(() => vm.HasResult); // settle the full approve→remove→render before asserting
 
-        Assert.Equal(0, executor.CallCount);              // never the typed-action executor
         Assert.Equal(1, remover.CallCount);
         Assert.True(vm.HasResult);
         Assert.DoesNotContain(vm.AllRows, r => r.Appx is not null); // removed from the unified list on success
@@ -137,8 +137,9 @@ public class UninstallExecutionTests
     public async Task Appx_removal_failure_keeps_the_app_in_the_list()
     {
         var remover = new FakeAppxRemover { Result = new AppxRemovalResult(false, "refused") };
+        using var executor = new ExecutorFixture(appxRemover: remover);
         var package = new InstalledAppx { PackageFullName = "Contoso.App_1.0.0.0_x64__abc", DisplayName = "Contoso" };
-        var vm = BuildVm(new FakeExecutor(), remover, appx: new[] { package });
+        var vm = BuildVm(executor.Executor, appx: new[] { package });
 
         await vm.LoadAsync();
         SelectFirstAppx(vm);
@@ -155,9 +156,10 @@ public class UninstallExecutionTests
     public async Task Changing_store_selection_cancels_the_staged_appx_gate()
     {
         var remover = new FakeAppxRemover { Result = new AppxRemovalResult(true, "removed") };
+        using var executor = new ExecutorFixture(appxRemover: remover);
         var appA = new InstalledAppx { PackageFullName = "Contoso.A_1.0.0.0_x64__abc", DisplayName = "Contoso A" };
         var appB = new InstalledAppx { PackageFullName = "Contoso.B_1.0.0.0_x64__abc", DisplayName = "Contoso B" };
-        var vm = BuildVm(new FakeExecutor(), remover, appx: [appA, appB]);
+        var vm = BuildVm(executor.Executor, appx: [appA, appB]);
 
         await vm.LoadAsync();
         vm.SelectedRow = vm.AllRows.Single(r => ReferenceEquals(r.Appx, appA));

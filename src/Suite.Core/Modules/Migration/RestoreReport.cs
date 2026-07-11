@@ -6,6 +6,7 @@ namespace WindowsCareKit.Core.Modules.Migration;
 public enum RestoreDisposition
 {
     Restored,
+    NotRestored,
     ReinstallEnqueued,
     Manual,
 }
@@ -27,6 +28,9 @@ public sealed record RestoreReport(
     IReadOnlyList<RestoreReportEntry> ReinstallEnqueued,
     IReadOnlyList<RestoreReportEntry> Manual)
 {
+    /// <summary>Restore targets whose action did NOT complete (Failed/Blocked/NotRun) — honest, never "Restored".</summary>
+    public IReadOnlyList<RestoreReportEntry> NotRestored { get; init; } = Array.Empty<RestoreReportEntry>();
+
     public static RestoreReport FromPlan(MigrationRestorePlanResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -93,6 +97,56 @@ public sealed record RestoreReport(
         }
 
         return new RestoreReport(restored, reinstall, manual);
+    }
+
+    /// <summary>
+    /// Build the honest post-execution report: a restore target is "Restored" ONLY when its action completed
+    /// (MigrationRestoreActionStatus.Done). Failed / Blocked / NotRun targets go to <see cref="NotRestored"/>.
+    /// Reinstall/manual/skip buckets are identical to <see cref="FromPlan"/>. (Preview still uses FromPlan.)
+    /// </summary>
+    public static RestoreReport FromExecution(
+        MigrationRestorePlanResult result,
+        IReadOnlyDictionary<string, MigrationRestoreActionStatus> statusByActionId)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(statusByActionId);
+
+        RestoreReport planReport = FromPlan(result); // reuse reinstall + manual + skip buckets verbatim
+
+        var restored = new List<RestoreReportEntry>();
+        var notRestored = new List<RestoreReportEntry>();
+
+        foreach ((string actionId, MigrationRestoreTarget target) in result.RestoreActionTargets)
+        {
+            bool done = statusByActionId.TryGetValue(actionId, out MigrationRestoreActionStatus status)
+                        && status == MigrationRestoreActionStatus.Done;
+            if (done)
+            {
+                restored.Add(new RestoreReportEntry(
+                    Id: target.EntryId,
+                    RecipeId: target.RecipeId,
+                    Disposition: RestoreDisposition.Restored,
+                    Reason: "config-copy",
+                    Note: $"EN: Config file was restored with .bak protection: {target.RelativePath}. TR: Ayar dosyasi .bak korumasiyla geri yuklendi: {target.RelativePath}."));
+            }
+            else
+            {
+                string outcome = statusByActionId.TryGetValue(actionId, out var s) ? s.ToString() : "NotRun";
+                notRestored.Add(new RestoreReportEntry(
+                    Id: target.EntryId,
+                    RecipeId: target.RecipeId,
+                    Disposition: RestoreDisposition.NotRestored,
+                    Reason: "restore-" + outcome.ToLowerInvariant(),
+                    Note: $"EN: This item was NOT restored ({outcome}); redo it by hand. TR: Bu kalem geri yuklenmedi ({outcome}); elle yeniden yapin."));
+            }
+        }
+
+        // FromPlan put every restore target in Restored; discard THAT bucket and use the execution-derived ones.
+        // Keep FromPlan's ReinstallEnqueued and Manual buckets as-is.
+        return new RestoreReport(restored, planReport.ReinstallEnqueued, planReport.Manual)
+        {
+            NotRestored = notRestored,
+        };
     }
 
     private static void AddMetaManualRows(List<RestoreReportEntry> manual, MigrationRestoreTarget target, string suffix)

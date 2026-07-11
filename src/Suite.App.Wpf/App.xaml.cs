@@ -176,7 +176,8 @@ public partial class App : Application
             sp.GetRequiredService<IProcessAdapter>(),
             sp.GetRequiredService<ICopyAdapter>(),
             sp.GetRequiredService<IRestorePointCreator>(),
-            sp.GetRequiredService<IRecycleBinEmptier>()));
+            sp.GetRequiredService<IRecycleBinEmptier>(),
+            new Win32AppxRemover(sp.GetRequiredService<ExecutionLog>())));
         s.AddSingleton<IExecutor>(sp => sp.GetRequiredService<GatedExecutor>());
         s.AddSingleton<IPlanExecutor>(sp => new GatedPlanExecutor(sp.GetRequiredService<GatedExecutor>()));
 

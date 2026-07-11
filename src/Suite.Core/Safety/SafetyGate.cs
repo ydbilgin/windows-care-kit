@@ -40,6 +40,7 @@ public sealed class SafetyGate : ISafetyGate
         // protected resource, so it is allowed outright (UI decision §5(a)). This is an EXPLICIT arm, not a
         // catch-all: an unknown/unmodeled action type still falls through to the fail-closed `_ => Block`.
         CreateRestorePointAction => SafetyVerdict.Allow("create restore point (pure system call)"),
+        AppxRemoveAction a => EvaluateAppxRemove(a),
         null => SafetyVerdict.Block("null action"),
         _ => SafetyVerdict.Block($"unknown action type: {action.GetType().Name}"),
     };
@@ -51,6 +52,16 @@ public sealed class SafetyGate : ISafetyGate
             .Select(a => new ActionVerdict(a, Evaluate(a)))
             .ToArray();
         return new PlanValidationResult(results.All(r => r.Verdict.Allowed), results);
+    }
+
+    /// <summary>Per-user AppX removal: refuse empty identities and framework/system packages; the adapter re-verifies.</summary>
+    private static SafetyVerdict EvaluateAppxRemove(AppxRemoveAction a)
+    {
+        if (string.IsNullOrWhiteSpace(a.PackageFullName))
+            return SafetyVerdict.Block("empty AppX package full name");
+        if (a.IsFrameworkOrSystem)
+            return SafetyVerdict.Block("framework/system AppX package is out of scope (per-user only)");
+        return SafetyVerdict.Allow("per-user AppX removal");
     }
 
     // ---- File deletes: defense in depth over canonical + literal path ----
@@ -198,6 +209,17 @@ public sealed class SafetyGate : ISafetyGate
                 return SafetyVerdict.Block("protected registry key");
             if (pk.StartsWith(sub + "\\", StringComparison.Ordinal))
                 return SafetyVerdict.Block("ancestor of a protected registry key");
+        }
+
+        // S4: a KEY delete at or under a boot/logon-critical subtree (Winlogon, IFEO, AppInit, the Policies keys,
+        // software\policies) is refused — its DESCENDANTS are as dangerous as the key itself. These roots are the
+        // same set whose VALUES are protected; a recursive key delete under them would take the whole subtree.
+        // (Legitimate app-remnant descendants like Uninstall\<App> or Classes\<ProgId> are NOT under this set and
+        // stay deletable.)
+        foreach (string subtree in _policy.ProtectedValueKeys)
+        {
+            if (sub == subtree || sub.StartsWith(subtree + "\\", StringComparison.Ordinal))
+                return SafetyVerdict.Block("descendant of a boot/logon-critical protected registry key");
         }
 
         return SafetyVerdict.Allow("registry key not protected");
@@ -419,19 +441,23 @@ public sealed class SafetyGate : ISafetyGate
     /// here; a Generic <c>.cmd</c> still follows the unchanged Phase-1 extension policy.)</item>
     /// </list>
     /// </summary>
-    private static SafetyVerdict EvaluateProfileRestriction(CommandAction c, string expanded, string leaf, bool isMsiexec)
+    private SafetyVerdict EvaluateProfileRestriction(CommandAction c, string expanded, string leaf, bool isMsiexec)
     {
         switch (c.Profile)
         {
             case CommandPolicyProfile.WingetInstall:
-                return string.Equals(leaf, "winget.exe", StringComparison.OrdinalIgnoreCase)
-                    ? SafetyVerdict.Allow("winget install (profile-bound resolver)")
-                    : SafetyVerdict.Block("WingetInstall profile requires winget.exe (spoofed resolver blocked)");
+                if (!string.Equals(leaf, "winget.exe", StringComparison.OrdinalIgnoreCase))
+                    return SafetyVerdict.Block("WingetInstall profile requires winget.exe (spoofed resolver blocked)");
+                if (c.RequiresElevation && !IsUnderTrustedElevationRoot(expanded))
+                    return SafetyVerdict.Block("winget must not be elevated from a user-writable root (manual install)");
+                return SafetyVerdict.Allow("winget install (profile-bound resolver)");
 
             case CommandPolicyProfile.NpmInstall:
-                return string.Equals(leaf, "npm.cmd", StringComparison.OrdinalIgnoreCase)
-                    ? SafetyVerdict.Allow("npm install (profile-bound resolver)")
-                    : SafetyVerdict.Block("NpmInstall profile requires npm.cmd (spoofed resolver blocked)");
+                if (!string.Equals(leaf, "npm.cmd", StringComparison.OrdinalIgnoreCase))
+                    return SafetyVerdict.Block("NpmInstall profile requires npm.cmd (spoofed resolver blocked)");
+                if (c.RequiresElevation && !IsUnderTrustedElevationRoot(expanded))
+                    return SafetyVerdict.Block("npm must not be elevated from a user-writable root (manual install)");
+                return SafetyVerdict.Allow("npm install (profile-bound resolver)");
 
             case CommandPolicyProfile.OfficialUninstaller:
                 // A non-elevated official uninstaller (per-user under %LOCALAPPDATA%) is unaffected — no anchor.
@@ -449,6 +475,30 @@ public sealed class SafetyGate : ISafetyGate
             default:
                 return SafetyVerdict.Allow("generic command (unchanged Phase-1 policy)");
         }
+    }
+
+    /// <summary>
+    /// True when <paramref name="expandedPath"/> resolves under a trusted, admin-owned root the OS refuses to let
+    /// a standard user write (the Windows tree + Program Files (both) + ProgramData). These are exactly the
+    /// <see cref="ProtectedResources.WriteProtectedRoots"/> plus the Windows directory. User-writable roots
+    /// (%LOCALAPPDATA% / %APPDATA%) are deliberately excluded — elevating a command there is an EoP primitive (S3).
+    /// </summary>
+    private bool IsUnderTrustedElevationRoot(string expandedPath)
+    {
+        string norm = ProtectedResources.NormalizeDirectory(expandedPath);
+        if (norm.Length == 0)
+            return false;
+
+        string win = _policy.WindowsDirectory;
+        if (win.Length > 0 && (norm == win || norm.StartsWith(win + "\\", StringComparison.Ordinal)))
+            return true;
+
+        foreach (string root in _policy.WriteProtectedRoots)
+        {
+            if (norm == root || norm.StartsWith(root + "\\", StringComparison.Ordinal))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>

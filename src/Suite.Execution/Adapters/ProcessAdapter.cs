@@ -1,5 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using WindowsCareKit.Core.Planning;
 
 namespace WindowsCareKit.Execution.Adapters;
@@ -37,6 +40,9 @@ public sealed class ProcessAdapter : IProcessAdapter
         if (action.RequiresElevation && !Path.IsPathFullyQualified(action.FileName))
             throw new InvalidOperationException(
                 $"Refusing to run an elevated command without an absolute path: {action.FileName}");
+
+        if (action.RequiresElevation)
+            EnsureElevatableOwnership(action.FileName);
 
         var psi = new ProcessStartInfo
         {
@@ -80,4 +86,39 @@ public sealed class ProcessAdapter : IProcessAdapter
         }
 #pragma warning restore RS0030
     }
+
+    /// <summary>
+    /// Before a <c>runas</c> elevation, confirm the target executable is owned by a trusted principal
+    /// (Administrators / SYSTEM / TrustedInstaller). A user-writable, user-owned binary must never be elevated
+    /// (S3 defense in depth: the gate already refuses user-writable-root elevation, but the adapter re-checks
+    /// ownership at the moment of launch). Fails closed: if the owner cannot be resolved, elevation is refused.
+    /// </summary>
+    private static void EnsureElevatableOwnership(string fileName)
+    {
+        if (!File.Exists(fileName))
+            throw new InvalidOperationException($"Refusing to elevate a missing executable: {fileName}");
+
+        IdentityReference? owner;
+        try
+        {
+            owner = new FileInfo(fileName).GetAccessControl()
+                .GetOwner(typeof(SecurityIdentifier));
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Refusing to elevate '{fileName}': ownership could not be verified ({ex.GetType().Name}).", ex);
+        }
+
+        if (owner is not SecurityIdentifier sid || !IsTrustedOwner(sid))
+            throw new InvalidOperationException(
+                $"Refusing to elevate '{fileName}': not owned by a trusted system principal.");
+    }
+
+    private static bool IsTrustedOwner(SecurityIdentifier sid)
+        => sid.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid)
+           || sid.IsWellKnown(WellKnownSidType.LocalSystemSid)
+           // TrustedInstaller: S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464
+           || string.Equals(sid.Value,
+                "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464", StringComparison.OrdinalIgnoreCase);
 }

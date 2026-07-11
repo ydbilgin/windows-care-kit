@@ -23,7 +23,7 @@ public class UninstallGridViewTests
         var appReader = new FakeReader(apps ?? Array.Empty<InstalledApp>());
         var appxReader = new FakeAppxReader(appx ?? Array.Empty<InstalledAppx>());
         return new UninstallViewModel(i18n, appReader, appxReader, TestData.Gate(),
-            new FakeLeftoverProbe(), new FakeExecutor(), new FakeAppxRemover(), new FakeFolderOpener());
+            new FakeLeftoverProbe(), new FakeExecutor(), new FakeFolderOpener());
     }
 
     private static int ViewCount(System.ComponentModel.ICollectionView v)
@@ -248,12 +248,6 @@ public class UninstallGridViewTests
     private sealed class FakeExecutor : IExecutor
     {
         public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash) => new(true, "faked");
-    }
-
-    private sealed class FakeAppxRemover : IAppxRemover
-    {
-        public Task<AppxRemovalResult> RemoveCurrentUserAsync(InstalledAppx package, CancellationToken ct = default)
-            => Task.FromResult(new AppxRemovalResult(true, "removed"));
     }
 
     private sealed class FakeFolderOpener : IFolderOpener

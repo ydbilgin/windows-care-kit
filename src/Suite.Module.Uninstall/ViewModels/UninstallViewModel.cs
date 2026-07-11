@@ -7,22 +7,24 @@ using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
+using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
 /// <summary>
 /// The Sil (Uninstall) view-model: lists installed programs and per-user Store apps. A desktop app's
 /// official-uninstaller + leftover removal is owned ENTIRELY by the 4-beat <see cref="UninstallWizardViewModel"/>
-/// (opened from the detail-pane "Kaldır →"); this VM stages only the per-user AppX removal — a single-shot,
-/// gated call via <see cref="IAppxRemover"/> behind an explicit type-to-confirm. Store removal is the one
+/// (opened from the detail-pane "Kaldır →"); this VM stages only the per-user AppX removal, which flows through
+/// the gated executor as a typed <see cref="AppxRemoveAction"/> behind an explicit type-to-confirm. Store removal is the one
 /// destructive path this VM owns: stage → confirm → remove (spec §1.1, §3).
 /// </summary>
 public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 {
     private readonly IInstalledAppReader _appReader;
     private readonly IAppxReader _appxReader;
-    private readonly IAppxRemover _appxRemover;
+    private readonly IExecutor _executor;
     private readonly IFolderOpener _folderOpener;
 
     // The single source of truth: every desktop program + Store app as a flat row list. The ICollectionView
@@ -50,13 +52,13 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
     private enum PendingKind { None, Appx }
 
     public UninstallViewModel(I18n i18n, IInstalledAppReader appReader, IAppxReader appxReader,
-        ISafetyGate gate, ILeftoverProbe probe, IExecutor executor, IAppxRemover appxRemover,
+        ISafetyGate gate, ILeftoverProbe probe, IExecutor executor,
         IFolderOpener folderOpener, IRestorePointCapabilityProbe? restorePointCapability = null)
     {
         I18n = i18n;
         _appReader = appReader;
         _appxReader = appxReader;
-        _appxRemover = appxRemover;
+        _executor = executor;
         _folderOpener = folderOpener;
         // gate + probe are forwarded to the wizard (the single leftover-deletion path); this VM no longer
         // runs its own leftover scan.
@@ -327,8 +329,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
         if (package is null)
             return;
 
-        // AppX removal is not a typed plan; we still route it through the same confirm gate. Store app
-        // removal can't be undone, so it is always the IRREVERSIBLE tier (type-to-confirm).
+        // Store app removal can't be undone, so it is always the IRREVERSIBLE tier (type-to-confirm).
         _pendingKind = PendingKind.Appx;
         _pendingAppx = package;
 
@@ -352,7 +353,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
         RaiseConfirmationState();
     }
 
-    // ---- Approve (the ONLY place that calls the appx remover). ----
+    // ---- Approve (the ONLY place that runs the AppX action plan). ----
 
     private async Task ApproveAsync()
     {
@@ -389,18 +390,42 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
     {
         ExecutionResults.Clear();
 
-        AppxRemovalResult result = await _appxRemover.RemoveCurrentUserAsync(package);
+        // C1: route the per-user AppX removal through the SAME gated pipeline as every other destructive
+        // action — a typed AppxRemoveAction, an OperationPlan, a plan hash, gate authorization, and
+        // execution-time re-validation inside GatedExecutor. The VM never calls the raw remover.
+        var action = new AppxRemoveAction
+        {
+            PackageFullName = package.PackageFullName,
+            PackageFamilyName = package.PackageFamilyName ?? string.Empty,
+            PackageDisplayName = package.DisplayName,
+            IsFrameworkOrSystem = package.IsFrameworkOrSystem,
+            Description = $"Remove Store app: {package.DisplayName}",
+            Reason = "Per-user AppX removal (irreversible)",
+            Risk = RiskLevel.Critical,
+            Undo = UndoCapability.None,
+        };
+        var plan = new OperationPlan("Remove Store app", "uninstall",
+            new PlannedAction[] { action }, DateTime.UtcNow);
+        string hash = plan.ComputeHash();
 
-        ExecutionResults.Add(result.Removed
-            ? ResultRow($"Removed Store app: {package.DisplayName}", "Done", RiskLevel.Low, result.Reason)
-            : ResultRow($"Store app not removed: {package.DisplayName}", "Failed", RiskLevel.Critical, result.Reason));
+        ExecutionReport report = await Task.Run(() => _executor is GatedExecutor gated
+            ? gated.ExecuteWithReport(plan, hash)
+            : ToReport(_executor.Execute(plan, hash), plan, action));
 
-        int done = result.Removed ? 1 : 0;
-        int failed = result.Removed ? 0 : 1;
+        ActionResult result = report.Results.FirstOrDefault(r => r.ActionId == action.Id)
+            ?? new ActionResult(action.Id, action.Kind, ActionStatus.NotRun, "no result");
+        bool removed = result.Status == ActionStatus.Done;
+
+        ExecutionResults.Add(removed
+            ? ResultRow($"Removed Store app: {package.DisplayName}", "Done", RiskLevel.Low, result.Detail)
+            : ResultRow($"Store app not removed: {package.DisplayName}", "Failed", RiskLevel.Critical, result.Detail));
+
+        int done = removed ? 1 : 0;
+        int failed = removed ? 0 : 1;
         ResultSummary = I18n.Format("uninstall.result.summary", done, 0, failed);
         HasResult = true;
 
-        if (result.Removed)
+        if (removed)
         {
             // Drop the removed Store app's row from the single backing list, then refresh the view off it.
             AppRow? row = _allRows.FirstOrDefault(r => ReferenceEquals(r.Appx, package));
@@ -411,6 +436,14 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
             AppsView.Refresh();
         }
     }
+
+    /// <summary>Map a bare IExecutor outcome (non-GatedExecutor) onto a single-action report.</summary>
+    private static ExecutionReport ToReport(ExecutionOutcome outcome, OperationPlan plan, PlannedAction action)
+        => new(outcome.Ran, plan.ComputeHash(), new[]
+        {
+            new ActionResult(action.Id, action.Kind,
+                outcome.Ran ? ActionStatus.Done : ActionStatus.Failed, outcome.Reason),
+        });
 
     private void RaiseConfirmationState()
     {

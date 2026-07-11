@@ -43,15 +43,16 @@ public class InstallPlannerTests
     }
 
     [Fact]
-    public void RequiresAdmin_winget_entry_requires_elevation()
+    public void RequiresAdmin_winget_entry_is_manual_only()
     {
         var manifest = Loader.Parse(ManifestJson("""
             { "id": "install-ghub", "category": "arac", "method": "install-winget",
               "wingetId": "Logitech.GHUB", "installTier": "auto", "requiresAdmin": true }
             """));
 
-        var cmd = (CommandAction)Planner().BuildPlan(manifest, RestoreState.Empty, T0).Plan.Actions.Single();
-        Assert.True(cmd.RequiresElevation);
+        var result = Planner().BuildPlan(manifest, RestoreState.Empty, T0);
+        Assert.Empty(result.Plan.Actions);
+        Assert.Equal(InstallSkipReason.RequiresAdminManual, Assert.Single(result.Skipped).Reason);
     }
 
     [Fact]
@@ -112,7 +113,8 @@ public class InstallPlannerTests
         var guard = new FakeDriverGuard();
         guard.NetDrivers.Add("Realtek.NetDriver");
         var allowed = Planner(guard).BuildPlan(manifest, RestoreState.Empty, T0);
-        Assert.Single(allowed.Plan.Actions);
+        Assert.Empty(allowed.Plan.Actions);
+        Assert.Equal(InstallSkipReason.RequiresAdminManual, Assert.Single(allowed.Skipped).Reason);
     }
 
     [Fact]

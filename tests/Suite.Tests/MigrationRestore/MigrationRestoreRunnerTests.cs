@@ -245,14 +245,13 @@ public class MigrationRestoreRunnerTests
             MigrationRestorePlanResult result = runner.BuildPlan(
                 manifest, pkg, RestoreState.Empty, T0, install, new InstallPlanner(gate, new FakeDriverGuard()));
 
-            Assert.Equal(2, result.Plan.Actions.Count);
-            CommandAction cmd = Assert.IsType<CommandAction>(result.Plan.Actions[0]);
-            RestoreMergeAction merge = Assert.IsType<RestoreMergeAction>(result.Plan.Actions[1]);
-            Assert.Equal("Git.Git", cmd.Arguments[2]);
+            Assert.Single(result.Plan.Actions);
+            RestoreMergeAction merge = Assert.IsType<RestoreMergeAction>(result.Plan.Actions[0]);
             Assert.EndsWith(".gitconfig", merge.Destination);
-            Assert.Equal("migration:git.config:install", result.ActionEntryIds[cmd.Id]);
             Assert.Equal("git.config#0", result.ActionEntryIds[merge.Id]);
-            Assert.Single(result.InstallActionEntries);
+            Assert.Empty(result.InstallActionEntries);
+            Assert.Equal(InstallSkipReason.RequiresAdminManual, Assert.Single(result.InstallSkipped).Reason);
+            Assert.Contains(result.InstallManualChecklist, entry => entry.Id == "migration:git.config:install");
         }
         finally { TestFs.DeleteResilient(parent); }
     }

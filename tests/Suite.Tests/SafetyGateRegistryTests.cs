@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Win32;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -44,6 +45,21 @@ public class SafetyGateRegistryTests
     {
         var v = TestData.Gate().Evaluate(TestData.RegKey(RegistryHive.LocalMachine, sub));
         Assert.True(v.Allowed, v.Reason);
+    }
+
+    [Fact]
+    public void Allows_deleting_an_uninstall_app_remnant_key_after_protected_subtree_hardening()
+    {
+        var v = TestData.Gate().Evaluate(TestData.RegKey(
+            RegistryHive.LocalMachine, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\SomeApp"));
+        Assert.True(v.Allowed, v.Reason);
+    }
+
+    [Fact]
+    public void Vendor_registry_segments_must_be_single_clean_path_components()
+    {
+        Assert.True(Win32LeftoverProbe.IsSafeRegistrySegment("Policies"));
+        Assert.False(Win32LeftoverProbe.IsSafeRegistrySegment("Contoso\\InjectedPolicy"));
     }
 
     [Fact]

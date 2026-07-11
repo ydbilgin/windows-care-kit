@@ -9,9 +9,9 @@ namespace WindowsCareKit.Tests.MigrationRestore;
 
 /// <summary>
 /// The INSTALL-phase enablement proof: a v2 recipe's install intent flows recipe → backup →
-/// <c>migration-install.json</c> → STRICT load → the EXISTING gated <see cref="InstallPlanner"/>, yielding the
-/// EXACT, gate-approved, EXPORTED <see cref="CommandAction"/> — with NO process ever executed (no
-/// <see cref="IInstallExecutor"/>, no auto-launch). Host-safe: every test asserts the CommandAction, never runs it.
+/// <c>migration-install.json</c> → STRICT load → the EXISTING gated <see cref="InstallPlanner"/>, yielding either a
+/// gate-approved <see cref="CommandAction"/> or an honest manual-only step — with NO process ever executed (no
+/// <see cref="IInstallExecutor"/>, no auto-launch). Host-safe: every test inspects the plan, never runs it.
 /// </summary>
 public class MigrationInstallRoundTripTests
 {
@@ -33,23 +33,16 @@ public class MigrationInstallRoundTripTests
     // ---- Test 5: the EXACT winget / npm CommandAction over the projected + strict-loaded manifest ----
 
     [Fact]
-    public void Winget_recipe_yields_the_exact_command_action()
+    public void RequiresAdmin_winget_recipe_is_manual_only()
     {
         var install = new RecipeInstall(RecipeInstallMethod.Winget, "Git.Git", null, null, RequiresAdmin: true, RebootExpected: false);
         InstallManifest manifest = new InstallManifest(MigrationInstallProjector.Project(new[] { Recipe("git.config", install) }).Entries);
 
         InstallPlanResult result = Planner().BuildPlan(manifest, RestoreState.Empty, T0);
 
-        CommandAction cmd = Assert.IsType<CommandAction>(Assert.Single(result.Plan.Actions));
-        Assert.EndsWith("winget.exe", cmd.FileName, StringComparison.OrdinalIgnoreCase);
-        Assert.True(Path.IsPathFullyQualified(cmd.FileName)); // rooted exe (no PATH search)
-        Assert.Equal(
-            new[] { "install", "--id", "Git.Git", "-e", "--silent", "--accept-source-agreements", "--accept-package-agreements" },
-            cmd.Arguments);
-        Assert.True(cmd.RequiresElevation);     // RequiresAdmin → elevation flag
-        Assert.Equal(RiskLevel.Medium, cmd.Risk);
-        // ActionEntryIds correlates the action to the per-recipe install id.
-        Assert.Equal("migration:git.config:install", result.ActionEntryIds[cmd.Id]);
+        Assert.Empty(result.Plan.Actions);
+        Assert.Equal(InstallSkipReason.RequiresAdminManual, Assert.Single(result.Skipped).Reason);
+        Assert.Contains(result.ManualChecklist, entry => entry.Id == "migration:git.config:install");
     }
 
     [Fact]

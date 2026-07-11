@@ -280,3 +280,29 @@ public sealed record CreateRestorePointAction : PlannedAction
     public override string TargetSignature()
         => $"{Kind}|{RestorePointName.ToLowerInvariant()}";
 }
+
+/// <summary>
+/// Remove a per-user AppX/UWP package. Like every other destructive operation it is a typed action that
+/// flows through OperationPlan → plan hash → SafetyGate → GatedExecutor. The executor re-evaluates the gate
+/// at execution time and the Win32 adapter re-resolves the package against the CURRENT user's package list
+/// before removing (identity is re-checked at execution, not only at plan time). Irreversible: no undo.
+/// </summary>
+public sealed record AppxRemoveAction : PlannedAction
+{
+    /// <summary>The exact PackageFullName to remove (e.g. Contoso.App_1.0.0.0_x64__abc).</summary>
+    public required string PackageFullName { get; init; }
+
+    /// <summary>Package family name, carried for the adapter; not part of the identity signature.</summary>
+    public string PackageFamilyName { get; init; } = string.Empty;
+
+    /// <summary>Human display name for logs/UI.</summary>
+    public string PackageDisplayName { get; init; } = string.Empty;
+
+    /// <summary>Plan-time inventory flag. The gate refuses framework/system packages; the adapter re-verifies.</summary>
+    public bool IsFrameworkOrSystem { get; init; }
+
+    public override string Kind => "appx.remove";
+
+    public override string TargetSignature()
+        => $"{Kind}|{PackageFullName.ToLowerInvariant()}";
+}

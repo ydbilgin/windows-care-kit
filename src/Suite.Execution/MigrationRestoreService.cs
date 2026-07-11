@@ -95,7 +95,12 @@ public sealed class MigrationRestoreService
             updated);
 
         _stateStore.Save(stateDirectory, updated);
-        return new MigrationRestoreExecutionResult(withBaks, report, updated, RestoreReport.FromPlan(withBaks));
+        var statusByActionId = report.Results.ToDictionary(
+            r => r.ActionId,
+            r => MapResult(r).Status,
+            StringComparer.Ordinal);
+        return new MigrationRestoreExecutionResult(
+            withBaks, report, updated, RestoreReport.FromExecution(withBaks, statusByActionId));
     }
 
     public MigrationRestorePreviewResult Preview(

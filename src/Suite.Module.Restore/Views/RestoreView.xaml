@@ -311,6 +311,12 @@
                                        FontWeight="Bold" FontSize="12.5" Margin="0,14,0,8"
                                        Visibility="{Binding HasManualRows, Converter={StaticResource BoolToVis}}" />
                             <ItemsControl ItemsSource="{Binding ManualRows}" ItemTemplate="{StaticResource PlanRowTemplate}" />
+
+                            <!-- Not restored: the action actually failed/was blocked/never ran — never shown as Restored. -->
+                            <TextBlock Text="{Binding I18n[migration.restore.disposition.NotRestored]}" Foreground="{DynamicResource Backup.DangerStrong}"
+                                       FontWeight="Bold" FontSize="12.5" Margin="0,14,0,8"
+                                       Visibility="{Binding HasNotRestoredRows, Converter={StaticResource BoolToVis}}" />
+                            <ItemsControl ItemsSource="{Binding NotRestoredRows}" ItemTemplate="{StaticResource PlanRowTemplate}" />
                         </StackPanel>
                     </Border>
 

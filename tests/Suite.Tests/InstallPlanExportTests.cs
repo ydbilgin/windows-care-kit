@@ -56,14 +56,14 @@ public class InstallPlanExportTests
     // ----------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Build_maps_a_winget_action_to_a_Reinstall_item_with_the_winget_id()
+    public void Build_maps_a_requires_admin_winget_entry_to_a_manual_after_item()
     {
         InstallPlanResult plan = Plan(Winget("git", "Git.Git", admin: true));
 
         InstallPlanExportDoc doc = InstallPlanExport.Build(plan, new FakeClock(T0));
 
         InstallPlanItem item = Assert.Single(doc.Items);
-        Assert.Equal(InstallItemClass.Reinstall, item.Class);
+        Assert.Equal(InstallItemClass.ManualAfter, item.Class);
         Assert.Equal("git", item.EntryId);
         Assert.Equal(InstallMethod.Winget, item.Method);
         Assert.Equal("Git.Git", item.WingetId);
