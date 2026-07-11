@@ -210,10 +210,18 @@ public sealed class MigrationSelectionLogicTests
     }
 
     [Fact]
-    public void Group_header_tracks_none_partial_all_and_item_changes()
+    public void Group_header_tracks_none_partial_all_when_visible_apps_change()
     {
-        MigrationSelectionCandidate a = Candidate("a", "lists") with { HasCloudBackup = true };
-        MigrationSelectionCandidate b = Candidate("b", "lists") with { HasCloudBackup = true };
+        MigrationSelectionCandidate a = Candidate("a", "lists") with
+        {
+            HasCloudBackup = true,
+            Meta = Meta(PortabilityClass.ProfileRelative) with { RecipeId = "a", EntryId = "a#0", ItemOrdinal = 0 },
+        };
+        MigrationSelectionCandidate b = Candidate("b", "lists") with
+        {
+            HasCloudBackup = true,
+            Meta = Meta(PortabilityClass.ProfileRelative) with { RecipeId = "b", EntryId = "b#0", ItemOrdinal = 0 },
+        };
         MigrationSelectionGroup group = MigrationSelectionBuilder.Build([a, b])
             .Single(g => g.Category == MigrationCategory.ListSettingDumps);
 

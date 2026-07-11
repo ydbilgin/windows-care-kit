@@ -131,6 +131,39 @@
             </Setter>
         </Style>
 
+        <!-- App-row expand affordance (A4): a chrome-less, keyboard-accessible ToggleButton spans the complete
+             non-checkbox header and exposes its checked state through the standard automation toggle pattern. -->
+        <Style x:Key="MigrationAppRowToggle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Cursor" Value="Arrow" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Reused by the expanded part list (A4): flat rows, no nested cards. -->
+        <Style x:Key="MigrationPartBadge" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource Backup.CardHi}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Backup.LineStrong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="8,3" />
+        </Style>
+
         <!-- Capture dry-run row: two-tier, monospace action line only (it IS a literal path/command). -->
         <DataTemplate x:Key="PlanRowTemplate">
             <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
@@ -293,50 +326,118 @@
                                             </Border>
                                         </Grid>
                                     </Expander.Header>
-                                    <ItemsControl ItemsSource="{Binding Items}" Margin="14,0,14,12">
+                                    <!-- A1/A2: one row per APP (not per file). Multi-part apps get an expander
+                                         revealing a read-only part list; single-part apps (fallback candidates,
+                                         single-item recipes) render identically but with no expand chip. -->
+                                    <ItemsControl ItemsSource="{Binding Apps}" Margin="14,0,14,12">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
-                                                        BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,6">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}"
-                                                                  ToolTip="{Binding ForcedSelectionToolTip}"
-                                                                  ToolTipService.ShowOnDisabled="True"
-                                                                  VerticalAlignment="Top" Margin="0,2,12,0">
-                                                            <CheckBox.Style>
-                                                                <Style TargetType="CheckBox" BasedOn="{StaticResource MigrationApproveCheckBox}">
-                                                                    <Setter Property="IsEnabled" Value="True" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding DataContext.CanSelect, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
-                                                                            <Setter Property="IsEnabled" Value="False" />
-                                                                        </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding IsForcedSelected}" Value="True">
-                                                                            <Setter Property="IsEnabled" Value="False" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </CheckBox.Style>
-                                                        </CheckBox>
-                                                        <StackPanel Grid.Column="1">
-                                                            <TextBlock Text="{Binding Candidate.DisplayName}" Foreground="{DynamicResource Backup.Ink}"
-                                                                       FontWeight="SemiBold" FontSize="13" />
-                                                            <TextBlock Text="{Binding WhatHappens}" Foreground="{DynamicResource Backup.Muted}"
-                                                                       FontSize="12" TextWrapping="Wrap" Margin="0,3,10,0" />
-                                                            <TextBlock Text="{Binding DataContext.I18n[migration.item.forced], RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                       Foreground="{DynamicResource Backup.DangerStrong}" FontWeight="Bold" FontSize="11" Margin="0,4,0,0"
-                                                                       Visibility="{Binding IsForcedSelected, Converter={StaticResource BoolToVis}}" />
-                                                        </StackPanel>
-                                                        <Border Grid.Column="2" Background="{DynamicResource Backup.CardHi}"
-                                                                BorderBrush="{DynamicResource Backup.LineStrong}" BorderThickness="1"
-                                                                CornerRadius="999" Padding="9,4" VerticalAlignment="Top">
-                                                            <TextBlock Text="{Binding BadgeText}" Foreground="{DynamicResource Backup.Ink}" FontWeight="Bold" FontSize="11" />
+                                                        BorderThickness="1" CornerRadius="8" Margin="0,0,0,6">
+                                                    <StackPanel>
+                                                        <Grid Margin="12,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsChecked}"
+                                                                      ToolTip="{Binding ForcedTooltip}"
+                                                                      ToolTipService.ShowOnDisabled="True"
+                                                                      VerticalAlignment="Top" Margin="0,2,12,0">
+                                                                <CheckBox.Style>
+                                                                    <Style TargetType="CheckBox" BasedOn="{StaticResource MigrationApproveCheckBox}">
+                                                                        <Setter Property="IsEnabled" Value="True" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding DataContext.CanSelect, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                                                                <Setter Property="IsEnabled" Value="False" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsForced}" Value="True">
+                                                                                <Setter Property="IsEnabled" Value="False" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </CheckBox.Style>
+                                                            </CheckBox>
+                                                            <!-- The full non-checkbox header is one keyboard-accessible ToggleButton. Its
+                                                                 expanded/collapsed glyph and automation name stay in sync with the row state. -->
+                                                            <ToggleButton Grid.Column="1" Style="{StaticResource MigrationAppRowToggle}"
+                                                                          IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                                          IsEnabled="{Binding HasMultipleParts}"
+                                                                          AutomationProperties.Name="{Binding Title}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Grid.Column="0">
+                                                                        <TextBlock Text="{Binding Title}" Foreground="{DynamicResource Backup.Ink}"
+                                                                                   FontWeight="SemiBold" FontSize="13" />
+                                                                        <TextBlock Text="{Binding Subtitle}" Foreground="{DynamicResource Backup.Muted}"
+                                                                                   FontSize="12" TextWrapping="Wrap" Margin="0,3,10,0" />
+                                                                        <StackPanel Orientation="Horizontal" Margin="0,3,10,0">
+                                                                            <TextBlock Text="{Binding MetaLine}" Style="{StaticResource MigrationMeta}"
+                                                                                       Visibility="{Binding MetaLine.Length, Converter={StaticResource PositiveToVis}}" />
+                                                                            <Border Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.LineStrong}"
+                                                                                    BorderThickness="1" CornerRadius="999" Padding="7,2" Margin="8,0,0,0"
+                                                                                    Visibility="{Binding SecretExcludedText.Length, Converter={StaticResource PositiveToVis}}">
+                                                                                <TextBlock Text="{Binding SecretExcludedText}" Foreground="{DynamicResource Backup.Faint}" FontSize="11" />
+                                                                            </Border>
+                                                                        </StackPanel>
+                                                                        <TextBlock Text="{Binding DataContext.I18n[migration.item.forced], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                   Foreground="{DynamicResource Backup.DangerStrong}" FontWeight="Bold" FontSize="11" Margin="0,4,0,0"
+                                                                                   Visibility="{Binding IsForced, Converter={StaticResource BoolToVis}}" />
+                                                                    </StackPanel>
+                                                                    <Border Grid.Column="1" Style="{StaticResource MigrationPartBadge}"
+                                                                            Padding="9,4" VerticalAlignment="Top" Margin="8,0,0,0">
+                                                                        <TextBlock Text="{Binding BadgeText}" Foreground="{DynamicResource Backup.Ink}" FontWeight="Bold" FontSize="11" />
+                                                                    </Border>
+                                                                    <TextBlock Grid.Column="2" Foreground="{DynamicResource Backup.Faint}" FontSize="11"
+                                                                               VerticalAlignment="Top" Margin="8,3,0,0">
+                                                                        <Run Text="{Binding PartsSummary, Mode=OneWay}" />
+                                                                        <Run Text=" " />
+                                                                        <Run Text="{Binding ExpansionGlyph, Mode=OneWay}" />
+                                                                    </TextBlock>
+                                                                </Grid>
+                                                            </ToggleButton>
+                                                        </Grid>
+                                                        <!-- A4: expanded, read-only part list — flat inset panel, no nested cards. Reserves an
+                                                             empty 24px checkbox-slot column (Phase 2 fills it; layout must not shift then). -->
+                                                        <Border Background="{DynamicResource Backup.PathBg}" CornerRadius="6" Margin="10,0,10,10"
+                                                                Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                                                            <ItemsControl ItemsSource="{Binding Parts}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border BorderBrush="{DynamicResource Backup.Line}" BorderThickness="0,0,0,1" Padding="10,7">
+                                                                            <Grid>
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="24" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                    <ColumnDefinition Width="Auto" />
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <Border Grid.Column="0" Width="24" />
+                                                                                <StackPanel Grid.Column="1" Margin="8,0,10,0">
+                                                                                    <TextBlock Text="{Binding PartLabel}" Foreground="{DynamicResource Backup.Ink}" FontSize="12.5" />
+                                                                                    <StackPanel Orientation="Horizontal">
+                                                                                        <TextBlock Text="{Binding Candidate.SourcePath}" Style="{StaticResource MigrationMeta}"
+                                                                                                   FontFamily="Cascadia Code, Consolas, Courier New" TextWrapping="NoWrap" />
+                                                                                        <TextBlock Text="{Binding SizeText}" Style="{StaticResource MigrationMeta}" Margin="8,0,0,0"
+                                                                                                   Visibility="{Binding SizeText.Length, Converter={StaticResource PositiveToVis}}" />
+                                                                                    </StackPanel>
+                                                                                    <TextBlock Text="{Binding WhatHappens}" Style="{StaticResource MigrationMeta}" Margin="0,2,0,0"
+                                                                                               TextWrapping="Wrap"
+                                                                                               Visibility="{Binding HasLockedNowReason, Converter={StaticResource BoolToVis}}" />
+                                                                                </StackPanel>
+                                                                                <Border Grid.Column="2" Style="{StaticResource MigrationPartBadge}" VerticalAlignment="Top">
+                                                                                    <TextBlock Text="{Binding BadgeText}" Foreground="{DynamicResource Backup.Ink}" FontSize="10" FontWeight="Bold" />
+                                                                                </Border>
+                                                                            </Grid>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
                                                         </Border>
-                                                    </Grid>
+                                                    </StackPanel>
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

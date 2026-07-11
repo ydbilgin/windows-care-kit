@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "slacktechnologies.slack",
   "displayName": "Slack",
   "category": "communication",
   "detect": { "knownFolder": "AppData", "path": "Slack", "exists": true },
   "items": [
-    { "path": "Slack/Preferences", "requiresClosedProcesses": ["slack.exe"] },
-    { "path": "Slack/storage/slack-settings", "requiresClosedProcesses": ["slack.exe"] }
+    { "path": "Slack/Preferences", "requiresClosedProcesses": ["slack.exe"], "label": { "en": "Preferences", "tr": "Tercihler" } },
+    { "path": "Slack/storage/slack-settings", "requiresClosedProcesses": ["slack.exe"], "label": { "en": "Workspace settings", "tr": "Çalışma alanı ayarları" } }
   ],
   "exclude": ["Slack/Cache", "Slack/Code Cache", "Slack/GPUCache", "Slack/Cookies", "Slack/Local Storage", "Slack/Session Storage", "Slack/IndexedDB", "Slack/blob_storage"],
   "secretRule": "global",
@@ -24,7 +24,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies visible preferences only. Slack sessions, cookies, and token-bearing browser stores are excluded and are not portable.",
-      "tr": "Yalnizca gorunur tercihler kopyalanir. Slack oturumlari, cookie'ler ve token icerebilen tarayici depolari haric tutulur ve tasinabilir degildir."
+      "tr": "Yalnızca görünür tercihler kopyalanır. Slack oturumları, cookie'ler ve token içerebilen tarayıcı depoları hariç tutulur ve taşınabilir değildir."
     },
     "manualTodo": ["Sign in to every Slack workspace again after reinstall."],
     "installerSource": "winget",

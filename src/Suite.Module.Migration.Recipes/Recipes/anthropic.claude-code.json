@@ -1,14 +1,14 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "anthropic.claude-code",
   "displayName": "Claude Code",
   "category": "dev-tools",
   "detect": { "knownFolder": "UserProfile", "path": ".claude", "exists": true },
   "items": [
-    { "path": ".claude/CLAUDE.md", "requiresClosedProcesses": ["node.exe"] },
-    { "path": ".claude/settings.json", "requiresClosedProcesses": ["node.exe"] },
-    { "path": ".claude/projects", "include": ["**/memory/**", "**/*.md"], "requiresClosedProcesses": ["node.exe"] },
-    { "path": ".claude/skills", "requiresClosedProcesses": ["node.exe"] }
+    { "path": ".claude/CLAUDE.md", "requiresClosedProcesses": ["node.exe"], "label": { "en": "Prompt memory (CLAUDE.md)", "tr": "Prompt hafızası (CLAUDE.md)" } },
+    { "path": ".claude/settings.json", "requiresClosedProcesses": ["node.exe"], "label": { "en": "Settings", "tr": "Ayarlar" } },
+    { "path": ".claude/projects", "include": ["**/memory/**", "**/*.md"], "requiresClosedProcesses": ["node.exe"], "label": { "en": "Projects & memory", "tr": "Projeler ve hafıza" } },
+    { "path": ".claude/skills", "requiresClosedProcesses": ["node.exe"], "label": { "en": "Skills", "tr": "Skill'ler" } }
   ],
   "exclude": ["*Cache*", "shell-snapshots", "todos", "node_modules"],
   "secretRule": "global",
@@ -25,7 +25,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Backs up prompts, settings, memories, and skills; sign in again after reinstall.",
-      "tr": "Prompt, ayar, hafiza ve skill dosyalarini yedekler; yeniden kurulumdan sonra tekrar giris yap."
+      "tr": "Prompt, ayar, hafıza ve skill dosyalarını yedekler; yeniden kurulumdan sonra tekrar giriş yap."
     },
     "manualTodo": ["Sign in again if the CLI asks for authentication."],
     "installerSource": "npm",

@@ -100,14 +100,14 @@ public sealed class MigrationViewModelTests
     public void Group_and_item_commands_preserve_three_state_and_forced_selection()
     {
         MigrationViewModel vm = CreateVm();
-        MigrationSelectionCandidate optional = Candidate("optional", "personal") with
+        MigrationSelectionCandidate optional = Candidate("optional", "personal", "optional") with
         {
             HasCloudBackup = true,
             IsOnSystemDrive = false,
             IsUnique = false,
             IsRegenerable = true,
         };
-        MigrationSelectionCandidate forced = Candidate("forced", "personal") with
+        MigrationSelectionCandidate forced = Candidate("forced", "personal", "forced") with
         {
             OneDriveRedirectedSyncOff = true,
             Meta = Meta(PortabilityClass.MachineLocked),
@@ -128,6 +128,147 @@ public sealed class MigrationViewModelTests
         Assert.Null(group.IsChecked);
         Assert.True(group.Items.Single(i => i.Candidate.Id == "forced").IsSelected);
         Assert.False(optionalRow.IsSelected);
+    }
+
+    [Fact]
+    public async Task App_level_selection_normalizes_defaults_keeps_forced_apps_uniform_and_drives_capture_from_apps()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationRecipe normalRecipe = Recipe("normal", "recommended.json", "optional.json");
+        MigrationRecipe forcedRecipe = Recipe("forced", "critical.json", "other.json");
+        MigrationSelectionCandidate normalRecommended = Candidate("normal#0", "personal", "normal") with
+        {
+            Meta = new MigrationItemMeta("normal", "normal#0", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 0 },
+        };
+        MigrationSelectionCandidate normalOptional = Candidate("normal#1", "personal", "normal") with
+        {
+            Meta = new MigrationItemMeta("normal", "normal#1", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 1 },
+            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+        };
+        MigrationSelectionCandidate forcedCritical = Candidate("forced#0", "personal", "forced") with
+        {
+            Meta = new MigrationItemMeta("forced", "forced#0", PortabilityClass.MachineLocked,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 0 },
+            OneDriveRedirectedSyncOff = true,
+        };
+        MigrationSelectionCandidate forcedOther = Candidate("forced#1", "personal", "forced") with
+        {
+            Meta = new MigrationItemMeta("forced", "forced#1", PortabilityClass.MachineLocked,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 1 },
+            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+        };
+        MigrationViewModel vm = CreateVm(runner: runner, recipes: [normalRecipe, forcedRecipe]);
+        vm.LoadScan(Detection(4, 0), @"C:\Users\demo", [normalRecommended, normalOptional, forcedCritical, forcedOther]);
+        vm.ConfirmProfileCommand.Execute(null);
+        MigrationGroupRow group = vm.Groups.Single(g => g.Category == MigrationCategory.IrreplaceablePersonal);
+
+        Assert.True(group.IsChecked);
+        Assert.All(group.Apps.SelectMany(app => app.Parts), part => Assert.True(part.IsSelected));
+
+        vm.ClearOptionalCommand.Execute(null);
+
+        Assert.Null(group.IsChecked); // one visible app cleared, the forced app stays selected
+        Assert.All(group.Apps.Single(app => app.RecipeId == "normal").Parts, part => Assert.False(part.IsSelected));
+        Assert.All(group.Apps.Single(app => app.RecipeId == "forced").Parts, part => Assert.True(part.IsSelected));
+        vm.PackageDir = OutsideAppPackage();
+
+        await vm.BuildCapturePlanAsync();
+
+        Assert.Equal(["forced"], runner.LastRecipeIds);
+    }
+
+    [Fact]
+    public async Task Canonical_app_identity_is_shared_by_grouping_and_capture_lookup()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationRecipe recipe = Recipe("App", "one.json", "two.json");
+        MigrationSelectionCandidate upper = Candidate("App#0", "games", "App") with
+        {
+            Meta = new MigrationItemMeta("App", "App#0", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 0 },
+        };
+        MigrationSelectionCandidate lower = Candidate("app#1", "games", "app") with
+        {
+            Meta = new MigrationItemMeta("app", "app#1", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 1 },
+        };
+        MigrationViewModel vm = CreateVm(runner: runner, recipes: [recipe]);
+        vm.LoadScan(Detection(2, 0), @"C:\Users\demo", [upper, lower]);
+        vm.ConfirmProfileCommand.Execute(null);
+        vm.PackageDir = OutsideAppPackage();
+
+        await vm.BuildCapturePlanAsync();
+
+        MigrationAppRow app = Assert.Single(vm.Groups.Single(g => g.Category == MigrationCategory.GameSaves).Apps);
+        Assert.Equal("app", app.RecipeId);
+        Assert.Equal(["App"], runner.LastRecipeIds);
+    }
+
+    [Fact]
+    public void App_subtitle_uses_recipe_warning_and_is_stable_when_locked_and_unlocked_parts_are_reordered()
+    {
+        I18n i18n = TestI18n.Full("en");
+        MigrationSelectionCandidate locked = Candidate("app#0", "games", "app") with
+        {
+            Meta = new MigrationItemMeta("app", "app#0", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, ["process-closed:contoso.exe"])
+            {
+                ItemOrdinal = 0,
+                HasUnanalyzedContent = true,
+                ContentProbeStatus = ContentProbeStatus.LockedNow,
+            },
+            WhatHappensEn = "Recipe-level warning.",
+        };
+        MigrationSelectionCandidate unlocked = Candidate("app#1", "games", "app") with
+        {
+            Meta = new MigrationItemMeta("app", "app#1", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 1 },
+            WhatHappensEn = "Recipe-level warning.",
+        };
+        MigrationViewModel vm = CreateVm(i18n: i18n);
+        vm.LoadScan(Detection(2, 0), @"C:\Users\demo", [locked, unlocked]);
+        MigrationAppRow firstOrder = vm.Groups.Single(g => g.Category == MigrationCategory.GameSaves).Apps.Single();
+
+        vm.LoadScan(Detection(2, 0), @"C:\Users\demo",
+        [
+            locked with { Meta = locked.Meta with { ItemOrdinal = 1 } },
+            unlocked with { Meta = unlocked.Meta with { ItemOrdinal = 0 } },
+        ]);
+        MigrationAppRow reversedOrder = vm.Groups.Single(g => g.Category == MigrationCategory.GameSaves).Apps.Single();
+
+        Assert.Equal("Recipe-level warning.", firstOrder.Subtitle);
+        Assert.Equal(firstOrder.Subtitle, reversedOrder.Subtitle);
+        Assert.Contains("contoso.exe", firstOrder.Parts.Single(part => part.Candidate.Id == "app#0").WhatHappens);
+    }
+
+    [Fact]
+    public void App_hides_partial_size_totals_and_uses_a_neutral_multi_source_summary()
+    {
+        I18n i18n = TestI18n.Full("en");
+        MigrationSelectionCandidate known = Candidate("app#0", "games", "app") with
+        {
+            Meta = new MigrationItemMeta("app", "app#0", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 0 },
+            SizeBytes = 1024,
+            SourcePath = @"C:\Users\demo\one.json",
+        };
+        MigrationSelectionCandidate unknown = Candidate("app#1", "games", "app") with
+        {
+            Meta = new MigrationItemMeta("app", "app#1", PortabilityClass.ProfileRelative,
+                RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 1 },
+            SizeBytes = null,
+            SourcePath = @"C:\Users\demo\two.json",
+        };
+        MigrationViewModel vm = CreateVm(i18n: i18n);
+        vm.LoadScan(Detection(2, 0), @"C:\Users\demo", [known, unknown]);
+
+        MigrationAppRow app = vm.Groups.Single(g => g.Category == MigrationCategory.GameSaves).Apps.Single();
+
+        Assert.Null(app.SizeText);
+        Assert.Equal("2 sources", app.SourceSummary);
+        Assert.DoesNotContain("KB", app.MetaLine);
     }
 
     [Fact]
@@ -251,7 +392,7 @@ public sealed class MigrationViewModelTests
     }
 
     [Fact]
-    public async Task Partial_recipe_selection_shows_the_full_per_file_runner_plan_before_approval()
+    public async Task App_selection_shows_the_full_per_file_runner_plan_before_approval()
     {
         var runner = new RecordingMigrationBackupRunner();
         MigrationRecipe recipe = Recipe("recipe-a", "selected.cfg", "other.cfg");

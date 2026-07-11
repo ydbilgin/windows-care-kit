@@ -20,6 +20,10 @@ public sealed record ResolvedRecipeItem(
     IReadOnlyList<string> Include,
     IReadOnlyList<string> Exclude,
     string RecipePath,
+    string ItemId,
+    int ItemOrdinal,
+    LocalizedText? Label,
+    string? ExpectedFormat,
     IReadOnlyList<string> RequiresClosedProcesses);
 
 /// <summary>One item the sandbox refused, plus the human reason (for the report / tests).</summary>
@@ -89,8 +93,9 @@ public sealed class RecipeResolver
         var items = new List<ResolvedRecipeItem>();
         var skipped = new List<RecipeItemSkip>();
 
-        foreach (RecipeItem item in recipe.Items)
+        for (int itemOrdinal = 0; itemOrdinal < recipe.Items.Count; itemOrdinal++)
         {
+            RecipeItem item = recipe.Items[itemOrdinal];
             if (item.Kind != RecipeItemKind.ProfilePath || !IsProfileFolder(recipe.Detect.KnownFolder))
             {
                 skipped.Add(new RecipeItemSkip(item.Path, "inventory-only item kind is not copied by the profile resolver"));
@@ -134,10 +139,20 @@ public sealed class RecipeResolver
 
             string targetRelative = BuildTargetRelative(recipe.Id, item.Path);
             var exclude = MergeExcludes(recipe.Exclude, item.Exclude);
-            // Carry the declared item path (normalized forward-slash, trimmed) so the backup runner never has to
-            // index back into the recipe's (superset) item list to recover it — skip-proof by construction.
+            // Carry immutable original identity, ordinal, localized label and expected format with this exact
+            // sandbox-passing item. Filtering can never renumber recipe items for downstream layers.
             string recipePath = item.Path.Replace('\\', '/').Trim('/');
-            items.Add(new ResolvedRecipeItem(canonical, targetRelative, item.Include, exclude, recipePath, item.RequiresClosedProcesses));
+            items.Add(new ResolvedRecipeItem(
+                canonical,
+                targetRelative,
+                item.Include,
+                exclude,
+                recipePath,
+                $"{recipe.Id}#{itemOrdinal}",
+                itemOrdinal,
+                item.Label,
+                item.ExpectedFormat,
+                item.RequiresClosedProcesses));
         }
 
         return new ResolvedRecipe(recipe, true, items, skipped);

@@ -86,6 +86,38 @@ public class RecipeToBackupEntryTests
     }
 
     [Fact]
+    public void Filtered_first_item_keeps_the_retained_parts_original_identity_label_and_copy_action_aligned()
+    {
+        MigrationRecipe recipe = new(
+            4, "contoso.app", "Contoso App", "dev-tools",
+            new RecipeDetect(KnownFolder.UserProfile, ".contoso", true),
+            [
+                new RecipeItem(".contoso/missing.json", [], []) { Label = new LocalizedText("Missing", "Eksik") },
+                new RecipeItem(".contoso/retained.json", [], []) { Label = new LocalizedText("Retained", "Korunan") },
+            ],
+            [], "global", PortabilityClass.ProfileRelative,
+            new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []));
+        var fs = new FakeRecipeFileSystem()
+            .AddDir(@"C:\Users\alice\.contoso")
+            .AddFile(@"C:\Users\alice\.contoso\retained.json");
+
+        ResolvedRecipe resolved = MigrationTestData.Resolver(fs).Resolve(recipe);
+        ResolvedRecipeItem retained = Assert.Single(resolved.Items);
+        BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(resolved, new FixedContentProbe(new ContentSignature { BytesInspected = 1 })));
+        var planner = new BackupPlanner(TestData.Gate(), new FakeEnvironmentExpander());
+        CopyAction action = Assert.IsType<CopyAction>(Assert.Single(planner.BuildPlan(
+            new BackupManifest([bridged.Entry]), @"C:\Users\alice\wck-backup\out", DateTime.UtcNow).Plan.Actions));
+
+        Assert.Equal(1, retained.ItemOrdinal);
+        Assert.Equal("Korunan", retained.Label!.Tr);
+        Assert.Equal("contoso.app#1", bridged.Entry.Id);
+        Assert.Equal(1, bridged.Meta.ItemOrdinal);
+        Assert.Equal("Retained", bridged.Meta.PartLabel!.En);
+        Assert.Equal(@"C:\Users\alice\.contoso\retained.json", bridged.Entry.Source);
+        Assert.Equal(bridged.Entry.Source, action.Source);
+    }
+
+    [Fact]
     public void Carries_recipe_include_through_to_the_entry()
     {
         var recipe = Recipe(PortabilityClass.ProfileRelative,

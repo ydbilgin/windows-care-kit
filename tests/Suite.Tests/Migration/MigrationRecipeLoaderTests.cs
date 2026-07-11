@@ -106,7 +106,7 @@ public class MigrationRecipeLoaderTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(4)]
+    [InlineData(5)]
     public void Rejects_unsupported_schema_version(int unsupported)
     {
         string json = Valid.Replace("\"schemaVersion\": 1", $"\"schemaVersion\": {unsupported}");
@@ -159,6 +159,84 @@ public class MigrationRecipeLoaderTests
                 "{ " + field + "\"path\": \".claude/CLAUDE.md\" }");
 
         Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+    }
+
+    // ---- v4 per-item label (PR-1 §A4/§E.1) — the strict "reject unknown field" guarantee stays version-exact ----
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Older_schema_versions_reject_v4_only_label_item_field(int schemaVersion)
+    {
+        string json = Valid
+            .Replace("\"schemaVersion\": 1", $"\"schemaVersion\": {schemaVersion}")
+            .Replace(
+                "{ \"path\": \".claude/CLAUDE.md\" }",
+                "{ \"label\": { \"en\": \"Prompt memory\", \"tr\": \"Prompt hafızası\" }, \"path\": \".claude/CLAUDE.md\" }");
+
+        var ex = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+        Assert.Contains("label", ex.Message);
+    }
+
+    private static string V4FromValid()
+        => V3FromValid().Replace("\"schemaVersion\": 3", "\"schemaVersion\": 4");
+
+    [Fact]
+    public void V4_accepts_per_item_label_as_localized_object()
+    {
+        string json = V4FromValid()
+            .Replace(
+                "{ \"path\": \".claude/CLAUDE.md\" }",
+                "{ \"label\": { \"en\": \"Prompt memory\", \"tr\": \"Prompt hafızası\" }, \"path\": \".claude/CLAUDE.md\" }");
+
+        MigrationRecipe recipe = MigrationRecipeLoader.Load(json);
+
+        Assert.Equal(4, recipe.SchemaVersion);
+        Assert.Equal("Prompt memory", recipe.Items[0].Label!.En);
+        Assert.Equal("Prompt hafızası", recipe.Items[0].Label!.Tr);
+        Assert.Null(recipe.Items[1].Label); // unlabeled parts fall back to the path leaf, presentation-side
+    }
+
+    [Fact]
+    public void V4_requires_exact_non_empty_bilingual_item_labels()
+    {
+        string[] malformedLabels =
+        [
+            "\"Prompt memory\"",
+            "{ }",
+            "{ \"en\": \"Prompt memory\", \"tr\": \"   \" }",
+            "{ \"en\": \"Prompt memory\" }",
+            "{ \"EN\": \"Prompt memory\", \"tr\": \"Prompt hafızası\" }",
+            "{ \"en\": \"Prompt memory\", \"tr\": \"Prompt hafızası\", \"en\": \"Duplicate\" }",
+        ];
+
+        foreach (string label in malformedLabels)
+        {
+            string json = V4FromValid().Replace(
+                "{ \"path\": \".claude/CLAUDE.md\" }",
+                $"{{ \"label\": {label}, \"path\": \".claude/CLAUDE.md\" }}");
+
+            Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(json));
+        }
+    }
+
+    [Fact]
+    public void V4_loads_the_valid_fixture_then_rejects_the_injected_hostile_field()
+    {
+        string v4Json = V4FromValid();
+        MigrationRecipe valid = MigrationRecipeLoader.Load(v4Json);
+        Assert.Equal(4, valid.SchemaVersion);
+
+        string badRoot = v4Json.Replace("\"category\": \"dev-tools\",", "\"category\": \"dev-tools\", \"command\": \"rm -rf /\",");
+        RecipeValidationException rootException = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(badRoot));
+        Assert.Contains("command", rootException.Message);
+
+        string badItem = v4Json.Replace(
+            "{ \"path\": \".claude/CLAUDE.md\" }",
+            "{ \"hostile\": true, \"path\": \".claude/CLAUDE.md\" }");
+        RecipeValidationException itemException = Assert.Throws<RecipeValidationException>(() => MigrationRecipeLoader.Load(badItem));
+        Assert.Contains("hostile", itemException.Message);
     }
 
     [Fact]
@@ -219,7 +297,17 @@ public class MigrationRecipeLoaderTests
         Assert.Equal(["process-closed:contoso.exe"], RecipeToBackupEntry.Bridge(new ResolvedRecipe(
             recipe,
             true,
-            [new ResolvedRecipeItem(@"C:\Users\a\AppData\Roaming\Contoso\settings.json", "migration/contoso.app/Contoso/settings.json", recipe.Items[0].Include, recipe.Items[0].Exclude, recipe.Items[0].Path, recipe.Items[0].RequiresClosedProcesses)],
+            [new ResolvedRecipeItem(
+                @"C:\Users\a\AppData\Roaming\Contoso\settings.json",
+                "migration/contoso.app/Contoso/settings.json",
+                recipe.Items[0].Include,
+                recipe.Items[0].Exclude,
+                recipe.Items[0].Path,
+                "contoso.app#0",
+                0,
+                null,
+                recipe.Items[0].ExpectedFormat,
+                recipe.Items[0].RequiresClosedProcesses)],
             [])).Single().Meta.Preconditions);
         Assert.Equal(25, recipe.Items[0].Verify!.MaxSizeMB);
         Assert.Equal("Backs up settings only.", recipe.MigrationMeta!.UiWarning!.En);
@@ -604,7 +692,9 @@ public class MigrationRecipeLoaderTests
         Assert.NotEmpty(recipes);
         Assert.All(recipes, r => Assert.NotEmpty(r.Id));
 
-        Assert.All(recipes, r => Assert.Equal(3, r.SchemaVersion));
+        // Multi-item recipes carry v4 per-item labels (PR-1 §A4); single-item recipes stay at v3.
+        Assert.All(recipes, r => Assert.True(r.SchemaVersion is 3 or 4, $"{r.Id} has schemaVersion {r.SchemaVersion}"));
+        Assert.Contains(recipes, r => r.SchemaVersion == 4);
         Assert.Contains(recipes, r => r.Install is not null);
         Assert.All(recipes, r => Assert.NotNull(r.MigrationMeta?.UiWarning));
     }

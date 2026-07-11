@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "qbittorrent.qbittorrent",
   "displayName": "qBittorrent",
   "category": "utilities",
   "detect": { "knownFolder": "AppData", "path": "qBittorrent", "exists": true },
   "items": [
-    { "path": "qBittorrent/qBittorrent.ini", "requiresClosedProcesses": ["qbittorrent.exe"] },
-    { "path": "qBittorrent/rss", "requiresClosedProcesses": ["qbittorrent.exe"] }
+    { "path": "qBittorrent/qBittorrent.ini", "requiresClosedProcesses": ["qbittorrent.exe"], "label": { "en": "Settings", "tr": "Ayarlar" } },
+    { "path": "qBittorrent/rss", "requiresClosedProcesses": ["qbittorrent.exe"], "label": { "en": "RSS feeds", "tr": "RSS beslemeleri" } }
   ],
   "exclude": ["logs"],
   "secretRule": "global",
@@ -24,7 +24,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies settings/RSS only; active torrent data paths may need manual recheck.",
-      "tr": "Yalnizca ayar/RSS kopyalar; aktif torrent veri yollari manuel kontrol isteyebilir."
+      "tr": "Yalnızca ayar/RSS kopyalar; aktif torrent veri yolları manuel kontrol isteyebilir."
     },
     "manualTodo": ["Verify download paths before resuming torrents."],
     "installerSource": "winget",

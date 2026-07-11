@@ -32,12 +32,9 @@ public static class RecipeToBackupEntry
 
         MigrationRecipe recipe = resolved.Recipe;
         var result = new List<BridgedMigrationItem>(resolved.Items.Count);
-        int index = 0;
 
         foreach (ResolvedRecipeItem item in resolved.Items)
         {
-            string entryId = $"{recipe.Id}#{index++}";
-
             // F3: the secret-glob overlay is layered ON TOP of every recipe's own excludes, into ExcludeLeaves.
             // CopyAdapter.Exclusions treats any '*'-bearing ExcludeLeaves entry as a leaf glob and evaluates
             // exclusion BEFORE the include allow-list, so a recipe's include can never pull back a secret leaf.
@@ -65,7 +62,7 @@ public static class RecipeToBackupEntry
             }
 
             var entry = new BackupEntry(
-                Id: entryId,
+                Id: item.ItemId,
                 Enabled: true,
                 Method: BackupMethod.Copy,
                 Category: recipe.Category,
@@ -91,7 +88,7 @@ public static class RecipeToBackupEntry
             {
                 try
                 {
-                    var options = new ContentSignatureOptions(Array.Empty<string>(), ExpectedFormatFor(recipe, item));
+                    var options = new ContentSignatureOptions(Array.Empty<string>(), item.ExpectedFormat);
                     ContentSignature signature = contentSignatureProbe.ProbeFile(item.AbsoluteSource, options);
                     hasMachineBoundContent = signature.HasMachineBoundContent;
                     hasUnanalyzedContent =
@@ -112,7 +109,7 @@ public static class RecipeToBackupEntry
 
             var meta = new MigrationItemMeta(
                 RecipeId: recipe.Id,
-                EntryId: entryId,
+                EntryId: item.ItemId,
                 PortabilityClass: recipe.PortabilityClass,
                 RestoreStrategy: recipe.Restore.Strategy,
                 RestorePhase: recipe.Restore.Phase,
@@ -122,6 +119,8 @@ public static class RecipeToBackupEntry
                 HasMachineBoundContent = hasMachineBoundContent,
                 HasUnanalyzedContent = hasUnanalyzedContent,
                 ContentProbeStatus = contentProbeStatus,
+                ItemOrdinal = item.ItemOrdinal,
+                PartLabel = item.Label,
             };
 
             result.Add(new BridgedMigrationItem(entry, meta));
@@ -147,14 +146,6 @@ public static class RecipeToBackupEntry
         RestoreStrategy.Replace => "replace",
         _ => "config-write",
     };
-
-    private static string? ExpectedFormatFor(MigrationRecipe recipe, ResolvedRecipeItem resolvedItem)
-        => recipe.Items
-            .FirstOrDefault(item => string.Equals(
-                item.Path.Replace('\\', '/').Trim('/'),
-                resolvedItem.RecipePath,
-                StringComparison.OrdinalIgnoreCase))
-            ?.ExpectedFormat;
 
     private static IReadOnlyList<string> MergePreconditions(
         IReadOnlyList<string> recipePreconditions,

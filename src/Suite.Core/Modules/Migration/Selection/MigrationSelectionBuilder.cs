@@ -27,12 +27,46 @@ public static class MigrationSelectionBuilder
         }
 
         return MigrationCategoryClassifier.OrderedCategories
-            .Select(category => new MigrationSelectionGroup(
-                category,
-                byCategory[category]
+            .Select(category =>
+            {
+                MigrationSelectionItem[] items = byCategory[category]
                     .OrderBy(item => item.Candidate.DisplayName, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(item => item.Candidate.Id, StringComparer.Ordinal)
-                    .ToArray()))
+                    .ToArray();
+                return new MigrationSelectionGroup(category, items, GroupIntoApps(items));
+            })
             .ToArray();
+    }
+
+    /// <summary>
+    /// A2: group a category's items by the one canonical recipe identity used by every downstream consumer. A
+    /// candidate with no recipe id (defensive only) falls back to its own id so it never merges with another app.
+    /// </summary>
+    private static IReadOnlyList<MigrationAppGroup> GroupIntoApps(IReadOnlyList<MigrationSelectionItem> items)
+    {
+        var order = new List<string>();
+        var byRecipe = new Dictionary<string, List<MigrationSelectionItem>>(StringComparer.Ordinal);
+
+        foreach (MigrationSelectionItem item in items)
+        {
+            string rawRecipeId = string.IsNullOrWhiteSpace(item.Candidate.Meta.RecipeId)
+                ? item.Candidate.Id
+                : item.Candidate.Meta.RecipeId;
+            string recipeId = MigrationAppIdentity.Canonicalize(rawRecipeId);
+            if (!byRecipe.TryGetValue(recipeId, out List<MigrationSelectionItem>? parts))
+            {
+                parts = new List<MigrationSelectionItem>();
+                byRecipe[recipeId] = parts;
+                order.Add(recipeId);
+            }
+            parts.Add(item);
+        }
+
+        return order.Select(recipeId => new MigrationAppGroup(
+            recipeId,
+            byRecipe[recipeId]
+                .OrderBy(part => part.Candidate.Meta.ItemOrdinal)
+                .ThenBy(part => part.Candidate.Id, StringComparer.Ordinal)
+                .ToArray())).ToArray();
     }
 }

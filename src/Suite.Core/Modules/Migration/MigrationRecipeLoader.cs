@@ -27,13 +27,17 @@ public static class MigrationRecipeLoader
     /// <summary>The oldest recipe schema this loader accepts (v1: no <c>install</c> block).</summary>
     public const int MinSupportedSchemaVersion = 1;
 
-    /// <summary>The newest recipe schema this loader accepts (v3: detection join keys + honest restore tier/meta).</summary>
-    public const int MaxSupportedSchemaVersion = 3;
+    /// <summary>The newest recipe schema this loader accepts (v4: optional per-item <c>label</c>).</summary>
+    public const int MaxSupportedSchemaVersion = 4;
 
     /// <summary>The schema version at which the optional <c>install</c> block becomes a recognized root field.</summary>
     private const int InstallBlockSchemaVersion = 2;
 
     private const int V3SchemaVersion = 3;
+
+    /// <summary>The schema version at which the optional per-item <c>label</c> becomes a recognized item field
+    /// (PR-1 §A4/§E.1). v1-v3 reject <c>label</c> fail-closed — the guarantee stays version-exact.</summary>
+    private const int V4SchemaVersion = 4;
 
     /// <summary>Retained for source compatibility — the lowest version this loader supports.</summary>
     public const int SupportedSchemaVersion = MinSupportedSchemaVersion;
@@ -68,16 +72,18 @@ public static class MigrationRecipeLoader
 
             // v1: the original allowed-root set (install is REJECTED as an unknown field). v2: install is allowed.
             // v3: additive exact set for detection join keys, restoreTier, migrationMeta, and upstream provenance.
+            // v4 adds NO new root field (its only addition, `label`, is item-level — see allowedItemFields below).
             // Building the set from the version keeps the strict "reject unknown field" guarantee version-exact —
             // a v1 recipe smuggling `install` or a v2 recipe smuggling `migrationMeta` still fails closed.
             string[] v1Root =
                 ["schemaVersion", "id", "displayName", "category", "detect", "items", "exclude", "secretRule", "portabilityClass", "restore"];
+            string[] v3Root = [.. v1Root, "install", "wingetId", "productCode", "upgradeCode", "packageFamilyName",
+                "installPathHint", "restoreTier", "migrationMeta", "catalogTier", "upstreamDataLicense"];
             string[] allowedRootFields = schemaVersion switch
             {
                 1 => v1Root,
                 2 => [.. v1Root, "install"],
-                3 => [.. v1Root, "install", "wingetId", "productCode", "upgradeCode", "packageFamilyName",
-                    "installPathHint", "restoreTier", "migrationMeta", "catalogTier", "upstreamDataLicense"],
+                3 or 4 => v3Root,
                 _ => v1Root,
             };
             RejectUnknownFields(root, "(root)", allowedRootFields);
@@ -196,11 +202,19 @@ public static class MigrationRecipeLoader
         {
             if (el.ValueKind != JsonValueKind.Object)
                 throw new RecipeValidationException("each item must be a JSON object");
-            string[] allowedItemFields = schemaVersion >= V3SchemaVersion
-                ? ["path", "include", "exclude", "kind", "libraryDetector", "launcherId", "exportKind",
-                    "manualTodo", "requiresClosedProcesses", "verify", "expectedFormat"]
-                : ["path", "include", "exclude"];
-            RejectUnknownFields(el, "items[]", allowedItemFields);
+            string[] v3ItemFields =
+                ["path", "include", "exclude", "kind", "libraryDetector", "launcherId", "exportKind",
+                    "manualTodo", "requiresClosedProcesses", "verify", "expectedFormat"];
+            string[] allowedItemFields = schemaVersion switch
+            {
+                >= V4SchemaVersion => [.. v3ItemFields, "label"],
+                >= V3SchemaVersion => v3ItemFields,
+                _ => ["path", "include", "exclude"],
+            };
+            if (schemaVersion >= V4SchemaVersion)
+                RejectUnknownFieldsExact(el, "items[]", allowedItemFields);
+            else
+                RejectUnknownFields(el, "items[]", allowedItemFields);
             string path = RequireNonEmptyString(el, "path");
             ValidateRelativePath(path, "items[].path");
             RecipeItemKind kind = el.TryGetProperty("kind", out _)
@@ -231,6 +245,7 @@ public static class MigrationRecipeLoader
                 ExpectedFormat = el.TryGetProperty("expectedFormat", out _)
                     ? ParseExpectedFormat(RequireNonEmptyString(el, "expectedFormat"))
                     : null,
+                Label = el.TryGetProperty("label", out JsonElement labelEl) ? ParseV4ItemLabel(labelEl) : null,
             });
         }
         if (list.Count == 0)
@@ -326,7 +341,7 @@ public static class MigrationRecipeLoader
             "installerSource", "licenseSource", "requiresRelogin", "backedUpButNotRestored", "survivesOnOtherDrive");
 
         return new MigrationRecipeMeta(
-            UiWarning: el.TryGetProperty("uiWarning", out JsonElement warnEl) ? ParseLocalizedText(warnEl) : null,
+            UiWarning: el.TryGetProperty("uiWarning", out JsonElement warnEl) ? ParseLocalizedText(warnEl, "uiWarning") : null,
             ManualSteps: ParseStringArray(el, "manualSteps"),
             ManualTodo: ParseStringArray(el, "manualTodo"),
             InstallerSource: el.TryGetProperty("installerSource", out _) ? ParseInstallerSource(RequireNonEmptyString(el, "installerSource")) : null,
@@ -336,7 +351,7 @@ public static class MigrationRecipeLoader
             SurvivesOnOtherDrive: el.TryGetProperty("survivesOnOtherDrive", out JsonElement survives) && RequireBool(survives, "migrationMeta.survivesOnOtherDrive"));
     }
 
-    private static LocalizedText ParseLocalizedText(JsonElement el)
+    private static LocalizedText ParseLocalizedText(JsonElement el, string fieldName = "uiWarning")
     {
         if (el.ValueKind == JsonValueKind.String)
         {
@@ -345,9 +360,46 @@ public static class MigrationRecipeLoader
         }
 
         if (el.ValueKind != JsonValueKind.Object)
-            throw new RecipeValidationException("field 'uiWarning' must be a string or object");
-        RejectUnknownFields(el, "uiWarning", "en", "tr");
+            throw new RecipeValidationException($"field '{fieldName}' must be a string or object");
+        RejectUnknownFields(el, fieldName, "en", "tr");
         return new LocalizedText(OptionalString(el, "en"), OptionalString(el, "tr"));
+    }
+
+    /// <summary>
+    /// V4 part labels intentionally use a stricter shape than legacy localized metadata: exact, non-empty
+    /// <c>en</c> and <c>tr</c> properties. Case aliases and duplicate properties are rejected before they can
+    /// silently disappear through an exact property lookup.
+    /// </summary>
+    private static LocalizedText ParseV4ItemLabel(JsonElement el)
+    {
+        if (el.ValueKind != JsonValueKind.Object)
+            throw new RecipeValidationException("field 'label' must be an object with exact 'en' and 'tr' properties");
+
+        string? en = null;
+        string? tr = null;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (JsonProperty property in el.EnumerateObject())
+        {
+            if (!seen.Add(property.Name))
+                throw new RecipeValidationException($"duplicate field '{property.Name}' in label");
+            if (property.Name is not ("en" or "tr"))
+                throw new RecipeValidationException($"unknown field '{property.Name}' in label");
+            if (property.Value.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(property.Value.GetString()))
+            {
+                throw new RecipeValidationException($"field 'label.{property.Name}' must be a non-empty string");
+            }
+
+            if (property.Name == "en")
+                en = property.Value.GetString();
+            else
+                tr = property.Value.GetString();
+        }
+
+        if (string.IsNullOrWhiteSpace(en) || string.IsNullOrWhiteSpace(tr))
+            throw new RecipeValidationException("field 'label' requires exact non-empty 'en' and 'tr' properties");
+
+        return new LocalizedText(en, tr);
     }
 
     // ---- enum parsing (fail-closed) --------------------------------------------------------
@@ -488,6 +540,19 @@ public static class MigrationRecipeLoader
         foreach (JsonProperty p in obj.EnumerateObject())
             if (!set.Contains(p.Name))
                 throw new RecipeValidationException($"unknown field '{p.Name}' in {where}");
+    }
+
+    private static void RejectUnknownFieldsExact(JsonElement obj, string where, params string[] allowed)
+    {
+        var allowedSet = new HashSet<string>(allowed, StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (JsonProperty property in obj.EnumerateObject())
+        {
+            if (!allowedSet.Contains(property.Name))
+                throw new RecipeValidationException($"unknown field '{property.Name}' in {where}");
+            if (!seen.Add(property.Name))
+                throw new RecipeValidationException($"duplicate field '{property.Name}' in {where}");
+        }
     }
 
     private static JsonElement RequireObject(JsonElement parent, string name)

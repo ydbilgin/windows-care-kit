@@ -1,13 +1,13 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "microsoft.vscode",
   "displayName": "Visual Studio Code",
   "category": "dev-tools",
   "detect": { "knownFolder": "AppData", "path": "Code/User", "exists": true },
   "items": [
-    { "path": "Code/User/settings.json", "requiresClosedProcesses": ["Code.exe"] },
-    { "path": "Code/User/keybindings.json", "requiresClosedProcesses": ["Code.exe"] },
-    { "path": "Code/User/snippets", "requiresClosedProcesses": ["Code.exe"] }
+    { "path": "Code/User/settings.json", "requiresClosedProcesses": ["Code.exe"], "label": { "en": "Settings", "tr": "Ayarlar" } },
+    { "path": "Code/User/keybindings.json", "requiresClosedProcesses": ["Code.exe"], "label": { "en": "Keybindings", "tr": "Kısayollar" } },
+    { "path": "Code/User/snippets", "requiresClosedProcesses": ["Code.exe"], "label": { "en": "Snippets", "tr": "Snippet'lar" } }
   ],
   "exclude": [],
   "secretRule": "global",
@@ -25,7 +25,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies user settings, keybindings, and snippets; extensions may need reinstall or sync.",
-      "tr": "Kullanici ayarlari, kisayollar ve snippet'lar kopyalanir; eklentiler yeniden kurulum veya sync isteyebilir."
+      "tr": "Kullanıcı ayarları, kısayollar ve snippet'lar kopyalanır; eklentiler yeniden kurulum veya sync isteyebilir."
     },
     "manualTodo": ["Use Settings Sync or reinstall extensions if they are missing."],
     "installerSource": "winget",

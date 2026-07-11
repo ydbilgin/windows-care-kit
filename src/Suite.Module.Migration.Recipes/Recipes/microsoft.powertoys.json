@@ -1,14 +1,14 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "microsoft.powertoys",
   "displayName": "Microsoft PowerToys",
   "category": "utilities",
   "detect": { "knownFolder": "LocalAppData", "path": "Microsoft/PowerToys", "exists": true },
   "items": [
-    { "path": "Microsoft/PowerToys/settings.json", "requiresClosedProcesses": ["PowerToys.exe"] },
-    { "path": "Microsoft/PowerToys/FancyZones", "requiresClosedProcesses": ["PowerToys.exe"] },
-    { "path": "Microsoft/PowerToys/Keyboard Manager", "requiresClosedProcesses": ["PowerToys.exe"] },
-    { "path": "Microsoft/PowerToys/PowerToys Run", "requiresClosedProcesses": ["PowerToys.exe"] }
+    { "path": "Microsoft/PowerToys/settings.json", "requiresClosedProcesses": ["PowerToys.exe"], "label": { "en": "Settings", "tr": "Ayarlar" } },
+    { "path": "Microsoft/PowerToys/FancyZones", "requiresClosedProcesses": ["PowerToys.exe"], "label": { "en": "FancyZones layouts", "tr": "FancyZones düzenleri" } },
+    { "path": "Microsoft/PowerToys/Keyboard Manager", "requiresClosedProcesses": ["PowerToys.exe"], "label": { "en": "Keyboard Manager", "tr": "Klavye Yöneticisi" } },
+    { "path": "Microsoft/PowerToys/PowerToys Run", "requiresClosedProcesses": ["PowerToys.exe"], "label": { "en": "PowerToys Run", "tr": "PowerToys Run" } }
   ],
   "exclude": ["**/Logs/**", "**/Cache/**", "**/Updates/**", "**/CrashReports/**"],
   "secretRule": "global",
@@ -26,7 +26,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies core PowerToys settings and selected module layouts. Hardware-, monitor-, or path-specific values may need adjustment.",
-      "tr": "Temel PowerToys ayarlari ve secili modul duzenleri kopyalanir. Donanim, monitor veya yol bazli degerler ayar isteyebilir."
+      "tr": "Temel PowerToys ayarları ve seçili modül düzenleri kopyalanır. Donanım, monitör veya yol bazlı değerler ayar isteyebilir."
     },
     "manualTodo": ["Review FancyZones layouts and Keyboard Manager targets on the new hardware."],
     "installerSource": "winget",

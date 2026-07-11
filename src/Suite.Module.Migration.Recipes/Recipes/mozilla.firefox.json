@@ -1,16 +1,17 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "mozilla.firefox",
   "displayName": "Mozilla Firefox",
   "category": "browsers",
   "detect": { "knownFolder": "AppData", "path": "Mozilla/Firefox", "exists": true },
   "items": [
-    { "path": "Mozilla/Firefox/profiles.ini", "requiresClosedProcesses": ["firefox.exe"] },
+    { "path": "Mozilla/Firefox/profiles.ini", "requiresClosedProcesses": ["firefox.exe"], "label": { "en": "Profile list", "tr": "Profil listesi" } },
     {
       "path": "Mozilla/Firefox/Profiles",
       "include": ["**/prefs.js", "**/user.js", "**/places.sqlite", "**/bookmarkbackups/**", "**/extensions/**"],
       "expectedFormat": "sqlite",
-      "requiresClosedProcesses": ["firefox.exe"]
+      "requiresClosedProcesses": ["firefox.exe"],
+      "label": { "en": "Profile data", "tr": "Profil verisi" }
     }
   ],
   "exclude": ["**/key4.db", "**/logins.json", "**/cookies.sqlite", "**/sessionstore-backups/**", "**/cache2/**", "**/startupCache/**", "**/storage/default/**"],
@@ -29,7 +30,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Settings and bookmarks are portable, but the Firefox password store depends on key4.db and may also depend on a primary password. Passwords and sessions are excluded.",
-      "tr": "Ayarlar ve yer imleri tasinabilir; Firefox parola deposu key4.db ve varsa ana parolaya baglidir. Parolalar ve oturumlar haric tutulur."
+      "tr": "Ayarlar ve yer imleri taşınabilir; Firefox parola deposu key4.db ve varsa ana parolaya bağlıdır. Parolalar ve oturumlar hariç tutulur."
     },
     "manualTodo": ["Enable Firefox Sync or export passwords before formatting, then sign in again after reinstall."],
     "installerSource": "winget",

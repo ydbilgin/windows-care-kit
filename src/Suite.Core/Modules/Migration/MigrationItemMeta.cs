@@ -21,6 +21,12 @@ public sealed record MigrationItemMeta(
     RestorePhase RestorePhase,
     IReadOnlyList<string> Preconditions)
 {
+    /// <summary>Immutable ordinal from the original, unfiltered recipe item collection.</summary>
+    public int ItemOrdinal { get; init; } = int.MaxValue;
+
+    /// <summary>Optional schema-v4 localized part label carried from resolution through presentation.</summary>
+    public LocalizedText? PartLabel { get; init; }
+
     /// <summary>
     /// B-1 honesty fail-safe (decision §3A): true when this item DECLARES a secret leaf the name-based
     /// filter would exclude (e.g. an <c>include</c> pattern matching <c>id_rsa</c>/<c>*.key</c>). The bridge

@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "google.chrome",
   "displayName": "Google Chrome",
   "category": "browsers",
   "detect": { "knownFolder": "LocalAppData", "path": "Google/Chrome/User Data", "exists": true },
   "items": [
-    { "path": "Google/Chrome/User Data/Default/Preferences", "requiresClosedProcesses": ["chrome.exe"] },
-    { "path": "Google/Chrome/User Data/Default/Bookmarks", "requiresClosedProcesses": ["chrome.exe"] }
+    { "path": "Google/Chrome/User Data/Default/Preferences", "requiresClosedProcesses": ["chrome.exe"], "label": { "en": "Preferences", "tr": "Tercihler" } },
+    { "path": "Google/Chrome/User Data/Default/Bookmarks", "requiresClosedProcesses": ["chrome.exe"], "label": { "en": "Bookmarks", "tr": "Yer imleri" } }
   ],
   "exclude": ["Cookies", "Login Data", "Network", "Local State", "Safe Browsing*", "Cache", "Code Cache", "GPUCache"],
   "secretRule": "global",
@@ -24,7 +24,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Chrome app-bound encryption makes passwords, cookies, and sessions machine-locked; use sync or CSV export before format.",
-      "tr": "Chrome app-bound encryption parola, cookie ve oturumlari makineye kilitler; format once sync veya CSV export kullan."
+      "tr": "Chrome app-bound encryption parola, cookie ve oturumları makineye kilitler; format önce sync veya CSV export kullan."
     },
     "manualTodo": ["Enable Chrome Sync or export passwords to CSV before formatting."],
     "installerSource": "winget",

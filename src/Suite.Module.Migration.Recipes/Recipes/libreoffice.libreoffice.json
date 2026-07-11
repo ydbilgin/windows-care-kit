@@ -1,14 +1,14 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "libreoffice.libreoffice",
   "displayName": "LibreOffice",
   "category": "office",
   "detect": { "knownFolder": "AppData", "path": "LibreOffice/4/user", "exists": true },
   "items": [
-    { "path": "LibreOffice/4/user/config" },
-    { "path": "LibreOffice/4/user/template" },
-    { "path": "LibreOffice/4/user/autotext" },
-    { "path": "LibreOffice/4/user/registrymodifications.xcu", "verify": { "exists": ["registrymodifications.xcu"], "maxSizeMB": 20 } }
+    { "path": "LibreOffice/4/user/config", "label": { "en": "Configuration", "tr": "Yapılandırma" } },
+    { "path": "LibreOffice/4/user/template", "label": { "en": "Templates", "tr": "Şablonlar" } },
+    { "path": "LibreOffice/4/user/autotext", "label": { "en": "AutoText", "tr": "OtoMetin" } },
+    { "path": "LibreOffice/4/user/registrymodifications.xcu", "verify": { "exists": ["registrymodifications.xcu"], "maxSizeMB": 20 }, "label": { "en": "Registry modifications", "tr": "Kayıt değişiklikleri" } }
   ],
   "exclude": ["cache", "backup"],
   "secretRule": "global",
@@ -26,7 +26,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies LibreOffice user profile; extensions or Java-dependent features may need separate reinstall.",
-      "tr": "LibreOffice kullanici profilini kopyalar; extension veya Java bagimli ozellikler ayri kurulum isteyebilir."
+      "tr": "LibreOffice kullanıcı profilini kopyalar; uzantılar veya Java'ya bağımlı özellikler ayrı kurulum isteyebilir."
     },
     "manualTodo": ["Reinstall extensions if LibreOffice reports them missing."],
     "installerSource": "winget",

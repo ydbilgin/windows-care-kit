@@ -40,6 +40,52 @@ public sealed class MigrationScanServiceTests
     }
 
     [Fact]
+    public void Scan_keeps_a_retained_items_original_identity_label_warning_and_preview_aligned_after_the_first_item_is_filtered()
+    {
+        ProfileRoots roots = MigrationTestData.Roots();
+        var recipe = new MigrationRecipe(
+            4,
+            "contoso.app",
+            "Contoso App",
+            "dev-tools",
+            new RecipeDetect(KnownFolder.AppData, "Contoso", true),
+            [
+                new RecipeItem("Contoso/missing.json", [], []) { Label = new LocalizedText("Missing", "Eksik") },
+                new RecipeItem("Contoso/retained.json", [], []) { Label = new LocalizedText("Retained", "Korunan") },
+            ],
+            [],
+            "global",
+            PortabilityClass.ProfileRelative,
+            new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []))
+        {
+            RestoreTier = RestoreTier.ConfigCopy,
+            MigrationMeta = new MigrationRecipeMeta(
+                new LocalizedText("Only retained settings are copied.", "Yalnızca korunan ayarlar kopyalanır."),
+                [], [], null, null, false, false, false),
+        };
+        var fs = new FakeRecipeFileSystem()
+            .AddDir(Path.Combine(roots.AppData, "Contoso"))
+            .AddFile(Path.Combine(roots.AppData, "Contoso", "retained.json"));
+        var service = new MigrationScanService(
+            [new FakeProgramSource([])],
+            () => roots,
+            fs,
+            new CleanProbe(),
+            () => [recipe]);
+
+        MigrationSelectionCandidate candidate = Assert.Single(service.Scan().Candidates);
+        string preview = Assert.IsType<string>(MigrationCommandPreviewGenerator.Generate(candidate));
+
+        Assert.Equal("contoso.app#1", candidate.Id);
+        Assert.Equal("contoso.app#1", candidate.Meta.EntryId);
+        Assert.Equal(1, candidate.Meta.ItemOrdinal);
+        Assert.Equal("Retained", candidate.Meta.PartLabel!.En);
+        Assert.Equal("Only retained settings are copied.", candidate.WhatHappensEn);
+        Assert.EndsWith(@"Contoso\retained.json", candidate.SourcePath, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retained.json", preview, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Exists_false_recipe_without_detection_presence_produces_no_phantom_row()
     {
         ProfileRoots roots = MigrationTestData.Roots();

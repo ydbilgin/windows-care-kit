@@ -119,7 +119,8 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
 
     public bool IsScanComplete => ScanGate?.EnumerationComplete == true;
     public bool CanSelect => ScanGate?.CanSelect == true && !IsBusy;
-    public int SelectedCount => Groups.Sum(group => group.SelectedCount);
+    /// <summary>A6: the footer counts app rows, not files (the dry-run plan is still file-level and says so).</summary>
+    public int SelectedCount => Groups.Sum(group => group.SelectedAppCount);
     public bool HasCommandPreview => CommandPreview.Count > 0;
     public bool HasManualTodo => ManualTodo.Count > 0;
     public string SelectedSummary => I18n.Format("migration.footer.selected", SelectedCount);
@@ -276,17 +277,13 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
                 return;
             }
 
-            string[] selectedRecipeIds = SelectedItems()
-                .Select(item => item.Candidate.Meta.RecipeId)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            string[] selectedRecipeIds = SelectedRecipeIds().ToArray();
 
             (MigrationBackupPlanResult Result, HashSet<string> WholeTreeIds) built = await Task.Run(() =>
             {
-                HashSet<string> selectedIds = selectedRecipeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                HashSet<string> selectedIds = selectedRecipeIds.ToHashSet(StringComparer.Ordinal);
                 MigrationRecipe[] selectedRecipes = _recipeSource()
-                    .Where(recipe => selectedIds.Contains(recipe.Id))
+                    .Where(recipe => selectedIds.Contains(MigrationAppIdentity.Canonicalize(recipe.Id)))
                     .ToArray();
                 MigrationBackupPlanResult result =
                     _backupRunner.BuildPlan(selectedRecipes, packageDir, DateTime.UtcNow);
@@ -300,11 +297,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
                 return (result, wholeTreeIds);
             });
 
-            string[] currentRecipeIds = SelectedItems()
-                .Select(item => item.Candidate.Meta.RecipeId)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            string[] currentRecipeIds = SelectedRecipeIds().ToArray();
             if (!TryNormalizePackageDir(_packageDir, out string currentPackageDir)
                 || !string.Equals(currentPackageDir, packageDir, StringComparison.OrdinalIgnoreCase)
                 || !selectedRecipeIds.SequenceEqual(currentRecipeIds, StringComparer.OrdinalIgnoreCase))
@@ -423,10 +416,13 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         item.IsSelected = !item.IsSelected;
     }
 
+    /// <summary>A3: "Select recommended" operates on apps — an app's recommended state is ON if ANY part's
+    /// smart default recommends selection, and that decision cascades to every part.</summary>
     private void SelectRecommended()
     {
         foreach (MigrationGroupRow group in Groups)
-            group.ResetToRecommended();
+            foreach (MigrationAppRow app in group.Apps)
+                app.ResetToRecommended();
     }
 
     private void ClearOptional()
@@ -440,9 +436,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         if (!CanSelect)
             return;
 
-        MigrationSelectionItem[] selected = Groups
-            .SelectMany(group => group.Items)
-            .Where(item => item.IsSelected)
+        MigrationSelectionItem[] selected = SelectedItems()
             .Select(item => item.Model)
             .ToArray();
 
@@ -498,8 +492,14 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         RefreshManualTodoLanguage();
     }
 
+    private IEnumerable<MigrationAppRow> SelectedApps()
+        => Groups.SelectMany(group => group.Apps).Where(app => app.IsChecked);
+
     private IEnumerable<MigrationItemRow> SelectedItems()
-        => Groups.SelectMany(group => group.Items).Where(item => item.IsSelected);
+        => SelectedApps().SelectMany(app => app.Parts);
+
+    private IEnumerable<string> SelectedRecipeIds()
+        => SelectedApps().Select(app => app.RecipeId);
 
     private void ResetCapturePlan()
     {
@@ -599,28 +599,41 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
     }
 }
 
-/// <summary>Binding row over the pure group model. Its nullable checkbox is the three-state group header.</summary>
+/// <summary>Binding row over the pure group model. Its nullable checkbox aggregates and toggles visible
+/// application rows; file-level parts are read-only presentation detail in v1.</summary>
 public sealed class MigrationGroupRow : ObservableObject
 {
     private readonly MigrationSelectionGroup _model;
     private readonly Action _selectionChanged;
     private readonly I18n _i18n;
 
-    internal MigrationGroupRow(MigrationSelectionGroup model, Action selectionChanged, I18n i18n)
+    internal MigrationGroupRow(
+        MigrationSelectionGroup model,
+        Action selectionChanged,
+        I18n i18n)
     {
         _model = model;
         _selectionChanged = selectionChanged;
         _i18n = i18n;
-        Items = new ObservableCollection<MigrationItemRow>(
-            model.Items.Select(item => new MigrationItemRow(item, ItemChanged, i18n)));
+
+        var itemRows = new Dictionary<MigrationSelectionItem, MigrationItemRow>();
+        foreach (MigrationSelectionItem item in model.Items)
+            itemRows[item] = new MigrationItemRow(item, ItemChanged, i18n);
+        Items = new ObservableCollection<MigrationItemRow>(model.Items.Select(item => itemRows[item]));
+        Apps = new ObservableCollection<MigrationAppRow>(model.Apps.Select(app => new MigrationAppRow(
+            app, app.Parts.Select(part => itemRows[part]).ToArray(), AppChanged, i18n)));
     }
 
     public MigrationCategory Category => _model.Category;
     public string Title => _i18n[$"migration.group.{Category}.title"];
     public string Subtitle => _i18n[$"migration.group.{Category}.subtitle"];
-    public string CountSummary => _i18n.Format("migration.group.count", Items.Count, SelectedCount);
+
+    /// <summary>A6: the count the user sees is app rows, not files.</summary>
+    public string CountSummary => _i18n.Format("migration.group.count", Apps.Count, SelectedAppCount);
     public ObservableCollection<MigrationItemRow> Items { get; }
+    public ObservableCollection<MigrationAppRow> Apps { get; }
     public int SelectedCount => _model.SelectedCount;
+    public int SelectedAppCount => _model.SelectedAppCount;
     public GroupSelectionState SelectionState => _model.SelectionState;
 
     public bool? IsChecked
@@ -644,19 +657,17 @@ public sealed class MigrationGroupRow : ObservableObject
         Refresh();
     }
 
-    internal void ResetToRecommended()
-    {
-        foreach (MigrationItemRow item in Items)
-            item.Model.SetSelected(item.Model.SmartDefault.Kind is SmartDefaultKind.On or SmartDefaultKind.ForcedOnCritical);
-        Refresh();
-    }
-
     private void ItemChanged()
     {
+        foreach (MigrationItemRow item in Items)
+            item.Refresh();
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectionState));
         OnPropertyChanged(nameof(IsChecked));
+        OnPropertyChanged(nameof(SelectedAppCount));
         OnPropertyChanged(nameof(CountSummary));
+        foreach (MigrationAppRow app in Apps)
+            app.Refresh();
         _selectionChanged();
     }
 
@@ -664,9 +675,22 @@ public sealed class MigrationGroupRow : ObservableObject
     {
         foreach (MigrationItemRow item in Items)
             item.Refresh();
+        foreach (MigrationAppRow app in Apps)
+            app.Refresh();
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectionState));
         OnPropertyChanged(nameof(IsChecked));
+        OnPropertyChanged(nameof(SelectedAppCount));
+        OnPropertyChanged(nameof(CountSummary));
+        _selectionChanged();
+    }
+
+    private void AppChanged()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectionState));
+        OnPropertyChanged(nameof(IsChecked));
+        OnPropertyChanged(nameof(SelectedAppCount));
         OnPropertyChanged(nameof(CountSummary));
         _selectionChanged();
     }
@@ -678,7 +702,187 @@ public sealed class MigrationGroupRow : ObservableObject
         OnPropertyChanged(nameof(CountSummary));
         foreach (MigrationItemRow item in Items)
             item.RefreshLanguage();
+        foreach (MigrationAppRow app in Apps)
+            app.RefreshLanguage();
     }
+
+}
+
+/// <summary>
+/// Binding row over one app (A2/A4): every part sharing a recipe id. The checkbox is the ONLY selection
+/// control in v1 (A3). The model normalizes defaults and forced apps too, so the defensive ANY getter can never
+/// expose a partial recipe while capture operates at application granularity.
+/// </summary>
+public sealed class MigrationAppRow : ObservableObject
+{
+    private readonly MigrationAppGroup _model;
+    private readonly Action _selectionChanged;
+    private readonly I18n _i18n;
+    private bool _isExpanded;
+
+    internal MigrationAppRow(
+        MigrationAppGroup model, IReadOnlyList<MigrationItemRow> parts, Action selectionChanged, I18n i18n)
+    {
+        _model = model;
+        Parts = parts;
+        _selectionChanged = selectionChanged;
+        _i18n = i18n;
+    }
+
+    public IReadOnlyList<MigrationItemRow> Parts { get; }
+    public string RecipeId => _model.RecipeId;
+    public MigrationSelectionCandidate Representative => _model.Representative;
+    public string Title => Representative.DisplayName;
+    public string Subtitle
+    {
+        get
+        {
+            string? localized = _i18n.Culture == "tr" ? Representative.WhatHappensTr : Representative.WhatHappensEn;
+            if (!string.IsNullOrWhiteSpace(localized))
+                return localized;
+            return string.IsNullOrWhiteSpace(Representative.WhatHappens)
+                ? _i18n["migration.item.defaultDescription"]
+                : Representative.WhatHappens;
+        }
+    }
+    public bool HasMultipleParts => _model.HasMultipleParts;
+    public string PartsSummary => _i18n.Format("migration.app.parts", Parts.Count);
+    public bool IsForced => _model.IsForced;
+    public string? ForcedTooltip => IsForced ? _i18n["migration.item.forcedTooltip"] : null;
+    public bool HasSecretOverlay => Badge.HasSecretOverlay;
+    public string? SecretExcludedText => HasSecretOverlay ? _i18n["migration.app.secretExcluded"] : null;
+
+    /// <summary>Neutral source summary: one literal path or a localized count when roots differ.</summary>
+    public string? SourceSummary
+    {
+        get
+        {
+            string[] sources = Parts
+                .Select(part => part.Candidate.SourcePath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Cast<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            return sources.Length switch
+            {
+                0 => null,
+                1 => sources[0],
+                _ => _i18n.Format("migration.app.multipleSources", sources.Length),
+            };
+        }
+    }
+
+    public long? TotalSizeBytes
+    {
+        get
+        {
+            if (Parts.Count == 0 || Parts.Any(part => !part.Candidate.SizeBytes.HasValue))
+                return null;
+            return Parts.Sum(part => part.Candidate.SizeBytes!.Value);
+        }
+    }
+
+    public string? SizeText => TotalSizeBytes is { } bytes ? MigrationByteSizeFormatter.Format(bytes) : null;
+
+    /// <summary>A5: the worst-of aggregation, a pure function over the parts' own (unmodified) badges.</summary>
+    public MigrationBadgePresentation Badge => MigrationBadgeAggregator.Aggregate(PartBadges());
+
+    public string BadgeText => $"{Badge.Glyph} {(_i18n.Culture == "tr" ? Badge.LabelTr : Badge.LabelEn)}";
+
+    /// <summary>A5: "3/4 taşınabilir" — only rendered when parts genuinely differ.</summary>
+    public string? BreakdownText
+    {
+        get
+        {
+            if (MigrationBadgeAggregator.Breakdown(PartBadges()) is not { } breakdown)
+                return null;
+            string label = _i18n.Culture == "tr" ? breakdown.LabelTr : breakdown.LabelEn;
+            return _i18n.Format("migration.app.badgeBreakdown", breakdown.BestCount, breakdown.Total, label);
+        }
+    }
+
+    /// <summary>A4 meta line: neutral source summary · total size when fully known · badge breakdown.</summary>
+    public string MetaLine
+    {
+        get
+        {
+            var segments = new List<string>();
+            if (!string.IsNullOrWhiteSpace(SourceSummary))
+                segments.Add(SourceSummary!);
+            if (SizeText is not null)
+                segments.Add(SizeText);
+            if (BreakdownText is not null)
+                segments.Add(BreakdownText);
+            return string.Join(" · ", segments);
+        }
+    }
+
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (SetField(ref _isExpanded, value))
+                OnPropertyChanged(nameof(ExpansionGlyph));
+        }
+    }
+
+    public string ExpansionGlyph => IsExpanded ? "⌃" : "⌄";
+
+    public bool IsChecked
+    {
+        get => IsForced || Parts.Any(part => part.IsSelected);
+        set
+        {
+            if (IsForced)
+                return;
+            _model.SetAppSelected(value);
+            foreach (MigrationItemRow part in Parts)
+                part.Refresh();
+            Refresh();
+            _selectionChanged();
+        }
+    }
+
+    /// <summary>A3: "Select recommended" cascades the app-level OR-aggregate default to every part.</summary>
+    internal void ResetToRecommended()
+    {
+        _model.SetAppSelected(_model.SmartDefaultOn);
+        foreach (MigrationItemRow part in Parts)
+            part.Refresh();
+        Refresh();
+        _selectionChanged();
+    }
+
+    /// <summary>Re-raise property-changed for this row's derived bits after a part changed through some other
+    /// path (category toggle, direct item toggle). Pure notification — no mutation, safe to call repeatedly.</summary>
+    internal void Refresh()
+    {
+        OnPropertyChanged(nameof(IsChecked));
+        OnPropertyChanged(nameof(Badge));
+        OnPropertyChanged(nameof(BadgeText));
+        OnPropertyChanged(nameof(BreakdownText));
+        OnPropertyChanged(nameof(HasSecretOverlay));
+        OnPropertyChanged(nameof(SecretExcludedText));
+        OnPropertyChanged(nameof(SourceSummary));
+        OnPropertyChanged(nameof(SizeText));
+        OnPropertyChanged(nameof(MetaLine));
+    }
+
+    internal void RefreshLanguage()
+    {
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(PartsSummary));
+        OnPropertyChanged(nameof(ForcedTooltip));
+        OnPropertyChanged(nameof(BadgeText));
+        OnPropertyChanged(nameof(BreakdownText));
+        OnPropertyChanged(nameof(SecretExcludedText));
+        OnPropertyChanged(nameof(SourceSummary));
+        OnPropertyChanged(nameof(SizeText));
+        OnPropertyChanged(nameof(MetaLine));
+    }
+
+    private MigrationBadgePresentation[] PartBadges() => Parts.Select(part => part.Badge).ToArray();
 }
 
 /// <summary>Binding row over one pure selection item.</summary>
@@ -687,7 +891,8 @@ public sealed class MigrationItemRow : ObservableObject
     private readonly Action _selectionChanged;
     private readonly I18n _i18n;
 
-    internal MigrationItemRow(MigrationSelectionItem model, Action selectionChanged, I18n i18n)
+    internal MigrationItemRow(
+        MigrationSelectionItem model, Action selectionChanged, I18n i18n)
     {
         Model = model;
         _selectionChanged = selectionChanged;
@@ -701,6 +906,25 @@ public sealed class MigrationItemRow : ObservableObject
     public bool IsForcedSelected => Model.IsForcedSelected;
     public string? ForcedSelectionToolTip => IsForcedSelected ? _i18n["migration.item.forcedTooltip"] : null;
     public string BadgeText => $"{Badge.Glyph} {(_i18n.Culture == "tr" ? Badge.LabelTr : Badge.LabelEn)}";
+
+    /// <summary>A4 part label: the recipe's declared v4 <c>label</c> for this part, or the path leaf when
+    /// none was declared (v1-v3 recipes, or a part the recipe author didn't label).</summary>
+    public string PartLabel
+    {
+        get
+        {
+            string? localized = _i18n.Culture == "tr" ? Candidate.Meta.PartLabel?.Tr : Candidate.Meta.PartLabel?.En;
+            return string.IsNullOrWhiteSpace(localized) ? PathLeafFallback() : localized;
+        }
+    }
+
+    /// <summary>A4 part row: size, when known (omitted otherwise — never a fabricated "0 B").</summary>
+    public string? SizeText => Candidate.SizeBytes is { } bytes ? MigrationByteSizeFormatter.Format(bytes) : null;
+
+    /// <summary>A4: "Locked-now reasons ... render here, on the offending part" — true when this specific
+    /// part (not necessarily its siblings) is the one the content probe found in use right now.</summary>
+    public bool HasLockedNowReason => Candidate.Meta.ContentProbeStatus == ContentProbeStatus.LockedNow;
+
     public string WhatHappens
     {
         get
@@ -742,6 +966,18 @@ public sealed class MigrationItemRow : ObservableObject
         OnPropertyChanged(nameof(BadgeText));
         OnPropertyChanged(nameof(WhatHappens));
         OnPropertyChanged(nameof(ForcedSelectionToolTip));
+        OnPropertyChanged(nameof(PartLabel));
+    }
+
+    /// <summary>A4 fallback: the final path segment (e.g. <c>CLAUDE.md</c>, <c>projects</c>), separator-agnostic.</summary>
+    private string PathLeafFallback()
+    {
+        string? path = Candidate.SourcePath ?? Candidate.DestinationPath;
+        if (string.IsNullOrWhiteSpace(path))
+            return Candidate.DisplayName;
+        string normalized = path.Replace('\\', '/').TrimEnd('/');
+        int slash = normalized.LastIndexOf('/');
+        return slash >= 0 ? normalized[(slash + 1)..] : normalized;
     }
 
     private string LockedNowReason()

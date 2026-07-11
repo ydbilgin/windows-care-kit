@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "microsoft.edge",
   "displayName": "Microsoft Edge",
   "category": "browsers",
   "detect": { "knownFolder": "LocalAppData", "path": "Microsoft/Edge/User Data", "exists": true },
   "items": [
-    { "path": "Microsoft/Edge/User Data/Default/Preferences", "requiresClosedProcesses": ["msedge.exe"] },
-    { "path": "Microsoft/Edge/User Data/Default/Bookmarks", "requiresClosedProcesses": ["msedge.exe"] }
+    { "path": "Microsoft/Edge/User Data/Default/Preferences", "requiresClosedProcesses": ["msedge.exe"], "label": { "en": "Preferences", "tr": "Tercihler" } },
+    { "path": "Microsoft/Edge/User Data/Default/Bookmarks", "requiresClosedProcesses": ["msedge.exe"], "label": { "en": "Bookmarks", "tr": "Yer imleri" } }
   ],
   "exclude": ["Cookies", "Login Data", "Network", "Local State", "Safe Browsing*", "Cache", "Code Cache", "GPUCache"],
   "secretRule": "global",
@@ -24,7 +24,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Passwords, cookies, and sessions are machine-locked; use Microsoft account sync or manual export.",
-      "tr": "Parola, cookie ve oturumlar makineye kilitlidir; Microsoft hesap sync veya manuel export kullan."
+      "tr": "Parola, cookie ve oturumlar makineye kilitlidir; Microsoft hesabı için sync veya manuel export kullan."
     },
     "manualTodo": ["Enable browser sync or export passwords before formatting."],
     "installerSource": "winget",

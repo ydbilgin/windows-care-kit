@@ -187,6 +187,14 @@ public sealed record RecipeItem(string Path, IReadOnlyList<string> Include, IRea
     public IReadOnlyList<string> RequiresClosedProcesses { get; init; } = Array.Empty<string>();
     public RecipeItemVerify? Verify { get; init; }
     public string? ExpectedFormat { get; init; }
+
+    /// <summary>
+    /// Recipe schema v4 (PR-1 §A4/§E.1): an optional, human-readable label for this part, shown in the app
+    /// row's expanded part list instead of the raw path leaf. Init-only and additive; v1-v3 recipes reject this
+    /// field fail-closed (<see cref="MigrationRecipeLoader"/> keeps the strict guarantee version-exact). When
+    /// absent, the presentation layer falls back to the path leaf (e.g. <c>CLAUDE.md</c>, <c>projects</c>).
+    /// </summary>
+    public LocalizedText? Label { get; init; }
 }
 
 /// <summary>The restore META block (strategy/phase/preconditions). Slice 1: declarative only, no execution.</summary>

@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "discord",
   "displayName": "Discord",
   "category": "communication",
   "detect": { "knownFolder": "AppData", "path": "discord", "exists": true },
   "items": [
-    { "path": "discord/settings.json", "requiresClosedProcesses": ["Discord.exe"] },
-    { "path": "discord/quotes.json", "requiresClosedProcesses": ["Discord.exe"] }
+    { "path": "discord/settings.json", "requiresClosedProcesses": ["Discord.exe"], "label": { "en": "Settings", "tr": "Ayarlar" } },
+    { "path": "discord/quotes.json", "requiresClosedProcesses": ["Discord.exe"], "label": { "en": "Quotes", "tr": "Alıntılar" } }
   ],
   "exclude": ["*Cache*", "blob_storage", "GPUCache", "Local Storage", "Session Storage"],
   "secretRule": "global",
@@ -24,7 +24,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Only visible settings are copied; tokens and sessions are not portable. Sign in again.",
-      "tr": "Yalnizca gorunur ayarlar kopyalanir; token ve oturumlar tasinabilir degil. Tekrar giris yap."
+      "tr": "Yalnızca görünür ayarlar kopyalanır; token ve oturumlar taşınabilir değil. Tekrar giriş yap."
     },
     "manualTodo": ["Sign in again after reinstall."],
     "installerSource": "winget",

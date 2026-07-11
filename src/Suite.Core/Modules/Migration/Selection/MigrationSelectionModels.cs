@@ -69,6 +69,7 @@ public sealed record MigrationSelectionCandidate
 public sealed class MigrationSelectionItem
 {
     private bool _isSelected;
+    private MigrationAppGroup? _app;
 
     internal MigrationSelectionItem(
         MigrationSelectionCandidate candidate,
@@ -90,8 +91,30 @@ public sealed class MigrationSelectionItem
     public bool IsForcedSelected => SmartDefault.Kind == SmartDefaultKind.ForcedOnCritical;
     public bool IsSelected => _isSelected;
 
-    /// <summary>Apply a user/group selection. Forced silent-data-loss rows cannot be turned off.</summary>
+    /// <summary>
+    /// Apply selection through the owning app. Per-part interaction is not supported in v1, so this preserves the
+    /// all-parts-equal invariant even for programmatic callers of the legacy item API.
+    /// </summary>
     public void SetSelected(bool selected)
+    {
+        if (_app is not null)
+        {
+            _app.SetAppSelected(selected);
+            return;
+        }
+
+        SetSelectedDirect(selected);
+    }
+
+    internal void AttachToApp(MigrationAppGroup app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        if (_app is not null && !ReferenceEquals(_app, app))
+            throw new InvalidOperationException("selection item already belongs to an app");
+        _app = app;
+    }
+
+    internal void SetSelectedDirect(bool selected)
         => _isSelected = IsForcedSelected || selected;
 }
 
@@ -101,28 +124,43 @@ public sealed class MigrationSelectionItem
 /// </summary>
 public sealed class MigrationSelectionGroup
 {
-    internal MigrationSelectionGroup(MigrationCategory category, IReadOnlyList<MigrationSelectionItem> items)
+    internal MigrationSelectionGroup(
+        MigrationCategory category,
+        IReadOnlyList<MigrationSelectionItem> items,
+        IReadOnlyList<MigrationAppGroup> apps)
     {
         Category = category;
         Items = items;
+        Apps = apps;
     }
 
     public MigrationCategory Category { get; }
     public IReadOnlyList<MigrationSelectionItem> Items { get; }
+
+    /// <summary>A2: this category's items grouped into apps (one per recipe). Presentation-side only — the
+    /// builder derives this from <see cref="Items"/>; it never touches the scanner.</summary>
+    public IReadOnlyList<MigrationAppGroup> Apps { get; }
+
     public int SelectedCount => Items.Count(item => item.IsSelected);
 
+    /// <summary>A6: the count the user sees is app rows, not files.</summary>
+    public int AppCount => Apps.Count;
+
+    /// <summary>A6: an app counts as selected the moment it is effectively selected (§ <see cref="MigrationAppGroup.IsEffectivelySelected"/>).</summary>
+    public int SelectedAppCount => Apps.Count(app => app.IsEffectivelySelected);
+
     public GroupSelectionState SelectionState
-        => SelectedCount switch
+        => SelectedAppCount switch
         {
             0 => GroupSelectionState.None,
-            var selected when selected == Items.Count && Items.Count > 0 => GroupSelectionState.All,
+            var selected when selected == Apps.Count && Apps.Count > 0 => GroupSelectionState.All,
             _ => GroupSelectionState.Partial,
         };
 
     public void SetAll(bool selected)
     {
-        foreach (MigrationSelectionItem item in Items)
-            item.SetSelected(selected);
+        foreach (MigrationAppGroup app in Apps)
+            app.SetAppSelected(selected);
     }
 
     public void SetItem(MigrationSelectionItem item, bool selected)
@@ -131,6 +169,78 @@ public sealed class MigrationSelectionGroup
         if (!Items.Contains(item))
             throw new ArgumentException("item does not belong to this group", nameof(item));
         item.SetSelected(selected);
+    }
+}
+
+/// <summary>
+/// One app (A2): every <see cref="MigrationSelectionItem"/> sharing a recipe id, grouped by
+/// <see cref="MigrationSelectionBuilder"/>. Fallback candidates (<c>{recipe.Id}#present</c>) and single-item
+/// recipes naturally end up as single-part apps — same type, no expander shown by the view (A1/A4).
+/// </summary>
+public sealed class MigrationAppGroup
+{
+    internal MigrationAppGroup(string recipeId, IReadOnlyList<MigrationSelectionItem> parts)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(recipeId);
+        ArgumentNullException.ThrowIfNull(parts);
+        if (parts.Count == 0)
+            throw new ArgumentException("an app group must own at least one part", nameof(parts));
+
+        RecipeId = recipeId;
+        Parts = parts;
+        foreach (MigrationSelectionItem part in Parts)
+            part.AttachToApp(this);
+
+        // The application is the v1 selection unit. Normalize initial per-part smart defaults immediately so a
+        // checked row cannot hide a partial recipe that capture would nevertheless carry in full.
+        SetAppSelected(Parts.Any(part => part.IsSelected));
+    }
+
+    public string RecipeId { get; }
+
+    /// <summary>The parts this app owns, in builder order. Owned, not copied — toggling a part here is the
+    /// same mutable <see cref="MigrationSelectionItem"/> the flat <see cref="MigrationSelectionGroup.Items"/> sees.</summary>
+    public IReadOnlyList<MigrationSelectionItem> Parts { get; }
+
+    /// <summary>The first part's candidate — every part of one recipe shares the same display name/description.</summary>
+    public MigrationSelectionCandidate Representative => Parts[0].Candidate;
+
+    public bool HasMultipleParts => Parts.Count > 1;
+    public int SelectedCount => Parts.Count(part => part.IsSelected);
+    public bool IsForced => Parts.Any(part => part.IsForcedSelected);
+
+    /// <summary>
+    /// Honesty floor (A1/A3): true the moment ANY part is selected. This mirrors what the engine actually does —
+    /// <c>BuildCapturePlanAsync</c> reduces the selection to <c>Distinct(RecipeId)</c>, so a single selected part
+    /// already pulls in the whole recipe. Displaying "selected" only when literally every part is selected would
+    /// under-report an app the capture plan is about to carry in full.
+    /// </summary>
+    public bool IsEffectivelySelected => IsForced || Parts.Any(part => part.IsSelected);
+
+    /// <summary>App-level recommended default (A3): ON if ANY part's smart default recommends selection.</summary>
+    public bool SmartDefaultOn
+        => Parts.Any(part => part.SmartDefault.Kind is SmartDefaultKind.On or SmartDefaultKind.ForcedOnCritical);
+
+    /// <summary>
+    /// A3: the app checkbox is the only v1 selection control. A forced app remains uniformly selected even when a
+    /// group clear or legacy per-item call tries to clear it, so partial internal app state is unrepresentable.
+    /// </summary>
+    public void SetAppSelected(bool selected)
+    {
+        bool normalized = IsForced || selected;
+        foreach (MigrationSelectionItem part in Parts)
+            part.SetSelectedDirect(normalized);
+    }
+}
+
+/// <summary>Canonical app identity shared by grouping, lookup and capture. Recipe IDs are case-insensitive at
+/// the UI boundary, but represented once as an ordinal lower-case key so duplicate rows cannot collapse later.</summary>
+public static class MigrationAppIdentity
+{
+    public static string Canonicalize(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        return id.Trim().ToLowerInvariant();
     }
 }
 

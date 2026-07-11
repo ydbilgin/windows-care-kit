@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "videolan.vlc",
   "displayName": "VLC media player",
   "category": "media",
   "detect": { "knownFolder": "AppData", "path": "vlc", "exists": true },
   "items": [
-    { "path": "vlc/vlcrc", "requiresClosedProcesses": ["vlc.exe"] },
-    { "path": "vlc/ml.xspf", "requiresClosedProcesses": ["vlc.exe"] }
+    { "path": "vlc/vlcrc", "requiresClosedProcesses": ["vlc.exe"], "label": { "en": "Preferences", "tr": "Tercihler" } },
+    { "path": "vlc/ml.xspf", "requiresClosedProcesses": ["vlc.exe"], "label": { "en": "Media library", "tr": "Medya kütüphanesi" } }
   ],
   "exclude": ["vlc/crashdump", "vlc/art"],
   "secretRule": "global",
@@ -24,7 +24,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies VLC preferences and media-library metadata. Library entries can contain old absolute media paths and may need repair.",
-      "tr": "VLC tercihleri ve medya kutuphanesi metadatasi kopyalanir. Kutuphane kayitlari eski mutlak medya yollarini icerebilir ve duzeltme isteyebilir."
+      "tr": "VLC tercihleri ve medya kütüphanesi metadatası kopyalanır. Kütüphane kayıtları eski mutlak medya yollarını içerebilir ve düzeltme isteyebilir."
     },
     "manualTodo": ["Review media-library locations if drive letters or folder names changed."],
     "installerSource": "winget",

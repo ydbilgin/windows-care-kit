@@ -14,7 +14,9 @@ public class BuiltinRecipeSourceTests
         Assert.Equal(40, recipes.Count);
         Assert.All(recipes, r =>
         {
-            Assert.Equal(3, r.SchemaVersion);
+            // Multi-item recipes carry v4 per-item labels (PR-1 §A4); single-item recipes have nothing to
+            // label and stay at v3 — both are accepted by the strict loader.
+            Assert.True(r.SchemaVersion is 3 or 4, $"{r.Id} has schemaVersion {r.SchemaVersion}");
             Assert.NotEmpty(r.Id);
             Assert.NotEmpty(r.Items);
             Assert.NotNull(r.MigrationMeta?.UiWarning);
@@ -74,6 +76,18 @@ public class BuiltinRecipeSourceTests
         MigrationRecipe discord = BuiltinRecipeSource.LoadAll().Single(r => r.Id == "discord");
         Assert.Contains(discord.Exclude, e => e.Contains("Cache", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(discord.Exclude, e => e.Contains("blob_storage"));
+    }
+
+    [Fact]
+    public void PR1_recipe_labels_keep_the_approved_turkish_orthography()
+    {
+        IReadOnlyList<MigrationRecipe> recipes = BuiltinRecipeSource.LoadAll();
+
+        Assert.Contains("Prompt hafızası (CLAUDE.md)", recipes.Single(r => r.Id == "anthropic.claude-code").Items.Select(i => i.Label?.Tr));
+        Assert.Contains("Yapılandırma", recipes.Single(r => r.Id == "libreoffice.libreoffice").Items.Select(i => i.Label?.Tr));
+        Assert.Contains("FancyZones düzenleri", recipes.Single(r => r.Id == "microsoft.powertoys").Items.Select(i => i.Label?.Tr));
+        Assert.Contains("Çalışma alanı ayarları", recipes.Single(r => r.Id == "slacktechnologies.slack").Items.Select(i => i.Label?.Tr));
+        Assert.Contains("Medya kütüphanesi", recipes.Single(r => r.Id == "videolan.vlc").Items.Select(i => i.Label?.Tr));
     }
 
     [Fact]

@@ -1,7 +1,9 @@
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -23,7 +25,9 @@ using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
+using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Execution;
+using WindowsCareKit.Core.Modules.Migration.Selection;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
@@ -239,6 +243,167 @@ public sealed class ViewRenderSmokeTests
             }
         });
     }
+
+    /// <summary>PR-1 grouping (Fable design §A, 2026-07-08): one row per APP, not per file. Seeds a real scan
+    /// (via <c>LoadScan</c>, no IO) with a multi-part app (v4-labeled parts, mixed badges so the worst-of pill
+    /// AND the "N/M taşınabilir" breakdown both render) plus a single-part app (no expander). Renders once
+    /// collapsed, then flips <c>MigrationAppRow.IsExpanded</c> on the multi-part app and renders again so the
+    /// reserved-checkbox-slot part list (A4) is actually measured/arranged — the empty-state test above never
+    /// instantiates the Apps/Parts DataTemplates at all.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void MigrationView_renders_grouped_app_rows_in_theme(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                MigrationRecipe multiRecipe = MultiPartRecipe();
+                var vm = new MigrationViewModel(
+                    i18n,
+                    new RenderFakeMigrationScanService(),
+                    new RenderFakeMigrationBackupRunner(),
+                    () => [multiRecipe]);
+
+                vm.LoadScan(
+                    new DetectionResult(Array.Empty<DiscoveredProgram>(), Array.Empty<ProgramSourceReport>()),
+                    @"C:\Users\render-smoke",
+                    [MultiPartCandidate(0, BadgeCase.Portable), MultiPartCandidate(1, BadgeCase.MachineLocked), SinglePartCandidate()]);
+
+                var view = new MigrationView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                MigrationAppRow multiApp = vm.Groups
+                    .SelectMany(g => g.Apps)
+                    .Single(a => a.HasMultipleParts);
+                Assert.Equal(2, multiApp.Parts.Count);
+                Assert.Equal("Config", multiApp.Parts[0].PartLabel);
+                Assert.Contains("portable", multiApp.BreakdownText); // en culture — badge labels are baked in MigrationBadgePresenter, not i18n
+                Assert.Equal("⌄", multiApp.ExpansionGlyph);
+                ToggleButton header = Assert.Single(
+                    Descendants<ToggleButton>(host),
+                    button => button.GetType() == typeof(ToggleButton)
+                              && ReferenceEquals(button.DataContext, multiApp));
+                Assert.True(header.IsEnabled);
+                Assert.True(header.Focusable);
+                Assert.Equal(multiApp.Title, AutomationProperties.GetName(header));
+
+                multiApp.IsExpanded = true;
+                host.UpdateLayout();
+                Assert.Equal("⌃", multiApp.ExpansionGlyph);
+
+                MigrationAppRow singleApp = vm.Groups.SelectMany(g => g.Apps).Single(a => !a.HasMultipleParts);
+                Assert.False(singleApp.HasMultipleParts);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("en", "secrets excluded")]
+    [InlineData("tr", "sırlar hariç tutuldu")]
+    public void MigrationView_renders_the_localized_secret_exclusion_text_in_the_visual_tree(string culture, string expectedText)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources("Strongbox", out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full(culture);
+                MigrationRecipe multiRecipe = MultiPartRecipe();
+                var vm = new MigrationViewModel(
+                    i18n,
+                    new RenderFakeMigrationScanService(),
+                    new RenderFakeMigrationBackupRunner(),
+                    () => [multiRecipe]);
+                MigrationSelectionCandidate secretPart = MultiPartCandidate(1, BadgeCase.MachineLocked) with
+                {
+                    Meta = MultiPartCandidate(1, BadgeCase.MachineLocked).Meta with { HasExcludedSecret = true },
+                };
+                vm.LoadScan(
+                    new DetectionResult(Array.Empty<DiscoveredProgram>(), Array.Empty<ProgramSourceReport>()),
+                    @"C:\Users\render-smoke",
+                    [MultiPartCandidate(0, BadgeCase.Portable), secretPart]);
+
+                var view = new MigrationView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                Assert.Contains(Descendants<TextBlock>(host), block => block.Text == expectedText);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    private enum BadgeCase { Portable, MachineLocked }
+
+    private static MigrationRecipe MultiPartRecipe() => new(
+        4,
+        "render.multi",
+        "Render Multi App",
+        "dev-tools",
+        new RecipeDetect(KnownFolder.UserProfile, ".render-multi", true),
+        [
+            new RecipeItem("config.json", Array.Empty<string>(), Array.Empty<string>()) { Label = new LocalizedText("Config", "Ayar") },
+            new RecipeItem("data", Array.Empty<string>(), Array.Empty<string>()) { Label = new LocalizedText("Data", "Veri") },
+        ],
+        Array.Empty<string>(),
+        "global",
+        PortabilityClass.ProfileRelative,
+        new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, Array.Empty<string>()));
+
+    private static MigrationSelectionCandidate MultiPartCandidate(int index, BadgeCase badgeCase) => new()
+    {
+        Id = $"render.multi#{index}",
+        DisplayName = "Render Multi App",
+        RecipeCategory = "dev-tools",
+        Meta = new MigrationItemMeta(
+            "render.multi", $"render.multi#{index}",
+            badgeCase == BadgeCase.MachineLocked ? PortabilityClass.MachineLocked : PortabilityClass.ProfileRelative,
+            RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, Array.Empty<string>())
+        {
+            ItemOrdinal = index,
+            PartLabel = index == 0 ? new LocalizedText("Config", "Ayar") : new LocalizedText("Data", "Veri"),
+        },
+        RestoreTier = RestoreTier.ConfigCopy,
+        SourceKind = MigrationSourceKind.File,
+        SourcePath = $@"C:\Users\render-smoke\.render-multi\part{index}",
+        SizeBytes = 2048,
+        IsRecognized = true,
+        HasInstallRecord = true,
+    };
+
+    private static MigrationSelectionCandidate SinglePartCandidate() => new()
+    {
+        Id = "render.single#present",
+        DisplayName = "Render Single App",
+        RecipeCategory = "dev-tools",
+        Meta = new MigrationItemMeta(
+            "render.single", "render.single#present", PortabilityClass.ProfileRelative,
+            RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, Array.Empty<string>()),
+        RestoreTier = RestoreTier.ConfigCopy,
+        SourceKind = MigrationSourceKind.Directory,
+        SourcePath = @"C:\Users\render-smoke\.render-single",
+        IsRecognized = true,
+        HasInstallRecord = true,
+    };
 
     /// <summary>UI rollout (2026-07): Restore's shared PlanRowTemplate + dispositions/undo cards were reskinned.
     /// Constructs the VM over a real <see cref="MigrationRestoreService"/> (host-safe fakes/temp gate from the

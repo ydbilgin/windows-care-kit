@@ -1,12 +1,12 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "openjs.nodejs.lts",
   "displayName": "Node.js LTS",
   "category": "dev-tools",
   "detect": { "knownFolder": "UserProfile", "path": ".node_repl_history", "exists": false },
   "items": [
-    { "path": ".node_repl_history" },
-    { "path": ".npm-init.js" }
+    { "path": ".node_repl_history", "label": { "en": "REPL history", "tr": "REPL geçmişi" } },
+    { "path": ".npm-init.js", "label": { "en": "npm init script", "tr": "npm init betiği" } }
   ],
   "exclude": [],
   "secretRule": "global",
@@ -24,7 +24,7 @@
   "migrationMeta": {
     "uiWarning": {
       "en": "Copies REPL history and an optional npm init script only. Global packages and credential-bearing npm configuration are not copied.",
-      "tr": "Yalnizca REPL gecmisi ve varsa npm init betigi kopyalanir. Global paketler ve kimlik bilgisi icerebilen npm ayari kopyalanmaz."
+      "tr": "Yalnızca REPL geçmişi ve varsa npm init betiği kopyalanır. Global paketler ve kimlik bilgisi içerebilen npm ayarı kopyalanmaz."
     },
     "manualTodo": ["Reinstall required global packages and recreate npm authentication without copying old credentials."],
     "installerSource": "winget",
