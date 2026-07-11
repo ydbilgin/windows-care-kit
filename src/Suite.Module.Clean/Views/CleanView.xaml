@@ -9,6 +9,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+        <mvvm:NonEmptyToVisibleConverter x:Key="NonEmptyToVis" />
 
         <Style x:Key="CleanCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
@@ -118,9 +119,9 @@
                                    FontFamily="Cascadia Code, Consolas, Courier New"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource CleanMeta}" Margin="0,3,0,0"
-                                   Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                         <TextBlock Text="{Binding Undo}" Style="{StaticResource CleanMeta}"
-                                   Visibility="{Binding Undo.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
                     </StackPanel>
                 </Grid>
             </Border>

@@ -10,6 +10,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+        <mvvm:NonEmptyToVisibleConverter x:Key="NonEmptyToVis" />
 
         <Style x:Key="MigrationCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
@@ -183,9 +184,9 @@
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource MigrationMeta}" Margin="0,3,0,0"
                                    TextWrapping="Wrap"
-                                   Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                         <TextBlock Text="{Binding Undo}" Style="{StaticResource MigrationMeta}"
-                                   Visibility="{Binding Undo.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -263,7 +264,7 @@
                                    Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Text="{Binding ScanError}" Foreground="{DynamicResource Backup.DangerStrong}"
                                    FontSize="12.5" FontWeight="SemiBold" Margin="0,10,0,0"
-                                   Visibility="{Binding ScanError.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding ScanError, Converter={StaticResource NonEmptyToVis}}" />
                         <ItemsControl ItemsSource="{Binding SourceRows}" Margin="0,12,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -377,10 +378,10 @@
                                                                                    FontSize="12" TextWrapping="Wrap" Margin="0,3,10,0" />
                                                                         <StackPanel Orientation="Horizontal" Margin="0,3,10,0">
                                                                             <TextBlock Text="{Binding MetaLine}" Style="{StaticResource MigrationMeta}"
-                                                                                       Visibility="{Binding MetaLine.Length, Converter={StaticResource PositiveToVis}}" />
+                                                                                       Visibility="{Binding MetaLine, Converter={StaticResource NonEmptyToVis}}" />
                                                                             <Border Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.LineStrong}"
                                                                                     BorderThickness="1" CornerRadius="999" Padding="7,2" Margin="8,0,0,0"
-                                                                                    Visibility="{Binding SecretExcludedText.Length, Converter={StaticResource PositiveToVis}}">
+                                                                                    Visibility="{Binding SecretExcludedText, Converter={StaticResource NonEmptyToVis}}">
                                                                                 <TextBlock Text="{Binding SecretExcludedText}" Foreground="{DynamicResource Backup.Faint}" FontSize="11" />
                                                                             </Border>
                                                                         </StackPanel>
@@ -422,7 +423,7 @@
                                                                                         <TextBlock Text="{Binding Candidate.SourcePath}" Style="{StaticResource MigrationMeta}"
                                                                                                    FontFamily="Cascadia Code, Consolas, Courier New" TextWrapping="NoWrap" />
                                                                                         <TextBlock Text="{Binding SizeText}" Style="{StaticResource MigrationMeta}" Margin="8,0,0,0"
-                                                                                                   Visibility="{Binding SizeText.Length, Converter={StaticResource PositiveToVis}}" />
+                                                                                                   Visibility="{Binding SizeText, Converter={StaticResource NonEmptyToVis}}" />
                                                                                     </StackPanel>
                                                                                     <TextBlock Text="{Binding WhatHappens}" Style="{StaticResource MigrationMeta}" Margin="0,2,0,0"
                                                                                                TextWrapping="Wrap"
@@ -515,13 +516,13 @@
                         </Grid>
                         <TextBlock Text="{Binding PackageWarning}" Foreground="{DynamicResource Backup.DangerStrong}"
                                    FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap"
-                                   Visibility="{Binding PackageWarning.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding PackageWarning, Converter={StaticResource NonEmptyToVis}}" />
                         <CheckBox IsChecked="{Binding IsPreviewApproved}" Margin="0,12,0,0"
                                   Style="{StaticResource MigrationApproveCheckBox}"
                                   Content="{Binding I18n[migration.capture.approve]}"
                                   Visibility="{Binding HasCapturePlan, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Text="{Binding CaptureSummary}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5" Margin="0,10,0,0"
-                                   Visibility="{Binding CaptureSummary.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding CaptureSummary, Converter={StaticResource NonEmptyToVis}}" />
 
                         <Grid Margin="0,18,0,7" Visibility="{Binding CapturePlanRows.Count, Converter={StaticResource PositiveToVis}}">
                             <Grid.ColumnDefinitions>

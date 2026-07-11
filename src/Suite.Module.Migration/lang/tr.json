@@ -71,7 +71,8 @@
   "migration.capture.plan": "Yakalama planı",
   "migration.capture.skipped": "Plan oluşturulurken atlananlar",
   "migration.capture.results": "Yakalama sonuçları",
-  "migration.capture.resultSummary": "{0} kopyalandı veya planlandı · {1} atlandı",
+  "migration.capture.previewSummary": "{0} kopyalanacak · {1} atlandı",
+  "migration.capture.resultSummary": "{0} kopyalandı · {1} başarısız veya atlandı",
   "migration.capture.outsideAppWarning": "Hedef, uygulama klasörünün dışında geçerli bir yerel sürücü klasörü olmalı.",
   "migration.capture.refused": "Plan reddedildi — hiçbir şey kopyalanmadı."
 }

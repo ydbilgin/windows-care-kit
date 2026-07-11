@@ -1,9 +1,12 @@
 using System.Runtime.ExceptionServices;
+using System.Diagnostics;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -41,6 +44,11 @@ namespace WindowsCareKit.Tests;
 
 public sealed class ViewRenderSmokeTests
 {
+    private static readonly object BindingTraceLock = new();
+    private static int BindingTraceScopes;
+    private static SourceLevels BindingTracePreviousLevel;
+    private static readonly Lazy<Dispatcher> RenderDispatcher = new(CreateRenderDispatcher);
+
     private static readonly Regex UnsafeI18nIndexerMode =
         new(@"\bMode\s*=\s*(TwoWay|OneWayToSource)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
@@ -88,8 +96,7 @@ public sealed class ViewRenderSmokeTests
             finally
             {
                 application.Resources.MergedDictionaries.Remove(theme);
-                if (createdApplication)
-                    application.Shutdown();
+                _ = createdApplication;
             }
         });
     }
@@ -796,6 +803,7 @@ public sealed class ViewRenderSmokeTests
         application.Resources["BoolToVis"] = new BooleanToVisibilityConverter();
         application.Resources["ZeroToVis"] = new ZeroToVisibleConverter();
         application.Resources["PositiveToVis"] = new PositiveToVisibleConverter();
+        application.Resources["NonEmptyToVis"] = new NonEmptyToVisibleConverter();
         application.Resources["InverseBoolToVis"] = new InverseBoolToVisibilityConverter();
         return createdApplication;
     }
@@ -849,8 +857,7 @@ public sealed class ViewRenderSmokeTests
     private static void CleanupApplicationResources(bool shutdownApplication, ResourceDictionary theme)
     {
         Application.Current?.Resources.MergedDictionaries.Remove(theme);
-        if (shutdownApplication)
-            Application.Current?.Shutdown();
+        _ = shutdownApplication;
     }
 
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
@@ -910,24 +917,151 @@ public sealed class ViewRenderSmokeTests
     private static void RunOnStaThread(Action action)
     {
         Exception? failure = null;
-        var thread = new Thread(() =>
+        RenderDispatcher.Value.Invoke(() =>
         {
+            SynchronizationContext? previousContext = SynchronizationContext.Current;
             try
             {
-                action();
+                SynchronizationContext.SetSynchronizationContext(null);
+                AssertNoBindingWarnings(action);
             }
             catch (Exception ex)
             {
                 failure = ex;
             }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
         });
-
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
 
         if (failure is not null)
             ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static Dispatcher CreateRenderDispatcher()
+    {
+        Dispatcher? dispatcher = null;
+        Exception? failure = null;
+        using var ready = new ManualResetEventSlim();
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                dispatcher = Dispatcher.CurrentDispatcher;
+                ready.Set();
+                Dispatcher.Run();
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+                ready.Set();
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "ViewRenderSmokeTests.STA",
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+
+        Assert.True(ready.Wait(TimeSpan.FromSeconds(10)), "render STA dispatcher did not start in time");
+        if (failure is not null)
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        return dispatcher ?? throw new InvalidOperationException("render STA dispatcher was not created");
+    }
+
+    internal static void AssertNoBindingWarnings(Action render)
+    {
+        TraceSource source = PresentationTraceSources.DataBindingSource;
+        var listener = new BindingTraceListener(Environment.CurrentManagedThreadId);
+        lock (BindingTraceLock)
+        {
+            if (BindingTraceScopes++ == 0)
+                BindingTracePreviousLevel = source.Switch.Level;
+            source.Listeners.Add(listener);
+            source.Switch.Level = SourceLevels.Warning | SourceLevels.Error;
+        }
+
+        try
+        {
+            render();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
+        }
+        finally
+        {
+            lock (BindingTraceLock)
+            {
+                source.Listeners.Remove(listener);
+                if (--BindingTraceScopes == 0)
+                    source.Switch.Level = BindingTracePreviousLevel;
+            }
+        }
+
+        Assert.True(listener.Messages.Length == 0,
+            "WPF binding warning/error during render:" + Environment.NewLine + listener.Messages);
+    }
+
+    internal static void AssertNoBindingErrors(DependencyObject root)
+    {
+        var failures = new List<string>();
+        var pending = new Stack<DependencyObject>();
+        var visited = new HashSet<DependencyObject>();
+        pending.Push(root);
+
+        while (pending.Count > 0)
+        {
+            DependencyObject current = pending.Pop();
+            if (!visited.Add(current))
+                continue;
+
+            LocalValueEnumerator values = current.GetLocalValueEnumerator();
+            while (values.MoveNext())
+            {
+                LocalValueEntry entry = values.Current;
+                BindingExpressionBase? expression = BindingOperations.GetBindingExpressionBase(current, entry.Property);
+                if (expression?.Status != BindingStatus.PathError)
+                    continue;
+
+                string path = expression.ParentBindingBase is Binding binding
+                    ? binding.Path?.Path ?? "(no path)"
+                    : expression.ParentBindingBase.ToString() ?? "(unknown binding)";
+                failures.Add($"{current.GetType().Name}.{entry.Property.Name}: PathError for '{path}'");
+            }
+
+            if (current is Visual || current is System.Windows.Media.Media3D.Visual3D)
+            {
+                int visualCount = VisualTreeHelper.GetChildrenCount(current);
+                for (int i = 0; i < visualCount; i++)
+                    pending.Push(VisualTreeHelper.GetChild(current, i));
+            }
+
+            foreach (object child in LogicalTreeHelper.GetChildren(current))
+                if (child is DependencyObject dependencyObject)
+                    pending.Push(dependencyObject);
+        }
+
+        Assert.True(failures.Count == 0,
+            "WPF binding PathError during render:" + Environment.NewLine + string.Join(Environment.NewLine, failures));
+    }
+
+    private sealed class BindingTraceListener(int ownerThreadId) : TraceListener
+    {
+        private readonly StringBuilder _messages = new();
+
+        public string Messages => _messages.ToString();
+
+        public override void Write(string? message)
+        {
+            if (Environment.CurrentManagedThreadId == ownerThreadId)
+                _messages.Append(message);
+        }
+
+        public override void WriteLine(string? message)
+        {
+            if (Environment.CurrentManagedThreadId == ownerThreadId)
+                _messages.AppendLine(message);
+        }
     }
 
     private static string ViewsPath => Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "Views");

@@ -50,6 +50,51 @@ public sealed class BackupViewModelTests
         => new(id, true, BackupMethod.Copy, "cat", source, target,
             Array.Empty<string>(), SecretHandling.Normal, 50, "merge-after-install", $"desc {id}", null);
 
+    [Theory]
+    [InlineData("en", "2 to copy · 1 manual · 1 skipped", "1 copied · 1 manual · 1 skipped")]
+    [InlineData("tr", "2 kopyalanacak · 1 elle · 1 atlandı", "1 kopyalandı · 1 elle · 1 atlandı")]
+    public async Task Preview_and_mixed_run_summaries_distinguish_plan_from_actual_outcomes(
+        string culture, string expectedPreview, string expectedResult)
+    {
+        using var ws = new TempWorkspace("wck-backup-summary-");
+        SafetyGate gate = RealGate();
+        string sourceRoot = Path.Combine(Path.GetTempPath(), "wck-backup-summary-src");
+        string copiedDestination = Path.Combine(ws.Root, "cat", "copied.cfg");
+        var fakeFileSystem = new FakeFileSystem().AddFile(copiedDestination, "synthetic settings");
+        var runner = new BackupRunner(
+            new MixedOutcomeBackupExecutor(),
+            new BackupIntegrityWriter(),
+            new BackupReportWriter(new LogRedactor(null, null)),
+            gate,
+            fakeFileSystem,
+            new FakeHasher(),
+            new FakeClock(T0));
+        var vm = new BackupViewModel(
+            TestI18n.Full(culture),
+            new FakeManifestLoader(
+                CopyEntry("copied", Path.Combine(sourceRoot, "copied.cfg"), "cat/copied.cfg"),
+                CopyEntry("failed", Path.Combine(sourceRoot, "failed.cfg"), "cat/failed.cfg"),
+                new BackupEntry("manual", true, BackupMethod.Copy, "cat", "secret.db", "cat/secret.db",
+                    Array.Empty<string>(), SecretHandling.NeverRead, 50, "manual", "manual", null),
+                new BackupEntry("disabled", false, BackupMethod.Copy, "cat", "cache", "cat/cache",
+                    Array.Empty<string>(), SecretHandling.Normal, 50, "skip", "disabled", null)),
+            new BackupPlanner(gate, new Win32EnvironmentExpander()),
+            runner)
+        {
+            PayloadDir = ws.Root,
+        };
+
+        await vm.BuildPlanAsync();
+        Assert.Equal(expectedPreview, vm.Summary);
+
+        vm.IsPreviewApproved = true;
+        await vm.RunAsync();
+
+        Assert.Equal(expectedResult, vm.Summary);
+        Assert.Equal(1, vm.ResultRows.Count(row => row.RiskText == "COPIED"));
+        Assert.Equal(1, vm.ResultRows.Count(row => row.RiskText == "SKIPPED"));
+    }
+
     /// <summary>The VM over the real planner + the real runner bridged onto the recording GatedExecutor.</summary>
     private static BackupViewModel BuildVm(ExecutorFixture fx, TempWorkspace ws, params BackupEntry[] entries)
     {
@@ -155,6 +200,20 @@ public sealed class BackupViewModelTests
                 return line.Substring(start, end - start);
         }
         return string.Empty;
+    }
+
+    private sealed class MixedOutcomeBackupExecutor : IBackupExecutor
+    {
+        public BackupExecutionReport Execute(OperationPlan plan, string approvedPlanHash)
+        {
+            CopyAction[] actions = plan.Actions.OfType<CopyAction>().ToArray();
+            Assert.Equal(2, actions.Length);
+            return new BackupExecutionReport(true,
+            [
+                new BackupActionResult(actions[0].Id, BackupActionStatus.Done, "done"),
+                new BackupActionResult(actions[1].Id, BackupActionStatus.Failed, "IOException: synthetic failure"),
+            ]);
+        }
     }
 
     // ---- changing the payload resets the approval (no stale approve survives a re-target) ----

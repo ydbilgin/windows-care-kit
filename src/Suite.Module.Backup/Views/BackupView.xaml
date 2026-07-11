@@ -5,6 +5,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+        <mvvm:NonEmptyToVisibleConverter x:Key="NonEmptyToVis" />
         <mvvm:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
 
         <Style x:Key="BackupRowBorder" TargetType="Border">
@@ -193,7 +194,7 @@
                     </Grid>
                     <TextBlock Grid.Row="1" Text="{Binding Detail}" Style="{StaticResource BackupMetaText}"
                                Margin="0,4,0,0"
-                               Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -221,7 +222,7 @@
                     </Grid>
                     <TextBlock Grid.Row="1" Text="{Binding Detail}" Style="{StaticResource BackupMetaText}"
                                Margin="0,4,0,0"
-                               Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -258,7 +259,7 @@
                     </Grid>
                     <TextBlock Grid.Row="1" Text="{Binding Detail}" Style="{StaticResource BackupMetaText}"
                                Margin="0,4,0,0"
-                               Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -287,7 +288,7 @@
                     </Grid>
                     <TextBlock Grid.Row="1" Text="{Binding Detail}" Style="{StaticResource BackupMetaText}"
                                Margin="0,4,0,0"
-                               Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -349,7 +350,7 @@
                        Text="{Binding I18n[backup.chooseDir]}" />
             <TextBlock Text="{Binding PayloadWarning}" Foreground="{DynamicResource Backup.DangerStrong}"
                        FontSize="12" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap"
-                       Visibility="{Binding PayloadWarning.Length, Converter={StaticResource PositiveToVis}}" />
+                       Visibility="{Binding PayloadWarning, Converter={StaticResource NonEmptyToVis}}" />
 
             <Border Background="{DynamicResource Backup.EmWash}"
                     BorderBrush="{DynamicResource Backup.EmBorder}"
@@ -549,7 +550,7 @@
                     </TextBlock>
                     <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource Backup.Muted}"
                                FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0"
-                               Visibility="{Binding Summary.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding Summary, Converter={StaticResource NonEmptyToVis}}" />
                 </StackPanel>
             </Border>
         </Grid>

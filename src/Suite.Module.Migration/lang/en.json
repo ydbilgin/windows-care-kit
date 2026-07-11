@@ -71,7 +71,8 @@
   "migration.capture.plan": "Capture plan",
   "migration.capture.skipped": "Skipped while building the plan",
   "migration.capture.results": "Capture results",
-  "migration.capture.resultSummary": "{0} copied or planned · {1} skipped",
+  "migration.capture.previewSummary": "{0} to copy · {1} skipped",
+  "migration.capture.resultSummary": "{0} copied · {1} failed or skipped",
   "migration.capture.outsideAppWarning": "The destination must be a valid local-drive folder outside the app folder.",
   "migration.capture.refused": "Plan refused — nothing was copied."
 }

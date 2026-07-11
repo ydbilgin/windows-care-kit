@@ -317,7 +317,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
                 CaptureSkippedRows.Add(SkipRow(skip));
 
             CaptureSummary = I18n.Format(
-                "migration.capture.resultSummary",
+                "migration.capture.previewSummary",
                 built.Result.Plan.Actions.Count,
                 built.Result.SkippedItems.Count);
             OnPropertyChanged(nameof(HasCapturePlan));
@@ -354,7 +354,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
                 ? I18n.Format(
                     "migration.capture.resultSummary",
                     result.CopyReport.Copied.Count,
-                    result.CopyReport.Skipped.Count + result.SkippedItems.Count + result.FinalizationSkips.Count)
+                    result.CopyReport.Skipped.Count + result.FinalizationSkips.Count)
                 : RefusedSummary(result.CopyReport);
             OnPropertyChanged(nameof(HasCaptureResults));
         }

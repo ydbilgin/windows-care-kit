@@ -11,6 +11,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+        <mvvm:NonEmptyToVisibleConverter x:Key="NonEmptyToVis" />
 
         <Style x:Key="RestoreCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
@@ -152,9 +153,9 @@
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource RestoreMetaText}" Margin="0,3,0,0"
                                    TextWrapping="Wrap"
-                                   Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                         <TextBlock Text="{Binding Undo}" Style="{StaticResource RestoreMetaText}"
-                                   Visibility="{Binding Undo.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -220,10 +221,10 @@
 
                     <TextBlock Text="{Binding PackageWarning}" Foreground="{DynamicResource Backup.DangerStrong}"
                                FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Visibility="{Binding PackageWarning.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding PackageWarning, Converter={StaticResource NonEmptyToVis}}" />
                     <TextBlock Text="{Binding RestoreSummary}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5"
                                Margin="0,8,0,0"
-                               Visibility="{Binding RestoreSummary.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding RestoreSummary, Converter={StaticResource NonEmptyToVis}}" />
                 </StackPanel>
             </Border>
         </StackPanel>

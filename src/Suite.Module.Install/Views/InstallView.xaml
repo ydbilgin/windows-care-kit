@@ -10,6 +10,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
+        <mvvm:NonEmptyToVisibleConverter x:Key="NonEmptyToVis" />
 
         <Style x:Key="InstallSectionLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Backup.Faint}" />
@@ -100,9 +101,9 @@
                                    FontFamily="Cascadia Code, Consolas, Courier New"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource InstallMetaText}" Margin="0,3,0,0"
-                                   Visibility="{Binding Detail.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
                         <TextBlock Text="{Binding Undo}" Style="{StaticResource InstallMetaText}"
-                                   Visibility="{Binding Undo.Length, Converter={StaticResource PositiveToVis}}" />
+                                   Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -321,7 +322,7 @@
 
                     <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource Backup.Faint}"
                                FontSize="11.5" TextWrapping="Wrap" Margin="0,11,0,0"
-                               Visibility="{Binding Summary.Length, Converter={StaticResource PositiveToVis}}" />
+                               Visibility="{Binding Summary, Converter={StaticResource NonEmptyToVis}}" />
                 </StackPanel>
             </Border>
         </Grid>

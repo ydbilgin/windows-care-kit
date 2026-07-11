@@ -438,6 +438,35 @@ public sealed class MigrationViewModelTests
         Assert.True(vm.HasCaptureResults);
     }
 
+    [Theory]
+    [InlineData("en", "2 to copy · 1 skipped", "1 copied · 2 failed or skipped")]
+    [InlineData("tr", "2 kopyalanacak · 1 atlandı", "1 kopyalandı · 2 başarısız veya atlandı")]
+    public async Task Capture_preview_and_mixed_result_use_planned_then_actual_counts(
+        string culture, string expectedPreview, string expectedResult)
+    {
+        var runner = new RecordingMigrationBackupRunner
+        {
+            PlanSkips = [new RecipeItemSkip("plan-skip", "synthetic plan skip")],
+            FailedActionCount = 1,
+            FinalizationSkips = [new RecipeItemSkip("finalize-skip", "synthetic finalization skip")],
+        };
+        MigrationRecipe recipe = Recipe("recipe-a", "first.cfg", "second.cfg");
+        MigrationViewModel vm = CreateVm(runner: runner, recipes: [recipe], i18n: TestI18n.Full(culture));
+        vm.LoadScan(Detection(1, 0), @"C:\Users\demo", [Candidate("settings", "projects", "recipe-a")]);
+        vm.ConfirmProfileCommand.Execute(null);
+        vm.PackageDir = OutsideAppPackage();
+
+        await vm.BuildCapturePlanAsync();
+        Assert.Equal(expectedPreview, vm.CaptureSummary);
+
+        vm.IsPreviewApproved = true;
+        await vm.RunCaptureAsync();
+
+        Assert.Equal(expectedResult, vm.CaptureSummary);
+        Assert.Equal(1, vm.CaptureResultRows.Count(row => row.RiskText == "COPIED"));
+        Assert.Equal(2, vm.CaptureResultRows.Count(row => row.RiskText == "SKIPPED"));
+    }
+
     [Fact]
     public async Task Runner_hash_refusal_is_surfaced_and_reports_no_copied_success()
     {
@@ -715,6 +744,8 @@ public sealed class MigrationViewModelTests
         public MigrationBackupPlanResult? LastPlan { get; private set; }
         public string? LastApprovedHash { get; private set; }
         public IReadOnlyList<RecipeItemSkip> PlanSkips { get; init; } = Array.Empty<RecipeItemSkip>();
+        public IReadOnlyList<RecipeItemSkip> FinalizationSkips { get; init; } = Array.Empty<RecipeItemSkip>();
+        public int FailedActionCount { get; init; }
         public bool RefuseAsHashMismatch { get; init; }
 
         public MigrationBackupPlanResult BuildPlan(
@@ -753,13 +784,13 @@ public sealed class MigrationViewModelTests
             bool authorized = !RefuseAsHashMismatch
                               && string.Equals(plan.Plan.ComputeHash(), approvedPlanHash, StringComparison.Ordinal);
             CopyFileOutcome[] outcomes = plan.Plan.Actions.OfType<CopyAction>()
-                .Select(action => new CopyFileOutcome(
+                .Select((action, index) => new CopyFileOutcome(
                     action.Id,
                     action.Source,
                     action.Destination,
-                    authorized,
-                    authorized ? null : CopySkipReason.Blocked,
-                    authorized ? "done" : "approved plan hash mismatch"))
+                    authorized && index >= FailedActionCount,
+                    authorized && index >= FailedActionCount ? null : CopySkipReason.Blocked,
+                    authorized && index >= FailedActionCount ? "done" : "synthetic failure"))
                 .ToArray();
             return new MigrationBackupRunResult(
                 authorized,
@@ -768,7 +799,7 @@ public sealed class MigrationViewModelTests
                     MigrationRestoreManifest.CurrentSchemaVersion,
                     Array.Empty<MigrationRestoreTarget>()),
                 plan.SkippedItems,
-                Array.Empty<RecipeItemSkip>());
+                FinalizationSkips);
         }
     }
 }

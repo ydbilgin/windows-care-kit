@@ -18,8 +18,9 @@ public sealed class LangFragmentCompositionTests
 {
     // PR-1 (Fable design §A4/§A6, 2026-07-08) added four migration app-row keys; S7 adds NotRestored;
     // G6 (2026-07-11, committed) adds 21 live-localized plan.* keys (verb/risk/undo/blocked/whole-tree);
-    // G-m3 (2026-07-11) adds 2 uninstall.inventory.* degraded-notice keys.
-    private const int ExpectedMergedKeyCount = 396;
+    // G-m3 (2026-07-11) adds 2 uninstall.inventory.* degraded-notice keys;
+    // G-m2 adds one net preview/result split key to Backup and one preview key to Migration.
+    private const int ExpectedMergedKeyCount = 398;
 
     private static readonly Regex XamlKeyRegex = new(@"I18n\[([a-z][A-Za-z0-9_.]+)\]", RegexOptions.Compiled);
     private static readonly Regex CsKeyRegex =
@@ -36,7 +37,7 @@ public sealed class LangFragmentCompositionTests
     ];
 
     [Fact]
-    public void Merged_runtime_map_has_exactly_396_keys_no_meta_no_placeholder_and_en_tr_parity()
+    public void Merged_runtime_map_has_exactly_398_keys_no_meta_no_placeholder_and_en_tr_parity()
     {
         I18n en = TestI18n.Full("en");
         I18n tr = TestI18n.Full("tr");

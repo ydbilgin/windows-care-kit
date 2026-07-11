@@ -469,25 +469,31 @@ public sealed class UiReliabilitySecurityReproTests
         Assert.Equal(string.Empty, emptyVm.InventoryNotice);
     }
 
-    /// <summary>G-m4: a missing WPF binding path reaches PathError while measure/arrange completes normally.</summary>
+    /// <summary>G-m4: the render harness rejects PathError diagnostics and nullable strings avoid Length paths.</summary>
     [Fact]
-    public void G_m4_render_only_smoke_test_does_not_throw_for_a_broken_binding()
+    public void G_m4_render_smoke_harness_rejects_broken_bindings_and_nullable_strings_are_path_safe()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
         {
             try
             {
-                var text = new TextBlock { DataContext = new BrokenBindingSource() };
-                text.SetBinding(TextBlock.TextProperty, new Binding("DefinitelyMissing.Value"));
-                text.Measure(new Size(200, 40));
-                text.Arrange(new Rect(0, 0, 200, 40));
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
-
-                BindingExpression expression = Assert.IsType<BindingExpression>(
-                    BindingOperations.GetBindingExpression(text, TextBlock.TextProperty));
-                Assert.Equal(BindingStatus.PathError, expression.Status);
-                Assert.Equal(string.Empty, text.Text);
+                Exception diagnostic = Assert.ThrowsAny<Exception>(() =>
+                    ViewRenderSmokeTests.AssertNoBindingWarnings(() =>
+                    {
+                        var text = new TextBlock { DataContext = new BrokenBindingSource() };
+                        var binding = new Binding("DefinitelyMissing.Value");
+                        PresentationTraceSources.SetTraceLevel(binding, PresentationTraceLevel.High);
+                        text.SetBinding(TextBlock.TextProperty, binding);
+                        text.Measure(new Size(200, 40));
+                        text.Arrange(new Rect(0, 0, 200, 40));
+                        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
+                        BindingExpression expression = Assert.IsType<BindingExpression>(
+                            BindingOperations.GetBindingExpression(text, TextBlock.TextProperty));
+                        Assert.Equal(BindingStatus.PathError, expression.Status);
+                        ViewRenderSmokeTests.AssertNoBindingErrors(text);
+                    }));
+                Assert.Contains("DefinitelyMissing", diagnostic.Message, StringComparison.Ordinal);
             }
             catch (Exception ex)
             {
@@ -500,8 +506,16 @@ public sealed class UiReliabilitySecurityReproTests
         if (failure is not null)
             ExceptionDispatchInfo.Capture(failure).Throw();
 
-        string smoke = RepoSource.Read("tests/Suite.Tests/ViewRenderSmokeTests.cs");
-        Assert.DoesNotContain("PresentationTraceSources", smoke, StringComparison.Ordinal);
+        var converter = new NonEmptyToVisibleConverter();
+        Assert.Equal(Visibility.Collapsed, converter.Convert(null, typeof(Visibility), null, CultureInfo.InvariantCulture));
+        Assert.Equal(Visibility.Collapsed, converter.Convert(string.Empty, typeof(Visibility), null, CultureInfo.InvariantCulture));
+        Assert.Equal(Visibility.Visible, converter.Convert("detail", typeof(Visibility), null, CultureInfo.InvariantCulture));
+
+        foreach (string view in Directory.EnumerateFiles(RepoSource.PathFor("src"), "*.xaml", SearchOption.AllDirectories))
+        {
+            string xaml = File.ReadAllText(view);
+            Assert.DoesNotContain(".Length, Converter={StaticResource PositiveToVis}", xaml, StringComparison.Ordinal);
+        }
     }
 
     private static UninstallViewModel BuildUninstallVm(IInstalledAppReader installed, IAppxReader appx) => new(
@@ -837,19 +851,24 @@ public sealed class SecurityReproPart2Tests
             ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
-    /// <summary>G-m2: preview and successful result branches call the same future/ambiguous localization keys.</summary>
+    /// <summary>G-m2: preview and result branches use phase-specific, unambiguous localization keys.</summary>
     [Fact]
-    public void G_m2_preview_and_result_summaries_reuse_the_same_ambiguous_copy()
+    public void G_m2_preview_and_result_summaries_use_distinct_truthful_keys()
     {
         string backup = RepoSource.Read("src/Suite.Module.Backup/ViewModels/BackupViewModel.cs");
         string migration = RepoSource.Read("src/Suite.Module.Migration/ViewModels/MigrationViewModel.cs");
         string backupEnglish = RepoSource.Read("src/Suite.Module.Backup/lang/en.json");
         string migrationEnglish = RepoSource.Read("src/Suite.Module.Migration/lang/en.json");
 
-        Assert.Equal(2, CountOccurrences(backup, "I18n.Format(\"backup.report.summaryShort\""));
-        Assert.Equal(2, CountOccurrences(migration, "\"migration.capture.resultSummary\""));
+        Assert.Equal(1, CountOccurrences(backup, "I18n.Format(\"backup.report.summaryShortPreview\""));
+        Assert.Equal(1, CountOccurrences(backup, "I18n.Format(\"backup.report.summaryShortResult\""));
+        Assert.Equal(1, CountOccurrences(migration, "\"migration.capture.previewSummary\""));
+        Assert.Equal(1, CountOccurrences(migration, "\"migration.capture.resultSummary\""));
         Assert.Contains("{0} to copy", backupEnglish, StringComparison.Ordinal);
-        Assert.Contains("{0} copied or planned", migrationEnglish, StringComparison.Ordinal);
+        Assert.Contains("{0} copied", backupEnglish, StringComparison.Ordinal);
+        Assert.Contains("{0} to copy", migrationEnglish, StringComparison.Ordinal);
+        Assert.Contains("{0} copied", migrationEnglish, StringComparison.Ordinal);
+        Assert.DoesNotContain("copied or planned", migrationEnglish, StringComparison.Ordinal);
     }
 
     /// <summary>G-m5: URL and folder launchers dispose the local process handle after a fire-and-forget launch.</summary>

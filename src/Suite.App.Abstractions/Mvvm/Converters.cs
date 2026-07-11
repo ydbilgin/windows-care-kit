@@ -25,6 +25,16 @@ public sealed class PositiveToVisibleConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>Non-empty string → Visible; null or empty string → Collapsed.</summary>
+public sealed class NonEmptyToVisibleConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is string { Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>False → Visible; True → Collapsed.</summary>
 public sealed class InverseBoolToVisibilityConverter : IValueConverter
 {

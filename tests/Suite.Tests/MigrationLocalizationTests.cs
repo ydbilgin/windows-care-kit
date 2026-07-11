@@ -178,6 +178,7 @@ public sealed class MigrationLocalizationTests
             "migration.capture.plan",
             "migration.capture.skipped",
             "migration.capture.results",
+            "migration.capture.previewSummary",
             "migration.capture.resultSummary",
             "migration.capture.outsideAppWarning",
             "migration.capture.refused",

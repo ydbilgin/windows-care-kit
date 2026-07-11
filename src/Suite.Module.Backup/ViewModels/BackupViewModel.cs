@@ -152,7 +152,7 @@ public sealed class BackupViewModel : ObservableObject
                 ? I18n["backup.payloadOutsideRepo"]
                 : string.Empty;
 
-            Summary = I18n.Format("backup.report.summaryShort",
+            Summary = I18n.Format("backup.report.summaryShortPreview",
                 result.Plan.Actions.Count, result.ManualTodos.Count, result.Skipped.Count);
 
             OnPropertyChanged(nameof(HasPlan));
@@ -188,7 +188,7 @@ public sealed class BackupViewModel : ObservableObject
                 ResultRows.Add(ResultRow(o));
 
             Summary = result.Authorized
-                ? I18n.Format("backup.report.summaryShort", copyReport.Copied.Count, planResult.ManualTodos.Count, copyReport.Skipped.Count)
+                ? I18n.Format("backup.report.summaryShortResult", copyReport.Copied.Count, planResult.ManualTodos.Count, copyReport.Skipped.Count)
                 : RefusedSummary(copyReport);
 
             OnPropertyChanged(nameof(HasResults));
