@@ -130,11 +130,18 @@ public sealed class BackupViewModel : ObservableObject
                 return (r, wholeTree);
             });
 
+            // G4: if the user changed the payload path while planning was in flight, this plan was built against a
+            // now-stale path. Discard it rather than resurrecting it (mirrors MigrationViewModel's post-await input
+            // re-check). Nothing is committed: HasPlan stays false and the preview stays empty. The finally still
+            // clears IsBusy.
+            if (!string.Equals(_payloadDir, payload, StringComparison.OrdinalIgnoreCase))
+                return;
+
             _planResult = result;
             _approvedHash = result.Plan.ComputeHash();
 
             foreach (PlannedAction a in result.Plan.Actions)
-                PlanRows.Add(PlanRow.FromAction(a, wholeTreeIds.Contains(a.Id)));
+                PlanRows.Add(PlanRow.FromAction(a, wholeTreeIds.Contains(a.Id), I18n));
             foreach (BackupEntry e in result.ManualTodos)
                 ManualRows.Add(ManualRow(e));
             foreach (BackupSkip s in result.Skipped)

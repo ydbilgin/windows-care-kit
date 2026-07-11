@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using WindowsCareKit.App.Modules;
@@ -59,6 +60,17 @@ public sealed class I18n : ObservableObject
     {
         get => _culture;
         private set => SetField(ref _culture, value);
+    }
+
+    /// <summary>The selected UI culture's <see cref="CompareInfo"/> — for culture-correct comparison/casing
+    /// of user input (e.g. the type-to-confirm word). Derived from the SELECTED language, independent of the
+    /// ambient process <see cref="CultureInfo.CurrentCulture"/> (finding G1).</summary>
+    public CompareInfo CompareInfo => ResolveCulture(_culture).CompareInfo;
+
+    private static CultureInfo ResolveCulture(string code)
+    {
+        try { return CultureInfo.GetCultureInfo(code); }
+        catch (CultureNotFoundException) { return CultureInfo.InvariantCulture; }
     }
 
     /// <summary>

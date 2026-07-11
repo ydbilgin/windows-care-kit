@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
@@ -141,7 +142,7 @@ public sealed class ConfirmGateViewModel : ObservableObject
 
     /// <summary>True once the typed text matches the confirm word (case/space-insensitive).</summary>
     public bool TypedMatches =>
-        string.Equals(TypedConfirm.Trim(), ConfirmWord.Trim(), StringComparison.CurrentCultureIgnoreCase);
+        I18n.CompareInfo.Compare(TypedConfirm.Trim(), ConfirmWord.Trim(), CompareOptions.IgnoreCase) == 0;
 
     /// <summary>
     /// Approve is enabled only when the gate is open, no run is in flight, and — for the Irreversible tier —

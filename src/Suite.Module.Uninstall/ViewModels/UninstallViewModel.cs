@@ -34,6 +34,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
     private readonly List<AppRow> _allRows = new();
     private string _search = string.Empty;
     private int _scopeIndex; // 0=All, 1=Desktop, 2=Store
+    private int _loadGeneration;
     private bool _isLoading;
     private bool _isBusy;
     private AppRow? _selectedRow;
@@ -67,7 +68,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
         // it NEVER clears/refills the source, so a staged plan/selection survives typing (UI decision §2 + test).
         AppsView = new ListCollectionView(_allRows) { Filter = MatchesSearch };
 
-        RefreshCommand = new RelayCommand(async () => await LoadAsync());
+        RefreshCommand = new AsyncRelayCommand(_ => LoadAsync());
 
         // The official uninstaller for a desktop app is driven solely by the wizard (the single official+leftover
         // path); this VM only stages the Store-app removal. Staging asks for confirmation — it does NOT execute yet.
@@ -236,13 +237,11 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 
     public async Task LoadAsync()
     {
+        int generation = ++_loadGeneration; // runs on the caller/UI thread, before the first await — deterministic ordering
         IsLoading = true;
-        SelectedRow = null;
-        _allRows.Clear();
         try
         {
-            // Build a single flat, name-sorted list of desktop + Store rows (UI decision §2: one grid, no
-            // grouping). The reads + the AppRow projection happen off the UI thread.
+            // Build a single flat, name-sorted list of desktop + Store rows (UI decision §2). Reads + projection off-thread.
             var rows = await Task.Run(() =>
             {
                 var apps = _appReader.ReadAll()
@@ -256,6 +255,13 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
                     .ToList();
             });
 
+            // G2: discard a superseded load. A newer LoadAsync incremented _loadGeneration while this one was in
+            // flight; committing these rows would clobber/duplicate the newer load's results. Do NOT clear or append.
+            if (generation != _loadGeneration)
+                return;
+
+            SelectedRow = null;
+            _allRows.Clear();
             AppxCount = rows.Count(r => r.IsStore);
             foreach (var r in rows)
             {
@@ -266,7 +272,9 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
         }
         finally
         {
-            IsLoading = false;
+            // Only the newest load owns the loading flag; a superseded load must not clear it out from under the winner.
+            if (generation == _loadGeneration)
+                IsLoading = false;
         }
     }
 

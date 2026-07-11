@@ -150,9 +150,9 @@ public sealed class CleanViewModel : ObservableObject
             JunkScanResult result = await Task.Run(() => scanner.Scan(DateTime.UtcNow));
             _pendingJunkPlan = result.Plan;
             foreach (PlannedAction a in result.Plan.Actions)
-                JunkPreview.Add(PlanRow.FromAction(a));
+                JunkPreview.Add(PlanRow.FromAction(a, I18n));
             foreach (SkippedAction s in result.Skipped)
-                JunkSkipped.Add(PlanRow.FromSkipped(s.Action, s.Reason));
+                JunkSkipped.Add(PlanRow.FromSkipped(s.Action, s.Reason, I18n));
         }
         finally
         {
@@ -205,7 +205,7 @@ public sealed class CleanViewModel : ObservableObject
         foreach (PlannedAction a in plan.Actions)
         {
             SafetyVerdict v = _gate.Evaluate(a);
-            StartupPreview.Add(v.Allowed ? PlanRow.FromAction(a) : PlanRow.FromSkipped(a, v.Reason));
+            StartupPreview.Add(v.Allowed ? PlanRow.FromAction(a, I18n) : PlanRow.FromSkipped(a, v.Reason, I18n));
         }
     }
 

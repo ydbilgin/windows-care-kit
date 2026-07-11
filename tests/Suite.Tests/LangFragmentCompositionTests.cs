@@ -17,7 +17,8 @@ namespace WindowsCareKit.Tests;
 public sealed class LangFragmentCompositionTests
 {
     // S7 (2026-07-11) adds one restore-disposition key (NotRestored).
-    private const int ExpectedMergedKeyCount = 369;
+    // G6 (2026-07-11) adds 21 live-localized plan.* keys (verb/risk/undo/blocked/whole-tree).
+    private const int ExpectedMergedKeyCount = 390;
 
     private static readonly Regex XamlKeyRegex = new(@"I18n\[([a-z][A-Za-z0-9_.]+)\]", RegexOptions.Compiled);
     private static readonly Regex CsKeyRegex =
@@ -34,7 +35,7 @@ public sealed class LangFragmentCompositionTests
     ];
 
     [Fact]
-    public void Merged_runtime_map_has_exactly_369_keys_no_meta_no_placeholder_and_en_tr_parity()
+    public void Merged_runtime_map_has_exactly_390_keys_no_meta_no_placeholder_and_en_tr_parity()
     {
         I18n en = TestI18n.Full("en");
         I18n tr = TestI18n.Full("tr");

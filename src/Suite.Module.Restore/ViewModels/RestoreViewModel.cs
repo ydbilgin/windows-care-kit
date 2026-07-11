@@ -222,7 +222,7 @@ public sealed class RestoreViewModel : ObservableObject
                 SetNormalizedPaths(packageDir, stateDir);
 
                 foreach (PlannedAction action in built.Preview.PlanResult.Plan.Actions)
-                    PlanRows.Add(PlanRow.FromAction(action));
+                    PlanRows.Add(PlanRow.FromAction(action, I18n));
                 foreach (RestoreSkip skip in built.Preview.PlanResult.Skipped)
                     SkippedRows.Add(SkipRow(skip));
                 PopulateDispositionRows(built.Preview.RestoreReport);
@@ -374,7 +374,7 @@ public sealed class RestoreViewModel : ObservableObject
             _undoPreviewHash = preview.PlanHash;
 
             foreach (PlannedAction action in preview.BuildResult.Plan.Actions)
-                UndoRows.Add(PlanRow.FromAction(action));
+                UndoRows.Add(PlanRow.FromAction(action, I18n));
             foreach (RejectedRestoreUndoStep rejected in preview.RejectedSteps)
                 UndoRows.Add(RejectedUndoRow(rejected));
         }
@@ -490,7 +490,7 @@ public sealed class RestoreViewModel : ObservableObject
                 Undo = string.Empty,
                 Detail = result.Detail,
             }
-            : PlanRow.FromAction(action);
+            : PlanRow.FromAction(action, I18n);
 
         return new PlanRow
         {

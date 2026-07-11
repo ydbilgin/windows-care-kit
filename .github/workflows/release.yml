@@ -252,10 +252,13 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             Write-Host "Release $tag already exists — refreshing assets + notes."
             gh release upload "$tag" "$zip" "$setup" --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE" }
             gh release edit "$tag" --prerelease --notes "$body"
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
           } else {
             Write-Host "Creating release $tag."
             gh release create "$tag" "$zip" "$setup" --title "Windows Care Kit $tag" --prerelease --notes "$body"
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
           }
 
       - name: Upload gate-build artifact (workflow_dispatch only)

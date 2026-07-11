@@ -325,9 +325,9 @@ public sealed class CopyAndPlanningSecurityReproTests
 /// <summary>Deterministic UI/reliability characterizations that never open an application window.</summary>
 public sealed class UiReliabilitySecurityReproTests
 {
-    /// <summary>G2: two gated overlapping loads deterministically append the same installed-app row twice.</summary>
+    /// <summary>G2: a superseded uninstall load is discarded so the later refresh wins without duplicates.</summary>
     [Fact]
-    public async Task G2_overlapping_uninstall_loads_duplicate_rows()
+    public async Task G2_overlapping_uninstall_loads_discard_the_superseded_result()
     {
         var reader = new BlockingInstalledAppReader(
             [TestData.App(displayName: "Duplicated App", regKeyName: "duplicate")]);
@@ -343,36 +343,53 @@ public sealed class UiReliabilitySecurityReproTests
         reader.ReleaseFirstCall.Set();
         await loadA.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(2, vm.AllRows.Count(r => r.DisplayName == "Duplicated App"));
+        Assert.Equal(1, vm.AllRows.Count(r => r.DisplayName == "Duplicated App"));
     }
 
-    /// <summary>G3: a RelayCommand async lambda returns before completion and posts its post-await exception.</summary>
+    /// <summary>G3: AsyncRelayCommand observes a post-await fault (routes it to onError, never to the dispatcher)
+    /// and guards re-entrancy so a second invocation while running is ignored.</summary>
     [Fact]
-    public async Task G3_relay_command_cannot_return_or_observe_the_async_callback_task()
+    public async Task G3_async_relay_command_observes_faults_and_guards_reentrancy()
     {
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var faulted = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         var context = new ExceptionCapturingSynchronizationContext();
         SynchronizationContext? prior = SynchronizationContext.Current;
+        int invocations = 0;
 
         try
         {
             SynchronizationContext.SetSynchronizationContext(context);
-            var command = new RelayCommand(async () =>
-            {
-                entered.SetResult();
-                await release.Task;
-                throw new InvalidOperationException("synthetic post-await failure");
-            });
+            var command = new AsyncRelayCommand(
+                async _ =>
+                {
+                    Interlocked.Increment(ref invocations);
+                    entered.SetResult();
+                    await release.Task;
+                    throw new InvalidOperationException("synthetic post-await failure");
+                },
+                onError: ex => faulted.TrySetResult(ex));
 
             command.Execute(null);
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+            // Re-entrancy guard: while the first run is in flight, CanExecute is false and a second Execute is ignored.
+            Assert.False(command.CanExecute(null));
+            command.Execute(null);
+            Assert.Equal(1, Volatile.Read(ref invocations));
+
+            // The fault has not surfaced yet, and nothing has escaped to the dispatcher.
+            Assert.False(faulted.Task.IsCompleted);
             Assert.False(context.Exception.Task.IsCompleted);
 
             release.SetResult();
-            Exception observed = await context.Exception.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Exception observed = await faulted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal("synthetic post-await failure", observed.Message);
-            Assert.Equal(typeof(void), typeof(RelayCommand).GetMethod(nameof(RelayCommand.Execute))!.ReturnType);
+
+            // The fault was ROUTED to onError, NOT posted to the SynchronizationContext as an unhandled exception.
+            Assert.False(context.Exception.Task.IsCompleted);
+            Assert.Equal(typeof(void), typeof(AsyncRelayCommand).GetMethod(nameof(AsyncRelayCommand.Execute))!.ReturnType);
         }
         finally
         {
@@ -380,9 +397,9 @@ public sealed class UiReliabilitySecurityReproTests
         }
     }
 
-    /// <summary>G4: changing PayloadDir during a blocked build lets the completed old plan resurrect.</summary>
+    /// <summary>G4: a backup plan is discarded if PayloadDir changes while planning is in flight.</summary>
     [Fact]
-    public async Task G4_backup_build_resurrects_a_plan_for_the_old_payload_path()
+    public async Task G4_backup_build_discards_a_plan_when_the_payload_path_changed()
     {
         string source = @"C:\Users\alice\AppData\Roaming\Contoso";
         string payloadA = @"C:\Users\alice\backup-a";
@@ -406,10 +423,8 @@ public sealed class UiReliabilitySecurityReproTests
         await build.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(payloadB, vm.PayloadDir);
-        Assert.True(vm.HasPlan);
-        string preview = Assert.Single(vm.PlanRows).Text;
-        Assert.Contains(payloadA, preview, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(payloadB, preview, StringComparison.OrdinalIgnoreCase);
+        Assert.False(vm.HasPlan);
+        Assert.Empty(vm.PlanRows);
     }
 
     /// <summary>G-m3: an injected swallowed probe failure renders exactly like a legitimate empty inventory.</summary>
@@ -692,9 +707,9 @@ public sealed class SecurityReproPart2Tests
         Assert.False(File.Exists(Path.Combine(validDirectory, syntheticDependencyName + ".dll")));
     }
 
-    /// <summary>G1: literal Turkish keyboard input is rejected when the resource culture is tr but process culture is en-US.</summary>
+    /// <summary>G1: literal Turkish keyboard input uses the selected UI culture even when process culture is en-US.</summary>
     [Fact]
-    public void G1_turkish_confirmation_uses_process_culture_instead_of_selected_ui_culture()
+    public void G1_turkish_confirmation_uses_selected_ui_culture()
     {
         CultureInfo priorCulture = CultureInfo.CurrentCulture;
         CultureInfo priorUiCulture = CultureInfo.CurrentUICulture;
@@ -711,8 +726,8 @@ public sealed class SecurityReproPart2Tests
             Assert.Equal("tr", i18n.SelectedCulture);
             Assert.Equal("en-US", CultureInfo.CurrentCulture.Name);
             Assert.Equal("SİL", gate.ConfirmWord);
-            Assert.False(gate.TypedMatches);
-            Assert.False(gate.CanApprove);
+            Assert.True(gate.TypedMatches);
+            Assert.True(gate.CanApprove);
             Assert.Equal(
                 0,
                 CultureInfo.GetCultureInfo("tr-TR").CompareInfo.Compare(
@@ -727,9 +742,9 @@ public sealed class SecurityReproPart2Tests
         }
     }
 
-    /// <summary>G6: production-style bindings keep PlanRow's English text and frozen dark-palette brush after switches.</summary>
+    /// <summary>G6: production-style bindings follow a language switch while the risk color remains deferred.</summary>
     [Fact]
-    public void G6_plan_row_display_stays_english_and_dark_palette_after_language_and_theme_switch()
+    public void G6_plan_row_display_follows_language_switch_color_deferred()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -742,7 +757,7 @@ public sealed class SecurityReproPart2Tests
                     Risk = RiskLevel.Medium,
                     Undo = UndoCapability.Partial,
                 };
-                PlanRow row = PlanRow.FromAction(action, isWholeTree: true);
+                PlanRow row = PlanRow.FromAction(action, isWholeTree: true, i18n);
 
                 var host = new StackPanel();
                 host.Resources.MergedDictionaries.Add(LoadTheme("Strongbox"));
@@ -766,14 +781,14 @@ public sealed class SecurityReproPart2Tests
                 Color daylightMedium = Assert.IsType<SolidColorBrush>(host.FindResource("Backup.MedFg")).Color;
 
                 Assert.Equal("tr", i18n.SelectedCulture);
-                Assert.Equal(beforeActionText, actionText.Text);
-                Assert.StartsWith("Copy: ", actionText.Text, StringComparison.Ordinal);
-                Assert.Contains("(whole-tree copy)", row.Detail, StringComparison.Ordinal);
-                Assert.Equal(beforeRiskText, riskText.Text);
-                Assert.Equal("Medium", riskText.Text);
-                Assert.Equal(beforeUndoText, undoText.Text);
-                Assert.Equal("undo: Partial", undoText.Text);
-                Assert.Equal(beforeDisplayedColor, Assert.IsType<SolidColorBrush>(riskText.Foreground).Color);
+                Assert.NotEqual(beforeActionText, actionText.Text);
+                Assert.StartsWith("Kopyala: ", actionText.Text, StringComparison.Ordinal);
+                Assert.Contains("(tüm klasör kopyası)", row.Detail, StringComparison.Ordinal);
+                Assert.NotEqual(beforeRiskText, riskText.Text);
+                Assert.Equal("Orta", riskText.Text);
+                Assert.NotEqual(beforeUndoText, undoText.Text);
+                Assert.Equal("geri al: Kısmi", undoText.Text);
+                Assert.Equal(beforeDisplayedColor, Assert.IsType<SolidColorBrush>(riskText.Foreground).Color); // color deferred: frozen
                 Assert.NotEqual(daylightMedium, beforeDisplayedColor);
             }
             catch (Exception ex)
@@ -1121,6 +1136,26 @@ public sealed class LowConfidenceSecurityReproTests
         Assert.DoesNotContain("[Languages]", installer, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("$appVer = $refName.TrimStart('v')", release, StringComparison.Ordinal);
         Assert.DoesNotContain("VersionPrefix", release, StringComparison.Ordinal);
+    }
+
+    /// <summary>G5: the release step throws on a failed upload/edit/create before the job can report success.</summary>
+    [Fact]
+    public void G5_release_asset_commands_are_exit_code_checked()
+    {
+        string release = RepoSource.Read(".github/workflows/release.yml");
+
+        // The upload's exit code is checked and rethrown BEFORE the edit runs, so a failed upload cannot be
+        // masked by a later successful edit.
+        RepoSource.AssertOrdered(release, "gh release upload", "if ($LASTEXITCODE -ne 0)");
+        RepoSource.AssertOrdered(release, "throw \"gh release upload failed", "gh release edit");
+
+        Assert.Contains("throw \"gh release upload failed", release, StringComparison.Ordinal);
+        Assert.Contains("throw \"gh release edit failed", release, StringComparison.Ordinal);
+        Assert.Contains("throw \"gh release create failed", release, StringComparison.Ordinal);
+
+        // The blanket native-error preference must NOT be used here (it would throw on the intentional
+        // `gh release view` existence probe and break the create path).
+        Assert.DoesNotContain("PSNativeCommandUseErrorActionPreference", release, StringComparison.Ordinal);
     }
 
     /// <summary>§6 destination race: reparse validation and staged destination publish remain separate operations.</summary>

@@ -186,11 +186,11 @@ public sealed class InstallViewModel : ObservableObject
 
             PlanRows.Clear();
             foreach (PlannedAction a in result.Plan.Actions)
-                PlanRows.Add(PlanRow.FromAction(a));
+                PlanRows.Add(PlanRow.FromAction(a, I18n));
 
             SkippedRows.Clear();
             foreach (InstallSkip s in result.Skipped)
-                SkippedRows.Add(PlanRow.FromSkipped(SkipAsAction(s), s.Note));
+                SkippedRows.Add(PlanRow.FromSkipped(SkipAsAction(s), s.Note, I18n));
 
             ManualChecklist.Clear();
             foreach (InstallEntry e in result.ManualChecklist)

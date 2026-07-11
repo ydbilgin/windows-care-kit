@@ -598,7 +598,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
         _pendingKind = kind;
 
         ConfirmTier tier = ConfirmGateViewModel.TierFor(plan);
-        var rows = plan.Actions.Select(PlanRow.FromAction);
+        var rows = plan.Actions.Select(a => PlanRow.FromAction(a, I18n));
         Gate.Open(tier, I18n["uninstall.confirm.title"], body, rows);
         RaiseAll();
     }
