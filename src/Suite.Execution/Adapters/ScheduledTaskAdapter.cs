@@ -57,6 +57,9 @@ public sealed class ScheduledTaskAdapter : ITaskAdapter
                     // DeleteTask(name, flags) on the containing folder.
                     Invoke(folder, "DeleteTask", taskName, 0);
                     break;
+
+                default:
+                    throw new InvalidOperationException($"Unsupported task operation: {(int)action.Operation}.");
             }
         }
         finally

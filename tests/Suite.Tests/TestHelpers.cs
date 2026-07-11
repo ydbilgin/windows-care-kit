@@ -37,6 +37,11 @@ internal sealed class FakeCurrentSidProvider(string? sid = TestData.CurrentUserS
     public string? GetCurrentSid() => sid;
 }
 
+internal sealed class FakeElevationProbe(bool elevated) : IElevationProbe
+{
+    public bool IsElevated() => elevated;
+}
+
 /// <summary>Shared deterministic policy + action factories for the tests.</summary>
 internal static class TestData
 {
@@ -59,8 +64,8 @@ internal static class TestData
         usersRoot: @"C:\Users",
         currentUserProfile: @"C:\Users\alice");
 
-    public static SafetyGate Gate(IPathCanonicalizer? canon = null, string? currentSid = CurrentUserSid)
-        => new(Policy(), canon ?? new FakeCanonicalizer(), new FakeCurrentSidProvider(currentSid));
+    public static SafetyGate Gate(IPathCanonicalizer? canon = null, string? currentSid = CurrentUserSid, bool elevated = true)
+        => new(Policy(), canon ?? new FakeCanonicalizer(), new FakeCurrentSidProvider(currentSid), new FakeElevationProbe(elevated));
 
     public static FileDeleteAction FileDelete(string path, bool recycle = true)
         => new() { Path = path, ToRecycleBin = recycle, Description = "delete " + path, Reason = "test" };

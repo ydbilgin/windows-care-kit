@@ -60,10 +60,22 @@ public sealed class RegFileBackupWriter : IRegBackupWriter
 
     private static void WriteTextCreateNew(string destinationPath, string text)
     {
+        var fileSecurity = BuildRestrictiveSecurity<System.Security.AccessControl.FileSecurity>(
+            new System.Security.AccessControl.FileSecurity());
+
         FileStream stream;
         try
         {
-            stream = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            // Atomic: the file is created with its FINAL restrictive ACL — never "create then harden". If the ACL
+            // cannot be applied the create throws and NO sensitive content is written (fail closed, S9).
+            stream = System.IO.FileSystemAclExtensions.Create(
+                new FileInfo(destinationPath),
+                FileMode.CreateNew,
+                System.Security.AccessControl.FileSystemRights.FullControl,
+                FileShare.None,
+                bufferSize: 4096,
+                FileOptions.None,
+                fileSecurity);
         }
         catch (IOException ex) when (File.Exists(destinationPath))
         {
@@ -76,47 +88,52 @@ public sealed class RegFileBackupWriter : IRegBackupWriter
     }
 
     /// <summary>
-    /// Creates the regbak directory and best-effort restricts it to the current user + SYSTEM + Administrators
+    /// Creates the regbak directory and restricts it to the current user + SYSTEM + Administrators
     /// (removing inherited Users/Everyone read), because the <c>.reg</c> files contain registry value data in
     /// cleartext (spec §3/§9). The dir already sits under per-user <c>%LocalAppData%</c>; this hardens it further.
     /// </summary>
     private static void CreateSecuredDirectory(string dir)
     {
         var info = Directory.CreateDirectory(dir);
-        try
+        var security = BuildRestrictiveSecurity<System.Security.AccessControl.DirectorySecurity>(
+            new System.Security.AccessControl.DirectorySecurity());
+        // Fail closed: if the ACL cannot be applied, throw — the caller (RegistryDeleteAdapter) then refuses
+        // the delete (no hardened backup → no delete), instead of leaving a weakly-protected cleartext .reg (S9).
+        System.IO.FileSystemAclExtensions.SetAccessControl(info, security);
+    }
+
+    /// <summary>Build the current-user + SYSTEM + Administrators FullControl, inheritance-protected ACL shared by
+    /// the regbak directory and each .reg file. Throws if the current user SID is unavailable (fail closed).</summary>
+    private static T BuildRestrictiveSecurity<T>(T security) where T : System.Security.AccessControl.FileSystemSecurity
+    {
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+        var user = System.Security.Principal.WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException("Cannot secure registry backup: current user SID unavailable.");
+
+        var identities = new System.Security.Principal.IdentityReference[]
         {
-            var security = new System.Security.AccessControl.DirectorySecurity();
-            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            user,
+            new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.LocalSystemSid, null),
+            new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null),
+        };
 
-            var user = System.Security.Principal.WindowsIdentity.GetCurrent().User;
-            if (user is not null)
-                security.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
-                    user,
-                    System.Security.AccessControl.FileSystemRights.FullControl,
-                    System.Security.AccessControl.InheritanceFlags.ContainerInherit | System.Security.AccessControl.InheritanceFlags.ObjectInherit,
-                    System.Security.AccessControl.PropagationFlags.None,
-                    System.Security.AccessControl.AccessControlType.Allow));
-
-            foreach (var sid in new[]
-            {
-                new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.LocalSystemSid, null),
-                new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null),
-            })
-            {
-                security.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+        foreach (var sid in identities)
+        {
+            var rule = security is System.Security.AccessControl.DirectorySecurity
+                ? new System.Security.AccessControl.FileSystemAccessRule(
                     sid,
                     System.Security.AccessControl.FileSystemRights.FullControl,
                     System.Security.AccessControl.InheritanceFlags.ContainerInherit | System.Security.AccessControl.InheritanceFlags.ObjectInherit,
                     System.Security.AccessControl.PropagationFlags.None,
-                    System.Security.AccessControl.AccessControlType.Allow));
-            }
-
-            System.IO.FileSystemAclExtensions.SetAccessControl(info, security);
+                    System.Security.AccessControl.AccessControlType.Allow)
+                : new System.Security.AccessControl.FileSystemAccessRule(
+                    sid,
+                    System.Security.AccessControl.FileSystemRights.FullControl,
+                    System.Security.AccessControl.AccessControlType.Allow);
+            security.AddAccessRule(rule);
         }
-        catch (Exception)
-        {
-            // Best-effort hardening; the per-user %LocalAppData% location is the primary protection.
-        }
+        return security;
     }
 
     private static void AppendKeyRecursive(StringBuilder sb, RegistryKey key, string fullPath)

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Migration;
@@ -27,6 +28,32 @@ public sealed class CopyAdapter : ICopyAdapter
 {
     private const int MaxRetries = 3;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(150);
+    private const int SecretScanWindowBytes = 512 * 1024;        // one scan window
+    private const int SecretScanOverlapBytes = 8 * 1024;         // overlap so a token straddling a window boundary is still caught
+    private const long SecretScanHardCapBytes = 256L * 1024 * 1024; // fail-closed above this: refuse to copy rather than skip scanning
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle hFile,
+        out BY_HANDLE_FILE_INFORMATION lpFileInformation);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct BY_HANDLE_FILE_INFORMATION
+    {
+        public uint FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    private const uint FILE_ATTRIBUTE_REPARSE_POINT = 0x400;
     private readonly Win32PathCanonicalizer _canon = new();
 
     // Hardened built-in superset: credential / cookie / autofill / session stores that must NEVER be copied.
@@ -39,6 +66,7 @@ public sealed class CopyAdapter : ICopyAdapter
     public CopyAdapterResult Copy(CopyAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        GuardSourceDestinationNotNested(action.Source, action.Destination);
 
         var ex = Exclusions.From(action, _canon);
         var acc = new CopyAccumulator();
@@ -255,6 +283,8 @@ public sealed class CopyAdapter : ICopyAdapter
         HashSet<string> visitedRealDirs,
         CopyAccumulator acc)
     {
+        GuardSourceDestinationNotNested(sourceDir, destDir);
+
         string real = TryGetRealPath(sourceDir);
         if (!visitedRealDirs.Add(real))
         {
@@ -310,23 +340,40 @@ public sealed class CopyAdapter : ICopyAdapter
         // a protected/other tree. No legitimate copy targets a reparse-point parent, so this fails closed.
         GuardDestinationNotReparse(destination);
 
-        EmbeddedSecretScanResult scan = ScanForEmbeddedSecret(source);
-        if (scan.ContainsSecret)
-        {
-            acc.Skip(source, destination, CopySkipReason.ExcludedEmbeddedSecret, scan.Reason);
-            return;
-        }
-
-        string? dir = Path.GetDirectoryName(LongPath(destination));
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
         for (int attempt = 1; ; attempt++)
         {
             try
             {
-                File.Copy(LongPath(source), LongPath(destination), overwrite: true);
-                acc.Copied(new FileInfo(LongPath(source)).Length);
+                // ONE handle. FileShare.Read denies Write AND Delete to every other opener, so the bytes we
+                // scan cannot be swapped, truncated, renamed, or deleted between the scan and the copy (S1 TOCTOU).
+                using var src = new FileStream(
+                    LongPath(source), FileMode.Open, FileAccess.Read, FileShare.Read,
+                    bufferSize: 8192, FileOptions.SequentialScan);
+
+                // Verify identity ON THE HANDLE: refuse a reparse point or a multi-linked (hard-link alias) file.
+                VerifyStableSourceHandle(src, source);
+
+                // Scan the EXACT full stream from this same handle (no silent truncation; fail closed over the cap).
+                EmbeddedSecretScanResult scan = ScanSourceStreamFully(src, source);
+                if (scan.ContainsSecret)
+                {
+                    acc.Skip(source, destination, CopySkipReason.ExcludedEmbeddedSecret, scan.Reason);
+                    return;
+                }
+
+                long length = src.Length;
+                src.Position = 0;
+
+                // Publish atomically from the SAME handle: stage beside the destination, then rename onto it.
+                PublishFromHandle(src, destination);
+                acc.Copied(length);
+                return;
+            }
+            catch (DestinationReparseException) { throw; }
+            catch (SecretScanCapExceededException ex)
+            {
+                // Above the documented hard cap we cannot prove the file is clean → refuse the copy (fail closed).
+                acc.Skip(source, destination, CopySkipReason.ExcludedEmbeddedSecret, ex.Message);
                 return;
             }
             catch (IOException) when (attempt < MaxRetries)
@@ -336,10 +383,119 @@ public sealed class CopyAdapter : ICopyAdapter
         }
     }
 
+    /// <summary>Handle-level identity check: refuse a reparse point or a hard-linked (nNumberOfLinks &gt; 1) source.</summary>
+    private static void VerifyStableSourceHandle(FileStream src, string source)
+    {
+        if (!GetFileInformationByHandle(src.SafeFileHandle, out BY_HANDLE_FILE_INFORMATION info))
+            throw new IOException($"Could not verify source handle identity: {source}");
+        if ((info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+            throw new DestinationReparseException($"Refusing to copy a reparse-point source: {source} (spec §1.3/S1).");
+        if (info.NumberOfLinks > 1)
+            throw new IOException($"Refusing to copy a multi-linked (possible hard-link alias) source: {source} (spec §1.3/S1).");
+    }
+
+    /// <summary>
+    /// Scans the ENTIRE source stream in overlapping windows (no bounded-prefix truncation). Each window is
+    /// handed to <see cref="EmbeddedSecretScanner.Scan"/>; the overlap ensures a token straddling a window
+    /// boundary is still seen. Fails closed above <see cref="SecretScanHardCapBytes"/>.
+    /// </summary>
+    private static EmbeddedSecretScanResult ScanSourceStreamFully(FileStream src, string source)
+    {
+        if (EmbeddedSecretScanner.HasObviousBinaryExtension(source))
+            return EmbeddedSecretScanResult.Clean;
+
+        if (src.Length > SecretScanHardCapBytes)
+            throw new SecretScanCapExceededException(
+                $"source exceeds the {SecretScanHardCapBytes}-byte secret-scan cap; refusing to copy unscanned: {source}");
+
+        byte[] buffer = new byte[SecretScanWindowBytes];
+        int carry = 0; // bytes retained from the previous window's tail (overlap)
+        while (true)
+        {
+            int read = 0;
+            while (carry + read < buffer.Length)
+            {
+                int n = src.Read(buffer.AsSpan(carry + read));
+                if (n == 0) break;
+                read += n;
+            }
+            int filled = carry + read;
+            if (filled == 0) break;
+
+            EmbeddedSecretScanResult r = EmbeddedSecretScanner.Scan(buffer.AsSpan(0, filled), source);
+            if (r.ContainsSecret) return r;
+
+            if (read == 0) break; // reached EOF
+            // Retain the last SecretScanOverlapBytes as the next window's head.
+            carry = Math.Min(SecretScanOverlapBytes, filled);
+            buffer.AsSpan(filled - carry, carry).CopyTo(buffer.AsSpan(0, carry));
+        }
+        return EmbeddedSecretScanResult.Clean;
+    }
+
+    /// <summary>
+    /// F-atomic publish from the already-open source handle: stream the bytes into a sibling staging file, then
+    /// atomically rename it onto the destination via File.Replace (File.Move is banned). Never reopens the source path.
+    /// </summary>
+    private static void PublishFromHandle(FileStream src, string destination)
+    {
+        string longDest = LongPath(destination);
+        string? dir = Path.GetDirectoryName(longDest);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        // Unpredictable, per-write staging name (mirrors RestoreStateStore.AtomicWrite/S10): a fixed
+        // ".wckcopytmp" suffix lets an attacker with write access to the destination directory pre-plant a
+        // reparse point at the exact staging path and redirect/truncate an arbitrary WCK-writable file.
+        // CreateNew fails if that exact random name already exists (pre-planted file/link is DETECTED, not
+        // followed); the reparse check on the just-created handle catches it even if CreateNew somehow succeeds
+        // against a dangling link.
+        string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        string staging = $"{longDest}.{token}.wckcopytmp";
+        using (var dst = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            if (File.GetAttributes(staging).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException($"Refusing to publish copy through a reparse point: {staging}");
+            src.CopyTo(dst);
+        }
+
+        if (File.Exists(longDest))
+        {
+#pragma warning disable RS0030 // Sanctioned atomic copy publish (Suite.Execution): File.Replace swaps staged bytes onto the gate-approved destination.
+            File.Replace(staging, longDest, destinationBackupFileName: null);
+#pragma warning restore RS0030
+        }
+        else
+        {
+            using (File.Create(longDest)) { }
+#pragma warning disable RS0030 // Sanctioned atomic copy publish (Suite.Execution): File.Replace creates the destination from staged bytes.
+            File.Replace(staging, longDest, destinationBackupFileName: null);
+#pragma warning restore RS0030
+        }
+    }
+
     private static bool IsReparsePoint(string path)
     {
         try { return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint); }
         catch { return false; }
+    }
+
+    /// <summary>Re-verify at execution that the copy destination is neither equal to nor nested inside the source
+    /// (and vice versa) — a same-user attacker could move/relink either between planning and execution. Fails closed.</summary>
+    private static void GuardSourceDestinationNotNested(string source, string destination)
+    {
+        string s, d;
+        try
+        {
+            s = Path.TrimEndingDirectorySeparator(Path.GetFullPath(source));
+            d = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination));
+        }
+        catch { return; }
+        if (s.Equals(d, StringComparison.OrdinalIgnoreCase)
+            || d.StartsWith(s + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || s.StartsWith(d + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"Refusing to copy: source and destination are nested ({source} <-> {destination}) (spec §1.3/S6).");
     }
 
     /// <summary>
@@ -396,32 +552,6 @@ public sealed class CopyAdapter : ICopyAdapter
         if (path.StartsWith(@"\\", StringComparison.Ordinal))
             return @"\\?\UNC\" + path.Substring(2);
         return @"\\?\" + path;
-    }
-
-    private static EmbeddedSecretScanResult ScanForEmbeddedSecret(string source)
-    {
-        if (EmbeddedSecretScanner.HasObviousBinaryExtension(source))
-            return EmbeddedSecretScanResult.Clean;
-
-        byte[] buffer = new byte[EmbeddedSecretScanner.MaxBytesToScan];
-        int read = 0;
-        using var stream = new FileStream(
-            LongPath(source),
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete,
-            bufferSize: 8192,
-            FileOptions.SequentialScan);
-
-        while (read < buffer.Length)
-        {
-            int n = stream.Read(buffer.AsSpan(read));
-            if (n == 0)
-                break;
-            read += n;
-        }
-
-        return EmbeddedSecretScanner.Scan(buffer.AsSpan(0, read), source);
     }
 
     private sealed class CopyAccumulator

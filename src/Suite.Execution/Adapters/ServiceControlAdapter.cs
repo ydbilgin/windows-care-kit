@@ -16,17 +16,23 @@ public sealed class ServiceControlAdapter : IServiceAdapter
     public void Apply(ServiceDeleteAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        if (!Enum.IsDefined(action.Operation))
+            throw new InvalidOperationException($"Unsupported service operation: {(int)action.Operation}.");
 
         using var scm = ScmHandle.OpenManager();
         uint access = action.Operation switch
         {
-            ServiceOperation.Stop => SERVICE_STOP | SERVICE_QUERY_STATUS,
-            ServiceOperation.Disable => SERVICE_CHANGE_CONFIG,
-            ServiceOperation.Delete => SERVICE_STOP | SERVICE_QUERY_STATUS | DELETE,
-            _ => SERVICE_QUERY_STATUS,
+            ServiceOperation.Stop => SERVICE_STOP | SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG,
+            ServiceOperation.Disable => SERVICE_CHANGE_CONFIG | SERVICE_QUERY_CONFIG,
+            ServiceOperation.Delete => SERVICE_STOP | SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG | DELETE,
+            _ => SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG,
         };
 
         using var svc = scm.OpenService(action.ServiceName, access);
+        // S11: re-query the CURRENT service config on the same handle and refuse if the binary image path no longer
+        // matches the expected value captured at plan time (a service recreated/reconfigured under the same name
+        // between planning and execution must NOT be stopped/deleted as if it were the originally-approved one).
+        VerifyImagePathUnchanged(svc, action);
 
         switch (action.Operation)
         {
@@ -47,6 +53,9 @@ public sealed class ServiceControlAdapter : IServiceAdapter
                 if (!DeleteService(svc.DangerousHandle))
                     throw new Win32Exception(Marshal.GetLastWin32Error(), $"DeleteService failed for '{action.ServiceName}'.");
                 break;
+
+            default:
+                throw new InvalidOperationException($"Unsupported service operation: {(int)action.Operation}.");
         }
     }
 
@@ -66,6 +75,57 @@ public sealed class ServiceControlAdapter : IServiceAdapter
             if (err != ERROR_SERVICE_NOT_ACTIVE)
                 throw new Win32Exception(err, "ControlService(STOP) failed.");
         }
+    }
+
+    private static void VerifyImagePathUnchanged(ScmHandle svc, ServiceDeleteAction action)
+    {
+        if (string.IsNullOrWhiteSpace(action.ImagePath))
+            return; // no expected baseline (probe could not resolve one) → nothing to compare, existing fail-safe applies
+
+        // First call sizes the buffer.
+        QueryServiceConfig(svc.DangerousHandle, IntPtr.Zero, 0, out uint needed);
+        IntPtr buffer = Marshal.AllocHGlobal((int)needed);
+        try
+        {
+            if (!QueryServiceConfig(svc.DangerousHandle, buffer, needed, out _))
+                throw new Win32Exception(Marshal.GetLastWin32Error(),
+                    $"QueryServiceConfig failed for '{action.ServiceName}'.");
+            var cfg = Marshal.PtrToStructure<QUERY_SERVICE_CONFIG>(buffer);
+            if (!ImageRootsMatch(cfg.lpBinaryPathName, action.ImagePath!))
+                throw new InvalidOperationException(
+                    $"Service '{action.ServiceName}' configuration changed since planning (image path differs); refusing to modify it.");
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    /// <summary>Compare the executable image of the live service config against the expected plan-time image,
+    /// ignoring surrounding quotes, arguments, and case. Extracts the leading executable token from each.</summary>
+    private static bool ImageRootsMatch(string? liveImagePath, string expectedImagePath)
+    {
+        string live = ExtractExecutable(liveImagePath);
+        string expected = ExtractExecutable(expectedImagePath);
+        return live.Length > 0 && string.Equals(live, expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractExecutable(string? imagePath)
+    {
+        string s = (imagePath ?? string.Empty).Trim();
+        if (s.Length == 0) return string.Empty;
+        if (s.StartsWith('"'))
+        {
+            int end = s.IndexOf('"', 1);
+            s = end > 0 ? s[1..end] : s[1..];
+        }
+        else
+        {
+            int sp = s.IndexOf(' ');
+            if (sp > 0) s = s[..sp];
+        }
+        try { return Path.GetFullPath(s.Trim()).TrimEnd('\\').ToLowerInvariant(); }
+        catch { return s.Trim().ToLowerInvariant(); }
     }
 
     // ---- SCM handle wrapper ----------------------------------------------------------------
@@ -108,6 +168,7 @@ public sealed class ServiceControlAdapter : IServiceAdapter
     // ---- constants -------------------------------------------------------------------------
 
     private const uint SC_MANAGER_CONNECT = 0x0001;
+    private const uint SERVICE_QUERY_CONFIG = 0x0001;
     private const uint SERVICE_QUERY_STATUS = 0x0004;
     private const uint SERVICE_STOP = 0x0020;
     private const uint SERVICE_CHANGE_CONFIG = 0x0002;
@@ -136,6 +197,20 @@ public sealed class ServiceControlAdapter : IServiceAdapter
         public uint dwWaitHint;
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct QUERY_SERVICE_CONFIG
+    {
+        public uint dwServiceType;
+        public uint dwStartType;
+        public uint dwErrorControl;
+        public string lpBinaryPathName;
+        public string lpLoadOrderGroup;
+        public uint dwTagId;
+        public string lpDependencies;
+        public string lpServiceStartName;
+        public string lpDisplayName;
+    }
+
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr OpenSCManager(string? lpMachineName, string? lpDatabaseName, uint dwDesiredAccess);
 
@@ -149,6 +224,10 @@ public sealed class ServiceControlAdapter : IServiceAdapter
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool QueryServiceStatus(IntPtr hService, ref SERVICE_STATUS lpServiceStatus);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryServiceConfig(IntPtr hService, IntPtr lpServiceConfig, uint cbBufSize, out uint pcbBytesNeeded);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

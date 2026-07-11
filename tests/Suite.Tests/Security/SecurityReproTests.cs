@@ -79,9 +79,9 @@ public sealed class DestructivePathSecurityReproTests
         Assert.False(verdict.Allowed, verdict.Reason);
     }
 
-    /// <summary>S5: the delete adapter checks only the leaf after the gate and never walks parent components.</summary>
+    /// <summary>S5: the delete adapter walks all parent components before the destructive boundary.</summary>
     [Fact]
-    public void S5_delete_path_has_a_gate_to_leaf_check_window_without_parent_reparse_validation()
+    public void S5_delete_adapter_walks_ancestor_components_for_reparse_before_deleting()
     {
         string executor = RepoSource.Read("src/Suite.Execution/GatedExecutor.cs");
         string adapter = RepoSource.Read("src/Suite.Execution/Adapters/RecycleBinFileDeleteAdapter.cs");
@@ -89,18 +89,17 @@ public sealed class DestructivePathSecurityReproTests
         Assert.Contains("_gate.Evaluate(action)", executor, StringComparison.Ordinal);
         Assert.Contains("_fileAdapter.Delete(file)", executor, StringComparison.Ordinal);
         Assert.Contains("File.GetAttributes(path)", adapter, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetDirectoryName", adapter, StringComparison.Ordinal);
-        Assert.DoesNotContain("while (", adapter, StringComparison.Ordinal);
+        Assert.Contains("GetDirectoryName", adapter, StringComparison.Ordinal);
+        Assert.Contains("GuardNoReparseInAncestry", adapter, StringComparison.Ordinal);
     }
 
-    /// <summary>S8: an asInvoker plan can dispatch a machine-wide service action through an in-process fake adapter.</summary>
+    /// <summary>S8: a non-elevated plan is blocked before machine-wide service dispatch.</summary>
     [Fact]
-    public void S8_machine_wide_service_action_has_no_per_action_elevation_boundary()
+    public void S8_machine_wide_service_action_is_unavailable_without_elevation()
     {
         string manifest = RepoSource.Read("src/Suite.App.Wpf/app.manifest");
         Assert.Contains("requestedExecutionLevel level=\"asInvoker\"", manifest, StringComparison.Ordinal);
 
-        using var fixture = new ExecutorFixture();
         var action = new ServiceDeleteAction
         {
             ServiceName = "ContosoUpdater",
@@ -108,39 +107,41 @@ public sealed class DestructivePathSecurityReproTests
             Description = "delete synthetic service",
             Reason = "security characterization",
         };
+        // Non-elevated: the gate classifies this as unavailable BEFORE approval.
+        SafetyGate notElevated = TestData.Gate(elevated: false);
+        SafetyVerdict verdict = notElevated.Evaluate(action);
+        Assert.False(verdict.Allowed);
+        Assert.Contains("elevated", verdict.Reason, StringComparison.OrdinalIgnoreCase);
+
+        // The plan therefore does not authorize; nothing is dispatched.
+        using var fixture = new ExecutorFixture(gate: notElevated);
         var plan = new OperationPlan("synthetic", "security-repro", [action], T0);
-
         ExecutionReport report = fixture.Executor.ExecuteWithReport(plan, plan.ComputeHash());
+        Assert.False(report.Authorized);
+        Assert.Empty(fixture.Adapters.Dispatched);
 
-        Assert.True(report.Authorized);
-        Assert.Equal(ActionStatus.Done, Assert.Single(report.Results).Status);
-        Assert.Same(action, Assert.Single(fixture.Adapters.Dispatched));
-        Assert.Equal("service:" + action.Id, Assert.Single(fixture.Adapters.Calls));
+        // Elevated: unchanged (allowed).
+        Assert.True(TestData.Gate(elevated: true).Evaluate(action).Allowed);
     }
 
-    /// <summary>S9: ACL hardening catches every exception and backup writing proceeds after the swallowed failure.</summary>
+    /// <summary>S9: registry backup ACLs are applied at creation and failures are not swallowed.</summary>
     [Fact]
-    public void S9_registry_backup_acl_hardening_is_best_effort_and_fail_open()
+    public void S9_registry_backup_acl_is_applied_atomically_and_fails_closed()
     {
         string writer = RepoSource.Read("src/Suite.Execution/Adapters/RegFileBackupWriter.cs");
-        int secureCall = writer.IndexOf("CreateSecuredDirectory(dir)", StringComparison.Ordinal);
-        int catchAll = writer.IndexOf("catch (Exception)", secureCall, StringComparison.Ordinal);
-        int bestEffort = writer.IndexOf("Best-effort hardening", catchAll, StringComparison.Ordinal);
-        int writeAfterCall = writer.IndexOf("var sb = new StringBuilder()", secureCall, StringComparison.Ordinal);
-
-        Assert.True(secureCall >= 0);
-        Assert.True(catchAll > secureCall);
-        Assert.True(bestEffort > catchAll);
-        Assert.True(writeAfterCall > secureCall);
-        Assert.DoesNotContain("throw;", writer[catchAll..bestEffort], StringComparison.Ordinal);
+        Assert.DoesNotContain("Best-effort hardening", writer, StringComparison.Ordinal);
+        Assert.Contains("FileSystemAclExtensions.Create", writer, StringComparison.Ordinal); // ACL applied at creation
+        Assert.Contains("BuildRestrictiveSecurity", writer, StringComparison.Ordinal);
+        // No swallow of ACL failures: the only catch is the CreateNew-collision remap, which rethrows.
+        Assert.DoesNotContain("catch (Exception)", writer, StringComparison.Ordinal);
 
         string registryAdapter = RepoSource.Read("src/Suite.Execution/Adapters/RegistryDeleteAdapter.cs");
         RepoSource.AssertOrdered(registryAdapter, "_backupWriter.WriteBackup", "RegistryKey.OpenBaseKey");
     }
 
-    /// <summary>S10: restore state uses a predictable sibling .wcktmp and a direct truncating write without link checks.</summary>
+    /// <summary>S10: restore state staging is random, CreateNew, and reparse-checked.</summary>
     [Fact]
-    public void S10_restore_state_staging_path_is_predictable_and_written_directly()
+    public void S10_restore_state_staging_is_random_createnew_and_reparse_checked()
     {
         var store = new RestoreStateStore();
         string stateDir = @"C:\Users\alice\restore-state";
@@ -148,16 +149,16 @@ public sealed class DestructivePathSecurityReproTests
         string source = RepoSource.Read("src/Suite.Core/Modules/Install/RestoreStateStore.cs");
 
         Assert.Equal(RestoreStateStore.FileName, Path.GetFileName(target));
-        Assert.Equal(RestoreStateStore.FileName + ".wcktmp", Path.GetFileName(target + ".wcktmp"));
-        Assert.Contains("string staging = path + \".wcktmp\"", source, StringComparison.Ordinal);
-        Assert.Contains("File.WriteAllText(staging, json)", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("ReparsePoint", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateNew", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("string staging = path + \".wcktmp\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("File.WriteAllText(staging, json)", source, StringComparison.Ordinal);
+        Assert.Contains("RandomNumberGenerator.GetBytes", source, StringComparison.Ordinal);
+        Assert.Contains("FileMode.CreateNew", source, StringComparison.Ordinal);
+        Assert.Contains("ReparsePoint", source, StringComparison.Ordinal);
     }
 
-    /// <summary>S11: changing only service ImagePath leaves the approved plan hash unchanged.</summary>
+    /// <summary>S11: service image path is hash-bound and rechecked before mutation.</summary>
     [Fact]
-    public void S11_service_image_path_is_excluded_from_the_plan_hash_and_not_requeried()
+    public void S11_service_image_path_is_bound_to_the_hash_and_requeried_at_execution()
     {
         static ServiceDeleteAction Action(string imagePath) => new()
         {
@@ -171,17 +172,17 @@ public sealed class DestructivePathSecurityReproTests
         var before = new OperationPlan("synthetic", "security-repro", [Action(@"C:\Contoso\updater.exe")], T0);
         var after = new OperationPlan("synthetic", "security-repro", [Action(@"C:\Windows\System32\svchost.exe")], T0);
 
-        Assert.Equal(before.ComputeHash(), after.ComputeHash());
+        Assert.NotEqual(before.ComputeHash(), after.ComputeHash());
 
         string adapter = RepoSource.Read("src/Suite.Execution/Adapters/ServiceControlAdapter.cs");
-        Assert.Contains("QueryServiceStatus", adapter, StringComparison.Ordinal);
-        Assert.DoesNotContain("QueryServiceConfig", adapter, StringComparison.Ordinal);
-        Assert.DoesNotContain("ImagePath", adapter, StringComparison.Ordinal);
+        Assert.Contains("QueryServiceConfig", adapter, StringComparison.Ordinal);
+        Assert.Contains("VerifyImagePathUnchanged", adapter, StringComparison.Ordinal);
+        Assert.Contains("configuration changed since planning", adapter, StringComparison.Ordinal);
     }
 
-    /// <summary>S-m1: undefined service/task enum values pass the gate and fakes let the executor report Done.</summary>
+    /// <summary>S-m1: undefined service/task enum values are rejected before dispatch.</summary>
     [Fact]
-    public void S_m1_undefined_service_and_task_operations_are_reported_done_by_the_executor_contract()
+    public void S_m1_undefined_service_and_task_operations_are_blocked_by_the_gate()
     {
         using var fixture = new ExecutorFixture();
         var service = new ServiceDeleteAction
@@ -199,15 +200,20 @@ public sealed class DestructivePathSecurityReproTests
             Reason = "security characterization",
         };
 
-        Assert.True(fixture.Gate.Evaluate(service).Allowed);
-        Assert.True(fixture.Gate.Evaluate(task).Allowed);
+        Assert.False(fixture.Gate.Evaluate(service).Allowed);
+        Assert.False(fixture.Gate.Evaluate(task).Allowed);
 
         var plan = new OperationPlan("synthetic", "security-repro", [service, task], T0);
         ExecutionReport report = fixture.Executor.ExecuteWithReport(plan, plan.ComputeHash());
 
-        Assert.True(report.Authorized);
-        Assert.All(report.Results, r => Assert.Equal(ActionStatus.Done, r.Status));
-        Assert.Equal(2, fixture.Adapters.Dispatched.Count);
+        Assert.False(report.Authorized);
+        Assert.Empty(fixture.Adapters.Dispatched);
+
+        // Adapters no longer silently no-op an undefined operation.
+        string svc = RepoSource.Read("src/Suite.Execution/Adapters/ServiceControlAdapter.cs");
+        string tsk = RepoSource.Read("src/Suite.Execution/Adapters/ScheduledTaskAdapter.cs");
+        Assert.Contains("Unsupported service operation", svc, StringComparison.Ordinal);
+        Assert.Contains("Unsupported task operation", tsk, StringComparison.Ordinal);
     }
 }
 
@@ -230,37 +236,31 @@ public sealed class CopyAndPlanningSecurityReproTests
         Assert.True(tailOffset > EmbeddedSecretScanner.MaxBytesToScan);
         Assert.False(bounded.ContainsSecret);
         Assert.True(beyondCap.ContainsSecret);
-        Assert.Contains(
-            "new byte[EmbeddedSecretScanner.MaxBytesToScan]",
-            RepoSource.Read("src/Suite.Execution/Adapters/CopyAdapter.cs"),
-            StringComparison.Ordinal);
+        string copyAdapter = RepoSource.Read("src/Suite.Execution/Adapters/CopyAdapter.cs");
+        Assert.Contains("ScanSourceStreamFully", copyAdapter, StringComparison.Ordinal);
+        Assert.Contains("SecretScanHardCapBytes", copyAdapter, StringComparison.Ordinal);
     }
 
-    /// <summary>S1(b): an unquoted synthetic key/value is outside the scanner's recognized key/value format.</summary>
+    /// <summary>S1(b): an unquoted synthetic key/value is detected.</summary>
     [Fact]
-    public void S1_unquoted_synthetic_secret_assignment_is_not_detected()
+    public void S1_unquoted_synthetic_secret_assignment_is_detected()
     {
         byte[] content = Encoding.UTF8.GetBytes("api_key = synthetic_value");
 
         EmbeddedSecretScanResult result = EmbeddedSecretScanner.Scan(content, "settings.env");
 
-        Assert.False(result.ContainsSecret);
+        Assert.True(result.ContainsSecret);
     }
 
-    /// <summary>S1(a): scan and copy reopen the path separately with write/delete sharing, proving the TOCTOU window.</summary>
+    /// <summary>S1(a): scan and copy share one stable source handle.</summary>
     [Fact]
-    public void S1_copy_scans_then_reopens_the_mutable_path_for_copy()
+    public void S1_copy_scans_and_copies_from_one_stable_handle()
     {
         string copy = RepoSource.Read("src/Suite.Execution/Adapters/CopyAdapter.cs");
-        int scan = copy.IndexOf("ScanForEmbeddedSecret(source)", StringComparison.Ordinal);
-        int copyCall = copy.IndexOf("File.Copy(LongPath(source), LongPath(destination)", scan, StringComparison.Ordinal);
-        int open = copy.IndexOf("new FileStream(", copy.IndexOf("ScanForEmbeddedSecret", StringComparison.Ordinal), StringComparison.Ordinal);
-        int permissiveShare = copy.IndexOf("FileShare.ReadWrite | FileShare.Delete", open, StringComparison.Ordinal);
-
-        Assert.True(scan >= 0);
-        Assert.True(copyCall > scan);
-        Assert.True(open > copyCall);
-        Assert.True(permissiveShare > open);
+        Assert.Contains("FileShare.Read,", copy, StringComparison.Ordinal);           // swap-proof share (no ReadWrite|Delete)
+        Assert.DoesNotContain("FileShare.ReadWrite | FileShare.Delete", copy, StringComparison.Ordinal);
+        Assert.Contains("VerifyStableSourceHandle", copy, StringComparison.Ordinal);  // handle-verified identity
+        Assert.Contains("PublishFromHandle", copy, StringComparison.Ordinal);         // atomic publish, no path reopen
     }
 
     /// <summary>S3: untrusted RequiresAdmin metadata must never become an elevated winget action.</summary>
@@ -291,41 +291,28 @@ public sealed class CopyAndPlanningSecurityReproTests
         Assert.DoesNotContain("RequiresElevation = entry.RequiresAdmin", plannerSource, StringComparison.Ordinal);
     }
 
-    /// <summary>S6: a traversal target canonicalizes outside the selected payload root and is still planned.</summary>
+    /// <summary>S6: traversal targets are rejected before planning.</summary>
     [Fact]
-    public void S6_backup_target_traversal_escapes_the_payload_root()
+    public void S6_backup_target_traversal_is_rejected_by_the_planner()
     {
         string payload = @"C:\Users\alice\wck-repro\payload";
         BackupEntry entry = CopyEntry(@"C:\Users\alice\source", @"..\victim.txt");
 
         BackupPlanResult result = Planner().BuildPlan(new BackupManifest([entry]), payload, T0);
-        CopyAction action = Assert.IsType<CopyAction>(Assert.Single(result.Plan.Actions));
-
-        string normalizedPayload = Path.TrimEndingDirectorySeparator(Path.GetFullPath(payload));
-        Assert.False(action.Destination.StartsWith(
-            normalizedPayload + Path.DirectorySeparatorChar,
-            StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(Path.GetFullPath(@"C:\Users\alice\wck-repro\victim.txt"), action.Destination);
+        Assert.Empty(result.Plan.Actions);
+        Assert.Contains(result.Skipped, s => s.Reason.Contains("escapes the backup payload root", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>S6: the planner accepts a payload inside the copied source, producing a recursive-growth shape.</summary>
+    /// <summary>S6: destinations inside their source are rejected before planning.</summary>
     [Fact]
-    public void S6_destination_inside_source_is_accepted_by_the_planner()
+    public void S6_destination_inside_source_is_rejected_by_the_planner()
     {
         string source = @"C:\Users\alice\wck-source";
         string payload = Path.Combine(source, "payload");
 
-        BackupPlanResult result = Planner().BuildPlan(
-            new BackupManifest([CopyEntry(source, "nested")]),
-            payload,
-            T0);
-        CopyAction action = Assert.IsType<CopyAction>(Assert.Single(result.Plan.Actions));
-
-        Assert.StartsWith(
-            Path.TrimEndingDirectorySeparator(source) + Path.DirectorySeparatorChar,
-            action.Destination,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(result.Skipped, s => s.Reason.Contains("source", StringComparison.OrdinalIgnoreCase));
+        BackupPlanResult result = Planner().BuildPlan(new BackupManifest([CopyEntry(source, "nested")]), payload, T0);
+        Assert.Empty(result.Plan.Actions);
+        Assert.Contains(result.Skipped, s => s.Reason.Contains("inside the source", StringComparison.OrdinalIgnoreCase));
     }
 
     private static BackupPlanner Planner() => new(TestData.Gate(), new FakeEnvironmentExpander());
@@ -654,9 +641,9 @@ public sealed class SecurityReproPart2Tests
         Assert.Equal(RestoreEntryStatus.Pending, StatusForResult(result, 2));
     }
 
-    /// <summary>S2: rejection does not unregister a module directory from the lifetime-global dependency resolver.</summary>
+    /// <summary>S2: rejected directories never enter the lifetime-global dependency resolver.</summary>
     [Fact]
-    public void S2_rejected_module_directory_remains_a_global_dependency_probe()
+    public void S2_rejected_module_directory_is_not_a_global_dependency_probe()
     {
         using var workspace = new TempWorkspace("wck-s2-");
         string rejectedRoot = workspace.Combine("rejected-root");
@@ -700,7 +687,8 @@ public sealed class SecurityReproPart2Tests
         MethodInfo handler = resolver.GetMethod("OnResolving", BindingFlags.Static | BindingFlags.NonPublic)!;
         string? resolvedLocation = ResolveInCollectibleContext(handler, syntheticDependencyName);
 
-        Assert.Equal(Path.GetFullPath(rejectedDependency), Path.GetFullPath(resolvedLocation!));
+        // FIXED: the rejected directory was never registered, so its synthetic dependency is not resolvable.
+        Assert.Null(resolvedLocation);
         Assert.False(File.Exists(Path.Combine(validDirectory, syntheticDependencyName + ".dll")));
     }
 
@@ -913,9 +901,9 @@ public sealed class SecurityReproPart2Tests
             resolved = handler.Invoke(
                 null,
                 new object?[] { context, new AssemblyName(dependencyName) }) as Assembly;
-            Assert.NotNull(resolved);
-            Assert.Equal(dependencyName, resolved.GetName().Name);
-            return resolved.Location;
+            if (resolved is not null)
+                Assert.Equal(dependencyName, resolved.GetName().Name);
+            return resolved?.Location;
         }
         finally
         {
@@ -1135,13 +1123,13 @@ public sealed class LowConfidenceSecurityReproTests
         Assert.DoesNotContain("VersionPrefix", release, StringComparison.Ordinal);
     }
 
-    /// <summary>§6 destination race: reparse validation and File.Copy remain separate non-atomic operations.</summary>
+    /// <summary>§6 destination race: reparse validation and staged destination publish remain separate operations.</summary>
     [Fact]
-    public void Destination_reparse_check_and_copy_are_not_handle_bound()
+    public void Destination_reparse_check_and_publish_are_not_handle_bound()
     {
         string copy = RepoSource.Read("src/Suite.Execution/Adapters/CopyAdapter.cs");
-        RepoSource.AssertOrdered(copy, "GuardDestinationNotReparse(destination)", "File.Copy(LongPath(source), LongPath(destination)");
-        Assert.DoesNotContain("SafeFileHandle", copy, StringComparison.Ordinal);
+        RepoSource.AssertOrdered(copy, "GuardDestinationNotReparse(destination)", "PublishFromHandle(src, destination)");
+        Assert.Contains("SafeFileHandle", copy, StringComparison.Ordinal);
     }
 }
 

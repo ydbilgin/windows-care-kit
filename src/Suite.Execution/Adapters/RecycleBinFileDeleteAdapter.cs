@@ -35,6 +35,14 @@ public sealed class RecycleBinFileDeleteAdapter : IFileDeleteAdapter
             // fall through to the not-found handling below
         }
 
+        // S5: walk EVERY ancestor directory component and refuse if any is a reparse point (junction/symlink). The
+        // gate canonicalized the path at authorize-time, but a same-user attacker could race a parent→junction swap
+        // between then and this destructive boundary, redirecting the delete. Verifying identity at the moment of the
+        // mutation (not just at the leaf, not just at gate time) fails closed. Recycle-bin semantics require the shell
+        // FileSystem API, so a true handle-relative delete is not available here; the ancestor reparse walk is the
+        // execution-boundary identity check the OS permits for this sink (spec §3/§10).
+        GuardNoReparseInAncestry(path);
+
         string callPath = ToExtendedLengthPath(path);
 
         bool toRecycle = action.ToRecycleBin || action.Undo != UndoCapability.None;
@@ -78,5 +86,36 @@ public sealed class RecycleBinFileDeleteAdapter : IFileDeleteAdapter
         if (path.StartsWith(@"\\", StringComparison.Ordinal))
             return @"\\?\UNC\" + path.Substring(2);
         return @"\\?\" + path;
+    }
+
+    private static void GuardNoReparseInAncestry(string path)
+    {
+        string? cursor;
+        try
+        {
+            cursor = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return; // malformed path cannot be deleted through; downstream not-found handling applies
+        }
+
+        while (cursor is not null)
+        {
+            if (Directory.Exists(cursor) && IsReparsePoint(cursor))
+                throw new InvalidOperationException(
+                    $"Refusing to delete: an ancestor directory is a reparse point (junction/symlink): {cursor}");
+
+            string? parent = Path.GetDirectoryName(cursor);
+            if (parent is null || string.Equals(parent, cursor, StringComparison.OrdinalIgnoreCase))
+                break;
+            cursor = parent;
+        }
+    }
+
+    private static bool IsReparsePoint(string dir)
+    {
+        try { return File.GetAttributes(dir).HasFlag(FileAttributes.ReparsePoint); }
+        catch { return false; }
     }
 }

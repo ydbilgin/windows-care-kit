@@ -125,10 +125,6 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
                 return null;
             }
 
-            // Register the folder as a private-dep probe path BEFORE the load, so module-private managed deps
-            // (e.g. Suite.Module.Migration.Recipes.dll) can be resolved during the type scan and later use.
-            ModuleAssemblyResolver.Register(moduleDir);
-
             Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(candidate);
 
             Type[] exported;
@@ -171,6 +167,12 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
                 return null;
             }
 
+            // Publish this directory into the resolver's private-dependency probe set ONLY now that the module has
+            // passed EVERY validation gate (containment, single IWckModule, id==folder, not-reserved). A directory that
+            // failed any check above returned already and is therefore NEVER registered — a rejected module can no longer
+            // pollute the process-global dependency resolver (S2). Its own private deps were resolved during the type
+            // scan above from the default probe path; the recipes dep is loaded lazily on first use, after this point.
+            ModuleAssemblyResolver.Register(moduleDir);
             return module;
         }
         catch (Exception ex)

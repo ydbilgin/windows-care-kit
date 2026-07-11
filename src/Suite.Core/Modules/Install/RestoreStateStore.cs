@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 
 namespace WindowsCareKit.Core.Modules.Install;
@@ -106,8 +108,22 @@ public sealed class RestoreStateStore : IRestoreStateStore
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        string staging = path + ".wcktmp";
-        File.WriteAllText(staging, json);
+        // Unpredictable, per-write staging name: an attacker cannot pre-plant a reparse point at a name they cannot
+        // guess, and CreateNew fails if the exact name already exists (so a pre-planted file/link is DETECTED, not
+        // followed). The random token comes from a CSPRNG (S10).
+        string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        string staging = $"{path}.{token}.wcktmp";
+
+        // CreateNew: throws if the name already exists (pre-planted file/link). FileShare.None locks it while we write.
+        using (var stream = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            // Verify the just-created object is a REAL file, not a reparse point, before writing sensitive state.
+            if (File.GetAttributes(staging).HasFlag(FileAttributes.ReparsePoint))
+                throw new IOException($"Refusing to write restore state through a reparse point: {staging}");
+
+            using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            writer.Write(json);
+        }
 
         if (!File.Exists(path))
             using (File.Create(path)) { }

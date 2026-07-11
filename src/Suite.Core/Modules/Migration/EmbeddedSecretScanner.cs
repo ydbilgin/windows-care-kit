@@ -9,7 +9,7 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// </summary>
 public static class EmbeddedSecretScanner
 {
-    /// <summary>Maximum source bytes the copy engine should scan before copying a file.</summary>
+    /// <summary>Maximum source bytes in one copy-engine secret-scan window.</summary>
     public const int MaxBytesToScan = 512 * 1024;
 
     private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -54,6 +54,14 @@ public static class EmbeddedSecretScanner
         )",
         RegexOptions.CultureInvariant);
 
+    private static readonly Regex UnquotedSecretRegex = new(
+        @"(?ix)
+        (?<![A-Za-z0-9_.-])
+        (?:api[_-]?key|client[_-]?secret|refresh[_-]?token|access[_-]?token|secret|token|password|bearer)
+        \s*[:=]\s*
+        (?<uq>[^\s""'\r\n]{6,})",
+        RegexOptions.CultureInvariant);
+
     private static readonly Regex EntropyCandidateRegex = new(
         @"(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{40,}(?![A-Za-z0-9+/=_-])",
         RegexOptions.CultureInvariant);
@@ -85,6 +93,16 @@ public static class EmbeddedSecretScanner
             string value = match.Groups["dq"].Success ? match.Groups["dq"].Value : match.Groups["sq"].Value;
             if (!IsObviousPlaceholder(value))
                 return new EmbeddedSecretScanResult(true, "secret-like key/value");
+        }
+
+        foreach (Match match in UnquotedSecretRegex.Matches(text))
+        {
+            string value = match.Groups["uq"].Value;
+            if (!IsObviousPlaceholder(value)
+                && !value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                && !value.Equals("false", StringComparison.OrdinalIgnoreCase)
+                && !long.TryParse(value, out _))
+                return new EmbeddedSecretScanResult(true, "secret-like unquoted key/value");
         }
 
         foreach (Match match in EntropyCandidateRegex.Matches(text))

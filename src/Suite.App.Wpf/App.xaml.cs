@@ -138,7 +138,8 @@ public partial class App : Application
             new SafetyGate(
                 sp.GetRequiredService<ProtectedResources>(),
                 sp.GetRequiredService<IPathCanonicalizer>(),
-                sp.GetRequiredService<ICurrentSidProvider>()));
+                sp.GetRequiredService<ICurrentSidProvider>(),
+                sp.GetRequiredService<IElevationProbe>()));
 
         // Logging + execution (the one sanctioned destructive layer — §A / §C.0).
         // Logs/backups live under per-user %LocalAppData% (not the app folder): writable even when installed

@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Modules.Uninstall;
 
 namespace WindowsCareKit.Core.Safety;
 
@@ -16,15 +17,32 @@ public sealed class SafetyGate : ISafetyGate
     private readonly ProtectedResources _policy;
     private readonly IPathCanonicalizer _canonicalizer;
     private readonly ICurrentSidProvider _currentSidProvider;
+    private readonly IElevationProbe _elevationProbe;
 
-    public SafetyGate(ProtectedResources policy, IPathCanonicalizer canonicalizer, ICurrentSidProvider? currentSidProvider = null)
+    public SafetyGate(
+        ProtectedResources policy,
+        IPathCanonicalizer canonicalizer,
+        ICurrentSidProvider? currentSidProvider = null,
+        IElevationProbe? elevationProbe = null)
     {
         _policy = policy ?? throw new ArgumentNullException(nameof(policy));
         _canonicalizer = canonicalizer ?? throw new ArgumentNullException(nameof(canonicalizer));
         _currentSidProvider = currentSidProvider ?? NullCurrentSidProvider.Instance;
+        _elevationProbe = elevationProbe ?? AlwaysElevatedProbe.Instance;
     }
 
-    public SafetyVerdict Evaluate(PlannedAction action) => action switch
+    public SafetyVerdict Evaluate(PlannedAction action)
+    {
+        SafetyVerdict verdict = EvaluateCore(action);
+        // S8: an action the current (non-elevated) token cannot actually perform is classified UNAVAILABLE here,
+        // BEFORE approval — never approve-then-silently-fail. When elevated (or no probe injected) this is a no-op.
+        if (verdict.Allowed && action is not null && RequiresElevatedToken(action) && !_elevationProbe.IsElevated())
+            return SafetyVerdict.Block(
+                "requires an elevated (administrator) token; unavailable at the current privilege level (run as administrator to perform this action)");
+        return verdict;
+    }
+
+    private SafetyVerdict EvaluateCore(PlannedAction action) => action switch
     {
         FileDeleteAction f => EvaluateFileDelete(f.Path),
         RegistryDeleteAction r => EvaluateRegistryDelete(r),
@@ -44,6 +62,26 @@ public sealed class SafetyGate : ISafetyGate
         null => SafetyVerdict.Block("null action"),
         _ => SafetyVerdict.Block($"unknown action type: {action.GetType().Name}"),
     };
+
+    /// <summary>
+    /// The machine-wide destructive actions the OS refuses to a standard-user token: any service control
+    /// (SCM stop/disable/delete needs admin), an HKLM key/value delete, and a scheduled-task DELETE. HKCU/HKU-current
+    /// registry deletes, per-user AppX removal, copies, restores, file deletes, and restore-point creation are NOT
+    /// classified here — they run at the user's own integrity level.
+    /// </summary>
+    private static bool RequiresElevatedToken(PlannedAction action) => action switch
+    {
+        ServiceDeleteAction => true,
+        RegistryDeleteAction { Hive: RegistryHive.LocalMachine } => true,
+        TaskDeleteAction { Operation: TaskOperation.Delete } => true,
+        _ => false,
+    };
+
+    private sealed class AlwaysElevatedProbe : IElevationProbe
+    {
+        public static readonly AlwaysElevatedProbe Instance = new();
+        public bool IsElevated() => true;
+    }
 
     public PlanValidationResult Validate(OperationPlan plan)
     {
@@ -324,6 +362,8 @@ public sealed class SafetyGate : ISafetyGate
         string name = (s.ServiceName ?? string.Empty).Trim().ToLowerInvariant();
         if (name.Length == 0)
             return SafetyVerdict.Block("empty service name");
+        if (!Enum.IsDefined(s.Operation))
+            return SafetyVerdict.Block($"undefined service operation ({(int)s.Operation})");
 
         // Critical-to-boot services: every operation (Stop/Disable/Delete) is refused.
         if (_policy.CriticalServiceNames.Contains(name))
@@ -343,6 +383,8 @@ public sealed class SafetyGate : ISafetyGate
         string path = (t.TaskPath ?? string.Empty).Trim().Replace('/', '\\').ToLowerInvariant();
         if (path.Length == 0)
             return SafetyVerdict.Block("empty task path");
+        if (!Enum.IsDefined(t.Operation))
+            return SafetyVerdict.Block($"undefined task operation ({(int)t.Operation})");
         if (!path.StartsWith('\\'))
             path = "\\" + path;
         if (path == "\\microsoft" || path == "\\microsoft\\windows"

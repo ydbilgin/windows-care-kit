@@ -115,14 +115,19 @@ public sealed record ServiceDeleteAction : PlannedAction
     /// correlate one. This is the attribution EVIDENCE the leftover classifier needs: a service is only
     /// <c>ProgramOwned</c> when this path resolves UNDER the app's install directory. Null when the probe
     /// could not resolve it — in which case the classifier treats the service as Shared (fail-safe). It is
-    /// correlation evidence, not part of WHAT is operated on, so it is intentionally excluded from the
-    /// target signature / plan hash (like <see cref="PlannedAction.Risk"/> / <see cref="PlannedAction.Undo"/>).
+    /// correlation evidence and, per S11, IS included in the target signature / plan hash so a post-plan
+    /// image-path change invalidates the approved hash.
     /// </summary>
     public string? ImagePath { get; init; }
 
     public override string Kind => "service.delete";
     public override string TargetSignature()
-        => $"{Kind}|{Operation}|{ServiceName.ToLowerInvariant()}";
+        => $"{Kind}|{Operation}|{ServiceName.ToLowerInvariant()}|img={NormalizeImage(ImagePath)}";
+
+    /// <summary>Normalize the expected service image path for the signature: unquote/trim/lowercase; empty when
+    /// unknown. Binding it makes the approved hash change if the service binary changes after planning (S11).</summary>
+    private static string NormalizeImage(string? imagePath)
+        => (imagePath ?? string.Empty).Trim().Trim('"').ToLowerInvariant();
 }
 
 /// <summary>Disable / delete a scheduled task (by its full path, e.g. <c>\Vendor\Updater</c>).</summary>

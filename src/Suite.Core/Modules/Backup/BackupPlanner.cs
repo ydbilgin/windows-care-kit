@@ -105,7 +105,16 @@ public sealed class BackupPlanner
                 continue;
             }
 
-            string destination = CombineTarget(normalizedPayload, entry.Target);
+            if (!TryCombineTarget(normalizedPayload, entry.Target, out string destination, out string targetReason))
+            {
+                skipped.Add(new BackupSkip(entry, targetReason));
+                continue;
+            }
+            if (AreNested(entry.Source, destination))
+            {
+                skipped.Add(new BackupSkip(entry, "backup destination is inside the source being backed up"));
+                continue;
+            }
             var action = new CopyAction
             {
                 Source = entry.Source,
@@ -176,10 +185,45 @@ public sealed class BackupPlanner
         return true;
     }
 
-    /// <summary>Combine the payload root with a manifest <c>target</c> (which uses forward slashes).</summary>
-    private static string CombineTarget(string payloadRoot, string target)
+    /// <summary>Combine the payload root with a manifest target and prove the result stays INSIDE the payload
+    /// root (rejecting any '..'/reparse escape). Returns false with a reason when the combination escapes.</summary>
+    private static bool TryCombineTarget(string payloadRoot, string target, out string destination, out string reason)
     {
+        destination = string.Empty;
+        reason = string.Empty;
         string relative = target.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-        return Path.GetFullPath(Path.Combine(payloadRoot, relative));
+        string combined;
+        try { combined = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(payloadRoot, relative))); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            reason = "target path is invalid";
+            return false;
+        }
+
+        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(payloadRoot));
+        if (!string.Equals(combined, root, StringComparison.OrdinalIgnoreCase)
+            && !combined.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "target path escapes the backup payload root";
+            return false;
+        }
+        destination = combined;
+        return true;
+    }
+
+    /// <summary>True when either path equals or is nested inside the other, canonically. Prevents a destination
+    /// placed inside the source being copied into itself (unbounded recursion), and vice versa.</summary>
+    private static bool AreNested(string a, string b)
+    {
+        string na, nb;
+        try
+        {
+            na = Path.TrimEndingDirectorySeparator(Path.GetFullPath(a));
+            nb = Path.TrimEndingDirectorySeparator(Path.GetFullPath(b));
+        }
+        catch { return false; }
+        return na.Equals(nb, StringComparison.OrdinalIgnoreCase)
+            || na.StartsWith(nb + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || nb.StartsWith(na + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 }
