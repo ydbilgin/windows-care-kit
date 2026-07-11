@@ -6,7 +6,7 @@ namespace WindowsCareKit.Execution.Adapters;
 /// <summary>Opens external HTTPS links after a direct user click in the UI.</summary>
 public sealed class UrlOpener : IUrlOpener
 {
-    private readonly Action<ProcessStartInfo> _launch;
+    private readonly Func<ProcessStartInfo, Process?> _launch;
 
     public UrlOpener()
 #pragma warning disable RS0030 // Sanctioned process launch (Suite.Execution): open a user-clicked HTTPS URL.
@@ -15,7 +15,7 @@ public sealed class UrlOpener : IUrlOpener
     {
     }
 
-    internal UrlOpener(Action<ProcessStartInfo> launch)
+    internal UrlOpener(Func<ProcessStartInfo, Process?> launch)
     {
         _launch = launch ?? throw new ArgumentNullException(nameof(launch));
     }
@@ -25,6 +25,9 @@ public sealed class UrlOpener : IUrlOpener
         if (uri is null || !uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps)
             return;
 
-        _launch(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+#pragma warning disable RS0030 // Sanctioned process handle ownership: dispose the handle returned by the launch seam.
+        using IDisposable? processHandle = _launch(
+            new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+#pragma warning restore RS0030
     }
 }

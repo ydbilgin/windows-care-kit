@@ -4,6 +4,8 @@
   "uninstall.title": "Kurulu programlar",
   "uninstall.subtitle": "Planını önizlemek için bir program seç. Sen kuru-çalışmayı onaylayana kadar hiçbir şey değişmez.",
   "uninstall.loading": "Kurulu programlar okunuyor…",
+  "uninstall.inventory.partial": "Bazı kurulu uygulamalar okunamadı. Liste eksik olabilir.",
+  "uninstall.inventory.unavailable": "Kurulu uygulamalar okunamadı. Yeniden denemek için yenile.",
   "uninstall.count": "{0} program",
   "uninstall.selectPrompt": "Kaldırma planını ve kalıntı taramasını görmek için soldan bir program seç.",
   "uninstall.official.title": "Resmi kaldırıcı",

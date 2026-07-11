@@ -76,7 +76,7 @@ public sealed class AppRow
     /// <summary>True when removing this app needs elevation (HKLM machine-wide) — drives the "[Yönetici]" hint.</summary>
     public bool NeedsAdmin { get; private init; }
 
-    /// <summary>The lowercased name+publisher haystack used by the ICollectionView search filter.</summary>
+    /// <summary>The raw name+publisher haystack used by the culture-aware ICollectionView search filter.</summary>
     public string SearchKey { get; private init; } = string.Empty;
 
     public static AppRow FromApp(InstalledApp app)
@@ -138,7 +138,7 @@ public sealed class AppRow
     }
 
     private static string Haystack(string name, string? publisher)
-        => (name + " " + (publisher ?? string.Empty)).ToLowerInvariant();
+        => name + " " + (publisher ?? string.Empty);
 }
 
 /// <summary>The neutral badge palettes. Deliberately no "reversible/green" tone for status — green stays an

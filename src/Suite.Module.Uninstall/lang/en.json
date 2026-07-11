@@ -4,6 +4,8 @@
   "uninstall.title": "Installed programs",
   "uninstall.subtitle": "Pick a program to preview its plan. Nothing changes until you approve the dry-run.",
   "uninstall.loading": "Reading installed programs…",
+  "uninstall.inventory.partial": "Some installed apps could not be read. The list may be incomplete.",
+  "uninstall.inventory.unavailable": "Installed apps couldn't be read. Refresh to try again.",
   "uninstall.count": "{0} programs",
   "uninstall.selectPrompt": "Select a program on the left to see its uninstall plan and leftover scan.",
   "uninstall.official.title": "Official uninstaller",

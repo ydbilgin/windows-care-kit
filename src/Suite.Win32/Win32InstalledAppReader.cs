@@ -23,36 +23,66 @@ public sealed class Win32InstalledAppReader : IInstalledAppReader
         => _registry = registry ?? throw new ArgumentNullException(nameof(registry));
 
     public IReadOnlyList<InstalledApp> ReadAll()
+        => ReadAllWithStatus().Apps;
+
+    public InstalledAppReadResult ReadAllWithStatus()
     {
         var apps = new List<InstalledApp>();
-        ReadFrom(CoreHive.LocalMachine, CoreView.Registry64, InstalledAppSource.MachineWide64, apps);
-        ReadFrom(CoreHive.LocalMachine, CoreView.Registry32, InstalledAppSource.MachineWide32, apps);
-        ReadFrom(CoreHive.CurrentUser, CoreView.Registry64, InstalledAppSource.CurrentUser, apps);
-        return apps;
+        var failedSources = new List<InstalledAppSource>();
+        int readableSources = 0;
+
+        ReadSource(CoreHive.LocalMachine, CoreView.Registry64, InstalledAppSource.MachineWide64);
+        ReadSource(CoreHive.LocalMachine, CoreView.Registry32, InstalledAppSource.MachineWide32);
+        ReadSource(CoreHive.CurrentUser, CoreView.Registry64, InstalledAppSource.CurrentUser);
+
+        InstalledAppReadStatus status = readableSources == 0
+            ? InstalledAppReadStatus.Unavailable
+            : failedSources.Count > 0
+                ? InstalledAppReadStatus.Partial
+                : InstalledAppReadStatus.Complete;
+        return new InstalledAppReadResult(apps, status, failedSources);
+
+        void ReadSource(CoreHive hive, CoreView view, InstalledAppSource source)
+        {
+            SourceReadStatus sourceStatus = ReadFrom(hive, view, source, apps);
+            if (sourceStatus != SourceReadStatus.Failed)
+                readableSources++;
+            if (sourceStatus != SourceReadStatus.Complete)
+                failedSources.Add(source);
+        }
     }
 
-    private void ReadFrom(CoreHive hive, CoreView view, InstalledAppSource source, List<InstalledApp> sink)
+    private SourceReadStatus ReadFrom(CoreHive hive, CoreView view, InstalledAppSource source, List<InstalledApp> sink)
     {
         try
         {
+            bool entryFailed = false;
             foreach (string subName in _registry.GetSubKeyNames(hive, view, UninstallPath))
             {
-                InstalledApp? app = TryReadEntry(hive, view, subName, source);
+                InstalledApp? app = TryReadEntry(hive, view, subName, source, out bool entryRead);
+                entryFailed |= !entryRead;
                 if (app is not null)
                     sink.Add(app);
             }
+            return entryFailed ? SourceReadStatus.Partial : SourceReadStatus.Complete;
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
         {
-            // A view/hive we cannot read is simply skipped; the inventory is best-effort.
+            return SourceReadStatus.Failed;
         }
     }
 
-    private InstalledApp? TryReadEntry(CoreHive hive, CoreView view, string subName, InstalledAppSource source)
+    private InstalledApp? TryReadEntry(
+        CoreHive hive,
+        CoreView view,
+        string subName,
+        InstalledAppSource source,
+        out bool succeeded)
     {
         try
         {
             RegistryKeySnapshot? key = _registry.ReadKey(hive, view, $@"{UninstallPath}\{subName}");
+            succeeded = true;
             if (key is null)
                 return null;
 
@@ -78,8 +108,16 @@ public sealed class Win32InstalledAppReader : IInstalledAppReader
         }
         catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
         {
+            succeeded = false;
             return null;
         }
+    }
+
+    private enum SourceReadStatus
+    {
+        Complete,
+        Partial,
+        Failed,
     }
 
     private static string? NormalizeNullable(string? s)

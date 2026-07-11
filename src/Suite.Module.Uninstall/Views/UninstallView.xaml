@@ -192,6 +192,12 @@
                        FontSize="24" FontWeight="SemiBold" />
             <TextBlock Text="{Binding I18n[uninstall.subtitle]}" Foreground="{DynamicResource Backup.Muted}"
                        FontSize="13" TextWrapping="Wrap" Margin="0,3,0,0" />
+            <Border Background="{DynamicResource Backup.Chrome}" BorderBrush="{DynamicResource Backup.Line}"
+                    BorderThickness="1" CornerRadius="6" Padding="10,7" Margin="0,10,0,0"
+                    Visibility="{Binding HasInventoryNotice, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{Binding InventoryNotice}" Foreground="{DynamicResource Backup.Muted}"
+                           FontSize="12" TextWrapping="Wrap" />
+            </Border>
         </StackPanel>
 
         <!-- ===== Row 1: dense command bar (search + scope + sort + refresh), sits below the active top tab ===== -->

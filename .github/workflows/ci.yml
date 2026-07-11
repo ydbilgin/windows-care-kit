@@ -44,7 +44,7 @@ jobs:
         run: dotnet restore WindowsCareKit.slnx
 
       - name: Build
-        run: dotnet build WindowsCareKit.slnx --configuration Release --no-restore
+        run: dotnet build WindowsCareKit.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
 
       - name: Test
         # Destructive tests (Category=Destructive) are EXCLUDED from CI by default: they touch real

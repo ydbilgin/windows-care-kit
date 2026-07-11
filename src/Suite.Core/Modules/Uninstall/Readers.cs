@@ -7,6 +7,27 @@ public interface IInstalledAppReader
 {
     /// <summary>All entries across HKLM 64/32 and HKCU. System components are included but flagged.</summary>
     IReadOnlyList<InstalledApp> ReadAll();
+
+    /// <summary>Inventory plus source-read health. Simple fakes and legacy readers are complete by default.</summary>
+    InstalledAppReadResult ReadAllWithStatus() => InstalledAppReadResult.Complete(ReadAll());
+}
+
+/// <summary>Whether all, some, or none of the classic-app inventory sources could be read.</summary>
+public enum InstalledAppReadStatus
+{
+    Complete,
+    Partial,
+    Unavailable,
+}
+
+/// <summary>A typed classic-app inventory outcome, including every source that could not be read completely.</summary>
+public sealed record InstalledAppReadResult(
+    IReadOnlyList<InstalledApp> Apps,
+    InstalledAppReadStatus Status,
+    IReadOnlyList<InstalledAppSource> FailedSources)
+{
+    public static InstalledAppReadResult Complete(IReadOnlyList<InstalledApp> apps)
+        => new(apps, InstalledAppReadStatus.Complete, Array.Empty<InstalledAppSource>());
 }
 
 /// <summary>A read-only snapshot of one registry key's values.</summary>

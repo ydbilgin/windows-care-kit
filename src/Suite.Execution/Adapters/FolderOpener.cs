@@ -17,7 +17,7 @@ namespace WindowsCareKit.Execution.Adapters;
 public sealed class FolderOpener : IFolderOpener
 {
     private readonly IPathCanonicalizer _canonicalizer;
-    private readonly Action<ProcessStartInfo> _launch;
+    private readonly Func<ProcessStartInfo, Process?> _launch;
 
     public FolderOpener(IPathCanonicalizer canonicalizer)
 #pragma warning disable RS0030 // Sanctioned process launch (Suite.Execution): open Explorer for a validated folder.
@@ -26,12 +26,23 @@ public sealed class FolderOpener : IFolderOpener
     {
     }
 
-    /// <summary>Test seam: inject the launch action so the L5 accept/refuse decision can be verified without
+    /// <summary>Test seam: inject the launch factory so the L5 accept/refuse decision can be verified without
     /// actually spawning Explorer. Production always uses the public ctor (real <see cref="Process.Start"/>).</summary>
-    internal FolderOpener(IPathCanonicalizer canonicalizer, Action<ProcessStartInfo> launch)
+    internal FolderOpener(IPathCanonicalizer canonicalizer, Func<ProcessStartInfo, Process?> launch)
     {
         _canonicalizer = canonicalizer ?? throw new ArgumentNullException(nameof(canonicalizer));
         _launch = launch ?? throw new ArgumentNullException(nameof(launch));
+    }
+
+    /// <summary>Compatibility seam for existing launch-capture tests that do not return a process handle.</summary>
+    internal FolderOpener(IPathCanonicalizer canonicalizer, Action<ProcessStartInfo> launch)
+        : this(canonicalizer, psi =>
+        {
+            launch(psi);
+            return null;
+        })
+    {
+        ArgumentNullException.ThrowIfNull(launch);
     }
 
     /// <inheritdoc />
@@ -64,7 +75,9 @@ public sealed class FolderOpener : IFolderOpener
             UseShellExecute = false,
         };
         psi.ArgumentList.Add(canon.FinalPath);
-        _launch(psi);
+#pragma warning disable RS0030 // Sanctioned process handle ownership: dispose the handle returned by the launch seam.
+        using IDisposable? processHandle = _launch(psi);
+#pragma warning restore RS0030
     }
 
     private static bool PathsEqual(string a, string b)

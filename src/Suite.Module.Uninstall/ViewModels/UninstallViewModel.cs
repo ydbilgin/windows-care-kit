@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
@@ -41,6 +42,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
     private InstalledApp? _selectedApp;
     private InstalledAppx? _selectedAppx;
     private int _appxCount;
+    private string _inventoryNotice = string.Empty;
 
     // Which run path is staged for confirmation (only the Store-app removal lives here).
     private PendingKind _pendingKind;
@@ -144,6 +146,19 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 
     public int AppxCount { get => _appxCount; private set => SetField(ref _appxCount, value); }
 
+    /// <summary>Localized notice when classic-app discovery was incomplete or unavailable.</summary>
+    public string InventoryNotice
+    {
+        get => _inventoryNotice;
+        private set
+        {
+            if (SetField(ref _inventoryNotice, value))
+                OnPropertyChanged(nameof(HasInventoryNotice));
+        }
+    }
+
+    public bool HasInventoryNotice => !string.IsNullOrWhiteSpace(InventoryNotice);
+
     /// <summary>True when a plan is staged and the confirm panel should be shown.</summary>
     public bool RequiresConfirmation => _pendingKind != PendingKind.None;
 
@@ -244,15 +259,17 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
             // Build a single flat, name-sorted list of desktop + Store rows (UI decision §2). Reads + projection off-thread.
             var rows = await Task.Run(() =>
             {
-                var apps = _appReader.ReadAll()
+                InstalledAppReadResult inventory = _appReader.ReadAllWithStatus();
+                var apps = inventory.Apps
                     .Where(a => !a.IsSystemComponent)
                     .Select(AppRow.FromApp);
                 var packages = _appxReader.ReadCurrentUserPackages()
                     .Where(p => !p.IsFrameworkOrSystem)
                     .Select(AppRow.FromAppx);
-                return apps.Concat(packages)
+                var loadedRows = apps.Concat(packages)
                     .OrderBy(r => r.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
+                return (Rows: loadedRows, inventory.Status);
             });
 
             // G2: discard a superseded load. A newer LoadAsync incremented _loadGeneration while this one was in
@@ -262,8 +279,14 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 
             SelectedRow = null;
             _allRows.Clear();
-            AppxCount = rows.Count(r => r.IsStore);
-            foreach (var r in rows)
+            InventoryNotice = rows.Status switch
+            {
+                InstalledAppReadStatus.Partial => I18n["uninstall.inventory.partial"],
+                InstalledAppReadStatus.Unavailable => I18n["uninstall.inventory.unavailable"],
+                _ => string.Empty,
+            };
+            AppxCount = rows.Rows.Count(r => r.IsStore);
+            foreach (var r in rows.Rows)
             {
                 r.BadgeText = LocalizeBadge(r.StatusBadge);
                 _allRows.Add(r);
@@ -301,7 +324,10 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 
         if (string.IsNullOrWhiteSpace(_search))
             return true;
-        return row.SearchKey.Contains(_search.Trim().ToLowerInvariant());
+        return CultureInfo.CurrentCulture.CompareInfo.IndexOf(
+            row.SearchKey,
+            _search.Trim(),
+            CompareOptions.IgnoreCase) >= 0;
     }
 
     private void OpenSelectedLocation()

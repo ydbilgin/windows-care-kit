@@ -427,32 +427,46 @@ public sealed class UiReliabilitySecurityReproTests
         Assert.Empty(vm.PlanRows);
     }
 
-    /// <summary>G-m3: an injected swallowed probe failure renders exactly like a legitimate empty inventory.</summary>
+    /// <summary>G-m3: inventory failures are typed and surfaced instead of rendering as a legitimate empty inventory.</summary>
     [Fact]
-    public async Task G_m3_swallowed_probe_failure_has_no_unavailable_or_diagnostic_state()
+    public async Task G_m3_probe_failure_reports_unavailable_and_surfaces_an_inventory_notice()
     {
         var probe = new ThrowingRegistryProbe();
         var installed = new Win32InstalledAppReader(probe);
+        InstalledAppReadResult outcome = installed.ReadAllWithStatus();
+
+        Assert.Equal(InstalledAppReadStatus.Unavailable, outcome.Status);
+        Assert.Empty(outcome.Apps);
+        Assert.Equal(3, outcome.FailedSources.Count);
+        Assert.Equal(3, probe.CallCount);
+
         UninstallViewModel vm = BuildUninstallVm(installed, new EmptyAppxReader());
 
         await vm.LoadAsync();
 
-        Assert.Equal(3, probe.CallCount);
+        Assert.Equal(6, probe.CallCount);
         Assert.Empty(vm.AllRows);
         Assert.False(vm.IsLoading);
-        string[] diagnosticProperties = typeof(UninstallViewModel)
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Select(p => p.Name)
-            .Where(n => n.Contains("Error", StringComparison.OrdinalIgnoreCase)
-                     || n.Contains("Diagnostic", StringComparison.OrdinalIgnoreCase)
-                     || n.Contains("Unavailable", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        Assert.Empty(diagnosticProperties);
+        Assert.True(vm.HasInventoryNotice);
+        Assert.False(string.IsNullOrWhiteSpace(vm.InventoryNotice));
 
-        string installedSource = RepoSource.Read("src/Suite.Win32/Win32InstalledAppReader.cs");
-        string appxSource = RepoSource.Read("src/Suite.Win32/Win32AppxReader.cs");
-        Assert.Contains("catch (Exception", installedSource, StringComparison.Ordinal);
-        Assert.Contains("catch (Exception", appxSource, StringComparison.Ordinal);
+        InstalledAppReadResult partial = new Win32InstalledAppReader(
+            new PartiallyThrowingRegistryProbe()).ReadAllWithStatus();
+        Assert.Equal(InstalledAppReadStatus.Partial, partial.Status);
+        Assert.Empty(partial.Apps);
+        Assert.Equal([InstalledAppSource.MachineWide64], partial.FailedSources);
+
+        IInstalledAppReader completeReader = new Win32InstalledAppReader(new EmptyRegistryProbe());
+        InstalledAppReadResult complete = completeReader.ReadAllWithStatus();
+        Assert.Equal(InstalledAppReadStatus.Complete, complete.Status);
+        Assert.Empty(complete.FailedSources);
+
+        UninstallViewModel emptyVm = BuildUninstallVm(completeReader, new EmptyAppxReader());
+        await emptyVm.LoadAsync();
+
+        Assert.Empty(emptyVm.AllRows);
+        Assert.False(emptyVm.HasInventoryNotice);
+        Assert.Equal(string.Empty, emptyVm.InventoryNotice);
     }
 
     /// <summary>G-m4: a missing WPF binding path reaches PathError while measure/arrange completes normally.</summary>
@@ -571,6 +585,26 @@ public sealed class UiReliabilitySecurityReproTests
 
         public RegistryKeySnapshot? ReadKey(RegistryHive hive, RegistryView view, string subKey)
             => throw new InvalidOperationException("entry reads must not occur when enumeration failed");
+    }
+
+    private sealed class PartiallyThrowingRegistryProbe : IRegistryProbe
+    {
+        public IReadOnlyList<string> GetSubKeyNames(RegistryHive hive, RegistryView view, string subKey)
+            => hive == RegistryHive.LocalMachine && view == RegistryView.Registry64
+                ? throw new UnauthorizedAccessException("synthetic probe failure")
+                : Array.Empty<string>();
+
+        public RegistryKeySnapshot? ReadKey(RegistryHive hive, RegistryView view, string subKey)
+            => throw new InvalidOperationException("entry reads must not occur for an empty synthetic source");
+    }
+
+    private sealed class EmptyRegistryProbe : IRegistryProbe
+    {
+        public IReadOnlyList<string> GetSubKeyNames(RegistryHive hive, RegistryView view, string subKey)
+            => Array.Empty<string>();
+
+        public RegistryKeySnapshot? ReadKey(RegistryHive hive, RegistryView view, string subKey)
+            => throw new InvalidOperationException("entry reads must not occur for an empty synthetic source");
     }
 
     private sealed class EmptyAppxReader : IAppxReader
@@ -818,28 +852,41 @@ public sealed class SecurityReproPart2Tests
         Assert.Contains("{0} copied or planned", migrationEnglish, StringComparison.Ordinal);
     }
 
-    /// <summary>G-m5: both launch ports are void and their production lambdas drop Process.Start's handle.</summary>
+    /// <summary>G-m5: URL and folder launchers dispose the local process handle after a fire-and-forget launch.</summary>
     [Fact]
-    public void G_m5_url_and_folder_openers_discard_process_handles()
+    public void G_m5_url_and_folder_openers_dispose_returned_process_handles()
     {
         Assert.Equal(typeof(void), typeof(IUrlOpener).GetMethod(nameof(IUrlOpener.Open))!.ReturnType);
         Assert.Equal(typeof(void), typeof(IFolderOpener).GetMethod(nameof(IFolderOpener.OpenFolder))!.ReturnType);
 
-        string url = RepoSource.Read("src/Suite.Execution/Adapters/UrlOpener.cs");
-        string folder = RepoSource.Read("src/Suite.Execution/Adapters/FolderOpener.cs");
-        Assert.Contains("private readonly Action<ProcessStartInfo> _launch", url, StringComparison.Ordinal);
-        Assert.Contains("private readonly Action<ProcessStartInfo> _launch", folder, StringComparison.Ordinal);
-        Assert.Contains("psi => Process.Start(psi)", url, StringComparison.Ordinal);
-        Assert.Contains("psi => Process.Start(psi)", folder, StringComparison.Ordinal);
-        Assert.DoesNotContain("using Process", url, StringComparison.Ordinal);
-        Assert.DoesNotContain("using Process", folder, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Dispose()", url, StringComparison.Ordinal);
-        Assert.DoesNotContain(".Dispose()", folder, StringComparison.Ordinal);
+        var urlProcess = new DisposalTrackingProcess();
+        var urlOpener = new UrlOpener(_ => urlProcess);
+        urlOpener.Open(new Uri("https://example.invalid/synthetic"));
+        Assert.True(urlProcess.WasDisposed);
+
+        string directory = Path.Combine(Path.GetTempPath(), "wck-gm5-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string fullPath = Path.GetFullPath(directory);
+            var folderProcess = new DisposalTrackingProcess();
+            var canonicalizer = new FakeCanonicalizer().Map(
+                fullPath, fullPath, reparse: false, resolved: true);
+            var folderOpener = new FolderOpener(canonicalizer, _ => folderProcess);
+
+            folderOpener.OpenFolder(directory);
+
+            Assert.True(folderProcess.WasDisposed);
+        }
+        finally
+        {
+            TestFs.DeleteResilient(directory);
+        }
     }
 
-    /// <summary>G-m6: the real uninstall view filters out İstanbul for a Turkish user's literal "istanbul" query.</summary>
+    /// <summary>G-m6: uninstall search follows the active culture for dotted and dotless Turkish I.</summary>
     [Fact]
-    public async Task G_m6_uninstall_search_fails_turkish_dotted_i_case_matching()
+    public async Task G_m6_uninstall_search_matches_turkish_dotted_and_dotless_i()
     {
         CultureInfo priorCulture = CultureInfo.CurrentCulture;
         CultureInfo priorUiCulture = CultureInfo.CurrentUICulture;
@@ -849,7 +896,8 @@ public sealed class SecurityReproPart2Tests
             CultureInfo.CurrentCulture = turkish;
             CultureInfo.CurrentUICulture = turkish;
             var reader = new StaticInstalledAppReader([
-                TestData.App(displayName: "İstanbul Araçları", source: InstalledAppSource.CurrentUser),
+                TestData.App(displayName: "\u0130stanbul Araçları", source: InstalledAppSource.CurrentUser),
+                TestData.App(displayName: "\u0131rmak Yardımcısı", source: InstalledAppSource.CurrentUser),
             ]);
             var vm = new UninstallViewModel(
                 ShellI18n("tr"),
@@ -861,14 +909,32 @@ public sealed class SecurityReproPart2Tests
                 new NoOpFolderOpener());
 
             await vm.LoadAsync();
-            AppRow row = Assert.Single(vm.AllRows);
             vm.Search = "istanbul";
 
             Assert.Equal("tr", vm.I18n.SelectedCulture);
-            Assert.DoesNotContain("istanbul", row.SearchKey, StringComparison.Ordinal);
-            Assert.Empty(vm.AppsView.Cast<AppRow>());
-            Assert.True(
-                turkish.CompareInfo.IndexOf(row.DisplayName, "istanbul", CompareOptions.IgnoreCase) >= 0);
+            Assert.Equal("\u0130stanbul Araçları", Assert.Single(vm.AppsView.Cast<AppRow>()).DisplayName);
+
+            vm.Search = "IRMAK";
+            Assert.Equal("\u0131rmak Yardımcısı", Assert.Single(vm.AppsView.Cast<AppRow>()).DisplayName);
+
+            CultureInfo english = CultureInfo.GetCultureInfo("en-US");
+            CultureInfo.CurrentCulture = english;
+            CultureInfo.CurrentUICulture = english;
+            var englishVm = new UninstallViewModel(
+                ShellI18n("en"),
+                new StaticInstalledAppReader([
+                    TestData.App(displayName: "Synthetic Utility", source: InstalledAppSource.CurrentUser),
+                ]),
+                new EmptyAppxReader(),
+                TestData.Gate(),
+                new FakeLeftoverProbe(),
+                new NoOpExecutor(),
+                new NoOpFolderOpener());
+
+            await englishVm.LoadAsync();
+            englishVm.Search = "UTILITY";
+
+            Assert.Equal("Synthetic Utility", Assert.Single(englishVm.AppsView.Cast<AppRow>()).DisplayName);
         }
         finally
         {
@@ -1096,6 +1162,17 @@ public sealed class SecurityReproPart2Tests
     private sealed class StaticInstalledAppReader(IReadOnlyList<InstalledApp> apps) : IInstalledAppReader
     {
         public IReadOnlyList<InstalledApp> ReadAll() => apps;
+    }
+
+    private sealed class DisposalTrackingProcess : Process
+    {
+        public bool WasDisposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            WasDisposed = true;
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class EmptyAppxReader : IAppxReader
