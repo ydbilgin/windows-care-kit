@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text;
+using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
@@ -19,9 +20,8 @@ public static class BackupReportFiles
 
 /// <summary>
 /// Builds <c>REPORT.md</c> and <c>MANUAL_TODO.md</c> from a <see cref="BackupPlanResult"/> and the post-execution
-/// <see cref="CopySkipReport"/> (spec §1.3). The markdown construction is pure (testable). Writing the two files
-/// is a plain <see cref="File.WriteAllText"/> into the payload dir (outside the repo) — that write API is NOT on
-/// <c>BannedSymbols.txt</c> (only Delete/Move/registry/Process are banned), so it is allowed from Suite.Core.
+/// <see cref="CopySkipReport"/> (spec §1.3). The markdown construction is pure (testable); physical persistence
+/// is delegated through the Core-owned write port to the sanctioned Execution adapter.
 /// The reports list: copied OK, skipped (locked/forbidden/too-long), manual to-do (never-read + re-login
 /// guidance), and the reinstall list (<c>install-*</c> entries the Kur module consumes).
 ///
@@ -33,9 +33,13 @@ public static class BackupReportFiles
 public sealed class BackupReportWriter
 {
     private readonly ILogRedactor _redactor;
+    private readonly IFileWriter _writer;
 
-    public BackupReportWriter(ILogRedactor redactor)
-        => _redactor = redactor ?? throw new ArgumentNullException(nameof(redactor));
+    public BackupReportWriter(ILogRedactor redactor, IFileWriter writer)
+    {
+        _redactor = redactor ?? throw new ArgumentNullException(nameof(redactor));
+        _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+    }
 
     private string R(string? text) => _redactor.Redact(text);
 
@@ -142,7 +146,7 @@ public sealed class BackupReportWriter
 
     /// <summary>
     /// Write both reports into <paramref name="payloadRootDir"/> and return the two paths. Uses
-    /// <see cref="File.WriteAllText"/> (not a banned API) into the payload dir (outside the repo).
+    /// the sanctioned write port into the payload dir (outside the repo).
     ///
     /// <para>L9: the payload root is re-evaluated through <paramref name="gate"/> (as a synthetic
     /// <see cref="CopyAction"/> write target) before either file is written, so the reports cannot be
@@ -169,13 +173,11 @@ public sealed class BackupReportWriter
         if (!verdict.Allowed)
             throw new UnauthorizedAccessException($"report output location refused by the safety gate: {verdict.Reason}");
 
-        Directory.CreateDirectory(payloadRootDir);
-
         string reportPath = Path.Combine(payloadRootDir, BackupReportFiles.Report);
         string manualPath = Path.Combine(payloadRootDir, BackupReportFiles.ManualTodo);
 
-        File.WriteAllText(reportPath, BuildReport(plan, copyReport, utc, integrityCount));
-        File.WriteAllText(manualPath, BuildManualTodo(plan, utc));
+        _writer.WriteAllText(reportPath, BuildReport(plan, copyReport, utc, integrityCount));
+        _writer.WriteAllText(manualPath, BuildManualTodo(plan, utc));
 
         return (reportPath, manualPath);
     }

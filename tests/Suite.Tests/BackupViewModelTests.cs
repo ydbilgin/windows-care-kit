@@ -63,8 +63,8 @@ public sealed class BackupViewModelTests
         var fakeFileSystem = new FakeFileSystem().AddFile(copiedDestination, "synthetic settings");
         var runner = new BackupRunner(
             new MixedOutcomeBackupExecutor(),
-            new BackupIntegrityWriter(),
-            new BackupReportWriter(new LogRedactor(null, null)),
+            new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()),
             gate,
             fakeFileSystem,
             new FakeHasher(),
@@ -102,8 +102,8 @@ public sealed class BackupViewModelTests
         var planner = new BackupPlanner(fx.Gate, new Win32EnvironmentExpander());
         var runner = new BackupRunner(
             new BackupExecutorAdapter(fx.Executor),
-            new BackupIntegrityWriter(),
-            new BackupReportWriter(new LogRedactor(null, null)),
+            new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()),
             fx.Gate,
             new PhysicalFileSystem(),
             new Sha256Hasher(),
@@ -237,5 +237,28 @@ public sealed class BackupViewModelTests
         Assert.False(vm.IsPreviewApproved);
         Assert.False(vm.CanRun);
         Assert.Empty(vm.PlanRows);
+    }
+
+    [Fact]
+    public void Payload_dir_cannot_change_during_an_in_flight_operation()
+    {
+        using var fx = new ExecutorFixture(RealGate());
+        using var ws = new TempWorkspace("wck-backup-vm-busy-");
+        var vm = BuildVm(fx, ws);
+        string payloadDir = vm.PayloadDir;
+        SetBusy(vm, true);
+
+        Assert.False(vm.CanEditDirectories);
+        vm.PayloadDir = Path.Combine(Path.GetTempPath(), "wck-backup-other-" + Guid.NewGuid().ToString("N"));
+
+        Assert.Equal(payloadDir, vm.PayloadDir);
+    }
+
+    private static void SetBusy(BackupViewModel vm, bool value)
+    {
+        System.Reflection.FieldInfo field = typeof(BackupViewModel).GetField(
+            "_isBusy",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        field.SetValue(vm, value);
     }
 }

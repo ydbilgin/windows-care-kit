@@ -50,6 +50,7 @@ public sealed class InstallViewModel : ObservableObject
     private string _stateDirectory = string.Empty;
     private string _summary = string.Empty;
     private string _resultSummary = string.Empty;
+    private string _checkpointWarning = string.Empty;
 
     public InstallViewModel(
         I18n i18n,
@@ -74,7 +75,7 @@ public sealed class InstallViewModel : ObservableObject
         BuildPlanCommand = new RelayCommand(() => BuildPlan(), () => _manifest.Entries.Count > 0 && !IsBusy);
         ApproveCommand = new RelayCommand(() => IsPreviewApproved = true, () => HasPlan && !IsPreviewApproved);
         CancelApprovalCommand = new RelayCommand(() => IsPreviewApproved = false, () => IsPreviewApproved);
-        RunCommand = new RelayCommand(() => Run(), () => HasPlan && IsPreviewApproved && !IsBusy);
+        RunCommand = new AsyncRelayCommand(RunAsync, () => HasPlan && IsPreviewApproved && !IsBusy);
         ResumeCommand = new RelayCommand(() => BuildPlan(), () => CanResume && !IsBusy);
         ExportPlanCommand = new RelayCommand(() => ExportPlan(),
             () => _planResult is not null && !string.IsNullOrWhiteSpace(StateDirectory) && !IsBusy);
@@ -112,6 +113,7 @@ public sealed class InstallViewModel : ObservableObject
     public bool CanResume { get => _canResume; private set => SetField(ref _canResume, value); }
     public string Summary { get => _summary; private set => SetField(ref _summary, value); }
     public string ResultSummary { get => _resultSummary; private set => SetField(ref _resultSummary, value); }
+    public string CheckpointWarning { get => _checkpointWarning; private set => SetField(ref _checkpointWarning, value); }
 
     public bool IsPreviewApproved
     {
@@ -172,7 +174,16 @@ public sealed class InstallViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            RestoreState state = LoadState();
+            RestoreStateLoad load = LoadCheckpoint();
+            if (!load.CanPlanResume)
+            {
+                ResetPlanState();
+                CheckpointWarning = I18n["install.checkpoint.unreadable"];
+                CanResume = false;
+                return;
+            }
+
+            RestoreState state = load.State;
             var now = DateTime.UtcNow;
             InstallPlanResult result = _planner.BuildPlan(_manifest, state, now);
 
@@ -217,7 +228,7 @@ public sealed class InstallViewModel : ObservableObject
     /// Guarded so nothing runs without an explicit approval; the approved hash is captured from the exact
     /// previewed plan (TOCTOU).
     /// </summary>
-    public void Run()
+    public async Task RunAsync()
     {
         if (_plan is null || !IsPreviewApproved || _plan.IsEmpty)
             return;
@@ -226,7 +237,7 @@ public sealed class InstallViewModel : ObservableObject
         try
         {
             _approvedHash = _plan.ComputeHash();
-            PlanExecutionReport report = _executor.ExecuteWithReport(_plan, _approvedHash);
+            PlanExecutionReport report = await Task.Run(() => _executor.ExecuteWithReport(_plan, _approvedHash));
 
             ExecutionResults.Clear();
             foreach (PlanActionResult r in report.Results)
@@ -251,7 +262,7 @@ public sealed class InstallViewModel : ObservableObject
     /// Host-safe EXPORT (Step 3 dry-run): project the most recently built plan into <c>install_plan.json</c> and
     /// write it into the state directory (outside the repo, frequently external/USB media). This reads the plan
     /// and writes JSON only — it NEVER runs winget/npm, spawns a process, or elevates; the writer re-gates the
-    /// payload root first, so a protected/system target is refused. The destructive <see cref="Run"/> path is
+    /// payload root first, so a protected/system target is refused. The destructive <see cref="RunAsync"/> path is
     /// untouched.
     /// </summary>
     public void ExportPlan()
@@ -275,15 +286,24 @@ public sealed class InstallViewModel : ObservableObject
 
     // ---- helpers ----
 
-    private RestoreState LoadState()
-        => string.IsNullOrWhiteSpace(_stateDirectory) ? RestoreState.Empty : _stateStore.Load(_stateDirectory);
+    private RestoreStateLoad LoadCheckpoint()
+        => string.IsNullOrWhiteSpace(_stateDirectory)
+            ? RestoreStateLoad.Missing
+            : _stateStore.TryLoad(_stateDirectory);
 
     private void PersistCheckpoint(PlanExecutionReport report)
     {
         if (string.IsNullOrWhiteSpace(_stateDirectory))
             return;
 
-        RestoreState state = _stateStore.Load(_stateDirectory);
+        RestoreStateLoad load = _stateStore.TryLoad(_stateDirectory);
+        if (load.Status is RestoreStateLoadStatus.Corrupt or RestoreStateLoadStatus.Unavailable)
+        {
+            CheckpointWarning = I18n["install.checkpoint.notUpdated"];
+            return;
+        }
+
+        RestoreState state = load.State;
         if (string.IsNullOrEmpty(state.PlanHash))
             state = state with { PlanHash = report.PlanHash, StartedUtc = DateTime.UtcNow };
 
@@ -312,8 +332,10 @@ public sealed class InstallViewModel : ObservableObject
             CanResume = false;
             return;
         }
-        RestoreState state = _stateStore.Load(_stateDirectory);
-        CanResume = state.Entries.Count > 0 && state.FirstUnfinished() is not null;
+        RestoreStateLoad load = _stateStore.TryLoad(_stateDirectory);
+        CanResume = load.Status == RestoreStateLoadStatus.Loaded && load.State.FirstUnfinished() is not null;
+        if (!load.CanPlanResume && string.IsNullOrEmpty(CheckpointWarning))
+            CheckpointWarning = I18n["install.checkpoint.unreadable"];
     }
 
     private void BuildAuthRows()
@@ -347,6 +369,7 @@ public sealed class InstallViewModel : ObservableObject
         ManualChecklist.Clear();
         ExecutionResults.Clear();
         ResultSummary = string.Empty;
+        CheckpointWarning = string.Empty;
     }
 
     private static PlannedAction SkipAsAction(InstallSkip skip)

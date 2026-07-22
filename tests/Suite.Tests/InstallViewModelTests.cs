@@ -51,9 +51,20 @@ public sealed class InstallViewModelTests
         private readonly Dictionary<string, RestoreState> _byDir = new(StringComparer.OrdinalIgnoreCase);
         public int SaveCount { get; private set; }
         public RestoreState? LastSaved { get; private set; }
+        public RestoreStateLoad? LoadResultOverride { get; set; }
 
         public RestoreState Load(string stateDirectory)
-            => _byDir.TryGetValue(stateDirectory, out RestoreState? s) ? s : RestoreState.Empty;
+            => TryLoad(stateDirectory).State;
+
+        public RestoreStateLoad TryLoad(string stateDirectory)
+        {
+            if (LoadResultOverride is not null)
+                return LoadResultOverride;
+
+            return _byDir.TryGetValue(stateDirectory, out RestoreState? state)
+                ? RestoreStateLoad.Loaded(state)
+                : RestoreStateLoad.Missing;
+        }
 
         public void Save(string stateDirectory, RestoreState state)
         {
@@ -94,6 +105,29 @@ public sealed class InstallViewModelTests
             => throw new InvalidOperationException("ExportPlan must not be invoked by this test path.");
     }
 
+    private sealed class BlockingPlanExecutor : IPlanExecutor, IDisposable
+    {
+        public ManualResetEventSlim Started { get; } = new(initialState: false);
+        public ManualResetEventSlim Release { get; } = new(initialState: false);
+
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+        {
+            Started.Set();
+            Release.Wait();
+            return new PlanExecutionReport(
+                Authorized: true,
+                PlanHash: approvedPlanHash,
+                Results: plan.Actions.Select(action => new PlanActionResult(
+                    action.Id, action.Kind, PlanActionStatus.Done, "synthetic completion")).ToArray());
+        }
+
+        public void Dispose()
+        {
+            Started.Dispose();
+            Release.Dispose();
+        }
+    }
+
     // ---- plan shape ----
 
     [Fact]
@@ -132,7 +166,7 @@ public sealed class InstallViewModelTests
     }
 
     [Fact]
-    public void Changing_state_directory_invalidates_the_preview_and_its_approval()
+    public async Task Changing_state_directory_invalidates_the_preview_and_its_approval()
     {
         using var fx = new ExecutorFixture();
         var store = new RecordingStateStore();
@@ -152,7 +186,7 @@ public sealed class InstallViewModelTests
         Assert.False(vm.RunCommand.CanExecute(null));
         Assert.False(vm.ExportPlanCommand.CanExecute(null));
 
-        vm.Run();
+        await vm.RunAsync();
         Assert.Empty(fx.Adapters.Calls);
         Assert.Equal(0, store.SaveCount);
     }
@@ -160,7 +194,7 @@ public sealed class InstallViewModelTests
     // ---- no-run-without-approval (the load-bearing non-vacuous proof) ----
 
     [Fact]
-    public void Run_without_approval_records_zero_dispatches_and_writes_no_checkpoint()
+    public async Task Run_without_approval_records_zero_dispatches_and_writes_no_checkpoint()
     {
         using var fx = new ExecutorFixture();
         var store = new RecordingStateStore();
@@ -172,7 +206,7 @@ public sealed class InstallViewModelTests
         Assert.True(vm.HasPlan);
 
         // Run WITHOUT approval: the early-return guard must keep the plan out of the executor entirely.
-        vm.Run();
+        await vm.RunAsync();
 
         Assert.Empty(fx.Adapters.Calls);     // ZERO adapter dispatches — the recording proof (fail-without)
         Assert.Equal(0, store.SaveCount);    // and no checkpoint persisted
@@ -180,7 +214,43 @@ public sealed class InstallViewModelTests
     }
 
     [Fact]
-    public void Approve_then_Run_dispatches_exactly_the_previewed_plan_with_its_own_hash()
+    public async Task Run_yields_the_dispatcher_and_refuses_a_second_run_while_busy()
+    {
+        using var fx = new ExecutorFixture();
+        using var executor = new BlockingPlanExecutor();
+        var store = new RecordingStateStore();
+        var i18n = new I18n();
+        var vm = new InstallViewModel(
+            i18n,
+            new FakeManifestLoader(Winget("git", "Git.Git")),
+            new InstallPlanner(fx.Gate, new AllNetDriverGuard()),
+            new FakeAuthProbe(),
+            store,
+            fx.Gate,
+            executor,
+            NoopRunner())
+        {
+            StateDirectory = Path.Combine(Path.GetTempPath(), "wck-install-vm-busy"),
+        };
+        vm.LoadManifest();
+        vm.BuildPlan();
+        vm.ApproveCommand.Execute(null);
+
+        Task run = vm.RunAsync();
+
+        Assert.False(run.IsCompleted);
+        Assert.True(vm.IsBusy);
+        Assert.False(vm.RunCommand.CanExecute(null));
+        Assert.True(executor.Started.Wait(TimeSpan.FromSeconds(5)));
+
+        executor.Release.Set();
+        await run.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(vm.IsBusy);
+    }
+
+    [Fact]
+    public async Task Approve_then_Run_dispatches_exactly_the_previewed_plan_with_its_own_hash()
     {
         using var fx = new ExecutorFixture();
         var store = new RecordingStateStore();
@@ -196,7 +266,7 @@ public sealed class InstallViewModelTests
         Assert.Empty(previewedFiles);                            // nothing dispatched yet — the baseline
 
         vm.ApproveCommand.Execute(null);
-        vm.Run();
+        await vm.RunAsync();
 
         // The recording adapter received EXACTLY the two previewed command actions, in plan order.
         CommandAction[] ran = fx.Adapters.Dispatched.OfType<CommandAction>().ToArray();
@@ -236,7 +306,7 @@ public sealed class InstallViewModelTests
     // ---- checkpoint persistence + approval consumed ----
 
     [Fact]
-    public void After_Run_the_checkpoint_maps_each_action_to_its_entry_and_approval_is_consumed()
+    public async Task After_Run_the_checkpoint_maps_each_action_to_its_entry_and_approval_is_consumed()
     {
         using var fx = new ExecutorFixture();
         var store = new RecordingStateStore();
@@ -246,7 +316,7 @@ public sealed class InstallViewModelTests
         vm.LoadManifest();
         vm.BuildPlan();
         vm.ApproveCommand.Execute(null);
-        vm.Run();
+        await vm.RunAsync();
 
         Assert.Equal(1, store.SaveCount);
         RestoreState saved = Assert.IsType<RestoreState>(store.LastSaved);
@@ -256,6 +326,63 @@ public sealed class InstallViewModelTests
 
         Assert.False(vm.IsPreviewApproved); // approval consumed after a run
         Assert.Equal(2, vm.ExecutionResults.Count);
+    }
+
+    [Fact]
+    public void Corrupt_checkpoint_does_not_build_a_resume_plan_from_empty()
+    {
+        using var fx = new ExecutorFixture();
+        var store = new RecordingStateStore { LoadResultOverride = RestoreStateLoad.Corrupt };
+        var vm = BuildVm(fx, store, NoopRunner(), Winget("git", "Git.Git"));
+        vm.StateDirectory = Path.Combine(Path.GetTempPath(), "wck-install-vm-corrupt");
+
+        vm.LoadManifest();
+        vm.BuildPlan();
+
+        Assert.False(vm.HasPlan);
+        Assert.NotEmpty(vm.CheckpointWarning);
+        Assert.Empty(vm.PlanRows);
+        Assert.False(vm.CanResume);
+    }
+
+    [Fact]
+    public async Task Failed_checkpoint_read_after_run_does_not_overwrite_history()
+    {
+        using var fx = new ExecutorFixture();
+        var store = new RecordingStateStore();
+        var vm = BuildVm(fx, store, NoopRunner(), Winget("git", "Git.Git"));
+        vm.StateDirectory = Path.Combine(Path.GetTempPath(), "wck-install-vm-unavailable");
+
+        vm.LoadManifest();
+        vm.BuildPlan();
+        vm.ApproveCommand.Execute(null);
+        await vm.RunAsync();
+        Assert.Equal(1, store.SaveCount);
+
+        store.LoadResultOverride = RestoreStateLoad.Missing;
+        vm.BuildPlan();
+        vm.ApproveCommand.Execute(null);
+        store.LoadResultOverride = RestoreStateLoad.Unavailable;
+        await vm.RunAsync();
+
+        Assert.Equal(1, store.SaveCount);
+        Assert.NotEmpty(vm.CheckpointWarning);
+    }
+
+    [Fact]
+    public void Missing_checkpoint_follows_the_normal_first_run_path()
+    {
+        using var fx = new ExecutorFixture();
+        var store = new RecordingStateStore { LoadResultOverride = RestoreStateLoad.Missing };
+        var vm = BuildVm(fx, store, NoopRunner(), Winget("git", "Git.Git"));
+        vm.StateDirectory = Path.Combine(Path.GetTempPath(), "wck-install-vm-missing");
+
+        vm.LoadManifest();
+        vm.BuildPlan();
+
+        Assert.True(vm.HasPlan);
+        Assert.Single(vm.PlanRows);
+        Assert.Empty(vm.CheckpointWarning);
     }
 
     // ---- host-safe export (read-plan + write-JSON only; never runs winget/npm) ----
@@ -268,7 +395,7 @@ public sealed class InstallViewModelTests
         // The real export ring: real writer (re-gates the payload root) + a deterministic clock. Real production gate
         // (ForCurrentSystem) so %TEMP% is an allowed write target.
         ISafetyGate exportGate = new SafetyGate(ProtectedResources.ForCurrentSystem(), new FakeCanonicalizer());
-        var runner = new InstallRunner(new InstallPlanWriter(), new FakeClock(T0));
+        var runner = new InstallRunner(new InstallPlanWriter(new SanctionedFileWriter()), new FakeClock(T0));
 
         var i18n = new I18n();
         var planner = new InstallPlanner(exportGate, new AllNetDriverGuard());
@@ -296,7 +423,7 @@ public sealed class InstallViewModelTests
     {
         using var fx = new ExecutorFixture();
         ISafetyGate exportGate = new SafetyGate(ProtectedResources.ForCurrentSystem(), new FakeCanonicalizer());
-        var runner = new InstallRunner(new InstallPlanWriter(), new FakeClock(T0));
+        var runner = new InstallRunner(new InstallPlanWriter(new SanctionedFileWriter()), new FakeClock(T0));
 
         var i18n = new I18n();
         var planner = new InstallPlanner(exportGate, new AllNetDriverGuard());

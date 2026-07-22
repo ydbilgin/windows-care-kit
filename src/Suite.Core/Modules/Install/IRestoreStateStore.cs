@@ -6,7 +6,13 @@ namespace WindowsCareKit.Core.Modules.Install;
 /// </summary>
 public interface IRestoreStateStore
 {
-    /// <summary>Loads the checkpoint for the given directory, or <see cref="RestoreState.Empty"/> if none/corrupt.</summary>
+    /// <summary>Loads a typed checkpoint outcome so policy callers can distinguish absence from read failure.</summary>
+    RestoreStateLoad TryLoad(string stateDirectory);
+
+    /// <summary>
+    /// Lenient: collapses Corrupt / Unavailable to <see cref="RestoreState.Empty"/>. Callers that must
+    /// distinguish absence from corruption MUST use <see cref="TryLoad"/>.
+    /// </summary>
     RestoreState Load(string stateDirectory);
 
     /// <summary>Writes the checkpoint into <c>&lt;stateDirectory&gt;\.kurulum_state.json</c> (atomically where possible).</summary>

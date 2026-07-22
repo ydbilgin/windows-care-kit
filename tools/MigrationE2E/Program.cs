@@ -165,8 +165,10 @@ internal static class Program
             new BackupExecutorAdapter(backupExecutor),
             new Sha256Hasher(),
             new PhysicalFileSystem(),
-            new MigrationRestoreManifestStore(),
-            backupGate);
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()),
+            backupGate,
+            new MigrationInstallManifestStore(new SanctionedFileWriter()),
+            new MigrationPackageMarkerStore(new SanctionedFileWriter()));
 
         DateTime utc = DateTime.UtcNow;
         MigrationBackupPlanResult plan = backupRunner.BuildPlan(recipes, cfg.PackageDir, utc);
@@ -231,7 +233,7 @@ internal static class Program
 
         // ------------------------------------------------------------------ 4. LOAD MANIFEST
         Console.WriteLine("[E2E] Step 4: loading restore manifest from package...");
-        var manifestStore = new MigrationRestoreManifestStore();
+        var manifestStore = new MigrationRestoreManifestStore(new SanctionedFileWriter());
         MigrationRestoreManifest manifest = manifestStore.Load(cfg.PackageDir);
         Console.WriteLine($"[E2E]   manifest schema v{manifest.SchemaVersion}, {manifest.Targets.Count} targets");
 
@@ -263,7 +265,7 @@ internal static class Program
             new CopyAdapter());
 
         var restoreRunner = new MigrationRestoreRunner(new RecipePathResolver(rootsB), restoreGate);
-        var stateStore = new RestoreStateStore();
+        var stateStore = new RestoreStateStore(new SanctionedFileWriter());
         var restoreService = new MigrationRestoreService(restoreRunner, restoreExecutor, stateStore);
         MigrationRestorePreviewResult restorePreview = restoreService.Preview(
             manifest,
@@ -853,14 +855,14 @@ internal static class Program
         var service = new MigrationRestoreService(
             new MigrationRestoreRunner(resolver, gate),
             BuildExecutor(gate, "resume"),
-            new RestoreStateStore());
+            new RestoreStateStore(new SanctionedFileWriter()));
 
         var run1Manifest = new MigrationRestoreManifest(MigrationRestoreManifest.CurrentSchemaVersion, new[] { candidates[0] });
         var run2Manifest = new MigrationRestoreManifest(MigrationRestoreManifest.CurrentSchemaVersion, candidates);
 
         MigrationRestorePreviewResult run1Preview = service.Preview(run1Manifest, cfg.PackageDir, stateDir, utc);
         service.Restore(run1Manifest, cfg.PackageDir, stateDir, utc, "resume-1", approvedHash: run1Preview.PlanHash);
-        RestoreState afterRun1 = new RestoreStateStore().Load(stateDir);   // disk-grounded run1 journal (reboot sim)
+        RestoreState afterRun1 = new RestoreStateStore(new SanctionedFileWriter()).Load(stateDir);   // disk-grounded run1 journal (reboot sim)
         MigrationRestorePreviewResult run2Preview = service.Preview(run2Manifest, cfg.PackageDir, stateDir, utc.AddMinutes(1));
         MigrationRestoreExecutionResult run2 = service.Restore(
             run2Manifest,
@@ -869,7 +871,7 @@ internal static class Program
             utc.AddMinutes(1),
             "resume-2",
             approvedHash: run2Preview.PlanHash);
-        RestoreState loaded = new RestoreStateStore().Load(stateDir);      // disk-grounded final journal
+        RestoreState loaded = new RestoreStateStore(new SanctionedFileWriter()).Load(stateDir);      // disk-grounded final journal
         MigrationRestoreUndoPreviewResult undoPreview = service.PreviewUndo(loaded, utc.AddMinutes(2));
         MigrationRestoreUndoResult undo = service.Undo(
             loaded,

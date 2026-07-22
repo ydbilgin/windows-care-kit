@@ -26,7 +26,7 @@ public class MigrationManifestAndZipTests
         string dir = TempDir();
         try
         {
-            var store = new MigrationRestoreManifestStore();
+            var store = new MigrationRestoreManifestStore(new SanctionedFileWriter());
             store.Save(dir, ManifestWith(".gitconfig"));
             MigrationRestoreManifest loaded = store.Load(dir);
 
@@ -61,7 +61,7 @@ public class MigrationManifestAndZipTests
                     SurvivesOnOtherDrive: false),
             };
 
-            var store = new MigrationRestoreManifestStore();
+            var store = new MigrationRestoreManifestStore(new SanctionedFileWriter());
             store.Save(dir, new MigrationRestoreManifest(1, new[] { target }));
             MigrationRestoreTarget loaded = Assert.Single(store.Load(dir).Targets);
 
@@ -128,8 +128,8 @@ public class MigrationManifestAndZipTests
         string dir = TempDir();
         try
         {
-            new MigrationRestoreManifestStore().Save(dir, ManifestWith(relativePath));
-            Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore().Load(dir));
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()).Save(dir, ManifestWith(relativePath));
+            Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -140,8 +140,8 @@ public class MigrationManifestAndZipTests
         string dir = TempDir();
         try
         {
-            new MigrationRestoreManifestStore().Save(dir, ManifestWith(".gitconfig", source: "../outside/f.cfg"));
-            Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore().Load(dir));
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()).Save(dir, ManifestWith(".gitconfig", source: "../outside/f.cfg"));
+            Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -152,9 +152,9 @@ public class MigrationManifestAndZipTests
         string dir = TempDir();
         try
         {
-            new MigrationRestoreManifestStore().Save(dir,
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()).Save(dir,
                 new MigrationRestoreManifest(99, System.Array.Empty<MigrationRestoreTarget>()));
-            Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore().Load(dir));
+            Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -168,7 +168,7 @@ public class MigrationManifestAndZipTests
             string pkg = Path.Combine(root, "pkg");
             Directory.CreateDirectory(Path.Combine(pkg, "migration", "git.config"));
             File.WriteAllText(Path.Combine(pkg, "migration", "git.config", ".gitconfig"), "[user]\n name = a");
-            new MigrationRestoreManifestStore().Save(pkg, ManifestWith(".gitconfig", "migration/git.config/.gitconfig"));
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()).Save(pkg, ManifestWith(".gitconfig", "migration/git.config/.gitconfig"));
 
             string zip = Path.Combine(root, "package.zip");
             MigrationPackageArchive.Export(pkg, zip);
@@ -180,7 +180,7 @@ public class MigrationManifestAndZipTests
             Assert.Equal("[user]\n name = a",
                 File.ReadAllText(Path.Combine(outDir, "migration", "git.config", ".gitconfig")));
             // The manifest round-trips through the zip too — restore can consume the imported folder.
-            MigrationRestoreManifest loaded = new MigrationRestoreManifestStore().Load(outDir);
+            MigrationRestoreManifest loaded = new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(outDir);
             Assert.Single(loaded.Targets);
         }
         finally { TestFs.DeleteResilient(root); }

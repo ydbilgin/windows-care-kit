@@ -65,6 +65,9 @@ public sealed class BackupViewModel : ObservableObject
         get => _payloadDir;
         set
         {
+            if (IsBusy)
+                return;
+
             if (SetField(ref _payloadDir, value))
             {
                 OnPropertyChanged(nameof(HasPayloadDir));
@@ -78,8 +81,17 @@ public sealed class BackupViewModel : ObservableObject
     public bool IsBusy
     {
         get => _isBusy;
-        private set { if (SetField(ref _isBusy, value)) OnPropertyChanged(nameof(CanRun)); }
+        private set
+        {
+            if (SetField(ref _isBusy, value))
+            {
+                OnPropertyChanged(nameof(CanRun));
+                OnPropertyChanged(nameof(CanEditDirectories));
+            }
+        }
     }
+
+    public bool CanEditDirectories => !IsBusy;
 
     /// <summary>True once the user has approved the previewed plan; the approve button enables run.</summary>
     public bool IsPreviewApproved

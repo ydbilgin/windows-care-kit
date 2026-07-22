@@ -118,7 +118,7 @@ public class MigrationInstallRoundTripTests
                 Recipe("anthropic.claude-code", npm),
             });
 
-            var store = new MigrationInstallManifestStore();
+            var store = new MigrationInstallManifestStore(new SanctionedFileWriter());
             store.Save(dir, proj.Entries);
 
             // The STRICT load side re-validates everything.

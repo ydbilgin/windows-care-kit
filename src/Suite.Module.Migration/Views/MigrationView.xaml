@@ -505,11 +505,13 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox Grid.Column="0" VerticalContentAlignment="Center" Padding="10,8"
+                                     IsEnabled="{Binding CanEditDirectories}"
                                      Background="{DynamicResource Backup.Card}" Foreground="{DynamicResource Backup.Ink}"
                                      BorderBrush="{DynamicResource Backup.LineStrong}" BorderThickness="1"
                                      FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12.5"
                                      Text="{Binding PackageDir, UpdateSourceTrigger=PropertyChanged}" />
                             <Button Grid.Column="1" Margin="9,0,0,0" Style="{StaticResource MigrationSecondaryButton}"
+                                    IsEnabled="{Binding CanEditDirectories}"
                                     Content="{Binding I18n[migration.capture.chooseFolder]}" Click="ChoosePackageFolder_Click" />
                             <Button Grid.Column="2" Margin="9,0,0,0" Style="{StaticResource MigrationPrimaryButton}"
                                     Content="{Binding I18n[migration.capture.buildPlan]}" Command="{Binding BuildCapturePlanCommand}" />

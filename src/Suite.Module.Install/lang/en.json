@@ -23,6 +23,8 @@
   "install.loaded.summary": "{0} entries loaded",
   "install.plan.summary": "{0} to install · {1} manual · {2} skipped",
   "install.result.summary": "{0} done · {1} skipped · {2} failed",
+  "install.checkpoint.unreadable": "Resume checkpoint could not be read — resume is disabled so completed steps are not repeated and recovery history is not overwritten.",
+  "install.checkpoint.notUpdated": "Resume checkpoint was not updated because the existing recovery history could not be read; the original file was preserved.",
   "install.export.summary": "Install plan exported · {0} items",
   "install.export.refused": "Export refused: target location blocked by the safety gate",
   "install.rail.title": "Restore summary",

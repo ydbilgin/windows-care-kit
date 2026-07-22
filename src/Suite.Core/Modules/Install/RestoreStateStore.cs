@@ -1,17 +1,20 @@
 using System.Text.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json.Serialization;
+using WindowsCareKit.Core.Abstractions;
 
 namespace WindowsCareKit.Core.Modules.Install;
 
 /// <summary>
-/// JSON-backed <see cref="IRestoreStateStore"/> writing <c>.kurulum_state.json</c>. Saves use a sibling temp
-/// file and <see cref="File.Replace(string,string,string?)"/> so a crash cannot lose an existing journal.
-/// First writes create an empty placeholder and replace it, mirroring the copy adapter's atomic write pattern.
+/// JSON-backed <see cref="IRestoreStateStore"/> writing <c>.kurulum_state.json</c>. Saves use the sanctioned
+/// atomic writer so a crash cannot lose an existing journal.
 /// </summary>
 public sealed class RestoreStateStore : IRestoreStateStore
 {
+    private readonly IFileWriter _writer;
+
+    public RestoreStateStore(IFileWriter writer)
+        => _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+
     /// <summary>The fixed checkpoint file name (spec §1.4).</summary>
     public const string FileName = ".kurulum_state.json";
 
@@ -30,18 +33,18 @@ public sealed class RestoreStateStore : IRestoreStateStore
     }
 
     /// <inheritdoc />
-    public RestoreState Load(string stateDirectory)
+    public RestoreStateLoad TryLoad(string stateDirectory)
     {
         string path = PathFor(stateDirectory);
         if (!File.Exists(path))
-            return RestoreState.Empty;
+            return RestoreStateLoad.Missing;
 
         try
         {
             string json = File.ReadAllText(path);
             StateDto? dto = JsonSerializer.Deserialize<StateDto>(json, JsonOptions);
             if (dto is null)
-                return RestoreState.Empty;
+                return RestoreStateLoad.Corrupt;
 
             var entries = (dto.Entries ?? new List<EntryDto>())
                 .Where(e => !string.IsNullOrWhiteSpace(e.EntryId))
@@ -59,26 +62,31 @@ public sealed class RestoreStateStore : IRestoreStateStore
                     e.AppliedUtc))
                 .ToArray();
 
-            return new RestoreState(dto.PlanHash ?? string.Empty, dto.StartedUtc, dto.UpdatedUtc, entries)
+            var state = new RestoreState(dto.PlanHash ?? string.Empty, dto.StartedUtc, dto.UpdatedUtc, entries)
             {
                 PackageSha = dto.PackageSha ?? string.Empty,
                 Journal = journal,
             };
+            return RestoreStateLoad.Loaded(state);
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (JsonException)
         {
-            // A corrupt or unreadable checkpoint fails safe to "no checkpoint" → the user starts over.
-            return RestoreState.Empty;
+            return RestoreStateLoad.Corrupt;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return RestoreStateLoad.Unavailable;
         }
     }
+
+    /// <inheritdoc />
+    public RestoreState Load(string stateDirectory) => TryLoad(stateDirectory).State;
 
     /// <inheritdoc />
     public void Save(string stateDirectory, RestoreState state)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stateDirectory);
         ArgumentNullException.ThrowIfNull(state);
-
-        Directory.CreateDirectory(stateDirectory);
 
         var dto = new StateDto
         {
@@ -99,38 +107,7 @@ public sealed class RestoreStateStore : IRestoreStateStore
         };
 
         string json = JsonSerializer.Serialize(dto, JsonOptions);
-        AtomicWrite(PathFor(stateDirectory), json);
-    }
-
-    private static void AtomicWrite(string path, string json)
-    {
-        string? dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        // Unpredictable, per-write staging name: an attacker cannot pre-plant a reparse point at a name they cannot
-        // guess, and CreateNew fails if the exact name already exists (so a pre-planted file/link is DETECTED, not
-        // followed). The random token comes from a CSPRNG (S10).
-        string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
-        string staging = $"{path}.{token}.wcktmp";
-
-        // CreateNew: throws if the name already exists (pre-planted file/link). FileShare.None locks it while we write.
-        using (var stream = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-        {
-            // Verify the just-created object is a REAL file, not a reparse point, before writing sensitive state.
-            if (File.GetAttributes(staging).HasFlag(FileAttributes.ReparsePoint))
-                throw new IOException($"Refusing to write restore state through a reparse point: {staging}");
-
-            using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            writer.Write(json);
-        }
-
-        if (!File.Exists(path))
-            using (File.Create(path)) { }
-
-#pragma warning disable RS0030 // Sanctioned own-file atomic checkpoint seam: replace only the Suite-owned restore state file.
-        File.Replace(staging, path, destinationBackupFileName: null);
-#pragma warning restore RS0030
+        _writer.AtomicReplace(PathFor(stateDirectory), json);
     }
 
     // ---- JSON DTOs ----

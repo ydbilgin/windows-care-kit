@@ -58,7 +58,7 @@ public sealed class RestoreViewModelTests
         Assert.True(vm.HasResultRows);
         Assert.True(vm.CanPreviewUndo);
         Assert.False(vm.CanUndo);
-        Assert.True(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+        Assert.True(File.Exists(new RestoreStateStore(new SanctionedFileWriter()).PathFor(fx.StateDir)));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class RestoreViewModelTests
         Assert.Empty(vm.ResultRows);
         Assert.False(vm.CanUndo);
         Assert.Equal("migration.restore.refused", vm.RestoreSummary);
-        Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+        Assert.False(File.Exists(new RestoreStateStore(new SanctionedFileWriter()).PathFor(fx.StateDir)));
         Assert.Empty(Directory.EnumerateFiles(fx.Root, "*.bak.*", SearchOption.AllDirectories));
     }
 
@@ -105,7 +105,7 @@ public sealed class RestoreViewModelTests
         Assert.NotEmpty(vm.ManualRows);
         Assert.False(vm.CanRunRestore);
         Assert.False(File.Exists(Path.Combine(fx.Profile, "locked.db")));
-        Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+        Assert.False(File.Exists(new RestoreStateStore(new SanctionedFileWriter()).PathFor(fx.StateDir)));
     }
 
     [Fact]
@@ -291,8 +291,8 @@ public sealed class RestoreViewModelTests
 
     private sealed class Fixture : IDisposable
     {
-        private readonly MigrationRestoreManifestStore _manifestStore = new();
-        private readonly RestoreStateStore _stateStore = new();
+        private readonly MigrationRestoreManifestStore _manifestStore = new(new SanctionedFileWriter());
+        private readonly RestoreStateStore _stateStore = new(new SanctionedFileWriter());
         private readonly MigrationRestoreService _service;
 
         private Fixture(string root, string package, string profile, string stateDir, MigrationRestoreService service)
@@ -329,7 +329,7 @@ public sealed class RestoreViewModelTests
             var service = new MigrationRestoreService(
                 runner,
                 MigrationRestoreTestData.Executor(gate),
-                new RestoreStateStore());
+                new RestoreStateStore(new SanctionedFileWriter()));
 
             return new Fixture(root, package, profile, stateDir, service);
         }

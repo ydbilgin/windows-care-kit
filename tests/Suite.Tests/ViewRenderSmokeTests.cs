@@ -435,8 +435,8 @@ public sealed class ViewRenderSmokeTests
                         profile + @"\AppData\Roaming",
                         profile + @"\AppData\Local")),
                     gate);
-                var service = new MigrationRestoreService(runner, MigrationRestoreTestData.Executor(gate), new RestoreStateStore());
-                var vm = new RestoreViewModel(i18n, service, new MigrationRestoreManifestStore(), new RestoreStateStore());
+                var service = new MigrationRestoreService(runner, MigrationRestoreTestData.Executor(gate), new RestoreStateStore(new SanctionedFileWriter()));
+                var vm = new RestoreViewModel(i18n, service, new MigrationRestoreManifestStore(new SanctionedFileWriter()), new RestoreStateStore(new SanctionedFileWriter()));
 
                 var view = new RestoreView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
@@ -814,8 +814,8 @@ public sealed class ViewRenderSmokeTests
         var planner = new BackupPlanner(gate, new FakeEnvironmentExpander());
         var runner = new BackupRunner(
             new NoOpBackupExecutor(),
-            new BackupIntegrityWriter(),
-            new BackupReportWriter(new LogRedactor(null, null)),
+            new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()),
             gate,
             new FakeFileSystem(),
             new FakeHasher(),
@@ -1228,7 +1228,12 @@ public sealed class ViewRenderSmokeTests
         private readonly Dictionary<string, RestoreState> _byDir = new(StringComparer.OrdinalIgnoreCase);
 
         public RestoreState Load(string stateDirectory)
-            => _byDir.TryGetValue(stateDirectory, out RestoreState? s) ? s : RestoreState.Empty;
+            => TryLoad(stateDirectory).State;
+
+        public RestoreStateLoad TryLoad(string stateDirectory)
+            => _byDir.TryGetValue(stateDirectory, out RestoreState? state)
+                ? RestoreStateLoad.Loaded(state)
+                : RestoreStateLoad.Missing;
 
         public void Save(string stateDirectory, RestoreState state) => _byDir[stateDirectory] = state;
 

@@ -220,7 +220,7 @@ public class InstallPlanExportTests
             new InstallPlanItem("claude", InstallItemClass.Login, InstallMethod.UrlManual, null, null, false, 600, null, "claude"),
         });
 
-        string path = new InstallPlanWriter().WriteExport(doc, ws.Root, RealGate());
+        string path = new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, ws.Root, RealGate());
 
         Assert.True(File.Exists(path));
         Assert.EndsWith(InstallPlanFiles.Plan, path);
@@ -259,7 +259,7 @@ public class InstallPlanExportTests
         InstallPlanResult plan = Plan(entry);
         InstallPlanExportDoc doc = InstallPlanExport.Build(plan, new FakeClock(T0));
 
-        string path = new InstallPlanWriter().WriteExport(doc, ws.Root, RealGate());
+        string path = new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, ws.Root, RealGate());
         string json = File.ReadAllText(path);
 
         // The structural-redaction discipline: the short key is present, the sensitive material is NOT.
@@ -302,7 +302,7 @@ public class InstallPlanExportTests
             login);
 
         InstallPlanExportDoc doc = InstallPlanExport.Build(plan, new FakeClock(T0));
-        string path = new InstallPlanWriter().WriteExport(doc, ws.Root, RealGate());
+        string path = new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, ws.Root, RealGate());
         string json = File.ReadAllText(path);
 
         // No file-system paths / profile identifiers anywhere in the document (escaped and raw forms).
@@ -360,7 +360,7 @@ public class InstallPlanExportTests
         Assert.Null(after.WingetId);
 
         // And it never reaches the serialized JSON (the whole document).
-        string path = new InstallPlanWriter().WriteExport(doc, ws.Root, RealGate());
+        string path = new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, ws.Root, RealGate());
         string json = File.ReadAllText(path);
         Assert.DoesNotContain("C:\\Users", json);
         Assert.DoesNotContain(@"C:\Users", json);
@@ -394,7 +394,7 @@ public class InstallPlanExportTests
         Assert.Null(excluded.NpmPackage);
 
         // And neither reaches the serialized JSON (the whole document).
-        string path = new InstallPlanWriter().WriteExport(doc, ws.Root, RealGate());
+        string path = new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, ws.Root, RealGate());
         string json = File.ReadAllText(path);
         Assert.DoesNotContain("C:\\Users", json);
         Assert.DoesNotContain(@"C:\Users", json);
@@ -488,7 +488,7 @@ public class InstallPlanExportTests
         Assert.Null(skipItem.NpmPackage);
 
         // ---- whole-document serialize: NONE of the markers may appear -----------------------------------------
-        string path = new InstallPlanWriter().WriteExport(doc, ws.Root, RealGate());
+        string path = new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, ws.Root, RealGate());
         string json = File.ReadAllText(path);
 
         foreach (string marker in new[]
@@ -520,7 +520,7 @@ public class InstallPlanExportTests
     {
         var doc = new InstallPlanExportDoc(InstallPlanExport.SchemaVersion, T0, System.Array.Empty<InstallPlanItem>());
         Assert.Throws<UnauthorizedAccessException>(() =>
-            new InstallPlanWriter().WriteExport(doc, @"C:\Windows\wck-evil", RealGate()));
+            new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, @"C:\Windows\wck-evil", RealGate()));
     }
 
     // ----------------------------------------------------------------------------------------------------
@@ -533,7 +533,7 @@ public class InstallPlanExportTests
         using var ws = new TempWorkspace("wck-install-runner-");
         InstallPlanResult plan = Plan(Winget("git", "Git.Git"), Npm("claude", "@anthropic-ai/claude-code"));
 
-        var runner = new InstallRunner(new InstallPlanWriter(), new FakeClock(T0));
+        var runner = new InstallRunner(new InstallPlanWriter(new SanctionedFileWriter()), new FakeClock(T0));
         InstallRunResult result = runner.ExportPlan(plan, ws.Root, RealGate());
 
         Assert.True(result.Authorized);
@@ -546,7 +546,7 @@ public class InstallPlanExportTests
     {
         InstallPlanResult plan = Plan(Winget("git", "Git.Git"));
 
-        var runner = new InstallRunner(new InstallPlanWriter(), new FakeClock(T0));
+        var runner = new InstallRunner(new InstallPlanWriter(new SanctionedFileWriter()), new FakeClock(T0));
         // A protected/system target is refused by the gate; the runner reports unauthorized and writes nothing.
         string evilRoot = @"C:\Windows\wck-evil";
         InstallRunResult result = runner.ExportPlan(plan, evilRoot, RealGate());
@@ -568,7 +568,7 @@ public class InstallPlanExportTests
         InstallPlanResult plan = Plan(Winget("git", "Git.Git"), Config("vscode", @"C:\s", @"C:\d"));
 
         var counting = new CountingGate(RealGate());
-        var runner = new InstallRunner(new InstallPlanWriter(), new FakeClock(T0));
+        var runner = new InstallRunner(new InstallPlanWriter(new SanctionedFileWriter()), new FakeClock(T0));
         runner.ExportPlan(plan, ws.Root, counting);
 
         // EXACTLY ONE gate evaluation — the synthetic CopyAction write-target probe for the payload root — and

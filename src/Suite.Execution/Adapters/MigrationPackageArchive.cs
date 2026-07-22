@@ -1,15 +1,11 @@
-using System.IO;
 using System.IO.Compression;
+using WindowsCareKit.Core.Modules.Migration;
 
-namespace WindowsCareKit.Core.Modules.Migration;
+namespace WindowsCareKit.Execution.Adapters;
 
 /// <summary>
-/// A thin <c>System.IO.Compression</c> layer over a migration package (decision §E). It zips a package
-/// FOLDER to a <c>.zip</c> (export) and unzips a <c>.zip</c> back into a package FOLDER (import) — the content
-/// is identical either way ("farklı format farketmez, içerik aynı"), so the restore runner can consume either.
-///
-/// It uses only read/create file APIs (none on the banned list — only delete/move/registry/process are banned)
-/// and rejects a Zip-Slip entry whose normalized path would land outside the extraction root (fail-closed).
+/// A sanctioned <c>System.IO.Compression</c> adapter over a migration package. It zips a package folder to a
+/// <c>.zip</c> and unzips a <c>.zip</c> back into a package folder while rejecting Zip-Slip entries.
 /// </summary>
 public static class MigrationPackageArchive
 {
@@ -57,7 +53,6 @@ public static class MigrationPackageArchive
         using var zip = new ZipArchive(fs, ZipArchiveMode.Read);
         foreach (ZipArchiveEntry entry in zip.Entries)
         {
-            // Skip directory entries (zero-length name tail).
             if (string.IsNullOrEmpty(entry.Name) && entry.FullName.EndsWith('/'))
                 continue;
 

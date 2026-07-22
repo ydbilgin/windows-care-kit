@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Core.Abstractions;
 
 namespace WindowsCareKit.Core.Modules.Install;
 
@@ -17,13 +18,18 @@ public static class InstallPlanFiles
 /// Default <see cref="IInstallPlanWriter"/>. Mirrors <c>BackupIntegrityWriter.WriteIntegrity</c> BIREBIR
 /// (exactly): it re-evaluates the payload root through the gate as a synthetic <see cref="CopyAction"/>
 /// (<c>Source == Destination == payloadRoot</c>) before any write — so the install plan is judged by the
-/// identical write-target policy and can never be dropped into a protected/system location — then
-/// <see cref="Directory.CreateDirectory"/> + <see cref="File.WriteAllText"/> (neither API is banned). The
+/// identical write-target policy and can never be dropped into a protected/system location — then delegates
+/// persistence through the sanctioned write port. The
 /// export step itself produces NO new gated action: the probe is local to the write and is never added to an
 /// executed plan (invariant, locked decision #6).
 /// </summary>
 public sealed class InstallPlanWriter : IInstallPlanWriter
 {
+    private readonly IFileWriter _writer;
+
+    public InstallPlanWriter(IFileWriter writer)
+        => _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -55,10 +61,8 @@ public sealed class InstallPlanWriter : IInstallPlanWriter
             throw new UnauthorizedAccessException(
                 $"install plan output location refused by the safety gate: {verdict.Reason}");
 
-        Directory.CreateDirectory(payloadRoot);
-
         string path = Path.Combine(payloadRoot, InstallPlanFiles.Plan);
-        File.WriteAllText(path, JsonSerializer.Serialize(doc, JsonOptions));
+        _writer.WriteAllText(path, JsonSerializer.Serialize(doc, JsonOptions));
         return path;
     }
 }

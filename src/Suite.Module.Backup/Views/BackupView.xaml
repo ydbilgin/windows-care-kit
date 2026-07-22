@@ -333,6 +333,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBox Grid.Column="0"
                          Text="{Binding PayloadDir, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding CanEditDirectories}"
                          Background="{DynamicResource Backup.Card}"
                          Foreground="{DynamicResource Backup.Ink}"
                          BorderBrush="{DynamicResource Backup.LineStrong}"

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using WindowsCareKit.Core.Abstractions;
 
 namespace WindowsCareKit.Core.Modules.Migration;
 
@@ -10,14 +11,18 @@ public sealed class MigrationManifestException : Exception
 }
 
 /// <summary>
-/// JSON read/write for the package's <c>migration-manifest.json</c>. It uses only <c>File.ReadAllText</c> /
-/// <c>File.WriteAllText</c> / <c>Directory.CreateDirectory</c> (none on the banned list — only delete/move/
-/// registry/process are). On LOAD it rejects an unknown schema version and any target whose relative path is
+/// JSON read/write for the package's <c>migration-manifest.json</c>. Physical writes go through the sanctioned
+/// write port. On LOAD it rejects an unknown schema version and any target whose relative path is
 /// not a safe profile-relative segment (F5: traversal / absolute / rooted / escape), so a hostile package can
 /// never steer a restore write outside the chosen profile root before the runner even builds an action.
 /// </summary>
 public sealed class MigrationRestoreManifestStore
 {
+    private readonly IFileWriter _writer;
+
+    public MigrationRestoreManifestStore(IFileWriter writer)
+        => _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -38,9 +43,8 @@ public sealed class MigrationRestoreManifestStore
         ArgumentException.ThrowIfNullOrWhiteSpace(packageDirectory);
         ArgumentNullException.ThrowIfNull(manifest);
 
-        Directory.CreateDirectory(packageDirectory);
         string json = JsonSerializer.Serialize(manifest, JsonOptions);
-        File.WriteAllText(PathFor(packageDirectory), json);
+        _writer.WriteAllText(PathFor(packageDirectory), json);
     }
 
     /// <summary>

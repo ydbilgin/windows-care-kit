@@ -24,12 +24,17 @@ public static class BackupIntegrityFiles
 /// <see cref="IFileSystem"/>, <see cref="IHasher"/> and <see cref="IClock"/>, so it is fully unit-testable
 /// with in-memory fakes (zero real IO). <see cref="WriteIntegrity"/> mirrors
 /// <see cref="BackupReportWriter.WriteReports"/> exactly: it re-evaluates the payload root through the gate as
-/// a synthetic <see cref="CopyAction"/> before any write, then <see cref="Directory.CreateDirectory"/> +
-/// <see cref="File.WriteAllText"/> (neither API is banned). The integrity step itself never creates a new
+/// a synthetic <see cref="CopyAction"/> before any write, then delegates the physical write to the sanctioned
+/// write port. The integrity step itself never creates a new
 /// gated action — it only reads and writes (invariant, locked decision #5).</para>
 /// </summary>
 public sealed class BackupIntegrityWriter : IIntegrityWriter
 {
+    private readonly IFileWriter _writer;
+
+    public BackupIntegrityWriter(IFileWriter writer)
+        => _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -97,10 +102,8 @@ public sealed class BackupIntegrityWriter : IIntegrityWriter
             throw new UnauthorizedAccessException(
                 $"integrity output location refused by the safety gate: {verdict.Reason}");
 
-        Directory.CreateDirectory(payloadRoot);
-
         string path = Path.Combine(payloadRoot, BackupIntegrityFiles.Integrity);
-        File.WriteAllText(path, JsonSerializer.Serialize(rows, JsonOptions));
+        _writer.WriteAllText(path, JsonSerializer.Serialize(rows, JsonOptions));
         return path;
     }
 

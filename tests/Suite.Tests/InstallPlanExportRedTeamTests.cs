@@ -441,7 +441,7 @@ public class InstallPlanExportRedTeamTests
         var entry = RawEntry("git", InstallMethod.Winget, wingetId: "Git.Git");
         InstallPlanResult plan = SkipOnly(entry);
 
-        var runner = new InstallRunner(new InstallPlanWriter(), new FakeClock(T0));
+        var runner = new InstallRunner(new InstallPlanWriter(new SanctionedFileWriter()), new FakeClock(T0));
         string evilRoot = @"C:\Windows\System32\wck-redteam";
         InstallRunResult result = runner.ExportPlan(plan, evilRoot, RealGate());
 
@@ -535,7 +535,7 @@ public class InstallPlanExportRedTeamTests
             new[] { manual });
 
         InstallPlanExportDoc doc = InstallPlanExport.Build(result, new FakeClock(T0));
-        string path = new InstallPlanWriter().WriteExport(doc, ws.Root, RealGate());
+        string path = new InstallPlanWriter(new SanctionedFileWriter()).WriteExport(doc, ws.Root, RealGate());
         string json = File.ReadAllText(path);
 
         foreach (string marker in new[]

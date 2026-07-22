@@ -29,8 +29,10 @@ public class SecretExclusionRunnerTests
             new BackupExecutorAdapter(MigrationRestoreTestData.Executor(gate)),
             new Sha256Hasher(),
             new PhysicalFileSystem(),
-            new MigrationRestoreManifestStore(),
-            gate);
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()),
+            gate,
+            new MigrationInstallManifestStore(new SanctionedFileWriter()),
+            new MigrationPackageMarkerStore(new SanctionedFileWriter()));
 
     private static MigrationBackupRunResult RunBackup(
         ProfileRoots roots, string packageDir, params MigrationRecipe[] recipes)

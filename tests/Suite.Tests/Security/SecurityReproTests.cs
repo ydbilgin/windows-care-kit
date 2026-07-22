@@ -168,10 +168,10 @@ public sealed class DestructivePathSecurityReproTests
     [Fact]
     public void S10_restore_state_staging_is_random_createnew_and_reparse_checked()
     {
-        var store = new RestoreStateStore();
+        var store = new RestoreStateStore(new SanctionedFileWriter());
         string stateDir = @"C:\Users\alice\restore-state";
         string target = store.PathFor(stateDir);
-        string source = RepoSource.Read("src/Suite.Core/Modules/Install/RestoreStateStore.cs");
+        string source = RepoSource.Read("src/Suite.Execution/Adapters/SanctionedFileWriter.cs");
 
         Assert.Equal(RestoreStateStore.FileName, Path.GetFileName(target));
         Assert.DoesNotContain("string staging = path + \".wcktmp\"", source, StringComparison.Ordinal);
@@ -449,9 +449,9 @@ public sealed class UiReliabilitySecurityReproTests
             uninstallWizard);
     }
 
-    /// <summary>G4: a backup plan is discarded if PayloadDir changes while planning is in flight.</summary>
+    /// <summary>G4/NEW-04: PayloadDir cannot change while backup planning is in flight.</summary>
     [Fact]
-    public async Task G4_backup_build_discards_a_plan_when_the_payload_path_changed()
+    public async Task G4_backup_build_refuses_payload_change_while_planning_is_in_flight()
     {
         string source = @"C:\Users\alice\AppData\Roaming\Contoso";
         string payloadA = @"C:\Users\alice\backup-a";
@@ -468,15 +468,17 @@ public sealed class UiReliabilitySecurityReproTests
 
         Task build = vm.BuildPlanAsync();
         Assert.True(loader.Entered.Wait(TimeSpan.FromSeconds(10)));
+        Assert.False(vm.CanEditDirectories);
         vm.PayloadDir = payloadB;
+        Assert.Equal(payloadA, vm.PayloadDir);
         Assert.False(vm.HasPlan);
 
         loader.Release.Set();
         await build.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(payloadB, vm.PayloadDir);
-        Assert.False(vm.HasPlan);
-        Assert.Empty(vm.PlanRows);
+        Assert.Equal(payloadA, vm.PayloadDir);
+        Assert.True(vm.HasPlan);
+        Assert.Single(vm.PlanRows);
     }
 
     /// <summary>G-m3: inventory failures are typed and surfaced instead of rendering as a legitimate empty inventory.</summary>
@@ -1212,7 +1214,7 @@ public sealed class SecurityReproPart2Tests
                 unused.Task,
                 unused.Process,
                 copyAdapter);
-            Service = new MigrationRestoreService(runner, executor, new RestoreStateStore());
+            Service = new MigrationRestoreService(runner, executor, new RestoreStateStore(new SanctionedFileWriter()));
         }
 
         public string PackageDirectory { get; }

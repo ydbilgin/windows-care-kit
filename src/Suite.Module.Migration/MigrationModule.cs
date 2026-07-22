@@ -49,6 +49,7 @@ public sealed class MigrationModule : IWckModule
             new RecipePathResolver(ProfileRoots.ForCurrentUser()),
             sp.GetRequiredService<IRecipeFileSystem>()));
         services.AddSingleton<MigrationInstallManifestStore>();
+        services.AddSingleton<MigrationPackageMarkerStore>();
         services.AddSingleton<MigrationBackupRunner>();
         services.AddSingleton<IMigrationBackupRunner>(sp => sp.GetRequiredService<MigrationBackupRunner>());
         services.AddSingleton<MigrationViewModel>();

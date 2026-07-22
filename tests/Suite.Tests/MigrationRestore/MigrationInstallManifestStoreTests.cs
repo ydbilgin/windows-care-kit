@@ -17,7 +17,7 @@ public class MigrationInstallManifestStoreTests
     private static string TempDir() => MigrationRestoreTestData.TempDir("install-store");
 
     private static void Write(string dir, string json)
-        => File.WriteAllText(new MigrationInstallManifestStore().PathFor(dir), json);
+        => File.WriteAllText(new MigrationInstallManifestStore(new SanctionedFileWriter()).PathFor(dir), json);
 
     [Fact]
     public void Absent_file_returns_Empty_not_a_throw()
@@ -26,7 +26,7 @@ public class MigrationInstallManifestStoreTests
         try
         {
             // A package may legitimately carry no installable apps.
-            InstallManifest m = new MigrationInstallManifestStore().Load(dir);
+            InstallManifest m = new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(dir);
             Assert.Empty(m.Entries);
         }
         finally { TestFs.DeleteResilient(dir); }
@@ -38,7 +38,7 @@ public class MigrationInstallManifestStoreTests
         string dir = TempDir();
         try
         {
-            var store = new MigrationInstallManifestStore();
+            var store = new MigrationInstallManifestStore(new SanctionedFileWriter());
             store.Save(dir, new[]
             {
                 new InstallEntry("migration:git.config:install", "install", "dev-tools", InstallMethod.Winget,
@@ -61,8 +61,8 @@ public class MigrationInstallManifestStoreTests
         string dir = TempDir();
         try
         {
-            new MigrationInstallManifestStore().Save(dir, Array.Empty<InstallEntry>());
-            Assert.Empty(new MigrationInstallManifestStore().Load(dir).Entries);
+            new MigrationInstallManifestStore(new SanctionedFileWriter()).Save(dir, Array.Empty<InstallEntry>());
+            Assert.Empty(new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(dir).Entries);
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -74,7 +74,7 @@ public class MigrationInstallManifestStoreTests
         try
         {
             Write(dir, """{ "schemaVersion": 99, "entries": [] }""");
-            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
+            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -91,7 +91,7 @@ public class MigrationInstallManifestStoreTests
                   { "id": "migration:x:install", "method": "install-winget", "wingetId": "Git.Git", "command": "rm -rf /" }
                 ] }
                 """);
-            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
+            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -108,7 +108,7 @@ public class MigrationInstallManifestStoreTests
                   { "id": "migration:x:install", "method": "install-winget", "wingetId": "evil/../../id" }
                 ] }
                 """);
-            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
+            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -124,7 +124,7 @@ public class MigrationInstallManifestStoreTests
                   { "id": "migration:x:install", "method": "install-winget", "wingetId": "Git.Git", "npmPackage": "left-pad" }
                 ] }
                 """);
-            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
+            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }
@@ -136,7 +136,7 @@ public class MigrationInstallManifestStoreTests
         try
         {
             Write(dir, "{ not json ");
-            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore().Load(dir));
+            Assert.Throws<MigrationManifestException>(() => new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
     }

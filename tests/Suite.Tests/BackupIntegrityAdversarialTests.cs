@@ -35,7 +35,7 @@ public class BackupIntegrityAdversarialTests
     [Fact]
     public void BuildIntegrity_on_an_empty_report_yields_zero_rows()
     {
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopySkipReport.Empty, @"D:\pay", new FakeFileSystem(), new FakeHasher(), new FakeClock(T0));
 
         Assert.Empty(rows);
@@ -50,7 +50,7 @@ public class BackupIntegrityAdversarialTests
             new CopyFileOutcome("blank", @"C:\src\x", "   ", true, null, "ok"),
             new CopyFileOutcome("empty", @"C:\src\y", "", true, null, "ok"));
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             report, @"D:\pay", new FakeFileSystem(), new FakeHasher(), new FakeClock(T0));
 
         Assert.Empty(rows);
@@ -60,7 +60,7 @@ public class BackupIntegrityAdversarialTests
     public void WriteIntegrity_writes_an_empty_json_array_for_zero_rows_into_temp_root()
     {
         using var ws = new TempWorkspace("wck-adv-emptyrows-");
-        string path = new BackupIntegrityWriter().WriteIntegrity(
+        string path = new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(
             Array.Empty<BackupIntegrity>(), ws.Root, RealGate());
 
         Assert.True(File.Exists(path));
@@ -83,7 +83,7 @@ public class BackupIntegrityAdversarialTests
         var fs = new FakeFileSystem().AddFile(dest, Array.Empty<byte>());   // 0 bytes
         var hasher = new FakeHasher().Map(dest, "e3b0c442");                 // sha256 of empty input
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("e", dest)), payload, fs, hasher, new FakeClock(T0));
 
         BackupIntegrity row = Assert.Single(rows);
@@ -109,7 +109,7 @@ public class BackupIntegrityAdversarialTests
             .AddFile(shallow, "9");
         var hasher = new FakeHasher().Map(deep, "hd").Map(shallow, "hs");
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("app", treeDest)), payload, fs, hasher, new FakeClock(T0));
 
         Assert.Equal(2, rows.Count);
@@ -134,7 +134,7 @@ public class BackupIntegrityAdversarialTests
         var fs = new FakeFileSystem().AddFile(shared, "ABC");
         var hasher = new FakeHasher().Map(shared, "hsh");
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("first", shared), Copied("second", shared)),
             payload, fs, hasher, new FakeClock(T0));
 
@@ -155,7 +155,7 @@ public class BackupIntegrityAdversarialTests
             .AddFile(Path.Combine(treeDest, "x.txt"), "x")
             .AddFile(Path.Combine(treeDest, "y.txt"), "y");
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("e1", treeDest), Copied("e2", treeDest)),
             payload, fs, new FakeHasher(), new FakeClock(T0));
 
@@ -180,7 +180,7 @@ public class BackupIntegrityAdversarialTests
             .AddFile(Path.Combine(dest, "child.txt"), "child");    // makes DirectoryExists(dest) true
         // Note: the inner AddFile also registers `dest` as a directory.
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("amb", dest)), payload, fs, new FakeHasher(), new FakeClock(T0));
 
         // Directory branch is taken: only the child leaf is hashed (recursive enumerate), NOT `dest` itself.
@@ -204,7 +204,7 @@ public class BackupIntegrityAdversarialTests
         var hasher = new FakeHasher().Map(offRootFile, "h");
 
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
                 CopiedReport(Copied("leak", offRootFile)), payload, fs, hasher, new FakeClock(T0)));
     }
 
@@ -217,7 +217,7 @@ public class BackupIntegrityAdversarialTests
         var hasher = new FakeHasher().Map(escaping, "h");
 
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
                 CopiedReport(Copied("esc", escaping)), payload, fs, hasher, new FakeClock(T0)));
     }
 
@@ -232,7 +232,7 @@ public class BackupIntegrityAdversarialTests
         var fs = new FakeFileSystem().AddFile(leaf, "X");
 
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
                 CopiedReport(Copied("t", trickyDest)), payload, fs, new FakeHasher(), new FakeClock(T0)));
     }
 
@@ -252,7 +252,7 @@ public class BackupIntegrityAdversarialTests
             .AddFile(Path.Combine(treeDest, "sub", "3.txt"), "c");
 
         var clock = new FakeClock(T0);
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("app", treeDest)), payload, fs, new FakeHasher(), clock);
 
         Assert.Equal(3, rows.Count);
@@ -279,7 +279,7 @@ public class BackupIntegrityAdversarialTests
         var hasher = new FakeHasher().Map(unc, "h");
 
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
                 CopiedReport(Copied("unc", unc)), payload, fs, hasher, new FakeClock(T0)));
     }
 
@@ -292,7 +292,7 @@ public class BackupIntegrityAdversarialTests
         var fs = new FakeFileSystem().AddFile(leaf, "X");
 
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
                 CopiedReport(Copied("unc", uncTree)), payload, fs, new FakeHasher(), new FakeClock(T0)));
     }
 
@@ -306,7 +306,7 @@ public class BackupIntegrityAdversarialTests
         var hasher = new FakeHasher().Map(device, "h");
 
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
                 CopiedReport(Copied("dev", device)), payload, fs, hasher, new FakeClock(T0)));
     }
 
@@ -326,7 +326,7 @@ public class BackupIntegrityAdversarialTests
         var fs = new FakeFileSystem().AddFile(payload, "X");
         var hasher = new FakeHasher().Map(payload, "h");
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("self", payload)), payload, fs, hasher, new FakeClock(T0));
 
         BackupIntegrity row = Assert.Single(rows);
@@ -347,7 +347,7 @@ public class BackupIntegrityAdversarialTests
         string leaf = Path.Combine(payload, "loose.txt");
         var fs = new FakeFileSystem().AddFile(leaf, "X");   // registers `payload` as a directory too
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("root", payload)), payload, fs, new FakeHasher(), new FakeClock(T0));
 
         BackupIntegrity row = Assert.Single(rows);
@@ -369,7 +369,7 @@ public class BackupIntegrityAdversarialTests
         var fs = new FakeFileSystem().AddFile(leaf, "X");
         var hasher = new FakeHasher().Map(leaf, "h");
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("fs", leaf)), payload, fs, hasher, new FakeClock(T0));
 
         BackupIntegrity row = Assert.Single(rows);
@@ -386,14 +386,14 @@ public class BackupIntegrityAdversarialTests
     [Fact]
     public void BuildIntegrity_rejects_a_blank_payload_root()
     {
-        Assert.Throws<ArgumentException>(() => new BackupIntegrityWriter().BuildIntegrity(
+        Assert.Throws<ArgumentException>(() => new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopySkipReport.Empty, "   ", new FakeFileSystem(), new FakeHasher(), new FakeClock(T0)));
     }
 
     [Fact]
     public void BuildIntegrity_rejects_a_null_report()
     {
-        Assert.Throws<ArgumentNullException>(() => new BackupIntegrityWriter().BuildIntegrity(
+        Assert.Throws<ArgumentNullException>(() => new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             null!, @"D:\pay", new FakeFileSystem(), new FakeHasher(), new FakeClock(T0)));
     }
 
@@ -401,14 +401,14 @@ public class BackupIntegrityAdversarialTests
     public void WriteIntegrity_rejects_a_null_rows_list()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new BackupIntegrityWriter().WriteIntegrity(null!, @"D:\pay", RealGate()));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(null!, @"D:\pay", RealGate()));
     }
 
     [Fact]
     public void WriteIntegrity_rejects_a_blank_payload_root()
     {
         Assert.Throws<ArgumentException>(() =>
-            new BackupIntegrityWriter().WriteIntegrity(Array.Empty<BackupIntegrity>(), "  ", RealGate()));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(Array.Empty<BackupIntegrity>(), "  ", RealGate()));
     }
 
     // =====================================================================================================
@@ -426,7 +426,7 @@ public class BackupIntegrityAdversarialTests
         var rows = new[] { new BackupIntegrity("e", "a.txt", "h", 1, T0) };
 
         Assert.Throws<UnauthorizedAccessException>(() =>
-            new BackupIntegrityWriter().WriteIntegrity(rows, ws.Root, blocking));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(rows, ws.Root, blocking));
 
         // Fail-closed: nothing landed even though the temp root itself is writable.
         Assert.False(File.Exists(Path.Combine(ws.Root, BackupIntegrityFiles.Integrity)));
@@ -459,7 +459,7 @@ public class BackupIntegrityAdversarialTests
 
         // A throwing integrity writer would ALSO catch any accidental call on the refusal path.
         var runner = new BackupRunner(executor, new ThrowingIntegrityWriter(),
-            new BackupReportWriter(new WindowsCareKit.Core.Logging.LogRedactor(null, null)),
+            new BackupReportWriter(new WindowsCareKit.Core.Logging.LogRedactor(null, null), new SanctionedFileWriter()),
             RealGate(), fs, new FakeHasher(), new FakeClock(T0));
 
         BackupRunResult result = runner.Run(planResult, plan.ComputeHash(), ws.Root);
@@ -478,8 +478,8 @@ public class BackupIntegrityAdversarialTests
             Array.Empty<BackupEntry>(), Array.Empty<BackupSkip>(), Array.Empty<BackupEntry>());
         var runner = new BackupRunner(
             new RecordingBackupExecutor(authorized: true),
-            new BackupIntegrityWriter(),
-            new BackupReportWriter(new WindowsCareKit.Core.Logging.LogRedactor(null, null)),
+            new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new WindowsCareKit.Core.Logging.LogRedactor(null, null), new SanctionedFileWriter()),
             RealGate(), new FakeFileSystem(), new FakeHasher(), new FakeClock(T0));
 
         Assert.Throws<ArgumentException>(() => runner.Run(planResult, "hash", "   "));
@@ -507,8 +507,8 @@ public class BackupIntegrityAdversarialTests
             new BackupActionResult(plan.Actions[0].Id, BackupActionStatus.Done, "ok"));
 
         var fs = new FakeFileSystem().AddFile(Path.Combine(treeDest, "a.txt"), "a");
-        var runner = new BackupRunner(executor, new BackupIntegrityWriter(),
-            new BackupReportWriter(new WindowsCareKit.Core.Logging.LogRedactor(null, null)),
+        var runner = new BackupRunner(executor, new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new WindowsCareKit.Core.Logging.LogRedactor(null, null), new SanctionedFileWriter()),
             RealGate(), fs, new FakeHasher(), new FakeClock(T0));
 
         // The integrity writer re-gates the protected payload root and throws → the whole run fails closed.
@@ -528,7 +528,7 @@ public class BackupIntegrityAdversarialTests
     {
         var rows = new[] { new BackupIntegrity("e", "a.txt", "h", 1, T0) };
         Assert.Throws<UnauthorizedAccessException>(() =>
-            new BackupIntegrityWriter().WriteIntegrity(rows, @"D:\", RealGate()));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(rows, @"D:\", RealGate()));
     }
 
     [Fact]
@@ -536,7 +536,7 @@ public class BackupIntegrityAdversarialTests
     {
         var rows = Array.Empty<BackupIntegrity>();
         Assert.Throws<UnauthorizedAccessException>(() =>
-            new BackupIntegrityWriter().WriteIntegrity(rows, @"C:\Program Files\wck-evil", RealGate()));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(rows, @"C:\Program Files\wck-evil", RealGate()));
     }
 
     [Fact]
@@ -545,7 +545,7 @@ public class BackupIntegrityAdversarialTests
         // A UNC payload root is non-local → the gate's write-target policy fails closed.
         var rows = Array.Empty<BackupIntegrity>();
         Assert.Throws<UnauthorizedAccessException>(() =>
-            new BackupIntegrityWriter().WriteIntegrity(rows, @"\\server\share\backup", RealGate()));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(rows, @"\\server\share\backup", RealGate()));
     }
 
     // =====================================================================================================
@@ -559,7 +559,7 @@ public class BackupIntegrityAdversarialTests
         string rel = Path.Combine("Belgeler ç", "günce — 日本語.txt");
         var rows = new[] { new BackupIntegrity("u", rel, "h", 7, T0) };
 
-        string path = new BackupIntegrityWriter().WriteIntegrity(rows, ws.Root, RealGate());
+        string path = new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(rows, ws.Root, RealGate());
         string json = File.ReadAllText(path);
 
         using JsonDocument doc = JsonDocument.Parse(json);
@@ -581,7 +581,7 @@ public class BackupIntegrityAdversarialTests
         byte[] body = new byte[100_000];                  // well past any byte/short boundary
         var fs = new FakeFileSystem().AddFile(dest, body);
 
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             CopiedReport(Copied("big", dest)), payload, fs, new FakeHasher(), new FakeClock(T0));
 
         Assert.Equal(100_000, Assert.Single(rows).ByteSize);

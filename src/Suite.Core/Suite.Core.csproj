@@ -12,6 +12,9 @@
   <ItemGroup>
     <!-- Tests need to see internal contracts for white-box verification. -->
     <InternalsVisibleTo Include="Suite.Tests" />
+    <!-- Sanctioned outer boundary needs Core's pure path-containment predicate (e.g. the migration
+         package archive adapter) without widening it to a public, arbitrary-caller surface. -->
+    <InternalsVisibleTo Include="Suite.Execution" />
   </ItemGroup>
 
   <!-- Build-level gate: destructive OS APIs are banned outside the sanctioned executor (spec §2/§8). -->

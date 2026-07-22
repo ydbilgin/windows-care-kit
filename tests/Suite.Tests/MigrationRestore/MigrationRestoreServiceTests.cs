@@ -28,7 +28,7 @@ public class MigrationRestoreServiceTests
 
             Assert.Equal(before, SnapshotFiles(fx.Root));
             Assert.Equal(preview.PlanResult.Plan.ComputeHash(), preview.PlanHash);
-            Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+            Assert.False(File.Exists(new RestoreStateStore(new SanctionedFileWriter()).PathFor(fx.StateDir)));
             Assert.Empty(Directory.EnumerateFiles(fx.Root, "*.bak.*", SearchOption.AllDirectories));
             Assert.Single(preview.RestoreReport.Restored);
 
@@ -67,7 +67,7 @@ public class MigrationRestoreServiceTests
             Assert.False(result.Execution.Authorized);
             Assert.Empty(result.Execution.Results);
             Assert.Equal("OLD", File.ReadAllText(destination));
-            Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+            Assert.False(File.Exists(new RestoreStateStore(new SanctionedFileWriter()).PathFor(fx.StateDir)));
             Assert.Empty(Directory.EnumerateFiles(fx.Root, "*.bak.*", SearchOption.AllDirectories));
             Assert.Empty(result.State.Journal);
             Assert.Empty(result.RestoreReport.Restored);
@@ -99,7 +99,7 @@ public class MigrationRestoreServiceTests
             Assert.False(result.Execution.Authorized);
             Assert.Empty(result.Execution.Results);
             Assert.False(File.Exists(destination));
-            Assert.False(File.Exists(new RestoreStateStore().PathFor(fx.StateDir)));
+            Assert.False(File.Exists(new RestoreStateStore(new SanctionedFileWriter()).PathFor(fx.StateDir)));
             Assert.Empty(Directory.EnumerateFiles(fx.Root, "*.bak.*", SearchOption.AllDirectories));
             Assert.Empty(result.State.Journal);
             Assert.Empty(result.RestoreReport.Restored);
@@ -311,7 +311,7 @@ public class MigrationRestoreServiceTests
 
             Assert.True(undo.Authorized);
             Assert.Equal("OLD", File.ReadAllText(destination));
-            RestoreState afterUndo = new RestoreStateStore().Load(fx.StateDir);
+            RestoreState afterUndo = new RestoreStateStore(new SanctionedFileWriter()).Load(fx.StateDir);
             Assert.False(afterUndo.IsDone("git.config#0"));
             Assert.Equal(RestoreEntryStatus.Pending, afterUndo.StatusOf("git.config#0"));
 
@@ -352,7 +352,7 @@ public class MigrationRestoreServiceTests
         var runner = new MigrationRestoreRunner(
             new RecipePathResolver(new ProfileRoots(profile, Path.Combine(profile, "AppData", "Roaming"), Path.Combine(profile, "AppData", "Local"))),
             gate);
-        var service = new MigrationRestoreService(runner, MigrationRestoreTestData.Executor(gate), new RestoreStateStore());
+        var service = new MigrationRestoreService(runner, MigrationRestoreTestData.Executor(gate), new RestoreStateStore(new SanctionedFileWriter()));
         return new Fixture(root, pkg, profile, stateDir, service);
     }
 

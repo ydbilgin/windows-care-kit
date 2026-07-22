@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WindowsCareKit.Core.Modules.Install;
+using WindowsCareKit.Core.Abstractions;
 
 namespace WindowsCareKit.Core.Modules.Migration;
 
@@ -23,6 +24,11 @@ namespace WindowsCareKit.Core.Modules.Migration;
 /// </summary>
 public sealed class MigrationInstallManifestStore
 {
+    private readonly IFileWriter _writer;
+
+    public MigrationInstallManifestStore(IFileWriter writer)
+        => _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+
     /// <summary>The package file name written/read at the package root.</summary>
     public const string FileName = "migration-install.json";
 
@@ -66,9 +72,8 @@ public sealed class MigrationInstallManifestStore
             Entries = entries.Select(ToDto).ToList(),
         };
 
-        Directory.CreateDirectory(packageDirectory);
         string json = JsonSerializer.Serialize(dto, WriteOptions);
-        File.WriteAllText(PathFor(packageDirectory), json);
+        _writer.WriteAllText(PathFor(packageDirectory), json);
     }
 
     /// <summary>

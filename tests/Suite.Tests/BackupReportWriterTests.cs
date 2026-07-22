@@ -14,7 +14,7 @@ public class BackupReportWriterTests
 
     // A no-op redactor (no username/profile configured) so the existing assertions that expect raw paths
     // (e.g. "C:\src\a") still pass; the new redaction behavior is covered by the dedicated test below.
-    private static BackupReportWriter Writer() => new(new LogRedactor(null, null));
+    private static BackupReportWriter Writer() => new(new LogRedactor(null, null), new SanctionedFileWriter());
 
     private static BackupEntry Manual(string id, string desc, string warning, string secret)
         => new(id, true, BackupMethod.Copy, "cat", @"C:\x", "t",
@@ -132,7 +132,7 @@ public class BackupReportWriterTests
     {
         const string user = "alice";
         const string profile = @"C:\Users\alice";
-        var redactingWriter = new BackupReportWriter(new LogRedactor(user, profile));
+        var redactingWriter = new BackupReportWriter(new LogRedactor(user, profile), new SanctionedFileWriter());
 
         var copyReport = new CopySkipReport(new[]
         {

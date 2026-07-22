@@ -208,6 +208,7 @@ public partial class App : Application
         s.AddSingleton<IClock, SystemClock>();
         s.AddSingleton<IHasher, Sha256Hasher>();
         s.AddSingleton<IFileSystem, PhysicalFileSystem>();
+        s.AddSingleton<IFileWriter, SanctionedFileWriter>();
         s.AddSingleton<IBackupExecutor>(sp => new BackupExecutorAdapter(sp.GetRequiredService<GatedExecutor>()));
         s.AddSingleton<MigrationRestoreManifestStore>();
 

@@ -28,8 +28,10 @@ public class MigrationBackupRunnerTests
             new BackupExecutorAdapter(MigrationRestoreTestData.Executor(gate)),
             new Sha256Hasher(),
             new PhysicalFileSystem(),
-            new MigrationRestoreManifestStore(),
-            gate);
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()),
+            gate,
+            new MigrationInstallManifestStore(new SanctionedFileWriter()),
+            new MigrationPackageMarkerStore(new SanctionedFileWriter()));
 
     private static MigrationBackupRunResult RunBackup(
         ProfileRoots roots, string packageDir, params MigrationRecipe[] recipes)
@@ -143,7 +145,7 @@ public class MigrationBackupRunnerTests
             SafetyGate gate = MigrationRestoreTestData.GateForProfile(bRootDir, Path.Combine(bRootDir, "Users"));
             GatedExecutor executor = MigrationRestoreTestData.Executor(gate);
 
-            MigrationRestoreManifest manifest = new MigrationRestoreManifestStore().Load(pkg);
+            MigrationRestoreManifest manifest = new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(pkg);
             var restore = new MigrationRestoreRunner(new RecipePathResolver(bRoots), gate);
             MigrationRestorePlanResult plan = restore.BuildPlan(manifest, pkg, RestoreState.Empty, T0);
             Assert.Equal(2, plan.Plan.Actions.Count);
@@ -214,7 +216,7 @@ public class MigrationBackupRunnerTests
             Assert.Equal(2, result.Manifest.Targets.Count); // N config targets (both single files)
 
             // EXACTLY ONE install entry, re-loaded through the STRICT store (not the permissive loader).
-            InstallManifest install = new MigrationInstallManifestStore().Load(pkg);
+            InstallManifest install = new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(pkg);
             InstallEntry e = Assert.Single(install.Entries);
             Assert.Equal("migration:vendor.app:install", e.Id);
             Assert.Equal(InstallMethod.Winget, e.Method);
@@ -245,8 +247,8 @@ public class MigrationBackupRunnerTests
             MigrationBackupRunResult result = RunBackup(roots, pkg, GitRecipe()); // GitRecipe is v1, no install block
             Assert.True(result.Authorized);
 
-            Assert.True(File.Exists(new MigrationInstallManifestStore().PathFor(pkg)), "an authorized run writes an install manifest");
-            InstallManifest install = new MigrationInstallManifestStore().Load(pkg);
+            Assert.True(File.Exists(new MigrationInstallManifestStore(new SanctionedFileWriter()).PathFor(pkg)), "an authorized run writes an install manifest");
+            InstallManifest install = new MigrationInstallManifestStore(new SanctionedFileWriter()).Load(pkg);
             Assert.Empty(install.Entries);
         }
         finally { TestFs.DeleteResilient(root); }
@@ -283,8 +285,8 @@ public class MigrationBackupRunnerTests
             MigrationBackupRunResult result = runner.Run(plan, plan.Plan.ComputeHash(), pkg);
 
             Assert.False(result.Authorized);
-            Assert.False(File.Exists(new MigrationInstallManifestStore().PathFor(pkg)), "a refused run must write NO install manifest");
-            Assert.False(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)), "a refused run must write NO restore manifest");
+            Assert.False(File.Exists(new MigrationInstallManifestStore(new SanctionedFileWriter()).PathFor(pkg)), "a refused run must write NO install manifest");
+            Assert.False(File.Exists(new MigrationRestoreManifestStore(new SanctionedFileWriter()).PathFor(pkg)), "a refused run must write NO restore manifest");
         }
         finally { TestFs.DeleteResilient(root); }
     }
@@ -339,7 +341,7 @@ public class MigrationBackupRunnerTests
 
             Assert.False(result.Authorized);
             Assert.Empty(result.Manifest.Targets);
-            Assert.False(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)),
+            Assert.False(File.Exists(new MigrationRestoreManifestStore(new SanctionedFileWriter()).PathFor(pkg)),
                 "a refused run must write NO manifest");
             Assert.False(Directory.Exists(pkg), "a refused run must not create the protected package dir");
         }
@@ -373,7 +375,7 @@ public class MigrationBackupRunnerTests
             // And the run actually authorizes + writes the manifest.
             MigrationBackupRunResult result = runner.Run(plan, plan.Plan.ComputeHash(), pkg);
             Assert.True(result.Authorized);
-            Assert.True(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)));
+            Assert.True(File.Exists(new MigrationRestoreManifestStore(new SanctionedFileWriter()).PathFor(pkg)));
         }
         finally { TestFs.DeleteResilient(root); }
     }
@@ -405,8 +407,10 @@ public class MigrationBackupRunnerTests
                 new BackupExecutorAdapter(MigrationRestoreTestData.Executor(realGate)),
                 new Sha256Hasher(),
                 new PhysicalFileSystem(),
-                new MigrationRestoreManifestStore(),
-                regate);
+                new MigrationRestoreManifestStore(new SanctionedFileWriter()),
+                regate,
+                new MigrationInstallManifestStore(new SanctionedFileWriter()),
+                new MigrationPackageMarkerStore(new SanctionedFileWriter()));
 
             MigrationBackupPlanResult plan = runner.BuildPlan(new[] { GitRecipe() }, pkg, T0);
             MigrationBackupRunResult result = runner.Run(plan, plan.Plan.ComputeHash(), pkg);
@@ -414,9 +418,9 @@ public class MigrationBackupRunnerTests
             // Copies were authorized + ran; only the manifest write was blocked.
             Assert.True(result.Authorized);
             Assert.Empty(result.Manifest.Targets);
-            Assert.False(File.Exists(new MigrationRestoreManifestStore().PathFor(pkg)),
+            Assert.False(File.Exists(new MigrationRestoreManifestStore(new SanctionedFileWriter()).PathFor(pkg)),
                 "a blocked re-gate must write NO restore manifest");
-            Assert.False(File.Exists(new MigrationInstallManifestStore().PathFor(pkg)),
+            Assert.False(File.Exists(new MigrationInstallManifestStore(new SanctionedFileWriter()).PathFor(pkg)),
                 "a blocked re-gate must write NO install manifest");
             Assert.Contains(result.FinalizationSkips, s => s.Reason.Contains("gate", StringComparison.OrdinalIgnoreCase));
         }

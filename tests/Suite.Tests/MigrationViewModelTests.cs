@@ -550,6 +550,19 @@ public sealed class MigrationViewModelTests
     }
 
     [Fact]
+    public void Package_dir_cannot_change_during_an_in_flight_operation()
+    {
+        MigrationViewModel vm = CreateCaptureVm(new RecordingMigrationBackupRunner());
+        string packageDir = vm.PackageDir;
+        SetBusy(vm, true);
+
+        Assert.False(vm.CanEditDirectories);
+        vm.PackageDir = OutsideAppPackage();
+
+        Assert.Equal(packageDir, vm.PackageDir);
+    }
+
+    [Fact]
     public async Task StartScanAsync_is_reentrancy_safe_while_fake_scan_is_blocked()
     {
         using var release = new ManualResetEventSlim();
@@ -678,6 +691,14 @@ public sealed class MigrationViewModelTests
 
     private static string OutsideAppPackage()
         => Path.Combine(Path.GetTempPath(), "wck-migration-vm-" + Guid.NewGuid().ToString("N"));
+
+    private static void SetBusy(MigrationViewModel vm, bool value)
+    {
+        System.Reflection.FieldInfo field = typeof(MigrationViewModel).GetField(
+            "_isBusy",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        field.SetValue(vm, value);
+    }
 
     private static MigrationRecipe Recipe(string id, params string[] itemPaths)
         => new(

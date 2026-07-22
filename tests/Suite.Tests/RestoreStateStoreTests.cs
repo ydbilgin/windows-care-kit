@@ -9,7 +9,7 @@ public class RestoreStateStoreTests : IDisposable
     private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     private readonly string _dir;
-    private readonly RestoreStateStore _store = new();
+    private readonly RestoreStateStore _store = new(new SanctionedFileWriter());
 
     public RestoreStateStoreTests()
     {
@@ -110,6 +110,55 @@ public class RestoreStateStoreTests : IDisposable
     {
         File.WriteAllText(_store.PathFor(_dir), "{ not valid json");
         Assert.Empty(_store.Load(_dir).Entries);
+    }
+
+    [Fact]
+    public void TryLoad_returns_Missing_when_no_checkpoint()
+    {
+        RestoreStateLoad load = _store.TryLoad(_dir);
+
+        Assert.Equal(RestoreStateLoadStatus.Missing, load.Status);
+        Assert.True(load.CanPlanResume);
+    }
+
+    [Fact]
+    public void TryLoad_returns_Loaded_for_valid_checkpoint()
+    {
+        RestoreState expected = (RestoreState.Empty with { PlanHash = "typed-load", StartedUtc = T0, UpdatedUtc = T0 })
+            .With("install-git", RestoreEntryStatus.Done, T0);
+        _store.Save(_dir, expected);
+
+        RestoreStateLoad load = _store.TryLoad(_dir);
+
+        Assert.Equal(RestoreStateLoadStatus.Loaded, load.Status);
+        Assert.True(load.CanPlanResume);
+        Assert.Equal("typed-load", load.State.PlanHash);
+        Assert.True(load.State.IsDone("install-git"));
+    }
+
+    [Fact]
+    public void TryLoad_returns_Corrupt_for_malformed_json()
+    {
+        File.WriteAllText(_store.PathFor(_dir), "{ not valid json");
+
+        RestoreStateLoad load = _store.TryLoad(_dir);
+
+        Assert.Equal(RestoreStateLoadStatus.Corrupt, load.Status);
+        Assert.False(load.CanPlanResume);
+    }
+
+    [Fact]
+    public void TryLoad_Corrupt_leaves_the_original_file_unchanged()
+    {
+        string path = _store.PathFor(_dir);
+        File.WriteAllText(path, "{ not valid json");
+        byte[] before = File.ReadAllBytes(path);
+
+        RestoreStateLoad load = _store.TryLoad(_dir);
+        byte[] after = File.ReadAllBytes(path);
+
+        Assert.Equal(RestoreStateLoadStatus.Corrupt, load.Status);
+        Assert.Equal(before, after);
     }
 
     public void Dispose()

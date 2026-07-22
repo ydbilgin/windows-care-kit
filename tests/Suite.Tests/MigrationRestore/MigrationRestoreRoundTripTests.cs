@@ -40,8 +40,10 @@ public class MigrationRestoreRoundTripTests
             new BackupExecutorAdapter(executor),
             new Sha256Hasher(),
             new PhysicalFileSystem(),
-            new MigrationRestoreManifestStore(),
-            gate);
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()),
+            gate,
+            new MigrationInstallManifestStore(new SanctionedFileWriter()),
+            new MigrationPackageMarkerStore(new SanctionedFileWriter()));
 
         MigrationBackupPlanResult plan = runner.BuildPlan(recipes, packageDir, T0);
         MigrationBackupRunResult result = runner.Run(plan, plan.Plan.ComputeHash(), packageDir);
@@ -106,7 +108,7 @@ public class MigrationRestoreRoundTripTests
             GatedExecutor executor = MigrationRestoreTestData.Executor(gate);
 
             // --- Restore package → Profile B. ---
-            MigrationRestoreManifest manifest = new MigrationRestoreManifestStore().Load(pkg);
+            MigrationRestoreManifest manifest = new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(pkg);
             var runner = new MigrationRestoreRunner(new RecipePathResolver(bRoots), gate);
             MigrationRestorePlanResult result = runner.BuildPlan(manifest, pkg, RestoreState.Empty, T0);
 

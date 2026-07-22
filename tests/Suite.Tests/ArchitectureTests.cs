@@ -27,4 +27,40 @@ public class ArchitectureTests
             $"Suite.Core must not reference Suite.Execution (Core→Execution layering violation). " +
             $"Referenced: [{referencedNames}]");
     }
+
+    [Fact]
+    public void Suite_Core_source_never_suppresses_RS0030()
+    {
+        foreach (string path in CoreSourceFiles())
+            Assert.DoesNotContain("RS0030", File.ReadAllText(path), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Suite_Core_source_performs_no_physical_file_mutation()
+    {
+        string[] forbidden = ["File.Replace(", "File.WriteAllText(", "File.Create("];
+        foreach (string path in CoreSourceFiles())
+        {
+            string source = File.ReadAllText(path);
+            foreach (string call in forbidden)
+                Assert.DoesNotContain(call, source, StringComparison.Ordinal);
+        }
+    }
+
+    private static IEnumerable<string> CoreSourceFiles()
+        => Directory.EnumerateFiles(
+            Path.Combine(FindRepositoryRoot(), "src", "Suite.Core"), "*.cs", SearchOption.AllDirectories);
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "WindowsCareKit.slnx")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("repository root not found");
+    }
 }

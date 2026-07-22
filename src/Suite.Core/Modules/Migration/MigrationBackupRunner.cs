@@ -115,6 +115,7 @@ public sealed class MigrationBackupRunner : IMigrationBackupRunner
     private readonly MigrationRestoreManifestStore _store;
     private readonly ISafetyGate _gate;
     private readonly MigrationInstallManifestStore _installStore;
+    private readonly MigrationPackageMarkerStore _markerStore;
     private readonly IContentSignatureProbe? _contentSignatureProbe;
 
     public MigrationBackupRunner(
@@ -124,7 +125,8 @@ public sealed class MigrationBackupRunner : IMigrationBackupRunner
         IFileSystem fs,
         MigrationRestoreManifestStore store,
         ISafetyGate gate,
-        MigrationInstallManifestStore? installStore = null,
+        MigrationInstallManifestStore installStore,
+        MigrationPackageMarkerStore markerStore,
         IContentSignatureProbe? contentSignatureProbe = null)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
@@ -133,9 +135,8 @@ public sealed class MigrationBackupRunner : IMigrationBackupRunner
         _fs = fs ?? throw new ArgumentNullException(nameof(fs));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
-        // Optional so the existing 6-arg construction sites (tests) compile unchanged; defaulted to the real
-        // strict store. The projector is pure/static, so it is not a ctor dependency.
-        _installStore = installStore ?? new MigrationInstallManifestStore();
+        _installStore = installStore ?? throw new ArgumentNullException(nameof(installStore));
+        _markerStore = markerStore ?? throw new ArgumentNullException(nameof(markerStore));
         _contentSignatureProbe = contentSignatureProbe;
     }
 
@@ -345,16 +346,29 @@ public sealed class MigrationBackupRunner : IMigrationBackupRunner
                 FinalizationSkips: finalizationSkips);
         }
 
-        // An authorized run that copied no single file still saves a VALID empty manifest (Targets = []).
         var manifest = new MigrationRestoreManifest(MigrationRestoreManifest.CurrentSchemaVersion, targets);
-        _store.Save(packageDir, manifest);
-
-        // Save the parallel self-describing install manifest under the SAME re-gate that just authorized the
-        // restore-manifest write (both files sit at the package root, so the single package-root verdict governs
-        // both — critic fix #4). An authorized-but-no-install run still writes a VALID EMPTY install manifest
-        // (entries = []), mirroring the empty restore manifest. A refused or gate-blocked run never reaches here,
-        // so it writes NEITHER manifest. The entries were already validated by the strict loader at recipe load.
-        _installStore.Save(packageDir, plan.InstallEntries);
+        try
+        {
+            _installStore.Save(packageDir, plan.InstallEntries);
+            _store.Save(packageDir, manifest);
+            _markerStore.Save(packageDir, new MigrationPackageMarker(
+                MigrationPackageMarker.CurrentSchemaVersion,
+                plan.Plan.CreatedAtUtc,
+                HasInstallManifest: plan.InstallEntries.Count > 0,
+                RestoreTargetCount: targets.Count));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            finalizationSkips.Add(new RecipeItemSkip(
+                MigrationRestoreManifest.FileName, $"package not finalized (write failed): {ex.Message}"));
+            return new MigrationBackupRunResult(
+                Authorized: true,
+                CopyReport: copyReport,
+                Manifest: new MigrationRestoreManifest(
+                    MigrationRestoreManifest.CurrentSchemaVersion, Array.Empty<MigrationRestoreTarget>()),
+                SkippedItems: plan.SkippedItems,
+                FinalizationSkips: finalizationSkips);
+        }
 
         return new MigrationBackupRunResult(
             Authorized: true,

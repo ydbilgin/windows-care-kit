@@ -56,7 +56,7 @@ public class BackupIntegrityTests
         var copied = CopiedReport(Copied("app", treeDest), Copied("single", fileDest));
 
         IReadOnlyList<BackupIntegrity> rows =
-            new BackupIntegrityWriter().BuildIntegrity(copied, payload, fs, hasher, clock);
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(copied, payload, fs, hasher, clock);
 
         Assert.Equal(3, rows.Count);
 
@@ -98,7 +98,7 @@ public class BackupIntegrityTests
         });
 
         IReadOnlyList<BackupIntegrity> rows =
-            new BackupIntegrityWriter().BuildIntegrity(report, payload, fs, hasher, clock);
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(report, payload, fs, hasher, clock);
 
         // Only the one copied entry whose destination actually exists contributes a row.
         BackupIntegrity only = Assert.Single(rows);
@@ -120,7 +120,7 @@ public class BackupIntegrityTests
             new BackupIntegrity("single", "single.txt", "hash-single", 2, T0),
         };
 
-        string path = new BackupIntegrityWriter().WriteIntegrity(rows, ws.Root, RealGate());
+        string path = new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(rows, ws.Root, RealGate());
 
         Assert.True(File.Exists(path));
         Assert.EndsWith(BackupIntegrityFiles.Integrity, path);
@@ -141,7 +141,7 @@ public class BackupIntegrityTests
     {
         var rows = Array.Empty<BackupIntegrity>();
         Assert.Throws<UnauthorizedAccessException>(() =>
-            new BackupIntegrityWriter().WriteIntegrity(rows, @"C:\Windows\wck-evil", RealGate()));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).WriteIntegrity(rows, @"C:\Windows\wck-evil", RealGate()));
     }
 
     // ----------------------------------------------------------------------------------------------------
@@ -172,8 +172,8 @@ public class BackupIntegrityTests
             .Map(Path.Combine(treeDest, "nested", "deep.txt"), "h2");
         var clock = new FakeClock(T0);
 
-        var runner = new BackupRunner(executor, new BackupIntegrityWriter(),
-            new BackupReportWriter(new LogRedactor(null, null)), RealGate(), fs, hasher, clock);
+        var runner = new BackupRunner(executor, new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()), RealGate(), fs, hasher, clock);
 
         BackupRunResult result = runner.Run(planResult, plan.ComputeHash(), ws.Root);
 
@@ -204,8 +204,8 @@ public class BackupIntegrityTests
         var executor = new RecordingBackupExecutor(authorized: false,
             new BackupActionResult("app", BackupActionStatus.NotRun, "plan refused"));
 
-        var runner = new BackupRunner(executor, new BackupIntegrityWriter(),
-            new BackupReportWriter(new LogRedactor(null, null)), RealGate(),
+        var runner = new BackupRunner(executor, new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()), RealGate(),
             new FakeFileSystem(), new FakeHasher(), new FakeClock(T0));
 
         BackupRunResult result = runner.Run(planResult, plan.ComputeHash(), ws.Root);
@@ -233,7 +233,7 @@ public class BackupIntegrityTests
         // A gate that COUNTS every Evaluate call and records the action kinds it judged.
         var counting = new CountingGate(RealGate());
 
-        var writer = new BackupIntegrityWriter();
+        var writer = new BackupIntegrityWriter(new SanctionedFileWriter());
         IReadOnlyList<BackupIntegrity> rows =
             writer.BuildIntegrity(copied, ws.Root, fs, new FakeHasher(), new FakeClock(T0));
         writer.WriteIntegrity(rows, ws.Root, counting);
@@ -263,7 +263,7 @@ public class BackupIntegrityTests
             new CopyAction { Source = src, Destination = dst, Description = "copy", Reason = "t" });
 
         var copied = CopiedReport(new CopyFileOutcome("note", src, dst, true, null, "ok"));
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter().BuildIntegrity(
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(
             copied, ws.Combine("payload"), new PhysicalFileSystem(), new Sha256Hasher(), new FakeClock(T0));
 
         BackupIntegrity row = Assert.Single(rows);
@@ -407,7 +407,7 @@ public class BackupIntegrityTests
 
         // Fail-closed: the writer throws instead of recording the off-root absolute path.
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(copied, payload, fs, hasher, clock));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(copied, payload, fs, hasher, clock));
     }
 
     [Fact]
@@ -424,7 +424,7 @@ public class BackupIntegrityTests
         var copied = CopiedReport(Copied("esc", escapingDest));
 
         Assert.Throws<OffRootDestinationException>(() =>
-            new BackupIntegrityWriter().BuildIntegrity(copied, payload, fs, hasher, clock));
+            new BackupIntegrityWriter(new SanctionedFileWriter()).BuildIntegrity(copied, payload, fs, hasher, clock));
     }
 
     [Fact]
@@ -453,7 +453,7 @@ public class BackupIntegrityTests
             {
                 new BackupIntegrity(copy.Id, "settings.json", "hash", 1, T0),
             }),
-            new BackupReportWriter(new LogRedactor(null, null)),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()),
             RealGate(),
             new FakeFileSystem(),
             new FakeHasher(),

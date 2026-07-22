@@ -106,8 +106,10 @@ internal static class Program
             new BackupExecutorAdapter(BuildExecutor(backupGate, "backup")),
             new Sha256Hasher(),
             new PhysicalFileSystem(),
-            new MigrationRestoreManifestStore(),
-            backupGate);
+            new MigrationRestoreManifestStore(new SanctionedFileWriter()),
+            backupGate,
+            new MigrationInstallManifestStore(new SanctionedFileWriter()),
+            new MigrationPackageMarkerStore(new SanctionedFileWriter()));
 
         MigrationBackupPlanResult plan = backupRunner.BuildPlan(recipes, cfg.PackageDir!, utc);
         MigrationBackupRunResult run = backupRunner.Run(plan, plan.Plan.ComputeHash(), cfg.PackageDir!);
@@ -141,7 +143,7 @@ internal static class Program
 
     private static int RunFingerprint(Config cfg, ProfileRoots roots)
     {
-        MigrationRestoreManifest manifest = new MigrationRestoreManifestStore().Load(cfg.PackageDir!);
+        MigrationRestoreManifest manifest = new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(cfg.PackageDir!);
         var resolver = new RecipePathResolver(roots);
         var entries = new List<FingerprintEntry>();
 
@@ -169,7 +171,7 @@ internal static class Program
     private static int RunRestore(Config cfg, ProfileRoots roots)
     {
         DateTime utc = DateTime.UtcNow;
-        MigrationRestoreManifest manifest = new MigrationRestoreManifestStore().Load(cfg.PackageDir!);
+        MigrationRestoreManifest manifest = new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(cfg.PackageDir!);
         MigrationRestoreService restoreService = BuildRestoreService(roots, cfg.StateDir!, "restore");
 
         MigrationRestorePreviewResult preview = restoreService.Preview(
@@ -222,8 +224,8 @@ internal static class Program
 
     private static int RunVerify(Config cfg, ProfileRoots roots)
     {
-        MigrationRestoreManifest manifest = new MigrationRestoreManifestStore().Load(cfg.PackageDir!);
-        RestoreState state = new RestoreStateStore().Load(cfg.StateDir!);
+        MigrationRestoreManifest manifest = new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(cfg.PackageDir!);
+        RestoreState state = new RestoreStateStore(new SanctionedFileWriter()).Load(cfg.StateDir!);
         FingerprintEvidence? baseline = LoadBaseline(cfg.BaselinePath!);
         var resolver = new RecipePathResolver(roots);
 
@@ -276,7 +278,7 @@ internal static class Program
     private static int RunUndo(Config cfg, ProfileRoots roots)
     {
         DateTime utc = DateTime.UtcNow;
-        var stateStore = new RestoreStateStore();
+        var stateStore = new RestoreStateStore(new SanctionedFileWriter());
         RestoreState state = stateStore.Load(cfg.StateDir!);
         MigrationRestoreService restoreService = BuildRestoreService(roots, cfg.StateDir!, "undo");
 
@@ -358,7 +360,7 @@ internal static class Program
         string usersRoot = Path.GetDirectoryName(roots.UserProfile) ?? roots.UserProfile;
         SafetyGate restoreGate = BuildGate(roots.UserProfile, usersRoot);
         var runner = new MigrationRestoreRunner(new RecipePathResolver(roots), restoreGate);
-        return new MigrationRestoreService(runner, BuildExecutor(restoreGate, label), new RestoreStateStore());
+        return new MigrationRestoreService(runner, BuildExecutor(restoreGate, label), new RestoreStateStore(new SanctionedFileWriter()));
     }
 
     private static GatedExecutor BuildExecutor(SafetyGate gate, string label) =>

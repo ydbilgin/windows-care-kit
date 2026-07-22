@@ -145,6 +145,9 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         get => _packageDir;
         set
         {
+            if (IsBusy)
+                return;
+
             if (SetField(ref _packageDir, value))
             {
                 OnPropertyChanged(nameof(HasPackageDir));
@@ -162,10 +165,13 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
             {
                 OnPropertyChanged(nameof(CanSelect));
                 OnPropertyChanged(nameof(CanRunCapture));
+                OnPropertyChanged(nameof(CanEditDirectories));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
     }
+
+    public bool CanEditDirectories => !IsBusy;
 
     public bool IsPreviewApproved
     {

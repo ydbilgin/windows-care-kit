@@ -121,7 +121,7 @@ public class RealSinkE2ETests
         // The restored bytes' SHA-256 equals the integrity record built over the restored destination.
         string payloadRoot = fx.Workspace.Combine("live");
         var copied = new CopySkipReport(new[] { new CopyFileOutcome("restored", src, dest, true, null, "ok") });
-        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter()
+        IReadOnlyList<BackupIntegrity> rows = new BackupIntegrityWriter(new SanctionedFileWriter())
             .BuildIntegrity(copied, payloadRoot, new PhysicalFileSystem(), new Sha256Hasher(), new FakeClock(T0));
 
         BackupIntegrity restoredRow = rows.Single(r => r.DestinationRelativePath == "app.cfg");
@@ -268,8 +268,8 @@ public class RealSinkE2ETests
         // The REAL bridge: BackupRunner over BackupExecutorAdapter(real GatedExecutor) + real fs/hasher/clock.
         var runner = new BackupRunner(
             new BackupExecutorAdapter(fx.Executor),
-            new BackupIntegrityWriter(),
-            new BackupReportWriter(new LogRedactor(null, null)),
+            new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()),
             fx.Gate,
             new PhysicalFileSystem(),
             new Sha256Hasher(),
