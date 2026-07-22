@@ -26,14 +26,45 @@ public enum BackupActionStatus
     NotRun,
 }
 
+/// <summary>
+/// The Core-native projection of the execution layer's failure category (NEW-06). <see cref="BackupRunner"/>
+/// lives in Suite.Core and must not depend on Suite.Execution's <c>ExecutionFailureCode</c>; the WPF shell's
+/// <c>BackupExecutorAdapter</c> maps those values onto these 1:1 so the runner classifies a skip from a typed
+/// code instead of parsing exception text.
+/// </summary>
+public enum BackupFailureCode
+{
+    /// <summary>The action did not fail.</summary>
+    None,
+
+    /// <summary>The source/target did not exist at execution time.</summary>
+    Missing,
+
+    /// <summary>The path exceeded what the OS could handle even with long-path support.</summary>
+    TooLong,
+
+    /// <summary>Access refused (forbidden/secret source, destination reparse point, or unauthorized access).</summary>
+    Forbidden,
+
+    /// <summary>The source/destination was locked or in use.</summary>
+    Locked,
+
+    /// <summary>The action threw, but matched no known category.</summary>
+    Unknown,
+}
+
 /// <summary>One per-action backup outcome, projected from the execution layer for <see cref="BackupRunner"/>.</summary>
 /// <param name="ActionId">The <see cref="PlannedAction.Id"/> this result is for.</param>
 /// <param name="Status">What happened to the action.</param>
-/// <param name="Detail">Human-readable detail (gate reason, exception summary, …) — used to classify the skip reason.</param>
+/// <param name="Detail">Human-readable, display/diagnostic-only detail (gate reason, exception summary, …). The
+/// skip reason is classified from the typed <see cref="BackupFailureCode"/> below, never by parsing this text.</param>
 public sealed record BackupActionResult(string ActionId, BackupActionStatus Status, string Detail)
 {
     /// <summary>Structured copy outcomes produced by the real copy adapter, when available.</summary>
     public IReadOnlyList<CopyFileOutcome> CopyOutcomes { get; init; } = Array.Empty<CopyFileOutcome>();
+
+    /// <summary>The typed failure category when <see cref="Status"/> is <see cref="BackupActionStatus.Failed"/>; else None.</summary>
+    public BackupFailureCode FailureCode { get; init; } = BackupFailureCode.None;
 }
 
 /// <summary>

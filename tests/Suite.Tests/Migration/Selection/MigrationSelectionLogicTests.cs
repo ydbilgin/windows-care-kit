@@ -67,7 +67,7 @@ public sealed class MigrationSelectionLogicTests
     {
         MigrationSelectionCandidate candidate = Candidate("project", "projects") with
         {
-            HasCloudBackup = false,
+            CloudBackup = CloudBackupStatus.NotBackedUp,
             IsOnSystemDrive = true,
             IsUnique = true,
             IsRegenerable = false,
@@ -86,7 +86,7 @@ public sealed class MigrationSelectionLogicTests
     {
         MigrationSelectionCandidate candidate = Candidate("unique-but-regenerable", "projects") with
         {
-            HasCloudBackup = false,
+            CloudBackup = CloudBackupStatus.NotBackedUp,
             IsOnSystemDrive = true,
             IsUnique = true,
             IsRegenerable = true,
@@ -106,7 +106,7 @@ public sealed class MigrationSelectionLogicTests
         MigrationSelectionCandidate candidate = Candidate("locked", "security") with
         {
             Meta = Meta(PortabilityClass.MachineLocked),
-            HasCloudBackup = false,
+            CloudBackup = CloudBackupStatus.NotBackedUp,
             IsOnSystemDrive = true,
             IsUnique = true,
         };
@@ -122,7 +122,7 @@ public sealed class MigrationSelectionLogicTests
         MigrationSelectionCandidate autoStub = Candidate("stub", "dev-tools") with
         {
             IsAutoStub = true,
-            HasCloudBackup = false,
+            CloudBackup = CloudBackupStatus.NotBackedUp,
             IsOnSystemDrive = true,
             IsUnique = true,
         };
@@ -142,7 +142,7 @@ public sealed class MigrationSelectionLogicTests
             OneDriveRedirectedSyncOff = true,
             IsRecognized = isRecognized,
             IsAutoStub = isAutoStub,
-            HasCloudBackup = false,
+            CloudBackup = CloudBackupStatus.NotBackedUp,
             IsOnSystemDrive = true,
             IsUnique = true,
         };
@@ -214,12 +214,12 @@ public sealed class MigrationSelectionLogicTests
     {
         MigrationSelectionCandidate a = Candidate("a", "lists") with
         {
-            HasCloudBackup = true,
+            CloudBackup = CloudBackupStatus.BackedUp,
             Meta = Meta(PortabilityClass.ProfileRelative) with { RecipeId = "a", EntryId = "a#0", ItemOrdinal = 0 },
         };
         MigrationSelectionCandidate b = Candidate("b", "lists") with
         {
-            HasCloudBackup = true,
+            CloudBackup = CloudBackupStatus.BackedUp,
             Meta = Meta(PortabilityClass.ProfileRelative) with { RecipeId = "b", EntryId = "b#0", ItemOrdinal = 0 },
         };
         MigrationSelectionGroup group = MigrationSelectionBuilder.Build([a, b])
@@ -429,7 +429,7 @@ public sealed class MigrationSelectionLogicTests
             Meta = Meta(PortabilityClass.ProfileRelative),
             RestoreTier = RestoreTier.ConfigCopy,
             SourceKind = MigrationSourceKind.None,
-            HasCloudBackup = true,
+            CloudBackup = CloudBackupStatus.BackedUp,
             IsOnSystemDrive = false,
             IsUnique = false,
             IsRegenerable = true,

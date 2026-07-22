@@ -10,7 +10,7 @@ public sealed record MigrationScanResult(
 
 public interface ICloudBackupSignal
 {
-    bool HasCloudBackup(string? sourcePath);
+    CloudBackupStatus GetStatus(string? sourcePath);
 }
 
 public sealed class OneDriveKnownFolderContainmentSignal : ICloudBackupSignal
@@ -27,10 +27,10 @@ public sealed class OneDriveKnownFolderContainmentSignal : ICloudBackupSignal
             .ToArray();
     }
 
-    public bool HasCloudBackup(string? sourcePath)
+    public CloudBackupStatus GetStatus(string? sourcePath)
     {
         if (string.IsNullOrWhiteSpace(sourcePath))
-            return false;
+            return CloudBackupStatus.NotBackedUp;
 
         string fullPath;
         try
@@ -39,10 +39,12 @@ public sealed class OneDriveKnownFolderContainmentSignal : ICloudBackupSignal
         }
         catch
         {
-            return false;
+            return CloudBackupStatus.NotBackedUp;
         }
 
-        return _oneDriveUserFolders.Any(root => IsContained(root, fullPath));
+        return _oneDriveUserFolders.Any(root => IsContained(root, fullPath))
+            ? CloudBackupStatus.BackedUp
+            : CloudBackupStatus.NotBackedUp;
     }
 
     private static bool IsContained(string root, string candidate)
@@ -50,15 +52,20 @@ public sealed class OneDriveKnownFolderContainmentSignal : ICloudBackupSignal
            || candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 }
 
-public sealed class NoCloudBackupSignal : ICloudBackupSignal
+/// <summary>
+/// The honest default when no real cloud-backup reader is wired: it does NOT know whether any source is cloud
+/// backed up, so it reports <see cref="CloudBackupStatus.Unknown"/> for every path. It never claims a verified
+/// "not backed up" (LSP-02). Replace it at composition with a real reader when one exists.
+/// </summary>
+public sealed class UndeterminedCloudBackupSignal : ICloudBackupSignal
 {
-    public static NoCloudBackupSignal Instance { get; } = new();
+    public static UndeterminedCloudBackupSignal Instance { get; } = new();
 
-    private NoCloudBackupSignal() { }
+    private UndeterminedCloudBackupSignal() { }
 
-    // TODO(P4): replace the constant fallback with a real OneDrive account reader
-    // (HKCU\Software\Microsoft\OneDrive\Accounts\*\UserFolder) when that read-only port is added.
-    public bool HasCloudBackup(string? sourcePath) => false;
+    // TODO(P4): supply a real OneDrive account reader
+    // (HKCU\Software\Microsoft\OneDrive\Accounts\*\UserFolder) at composition so this default is unnecessary.
+    public CloudBackupStatus GetStatus(string? sourcePath) => CloudBackupStatus.Unknown;
 }
 
 /// <summary>Read-only, on-demand program and recipe scan seam used by the Migration UI.</summary>
@@ -94,7 +101,7 @@ public sealed class MigrationScanService : IMigrationScanService
         _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
         _contentProbe = contentProbe ?? throw new ArgumentNullException(nameof(contentProbe));
         _recipeSource = recipeSource ?? throw new ArgumentNullException(nameof(recipeSource));
-        _cloudBackupSignal = cloudBackupSignal ?? NoCloudBackupSignal.Instance;
+        _cloudBackupSignal = cloudBackupSignal ?? UndeterminedCloudBackupSignal.Instance;
     }
 
     public MigrationScanResult Scan(CancellationToken cancellationToken = default)
@@ -217,7 +224,7 @@ public sealed class MigrationScanService : IMigrationScanService
             WhatHappens = migration?.UiWarning?.En ?? string.Empty,
             WhatHappensTr = migration?.UiWarning?.Tr,
             WhatHappensEn = migration?.UiWarning?.En,
-            HasCloudBackup = _cloudBackupSignal.HasCloudBackup(source),
+            CloudBackup = _cloudBackupSignal.GetStatus(source),
             IsOnSystemDrive = IsOnSystemDrive(source),
             IsUnique = !isRegenerable,
             IsRegenerable = isRegenerable,

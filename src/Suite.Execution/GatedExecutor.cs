@@ -146,7 +146,10 @@ public sealed class GatedExecutor : IExecutor
             {
                 string detail = $"{ex.GetType().Name}: {ex.Message}";
                 _log.Append("action.failed", $"{action.Kind}: {action.Description}", ActionData(action, ex));
-                results.Add(new ActionResult(action.Id, action.Kind, ActionStatus.Failed, detail));
+                results.Add(new ActionResult(action.Id, action.Kind, ActionStatus.Failed, detail)
+                {
+                    FailureCode = ClassifyFailure(ex),
+                });
 
                 // §A.4 best-effort carve-out: a recycle-bin junk delete (Low + Full) is continue-and-record;
                 // every other action type / risk tier stops the plan (fail closed).
@@ -184,6 +187,20 @@ public sealed class GatedExecutor : IExecutor
         => action is FileDeleteAction { BestEffort: true }
            && action.Risk == RiskLevel.Low
            && action.Undo == UndoCapability.Full;
+
+    /// <summary>
+    /// Classify the caught exception ONCE into a stable <see cref="ExecutionFailureCode"/> from its TYPE
+    /// (NEW-06) — so Core never parses the redacted detail string. Specific IO subtypes are matched before the
+    /// IOException catch-all (PathTooLong/FileNotFound/DirectoryNotFound all derive from IOException).
+    /// </summary>
+    private static ExecutionFailureCode ClassifyFailure(Exception ex) => ex switch
+    {
+        FileNotFoundException or DirectoryNotFoundException => ExecutionFailureCode.Missing,
+        PathTooLongException => ExecutionFailureCode.TooLong,
+        ForbiddenSourceException or DestinationReparseException or UnauthorizedAccessException => ExecutionFailureCode.Forbidden,
+        IOException => ExecutionFailureCode.Locked,
+        _ => ExecutionFailureCode.Unknown,
+    };
 
     private ActionResult Dispatch(PlannedAction action)
     {

@@ -63,7 +63,7 @@ public sealed class MigrationAppGroupingTests
     {
         MigrationSelectionCandidate portable = Candidate("app#0", "app", "App", "personal") with
         {
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
         MigrationSelectionCandidate forced = Candidate("app#1", "app", "App", "personal") with
         {
@@ -88,11 +88,11 @@ public sealed class MigrationAppGroupingTests
     {
         MigrationSelectionCandidate a = Candidate("app#0", "app", "App", "games") with
         {
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
         MigrationSelectionCandidate b = Candidate("app#1", "app", "App", "games") with
         {
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
 
         MigrationAppGroup app = MigrationSelectionBuilder.Build([a, b])
@@ -109,7 +109,7 @@ public sealed class MigrationAppGroupingTests
         MigrationSelectionCandidate a = Candidate("app#0", "app", "App", "games");
         MigrationSelectionCandidate b = Candidate("app#1", "app", "App", "games") with
         {
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
 
         MigrationAppGroup app = MigrationSelectionBuilder.Build([a, b])
@@ -131,7 +131,7 @@ public sealed class MigrationAppGroupingTests
         MigrationSelectionCandidate top = Candidate("app#0", "app", "App", "personal");
         MigrationSelectionCandidate low = Candidate("app#1", "app", "App", "personal") with
         {
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
 
         MigrationAppGroup app = MigrationSelectionBuilder.Build([top, low])
@@ -149,7 +149,7 @@ public sealed class MigrationAppGroupingTests
         MigrationSelectionCandidate a1 = Candidate("app#1", "app", "App", "games");
         MigrationSelectionCandidate b0 = Candidate("other#0", "other", "Other", "games") with
         {
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
 
         MigrationSelectionGroup group = MigrationSelectionBuilder.Build([a0, a1, b0])
@@ -337,7 +337,7 @@ public sealed class MigrationAppGroupingTests
             Meta = Meta(recipeId, id, PortabilityClass.ProfileRelative),
             RestoreTier = RestoreTier.ConfigCopy,
             SourceKind = MigrationSourceKind.None,
-            HasCloudBackup = false,
+            CloudBackup = CloudBackupStatus.NotBackedUp,
             IsOnSystemDrive = true,
             IsUnique = true,
             IsRegenerable = false,

@@ -53,6 +53,22 @@ public class GatedExecutorFailClosedTests
     }
 
     [Fact]
+    public void A_failed_action_records_a_typed_failure_code_from_the_exception_type()
+    {
+        using var fx = new ExecutorFixture();
+
+        var tooLong = TestData.FileDelete(@"C:\Program Files\SomeApp\deep.tmp");
+        // Empty message on purpose: the code must come from the TYPE, not any substring of the text.
+        fx.Adapters.ThrowExceptionForActionIds[tooLong.Id] = new PathTooLongException(string.Empty);
+
+        var plan = new OperationPlan("t", "uninstall", new PlannedAction[] { tooLong }, T0);
+        var report = fx.Executor.ExecuteWithReport(plan, plan.ComputeHash());
+
+        Assert.Equal(ActionStatus.Failed, report.Results[0].Status);
+        Assert.Equal(ExecutionFailureCode.TooLong, report.Results[0].FailureCode);
+    }
+
+    [Fact]
     public void Best_effort_low_full_file_delete_continues_on_failure_and_tallies()
     {
         using var fx = new ExecutorFixture();

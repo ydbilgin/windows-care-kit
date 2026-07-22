@@ -21,6 +21,33 @@ public enum ActionStatus
     NotRun,
 }
 
+/// <summary>
+/// A stable, machine-readable category for a failed action, classified ONCE at the executor boundary from the
+/// real exception type (NEW-06). It lets Core policy react to a failure class without parsing the redacted
+/// human <see cref="ActionResult.Detail"/> string. <see cref="None"/> means the action did not fail;
+/// <see cref="Unknown"/> means it failed but matched no known category.
+/// </summary>
+public enum ExecutionFailureCode
+{
+    /// <summary>The action did not fail (Done / Skipped / Blocked / NotRun).</summary>
+    None,
+
+    /// <summary>The source/target did not exist at execution time (FileNotFound / DirectoryNotFound).</summary>
+    Missing,
+
+    /// <summary>The path exceeded what the OS could handle even with long-path support (PathTooLong).</summary>
+    TooLong,
+
+    /// <summary>Access refused: a forbidden/secret source, a destination reparse point, or unauthorized access.</summary>
+    Forbidden,
+
+    /// <summary>The source/destination was locked or in use (a sharing/IO violation).</summary>
+    Locked,
+
+    /// <summary>The action threw, but the exception matched no known category.</summary>
+    Unknown,
+}
+
 /// <summary>The per-action outcome surfaced to the UI and recorded in the <c>ExecutionLog</c>.</summary>
 /// <param name="ActionId">The <see cref="WindowsCareKit.Core.Planning.PlannedAction.Id"/> this result is for.</param>
 /// <param name="Kind">The action's <see cref="WindowsCareKit.Core.Planning.PlannedAction.Kind"/> (e.g. <c>file.delete</c>).</param>
@@ -30,6 +57,9 @@ public sealed record ActionResult(string ActionId, string Kind, ActionStatus Sta
 {
     /// <summary>Structured copy outcomes when this result comes from a <c>CopyAction</c>.</summary>
     public IReadOnlyList<CopyFileOutcome> CopyOutcomes { get; init; } = Array.Empty<CopyFileOutcome>();
+
+    /// <summary>The typed failure category when <see cref="Status"/> is <see cref="ActionStatus.Failed"/>; else None.</summary>
+    public ExecutionFailureCode FailureCode { get; init; } = ExecutionFailureCode.None;
 }
 
 /// <summary>

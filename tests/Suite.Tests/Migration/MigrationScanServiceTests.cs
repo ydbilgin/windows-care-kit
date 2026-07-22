@@ -152,17 +152,38 @@ public sealed class MigrationScanServiceTests
 
         MigrationSelectionCandidate candidate = Assert.Single(service.Scan().Candidates);
 
-        Assert.True(candidate.HasCloudBackup);
+        Assert.Equal(CloudBackupStatus.BackedUp, candidate.CloudBackup);
     }
 
     [Fact]
-    public void OneDrive_containment_signal_is_false_for_unknown_or_outside_paths()
+    public void OneDrive_containment_signal_reports_backedup_only_for_contained_paths()
     {
         var signal = new OneDriveKnownFolderContainmentSignal([@"C:\Users\alice\OneDrive"]);
 
-        Assert.False(signal.HasCloudBackup(null));
-        Assert.False(signal.HasCloudBackup(@"C:\Users\alice\Documents\settings.json"));
-        Assert.True(signal.HasCloudBackup(@"C:\Users\alice\OneDrive\Documents\settings.json"));
+        Assert.Equal(CloudBackupStatus.NotBackedUp, signal.GetStatus(null));
+        Assert.Equal(CloudBackupStatus.NotBackedUp, signal.GetStatus(@"C:\Users\alice\Documents\settings.json"));
+        Assert.Equal(CloudBackupStatus.BackedUp, signal.GetStatus(@"C:\Users\alice\OneDrive\Documents\settings.json"));
+    }
+
+    [Fact]
+    public void Scan_without_a_cloud_signal_reports_unknown_not_a_fabricated_absent()
+    {
+        ProfileRoots roots = MigrationTestData.Roots();
+        string detect = Path.Combine(roots.AppData, "Tool");
+        string settings = Path.Combine(detect, "settings.json");
+        var fs = new FakeRecipeFileSystem().AddDir(detect).AddFile(settings);
+        // Production ctor path: NO ICloudBackupSignal supplied -> honest default.
+        var service = new MigrationScanService(
+            [new FakeProgramSource([])],
+            () => roots,
+            fs,
+            new CleanProbe(),
+            () => [Recipe()]);
+
+        MigrationSelectionCandidate candidate = Assert.Single(service.Scan().Candidates);
+
+        Assert.Equal(CloudBackupStatus.Unknown, candidate.CloudBackup);
+        Assert.NotEqual(CloudBackupStatus.NotBackedUp, candidate.CloudBackup); // must not fabricate a verified absent
     }
 
     private static MigrationRecipe Recipe()

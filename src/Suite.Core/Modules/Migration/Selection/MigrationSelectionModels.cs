@@ -1,5 +1,24 @@
 namespace WindowsCareKit.Core.Modules.Migration.Selection;
 
+/// <summary>
+/// Whether a candidate's source is known to also live in a synced cloud backup (e.g. OneDrive). This is a
+/// three-state capability result, not a bare boolean: <see cref="Unknown"/> means the cloud-backup capability
+/// was not determined (no signal wired, or the signal could not evaluate), and MUST NOT be treated as a
+/// verified "not backed up" — collapsing unknown into absent is the exact honesty defect LSP-02 fixes. The
+/// default is <see cref="Unknown"/> (ordinal 0) so a candidate that never sets it is honestly undetermined.
+/// </summary>
+public enum CloudBackupStatus
+{
+    /// <summary>Not determined — no signal was wired, or the signal could not evaluate this source.</summary>
+    Unknown,
+
+    /// <summary>A capable signal checked and the source is NOT contained in a known cloud-backup root.</summary>
+    NotBackedUp,
+
+    /// <summary>A capable signal checked and the source IS contained in a known cloud-backup root.</summary>
+    BackedUp,
+}
+
 /// <summary>The fixed M3 category order. The enum ordinal is the critical-first UI order.</summary>
 public enum MigrationCategory
 {
@@ -50,7 +69,8 @@ public sealed record MigrationSelectionCandidate
     public string? WhatHappensEn { get; init; }
     public long? SizeBytes { get; init; }
 
-    public bool HasCloudBackup { get; init; }
+    /// <summary>Cloud-backup capability result for <see cref="SourcePath"/> (LSP-02: honest tri-state, default Unknown).</summary>
+    public CloudBackupStatus CloudBackup { get; init; }
     public bool IsOnSystemDrive { get; init; }
     public bool IsUnique { get; init; }
     public bool IsRegenerable { get; init; }

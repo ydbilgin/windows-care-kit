@@ -146,14 +146,11 @@ public sealed class BackupRunner
         }
     }
 
-    // The execution layer throws typed exceptions whose recorded detail is "{TypeName}: {message}". Match on
-    // the stable type-name tokens (not a fragile English substring). These literals MUST stay in lockstep with
-    // Suite.Execution.Adapters.{ForbiddenSourceException,DestinationReparseException}.TypeToken — Core cannot
-    // reference that layer, so the names are duplicated as constants here.
-    private const string ForbiddenSourceToken = "ForbiddenSourceException";
-    private const string DestinationReparseToken = "DestinationReparseException";
-
-    /// <summary>Map an executor failure detail to a <see cref="CopySkipReason"/>. Moved from the view-model unchanged.</summary>
+    /// <summary>
+    /// Map an executor failure to a <see cref="CopySkipReason"/> from the TYPED
+    /// <see cref="BackupActionResult.FailureCode"/> (NEW-06) — no exception-name or English-message parsing.
+    /// Status-level outcomes (Blocked / Skipped / NotRun) keep their existing mapping.
+    /// </summary>
     private static CopySkipReason ClassifySkip(BackupActionResult? result)
     {
         if (result is null)
@@ -165,17 +162,13 @@ public sealed class BackupRunner
         if (result.Status == BackupActionStatus.NotRun)
             return CopySkipReason.Other;
 
-        string d = result.Detail;
-        if (d.Contains("FileNotFound", StringComparison.OrdinalIgnoreCase) || d.Contains("DirectoryNotFound", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.Missing;
-        if (d.Contains("PathTooLong", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.TooLong;
-        if (d.Contains(ForbiddenSourceToken, StringComparison.Ordinal)
-            || d.Contains(DestinationReparseToken, StringComparison.Ordinal)
-            || d.Contains("UnauthorizedAccess", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.Forbidden;
-        if (d.Contains("IOException", StringComparison.OrdinalIgnoreCase) || d.Contains("being used by another process", StringComparison.OrdinalIgnoreCase))
-            return CopySkipReason.Locked;
-        return CopySkipReason.Other;
+        return result.FailureCode switch
+        {
+            BackupFailureCode.Missing => CopySkipReason.Missing,
+            BackupFailureCode.TooLong => CopySkipReason.TooLong,
+            BackupFailureCode.Forbidden => CopySkipReason.Forbidden,
+            BackupFailureCode.Locked => CopySkipReason.Locked,
+            _ => CopySkipReason.Other,
+        };
     }
 }

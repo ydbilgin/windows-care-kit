@@ -25,7 +25,9 @@ public static class SmartDefaultScorer
         ArgumentNullException.ThrowIfNull(badge);
 
         int score =
-            (candidate.HasCloudBackup ? 0 : 1)
+            // Only a VERIFIED cloud backup removes the irreplaceability factor; Unknown and NotBackedUp both
+            // keep it (protective — LSP-02: an undetermined signal must not lower a row's protection).
+            (candidate.CloudBackup == CloudBackupStatus.BackedUp ? 0 : 1)
             + (candidate.IsOnSystemDrive ? 1 : 0)
             // §D.3 "unique/non-regenerable" is intentionally OR: either property earns factor 3.
             + (candidate.IsUnique || !candidate.IsRegenerable ? 1 : 0);

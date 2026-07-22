@@ -102,7 +102,7 @@ public sealed class MigrationViewModelTests
         MigrationViewModel vm = CreateVm();
         MigrationSelectionCandidate optional = Candidate("optional", "personal", "optional") with
         {
-            HasCloudBackup = true,
+            CloudBackup = CloudBackupStatus.BackedUp,
             IsOnSystemDrive = false,
             IsUnique = false,
             IsRegenerable = true,
@@ -145,7 +145,7 @@ public sealed class MigrationViewModelTests
         {
             Meta = new MigrationItemMeta("normal", "normal#1", PortabilityClass.ProfileRelative,
                 RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 1 },
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
         MigrationSelectionCandidate forcedCritical = Candidate("forced#0", "personal", "forced") with
         {
@@ -157,7 +157,7 @@ public sealed class MigrationViewModelTests
         {
             Meta = new MigrationItemMeta("forced", "forced#1", PortabilityClass.MachineLocked,
                 RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, []) { ItemOrdinal = 1 },
-            HasCloudBackup = true, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
+            CloudBackup = CloudBackupStatus.BackedUp, IsOnSystemDrive = false, IsUnique = false, IsRegenerable = true,
         };
         MigrationViewModel vm = CreateVm(runner: runner, recipes: [normalRecipe, forcedRecipe]);
         vm.LoadScan(Detection(4, 0), @"C:\Users\demo", [normalRecommended, normalOptional, forcedCritical, forcedOther]);
@@ -399,7 +399,7 @@ public sealed class MigrationViewModelTests
         MigrationSelectionCandidate selected = Candidate("selected", "projects", "recipe-a");
         MigrationSelectionCandidate optional = Candidate("optional", "projects", "recipe-a") with
         {
-            HasCloudBackup = true,
+            CloudBackup = CloudBackupStatus.BackedUp,
             IsOnSystemDrive = false,
             IsUnique = false,
             IsRegenerable = true,
@@ -621,7 +621,7 @@ public sealed class MigrationViewModelTests
             SourceKind = MigrationSourceKind.Directory,
             SourcePath = $@"C:\Users\demo\{id}",
             DestinationPath = $@"E:\WCK\{id}",
-            HasCloudBackup = false,
+            CloudBackup = CloudBackupStatus.NotBackedUp,
             IsOnSystemDrive = true,
             IsUnique = true,
             IsRegenerable = false,

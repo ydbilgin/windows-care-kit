@@ -27,6 +27,7 @@ public sealed class BackupExecutorAdapter : IBackupExecutor
             results.Add(new BackupActionResult(r.ActionId, Map(r.Status), r.Detail)
             {
                 CopyOutcomes = r.CopyOutcomes,
+                FailureCode = MapFailure(r.FailureCode),
             });
         return new BackupExecutionReport(report.Authorized, results);
     }
@@ -39,5 +40,16 @@ public sealed class BackupExecutorAdapter : IBackupExecutor
         ActionStatus.Failed => BackupActionStatus.Failed,
         ActionStatus.NotRun => BackupActionStatus.NotRun,
         _ => BackupActionStatus.NotRun,
+    };
+
+    private static BackupFailureCode MapFailure(ExecutionFailureCode code) => code switch
+    {
+        ExecutionFailureCode.None => BackupFailureCode.None,
+        ExecutionFailureCode.Missing => BackupFailureCode.Missing,
+        ExecutionFailureCode.TooLong => BackupFailureCode.TooLong,
+        ExecutionFailureCode.Forbidden => BackupFailureCode.Forbidden,
+        ExecutionFailureCode.Locked => BackupFailureCode.Locked,
+        ExecutionFailureCode.Unknown => BackupFailureCode.Unknown,
+        _ => BackupFailureCode.Unknown,
     };
 }

@@ -16,6 +16,10 @@ internal sealed class RecordingAdapters
     /// <summary>Action ids that should throw when their adapter is invoked.</summary>
     public HashSet<string> ThrowForActionIds { get; } = new();
 
+    /// <summary>Action ids that should throw a SPECIFIC exception instance when their adapter is invoked
+    /// (for typed-failure-classification tests). Takes precedence over <see cref="ThrowForActionIds"/>.</summary>
+    public Dictionary<string, Exception> ThrowExceptionForActionIds { get; } = new();
+
     /// <summary>When true, ANY adapter call throws (used to prove nothing is called on refusal).</summary>
     public bool ThrowOnAnyCall { get; set; }
 
@@ -32,6 +36,8 @@ internal sealed class RecordingAdapters
             throw new InvalidOperationException($"adapter '{kind}' must not be called");
         Calls.Add($"{kind}:{action.Id}");
         Dispatched.Add(action);
+        if (ThrowExceptionForActionIds.TryGetValue(action.Id, out Exception? typed))
+            throw typed;
         if (ThrowForActionIds.Contains(action.Id))
             throw new InvalidOperationException($"boom:{action.Id}");
     }

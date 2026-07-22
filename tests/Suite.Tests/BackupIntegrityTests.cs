@@ -276,24 +276,28 @@ public class BackupIntegrityTests
     // W3: the copy-report shaping + skip classification moved from the view-model into the runner verbatim.
     // ----------------------------------------------------------------------------------------------------
 
+    // NEW-06: classification now comes from the TYPED BackupFailureCode set at the executor boundary, not from
+    // parsing the Detail string — so each Failed row below carries the FailureCode a real GatedExecutor would
+    // have attached for that exception type. Detail is still asserted unchanged (it flows through for display).
     [Theory]
-    [InlineData(BackupActionStatus.Done, "ok", true, null)]
-    [InlineData(BackupActionStatus.Blocked, "gate said no", false, CopySkipReason.Blocked)]
-    [InlineData(BackupActionStatus.Failed, "FileNotFoundException: missing", false, CopySkipReason.Missing)]
-    [InlineData(BackupActionStatus.Failed, "PathTooLongException: too long", false, CopySkipReason.TooLong)]
-    // The detail strings use the REAL exception TypeToken constants (not hand-typed copies) so a rename of
-    // either execution-layer type breaks this classification test instead of silently dropping to Other (F1).
-    [InlineData(BackupActionStatus.Failed, WindowsCareKit.Execution.Adapters.ForbiddenSourceException.TypeToken + ": secret", false, CopySkipReason.Forbidden)]
-    [InlineData(BackupActionStatus.Failed, WindowsCareKit.Execution.Adapters.DestinationReparseException.TypeToken + ": junction", false, CopySkipReason.Forbidden)]
-    [InlineData(BackupActionStatus.Failed, "IOException: being used by another process", false, CopySkipReason.Locked)]
-    [InlineData(BackupActionStatus.Failed, "SomethingElseException: weird", false, CopySkipReason.Other)]
-    [InlineData(BackupActionStatus.NotRun, "a prior action stopped the plan", false, CopySkipReason.Other)]
+    [InlineData(BackupActionStatus.Done, "ok", BackupFailureCode.None, true, null)]
+    [InlineData(BackupActionStatus.Blocked, "gate said no", BackupFailureCode.None, false, CopySkipReason.Blocked)]
+    [InlineData(BackupActionStatus.Failed, "FileNotFoundException: missing", BackupFailureCode.Missing, false, CopySkipReason.Missing)]
+    [InlineData(BackupActionStatus.Failed, "PathTooLongException: too long", BackupFailureCode.TooLong, false, CopySkipReason.TooLong)]
+    [InlineData(BackupActionStatus.Failed, "ForbiddenSourceException: secret", BackupFailureCode.Forbidden, false, CopySkipReason.Forbidden)]
+    [InlineData(BackupActionStatus.Failed, "DestinationReparseException: junction", BackupFailureCode.Forbidden, false, CopySkipReason.Forbidden)]
+    [InlineData(BackupActionStatus.Failed, "IOException: being used by another process", BackupFailureCode.Locked, false, CopySkipReason.Locked)]
+    [InlineData(BackupActionStatus.Failed, "SomethingElseException: weird", BackupFailureCode.Unknown, false, CopySkipReason.Other)]
+    [InlineData(BackupActionStatus.NotRun, "a prior action stopped the plan", BackupFailureCode.None, false, CopySkipReason.Other)]
     public void BuildCopyReport_classifies_each_outcome_like_the_view_model_did(
-        BackupActionStatus status, string detail, bool expectedCopied, CopySkipReason? expectedReason)
+        BackupActionStatus status, string detail, BackupFailureCode failureCode, bool expectedCopied, CopySkipReason? expectedReason)
     {
         var copy = Copy("e1", @"C:\src\e1", @"D:\pay\e1");
         var plan = new OperationPlan("Back up", "backup", new[] { copy }, T0);
-        var report = new BackupExecutionReport(true, new[] { new BackupActionResult("e1", status, detail) });
+        var report = new BackupExecutionReport(true, new[]
+        {
+            new BackupActionResult("e1", status, detail) { FailureCode = failureCode },
+        });
 
         CopySkipReport result = BackupRunner.BuildCopyReport(plan, report);
 
@@ -348,41 +352,27 @@ public class BackupIntegrityTests
     }
 
     // ----------------------------------------------------------------------------------------------------
-    // F1: cross-assembly contract — Core's skip classification is keyed on the REAL exception TypeTokens.
-    // The Core runner duplicates the type-name tokens as private constants (it cannot reference Suite.Execution).
-    // This test feeds BuildCopyReport a detail built from the ACTUAL TypeToken value; if either exception is
-    // renamed, its TypeToken value changes, the detail no longer matches the (now-stale) Core constant, and the
-    // outcome silently drops to CopySkipReason.Other — which this test asserts MUST NOT happen.
+    // Forbidden/reparse boundary classification — since NEW-06, GatedExecutor classifies a thrown
+    // ForbiddenSourceException/DestinationReparseException once, BY TYPE, into ExecutionFailureCode.Forbidden;
+    // BackupRunner reads that typed code and never parses Detail. This proves the real executor path (not just
+    // the Core-side switch already covered by BackupRunnerClassifyTests.cs).
     // ----------------------------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData(WindowsCareKit.Execution.Adapters.ForbiddenSourceException.TypeToken)]
-    [InlineData(WindowsCareKit.Execution.Adapters.DestinationReparseException.TypeToken)]
-    public void BuildCopyReport_classifies_real_execution_exception_tokens_as_forbidden(string typeToken)
+    [InlineData(typeof(WindowsCareKit.Execution.Adapters.ForbiddenSourceException))]
+    [InlineData(typeof(WindowsCareKit.Execution.Adapters.DestinationReparseException))]
+    public void GatedExecutor_classifies_forbidden_and_reparse_exceptions_by_type_as_forbidden(Type exceptionType)
     {
-        // The execution layer records "{TypeName}: {Message}" — reproduce that exact shape from the real token.
-        string detail = $"{typeToken}: refused at the boundary";
-        var copy = Copy("e1", @"C:\src\e1", @"D:\pay\e1");
-        var plan = new OperationPlan("Back up", "backup", new[] { copy }, T0);
-        var report = new BackupExecutionReport(true,
-            new[] { new BackupActionResult("e1", BackupActionStatus.Failed, detail) });
+        using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture();
+        CopyAction copy = TestData.Copy(@"C:\src\e1", @"D:\pay\e1");
+        var thrown = (Exception)Activator.CreateInstance(exceptionType, "refused at the boundary")!;
+        fx.Adapters.ThrowExceptionForActionIds[copy.Id] = thrown;
 
-        CopyFileOutcome o = Assert.Single(BackupRunner.BuildCopyReport(plan, report).Outcomes);
+        var plan = new OperationPlan("Back up", "backup", new PlannedAction[] { copy }, T0);
+        var report = fx.Executor.ExecuteWithReport(plan, plan.ComputeHash());
 
-        Assert.False(o.Copied);
-        // The contract: a REAL forbidden/reparse token must classify as Forbidden, never silently Other.
-        Assert.Equal(CopySkipReason.Forbidden, o.Reason);
-        Assert.NotEqual(CopySkipReason.Other, o.Reason);
-    }
-
-    [Fact]
-    public void BuildCopyReport_token_constants_match_the_actual_exception_type_names()
-    {
-        // The TypeToken IS the type name (nameof) — pin it so a rename can't drift the token from the type.
-        Assert.Equal(nameof(WindowsCareKit.Execution.Adapters.ForbiddenSourceException),
-            WindowsCareKit.Execution.Adapters.ForbiddenSourceException.TypeToken);
-        Assert.Equal(nameof(WindowsCareKit.Execution.Adapters.DestinationReparseException),
-            WindowsCareKit.Execution.Adapters.DestinationReparseException.TypeToken);
+        Assert.Equal(ActionStatus.Failed, report.Results[0].Status);
+        Assert.Equal(ExecutionFailureCode.Forbidden, report.Results[0].FailureCode);
     }
 
     // ----------------------------------------------------------------------------------------------------

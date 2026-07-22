@@ -71,6 +71,36 @@ public class LoggingTests
     }
 
     [Fact]
+    public void ExecutionLog_latches_unavailable_health_on_a_failing_sink_without_leaking_the_path()
+    {
+        // Point the "log file" path at an existing DIRECTORY so File.AppendAllText fails deterministically,
+        // host-safe, with UnauthorizedAccessException/IOException (covered by Append's catch filter).
+        string dir = Path.Combine(Path.GetTempPath(), "wck-loghealth-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var log = new ExecutionLog(dir, new LogRedactor(null, null));
+            Assert.Equal(LogHealth.Healthy, log.Health);      // ctor CreateDirectory(parent) succeeds
+            Assert.Null(log.HealthCategory);
+            Assert.Equal(0, log.FailureCount);
+
+            log.Append("a", "first");                          // must NOT throw
+            Assert.Equal(LogHealth.Unavailable, log.Health);   // latched on first failure
+            Assert.False(string.IsNullOrEmpty(log.HealthCategory));
+            Assert.DoesNotContain(dir, log.HealthCategory!);   // SAFE: no path leaked into the category
+            Assert.Equal(1, log.FailureCount);
+
+            log.Append("b", "second");                         // must NOT throw
+            Assert.Equal(LogHealth.Unavailable, log.Health);   // stays latched
+            Assert.Equal(2, log.FailureCount);                 // counts each failure
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ExecutionLog_appends_one_line_per_call()
     {
         string path = Path.Combine(Path.GetTempPath(), "wck-test-" + Guid.NewGuid().ToString("N") + ".jsonl");
