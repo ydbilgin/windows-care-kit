@@ -1,6 +1,7 @@
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
+using WindowsCareKit.Win32;
 using Xunit;
 using WindowsCareKit.Tests.TestInfra;
 
@@ -54,7 +55,7 @@ public class SecretGlobCopyEnforcementTests
             // Exactly what the bridge produces: the global secret-glob overlay + a recipe cache exclude.
             var excludeLeaves = new List<string>(SecretGlobOverlay.Globs) { "*Cache*" };
 
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,
@@ -89,7 +90,7 @@ public class SecretGlobCopyEnforcementTests
             string dst = Path.Combine(root, "dst");
 
             // A hostile/careless recipe explicitly includes everything — exclusion must still win (forbidden-first).
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,

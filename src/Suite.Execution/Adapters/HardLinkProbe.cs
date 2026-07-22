@@ -6,8 +6,8 @@ namespace WindowsCareKit.Execution.Adapters;
 /// <summary>
 /// Detects whether a file has more than one hard link (<c>nNumberOfLinks &gt; 1</c>). A hard link is a second
 /// directory entry that points at the SAME on-disk file as another path on the same volume; both names are
-/// equal aliases. <c>GetFinalPathNameByHandle</c> (what <see cref="WindowsCareKit.Win32.Win32PathCanonicalizer"/>
-/// uses) canonically returns the path you opened — it does NOT de-alias a hard link to the "secret" name — so a
+/// equal aliases. <c>GetFinalPathNameByHandle</c> (used by the injected path canonicalizer)
+/// canonically returns the path you opened — it does NOT de-alias a hard link to the "secret" name — so a
 /// hard link under an innocuous leaf (e.g. <c>settings.json</c> hard-linked to a browser's <c>Login Data</c>)
 /// would otherwise sail past the leaf-name secret filter. <see cref="CopyAdapter"/> treats any multi-linked file
 /// as not-allowed (fail-safe), refusing to copy it.

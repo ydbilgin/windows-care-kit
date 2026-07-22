@@ -215,6 +215,18 @@ public partial class App : Application
         // Shared install/restore checkpoint state (Install + Restore both use it).
         s.AddSingleton<IRestoreStateStore, RestoreStateStore>();
 
+        // Migration restore service (Restore module). The concrete Execution service + its Abstractions-port
+        // adapter are composed here at the root so the Restore module depends only on IMigrationRestoreService
+        // (Round 2 DIP-03: no Suite.Module.Restore -> Suite.Execution edge).
+        s.AddSingleton<MigrationRestoreService>(sp => new MigrationRestoreService(
+            new MigrationRestoreRunner(
+                new RecipePathResolver(ProfileRoots.ForCurrentUser()),
+                sp.GetRequiredService<ISafetyGate>()),
+            sp.GetRequiredService<GatedExecutor>(),
+            sp.GetRequiredService<IRestoreStateStore>()));
+        s.AddSingleton<IMigrationRestoreService>(sp =>
+            new GatedMigrationRestoreService(sp.GetRequiredService<MigrationRestoreService>()));
+
         // Shell view-models.
         s.AddSingleton<SettingsViewModel>();
         s.AddSingleton<MainViewModel>(sp => new MainViewModel(

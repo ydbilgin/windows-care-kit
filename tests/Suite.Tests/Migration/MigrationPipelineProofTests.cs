@@ -62,7 +62,7 @@ public class MigrationPipelineProofTests
                 ResolvedRecipe resolved = resolver.Resolve(recipe);
                 foreach (BridgedMigrationItem b in RecipeToBackupEntry.Bridge(resolved))
                 {
-                    new CopyAdapter().Copy(new CopyAction
+                    new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
                     {
                         Source = b.Entry.Source,
                         Destination = Path.Combine(pkg, b.Entry.Target.Replace('/', Path.DirectorySeparatorChar)),
@@ -129,7 +129,7 @@ public class MigrationPipelineProofTests
                         recipe.Install is not null);
                     string analysisNote = b.Meta.HasUnanalyzedContent ? $" — {badge.LabelEn}" : string.Empty;
                     report.AppendLine($"      • {b.Entry.Source}{analysisNote}");
-                    new CopyAdapter().Copy(new CopyAction
+                    new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
                     {
                         Source = b.Entry.Source,
                         Destination = Path.Combine(pkg, b.Entry.Target.Replace('/', Path.DirectorySeparatorChar)),

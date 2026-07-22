@@ -460,7 +460,12 @@ public sealed class ModuleCompositionTests
             Assert.Contains(baseServices, d => d.ServiceType == typeof(MigrationRestoreManifestStore));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IRestoreStateStore));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(GatedExecutor));
-            Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(MigrationRestoreService));
+            // Round 2 (DIP-03): the concrete MigrationRestoreService + its IMigrationRestoreService port
+            // adapter are now composed at the root (AddBaseServices), not inside RestoreModule, so the
+            // Restore module itself no longer needs to reference Suite.Execution. Only RestoreViewModel
+            // stays module-owned.
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(MigrationRestoreService));
+            Assert.Contains(baseServices, d => d.ServiceType == typeof(IMigrationRestoreService));
             Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(RestoreViewModel));
             using ServiceProvider baseProvider = baseServices.BuildServiceProvider();
 
@@ -469,7 +474,8 @@ public sealed class ModuleCompositionTests
             Assert.NotNull(baseProvider.GetService<MigrationRestoreManifestStore>());
             Assert.NotNull(baseProvider.GetService<IRestoreStateStore>());
             Assert.NotNull(baseProvider.GetService<GatedExecutor>());
-            Assert.Null(baseProvider.GetService<MigrationRestoreService>());
+            Assert.NotNull(baseProvider.GetService<MigrationRestoreService>());
+            Assert.NotNull(baseProvider.GetService<IMigrationRestoreService>());
             Assert.Null(baseProvider.GetService<RestoreViewModel>());
 
             var services = new ServiceCollection();

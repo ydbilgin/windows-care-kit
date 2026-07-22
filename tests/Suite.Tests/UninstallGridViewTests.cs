@@ -1,3 +1,4 @@
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
@@ -245,9 +246,11 @@ public class UninstallGridViewTests
         public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages() => packages;
     }
 
-    private sealed class FakeExecutor : IExecutor
+    private sealed class FakeExecutor : IPlanExecutor
     {
-        public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash) => new(true, "faked");
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+            => new(true, approvedPlanHash,
+                plan.Actions.Select(a => new PlanActionResult(a.Id, a.Kind, PlanActionStatus.Done, "faked")).ToArray());
     }
 
     private sealed class FakeFolderOpener : IFolderOpener

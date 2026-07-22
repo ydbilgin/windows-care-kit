@@ -2,13 +2,13 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
@@ -18,7 +18,7 @@ namespace WindowsCareKit.App.ViewModels;
 /// </summary>
 public sealed class RestoreViewModel : ObservableObject
 {
-    private readonly MigrationRestoreService _restoreService;
+    private readonly IMigrationRestoreService _restoreService;
     private readonly MigrationRestoreManifestStore _manifestStore;
     private readonly IRestoreStateStore _stateStore;
 
@@ -45,7 +45,7 @@ public sealed class RestoreViewModel : ObservableObject
 
     public RestoreViewModel(
         I18n i18n,
-        MigrationRestoreService restoreService,
+        IMigrationRestoreService restoreService,
         MigrationRestoreManifestStore manifestStore,
         IRestoreStateStore stateStore)
     {
@@ -215,11 +215,11 @@ public sealed class RestoreViewModel : ObservableObject
 
             try
             {
-                (MigrationRestoreManifest Manifest, MigrationRestorePreviewResult Preview) built =
+                (MigrationRestoreManifest Manifest, RestorePreviewResult Preview) built =
                     await Task.Run(() =>
                     {
                         MigrationRestoreManifest manifest = _manifestStore.Load(packageDir);
-                        MigrationRestorePreviewResult preview =
+                        RestorePreviewResult preview =
                             _restoreService.Preview(manifest, packageDir, stateDir, DateTime.UtcNow);
                         return (manifest, preview);
                     });
@@ -275,7 +275,7 @@ public sealed class RestoreViewModel : ObservableObject
 
             // A fresh UtcNow is safe here: utc does not enter TargetSignature / OperationPlan.ComputeHash,
             // so the freshly-rebuilt plan still hashes to the approved hash and the gate cannot false-refuse.
-            MigrationRestoreExecutionResult result = await Task.Run(() =>
+            RestoreExecutionResult result = await Task.Run(() =>
                 _restoreService.Restore(
                     manifest,
                     packageDir,
@@ -293,7 +293,7 @@ public sealed class RestoreViewModel : ObservableObject
                 return;
             }
 
-            foreach (ActionResult actionResult in result.Execution.Results)
+            foreach (PlanActionResult actionResult in result.Execution.Results)
             {
                 PlannedAction? action = result.PlanResult.Plan.Actions
                     .FirstOrDefault(a => string.Equals(a.Id, actionResult.ActionId, StringComparison.Ordinal));
@@ -313,7 +313,7 @@ public sealed class RestoreViewModel : ObservableObject
                 "migration.restore.resultSummary",
                 result.Execution.DoneCount,
                 result.Execution.FailedCount,
-                result.Execution.Results.Count(r => r.Status is ActionStatus.NotRun or ActionStatus.Skipped),
+                result.Execution.Results.Count(r => r.Status is PlanActionStatus.NotRun or PlanActionStatus.Skipped),
                 result.RestoreReport.Restored.Count,
                 result.RestoreReport.ReinstallEnqueued.Count,
                 result.RestoreReport.Manual.Count);
@@ -336,13 +336,13 @@ public sealed class RestoreViewModel : ObservableObject
         {
             RestoreState state = _completedState;
             string approvedUndoHash = _approvedUndoHash;
-            MigrationRestoreUndoResult undo = await Task.Run(() =>
+            RestoreUndoResult undo = await Task.Run(() =>
                 _restoreService.Undo(state, _stateDir, DateTime.UtcNow, approvedUndoHash));
 
             if (!undo.Authorized)
                 return;
 
-            foreach (ActionResult actionResult in undo.Execution.Results)
+            foreach (PlanActionResult actionResult in undo.Execution.Results)
             {
                 PlannedAction? action = undo.BuildResult.Plan.Actions
                     .FirstOrDefault(a => string.Equals(a.Id, actionResult.ActionId, StringComparison.Ordinal));
@@ -377,7 +377,7 @@ public sealed class RestoreViewModel : ObservableObject
         try
         {
             RestoreState state = _completedState;
-            MigrationRestoreUndoPreviewResult preview = await Task.Run(() =>
+            RestoreUndoPreviewResult preview = await Task.Run(() =>
                 _restoreService.PreviewUndo(state, DateTime.UtcNow));
 
             _undoPreviewBuild = preview.BuildResult;
@@ -489,7 +489,7 @@ public sealed class RestoreViewModel : ObservableObject
         };
     }
 
-    private PlanRow ResultRow(ActionResult result, PlannedAction? action)
+    private PlanRow ResultRow(PlanActionResult result, PlannedAction? action)
     {
         PlanRow row = action is null
             ? new PlanRow
@@ -630,10 +630,10 @@ public sealed class RestoreViewModel : ObservableObject
         return note;
     }
 
-    private static RiskLevel StatusRisk(ActionStatus status) => status switch
+    private static RiskLevel StatusRisk(PlanActionStatus status) => status switch
     {
-        ActionStatus.Done => RiskLevel.Low,
-        ActionStatus.NotRun or ActionStatus.Skipped => RiskLevel.Info,
+        PlanActionStatus.Done => RiskLevel.Low,
+        PlanActionStatus.NotRun or PlanActionStatus.Skipped => RiskLevel.Info,
         _ => RiskLevel.Critical,
     };
 

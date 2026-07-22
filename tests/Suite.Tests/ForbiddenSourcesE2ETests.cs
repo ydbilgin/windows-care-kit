@@ -1,6 +1,7 @@
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
+using WindowsCareKit.Win32;
 using Xunit;
 using WindowsCareKit.Tests.TestInfra;
 
@@ -77,7 +78,7 @@ public class ForbiddenSourcesE2ETests
             };
 
             // Execute through the real CopyAdapter — same path as BackupPlanner → CopyAdapter production flow.
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = entry.Source,
                 Destination = dst,

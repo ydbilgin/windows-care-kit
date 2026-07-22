@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
-using WindowsCareKit.Win32;
+using WindowsCareKit.Core.Safety;
 
 namespace WindowsCareKit.Execution.Adapters;
 
@@ -54,7 +54,10 @@ public sealed class CopyAdapter : ICopyAdapter
     }
 
     private const uint FILE_ATTRIBUTE_REPARSE_POINT = 0x400;
-    private readonly Win32PathCanonicalizer _canon = new();
+    private readonly IPathCanonicalizer _canon;
+
+    public CopyAdapter(IPathCanonicalizer canonicalizer)
+        => _canon = canonicalizer ?? throw new ArgumentNullException(nameof(canonicalizer));
 
     // Hardened built-in superset: credential / cookie / autofill / session stores that must NEVER be copied.
     // SINGLE source of truth lives in Core (MigrationSecretFilter.FixedCredentialLeaves) so the pre-execution
@@ -600,9 +603,9 @@ public sealed class CopyAdapter : ICopyAdapter
         private readonly IReadOnlyList<Regex> _subtreeBases;
         private readonly HashSet<string> _forbiddenFull;
         private readonly IReadOnlyList<string> _include;
-        private readonly Win32PathCanonicalizer _canon;
+        private readonly IPathCanonicalizer _canon;
 
-        private Exclusions(HashSet<string> leaves, IReadOnlyList<Regex> leafGlobs, IReadOnlyList<Regex> pathGlobs, IReadOnlyList<Regex> subtreeBases, HashSet<string> forbiddenFull, IReadOnlyList<string> include, Win32PathCanonicalizer canon)
+        private Exclusions(HashSet<string> leaves, IReadOnlyList<Regex> leafGlobs, IReadOnlyList<Regex> pathGlobs, IReadOnlyList<Regex> subtreeBases, HashSet<string> forbiddenFull, IReadOnlyList<string> include, IPathCanonicalizer canon)
         {
             _leaves = leaves;
             _leafGlobs = leafGlobs;
@@ -613,7 +616,7 @@ public sealed class CopyAdapter : ICopyAdapter
             _canon = canon;
         }
 
-        public static Exclusions From(CopyAction action, Win32PathCanonicalizer canon)
+        public static Exclusions From(CopyAction action, IPathCanonicalizer canon)
         {
             // The hardened built-in superset is all EXACT leaves. An ExcludeLeaves entry containing '*' is a
             // LEAF GLOB (e.g. "*.key", "id_rsa*", "*Cache*") — split it out so a real secret/cache leaf is caught,

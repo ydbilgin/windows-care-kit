@@ -1,3 +1,4 @@
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
@@ -175,18 +176,19 @@ public class RestorePointWizardTests
         public bool IsAvailable() => available;
     }
 
-    private sealed class FakeExecutor : IExecutor
+    private sealed class FakeExecutor : IPlanExecutor
     {
         public int CallCount { get; private set; }
         public OperationPlan? LastPlan { get; private set; }
         public string? LastHash { get; private set; }
 
-        public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash)
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
         {
             CallCount++;
             LastPlan = plan;
             LastHash = approvedPlanHash;
-            return new ExecutionOutcome(true, "faked");
+            return new PlanExecutionReport(true, approvedPlanHash,
+                plan.Actions.Select(a => new PlanActionResult(a.Id, a.Kind, PlanActionStatus.Done, "faked")).ToArray());
         }
     }
 }

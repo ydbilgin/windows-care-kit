@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Suite.Core\Suite.Core.csproj" />
-    <ProjectReference Include="..\Suite.Win32\Suite.Win32.csproj" />
   </ItemGroup>
 
   <!-- Build-level gate (spec §2/§8): the destructive OS APIs are banned EVERYWHERE, including this

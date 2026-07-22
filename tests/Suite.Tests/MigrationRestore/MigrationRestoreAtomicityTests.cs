@@ -1,5 +1,6 @@
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
+using WindowsCareKit.Win32;
 using Xunit;
 using WindowsCareKit.Tests.TestInfra;
 
@@ -26,7 +27,7 @@ public class MigrationRestoreAtomicityTests
             File.WriteAllText(src, "NEW");
             File.WriteAllText(dst, "OLD");
 
-            new CopyAdapter().Merge(new RestoreMergeAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction
             {
                 Source = src, Destination = dst, CreateBak = true, Description = "m", Reason = "t",
             });
@@ -49,7 +50,7 @@ public class MigrationRestoreAtomicityTests
             string dst = Path.Combine(root, "sub", "live.cfg");
             File.WriteAllText(src, "FRESH");
 
-            new CopyAdapter().Merge(new RestoreMergeAction { Source = src, Destination = dst, Description = "m", Reason = "t" });
+            new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction { Source = src, Destination = dst, Description = "m", Reason = "t" });
 
             Assert.Equal("FRESH", File.ReadAllText(dst));
             Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(dst)!, "*.wcktmp"));
@@ -78,7 +79,7 @@ public class MigrationRestoreAtomicityTests
             Assert.Equal("OLD", File.ReadAllText(dst));
 
             // Re-run: overwrites the stale staging file, swaps atomically, clears the temp.
-            new CopyAdapter().Merge(new RestoreMergeAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction
             {
                 Source = src, Destination = dst, CreateBak = true, Description = "m", Reason = "t",
             });

@@ -1,3 +1,4 @@
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
@@ -22,7 +23,7 @@ public class UninstallExecutionTests
     private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     private static UninstallViewModel BuildVm(
-        IExecutor executor,
+        IPlanExecutor executor,
         FakeLeftoverProbe? probe = null, IReadOnlyList<InstalledApp>? apps = null, IReadOnlyList<InstalledAppx>? appx = null)
     {
         var i18n = new I18n();
@@ -117,7 +118,7 @@ public class UninstallExecutionTests
         var remover = new FakeAppxRemover { Result = new AppxRemovalResult(true, "removed") };
         using var executor = new ExecutorFixture(appxRemover: remover);
         var package = new InstalledAppx { PackageFullName = "Contoso.App_1.0.0.0_x64__abc", DisplayName = "Contoso" };
-        var vm = BuildVm(executor.Executor, appx: new[] { package });
+        var vm = BuildVm(new GatedPlanExecutor(executor.Executor), appx: new[] { package });
 
         await vm.LoadAsync();
         SelectFirstAppx(vm);
@@ -139,7 +140,7 @@ public class UninstallExecutionTests
         var remover = new FakeAppxRemover { Result = new AppxRemovalResult(false, "refused") };
         using var executor = new ExecutorFixture(appxRemover: remover);
         var package = new InstalledAppx { PackageFullName = "Contoso.App_1.0.0.0_x64__abc", DisplayName = "Contoso" };
-        var vm = BuildVm(executor.Executor, appx: new[] { package });
+        var vm = BuildVm(new GatedPlanExecutor(executor.Executor), appx: new[] { package });
 
         await vm.LoadAsync();
         SelectFirstAppx(vm);
@@ -159,7 +160,7 @@ public class UninstallExecutionTests
         using var executor = new ExecutorFixture(appxRemover: remover);
         var appA = new InstalledAppx { PackageFullName = "Contoso.A_1.0.0.0_x64__abc", DisplayName = "Contoso A" };
         var appB = new InstalledAppx { PackageFullName = "Contoso.B_1.0.0.0_x64__abc", DisplayName = "Contoso B" };
-        var vm = BuildVm(executor.Executor, appx: [appA, appB]);
+        var vm = BuildVm(new GatedPlanExecutor(executor.Executor), appx: [appA, appB]);
 
         await vm.LoadAsync();
         vm.SelectedRow = vm.AllRows.Single(r => ReferenceEquals(r.Appx, appA));
@@ -187,18 +188,19 @@ public class UninstallExecutionTests
         public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages() => packages;
     }
 
-    private sealed class FakeExecutor : IExecutor
+    private sealed class FakeExecutor : IPlanExecutor
     {
         public int CallCount { get; private set; }
         public OperationPlan? LastPlan { get; private set; }
         public string? LastHash { get; private set; }
 
-        public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash)
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
         {
             CallCount++;
             LastPlan = plan;
             LastHash = approvedPlanHash;
-            return new ExecutionOutcome(true, "faked");
+            return new PlanExecutionReport(true, approvedPlanHash,
+                plan.Actions.Select(a => new PlanActionResult(a.Id, a.Kind, PlanActionStatus.Done, "faked")).ToArray());
         }
     }
 

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Input;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
@@ -10,7 +11,6 @@ using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
@@ -25,7 +25,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 {
     private readonly IInstalledAppReader _appReader;
     private readonly IAppxReader _appxReader;
-    private readonly IExecutor _executor;
+    private readonly IPlanExecutor _executor;
     private readonly IFolderOpener _folderOpener;
 
     // The single source of truth: every desktop program + Store app as a flat row list. The ICollectionView
@@ -55,7 +55,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
     private enum PendingKind { None, Appx }
 
     public UninstallViewModel(I18n i18n, IInstalledAppReader appReader, IAppxReader appxReader,
-        ISafetyGate gate, ILeftoverProbe probe, IExecutor executor,
+        ISafetyGate gate, ILeftoverProbe probe, IPlanExecutor executor,
         IFolderOpener folderOpener, IRestorePointCapabilityProbe? restorePointCapability = null)
     {
         I18n = i18n;
@@ -454,13 +454,11 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
             new PlannedAction[] { action }, DateTime.UtcNow);
         string hash = plan.ComputeHash();
 
-        ExecutionReport report = await Task.Run(() => _executor is GatedExecutor gated
-            ? gated.ExecuteWithReport(plan, hash)
-            : ToReport(_executor.Execute(plan, hash), plan, action));
+        PlanExecutionReport report = await Task.Run(() => _executor.ExecuteWithReport(plan, hash));
 
-        ActionResult result = report.Results.FirstOrDefault(r => r.ActionId == action.Id)
-            ?? new ActionResult(action.Id, action.Kind, ActionStatus.NotRun, "no result");
-        bool removed = result.Status == ActionStatus.Done;
+        PlanActionResult result = report.Results.FirstOrDefault(r => r.ActionId == action.Id)
+            ?? new PlanActionResult(action.Id, action.Kind, PlanActionStatus.NotRun, "no result");
+        bool removed = result.Status == PlanActionStatus.Done;
 
         ExecutionResults.Add(removed
             ? ResultRow($"Removed Store app: {package.DisplayName}", "Done", RiskLevel.Low, result.Detail)
@@ -482,14 +480,6 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
             AppsView.Refresh();
         }
     }
-
-    /// <summary>Map a bare IExecutor outcome (non-GatedExecutor) onto a single-action report.</summary>
-    private static ExecutionReport ToReport(ExecutionOutcome outcome, OperationPlan plan, PlannedAction action)
-        => new(outcome.Ran, plan.ComputeHash(), new[]
-        {
-            new ActionResult(action.Id, action.Kind,
-                outcome.Ran ? ActionStatus.Done : ActionStatus.Failed, outcome.Reason),
-        });
 
     private void RaiseConfirmationState()
     {

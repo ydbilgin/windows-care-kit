@@ -12,6 +12,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
@@ -715,9 +716,11 @@ public sealed class UiReliabilitySecurityReproTests
             => new(Array.Empty<InstalledAppx>(), AppxReadStatus.Unavailable);
     }
 
-    private sealed class NoOpExecutor : IExecutor
+    private sealed class NoOpExecutor : IPlanExecutor
     {
-        public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash) => new(true, "not used");
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+            => new(true, approvedPlanHash,
+                plan.Actions.Select(a => new PlanActionResult(a.Id, a.Kind, PlanActionStatus.Done, "not used")).ToArray());
     }
 
     private sealed class NoOpFolderOpener : IFolderOpener
@@ -1288,9 +1291,11 @@ public sealed class SecurityReproPart2Tests
         public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages() => Array.Empty<InstalledAppx>();
     }
 
-    private sealed class NoOpExecutor : IExecutor
+    private sealed class NoOpExecutor : IPlanExecutor
     {
-        public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash) => new(true, "not used");
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+            => new(true, approvedPlanHash,
+                plan.Actions.Select(a => new PlanActionResult(a.Id, a.Kind, PlanActionStatus.Done, "not used")).ToArray());
     }
 
     private sealed class NoOpFolderOpener : IFolderOpener

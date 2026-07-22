@@ -48,7 +48,7 @@ public class MigrationRestoreDisposableTests
             var gate = new SafetyGate(ProtectedResources.ForCurrentSystem(), new Win32PathCanonicalizer());
             var executor = new GatedExecutor(gate, ExecLog(),
                 new NoopFileDelete(), new NoopRegistry(), new NoopService(), new NoopTask(), new NoopProcess(),
-                new WindowsCareKit.Execution.Adapters.CopyAdapter());
+                new WindowsCareKit.Execution.Adapters.CopyAdapter(new Win32PathCanonicalizer()));
 
             var runner = new MigrationRestoreRunner(
                 new RecipePathResolver(new ProfileRoots(targetProfile,

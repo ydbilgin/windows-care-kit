@@ -1,4 +1,5 @@
 using System.Reflection;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Install;
@@ -335,7 +336,7 @@ public sealed class RestoreViewModelTests
         }
 
         public RestoreViewModel CreateViewModel()
-            => new(new I18n(), _service, _manifestStore, _stateStore)
+            => new(new I18n(), new GatedMigrationRestoreService(_service), _manifestStore, _stateStore)
             {
                 PackageDir = Package,
                 StateDir = StateDir,

@@ -1,12 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
-using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
@@ -18,7 +17,7 @@ namespace WindowsCareKit.App.ViewModels;
 /// <item><b>Hazırlık &amp; Resmî kaldırıcı</b> — a restore-point toggle PRESENT-but-DISABLED with an honest
 /// reason (PR-5 activates it). The dependable rollback is framed as the adapter-internal <c>.reg</c> backup +
 /// the Recycle Bin, NOT a user toggle. "Resmî kaldırıcıyı çalıştır" stages the official-uninstaller plan via
-/// <see cref="OfficialUninstallerPlanner"/> → <b>ConfirmGate #1</b> → <see cref="IExecutor"/> (GatedExecutor).</item>
+/// <see cref="OfficialUninstallerPlanner"/> → <b>ConfirmGate #1</b> → <see cref="IPlanExecutor"/> (GatedExecutor).</item>
 /// <item><b>Tarama</b> — a scan-depth selector then <see cref="LeftoverScanner.Scan"/>.</item>
 /// <item><b>Kalıntılar</b> — the 3-tier registry TreeView + a Files sub-tab bound to <see cref="LeftoverNode"/>s.
 /// "Seçilenleri Sil" rebuilds the deletion plan via <see cref="LeftoverPlanBuilder"/> from the SELECTED
@@ -57,7 +56,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
 
     private readonly ISafetyGate _gate;
     private readonly ILeftoverProbe _probe;
-    private readonly IExecutor _executor;
+    private readonly IPlanExecutor _executor;
     private readonly IRestorePointCapabilityProbe? _restorePointCapability;
     private readonly Func<DateTime> _utcNow;
 
@@ -85,7 +84,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
     private string? _pendingPlanHash;
     private PendingKind _pendingKind;
 
-    public UninstallWizardViewModel(I18n i18n, ISafetyGate gate, ILeftoverProbe probe, IExecutor executor,
+    public UninstallWizardViewModel(I18n i18n, ISafetyGate gate, ILeftoverProbe probe, IPlanExecutor executor,
         Func<DateTime>? utcNow = null, IRestorePointCapabilityProbe? restorePointCapability = null)
     {
         I18n = i18n;
@@ -635,9 +634,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
         RaiseAll();
         try
         {
-            ExecutionReport report = await Task.Run(() => _executor is GatedExecutor gated
-                ? gated.ExecuteWithReport(plan, hash)
-                : ToReport(_executor.Execute(plan, hash), plan));
+            PlanExecutionReport report = await Task.Run(() => _executor.ExecuteWithReport(plan, hash));
 
             Accumulate(report, plan);
 
@@ -664,23 +661,23 @@ public sealed class UninstallWizardViewModel : ObservableObject
     }
 
     /// <summary>Fold one report's per-action outcomes into the running counts + result rows.</summary>
-    private void Accumulate(ExecutionReport report, OperationPlan plan)
+    private void Accumulate(PlanExecutionReport report, OperationPlan plan)
     {
         // Render each result row from a localized i18n key chosen by the action's typed shape — NEVER the Core
         // English a.Description (spec §4: Turkish chrome must not echo English Core text).
         var byId = plan.Actions.ToDictionary(a => a.Id, DescribeResultRow);
-        foreach (ActionResult r in report.Results)
+        foreach (PlanActionResult r in report.Results)
         {
             string text = byId.TryGetValue(r.ActionId, out var desc) ? desc : DescribeResultRowKind(r.Kind);
             RiskLevel risk = r.Status switch
             {
-                ActionStatus.Done => RiskLevel.Low,
-                ActionStatus.NotRun or ActionStatus.Skipped => RiskLevel.Info,
+                PlanActionStatus.Done => RiskLevel.Low,
+                PlanActionStatus.NotRun or PlanActionStatus.Skipped => RiskLevel.Info,
                 _ => RiskLevel.Critical,
             };
-            if (r.Status == ActionStatus.Done)
+            if (r.Status == PlanActionStatus.Done)
                 _doneCount++;
-            else if (r.Status is ActionStatus.NotRun or ActionStatus.Skipped)
+            else if (r.Status is PlanActionStatus.NotRun or PlanActionStatus.Skipped)
                 _skippedCount++;
             else
                 _failedCount++;
@@ -697,16 +694,16 @@ public sealed class UninstallWizardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The localized (tr/en) per-row status label — keyed by the <see cref="ActionStatus"/> value, NOT the
+    /// The localized (tr/en) per-row status label — keyed by the <see cref="PlanActionStatus"/> value, NOT the
     /// English enum name, so the result rows read consistently with the Turkish summary (spec §4 i18n).
     /// </summary>
-    private string LocalizeStatus(ActionStatus status) => status switch
+    private string LocalizeStatus(PlanActionStatus status) => status switch
     {
-        ActionStatus.Done => I18n["uninstall.result.status.done"],
-        ActionStatus.Blocked => I18n["uninstall.result.status.blocked"],
-        ActionStatus.Failed => I18n["uninstall.result.status.failed"],
-        ActionStatus.NotRun => I18n["uninstall.result.status.notRun"],
-        ActionStatus.Skipped => I18n["uninstall.result.status.notRun"],
+        PlanActionStatus.Done => I18n["uninstall.result.status.done"],
+        PlanActionStatus.Blocked => I18n["uninstall.result.status.blocked"],
+        PlanActionStatus.Failed => I18n["uninstall.result.status.failed"],
+        PlanActionStatus.NotRun => I18n["uninstall.result.status.notRun"],
+        PlanActionStatus.Skipped => I18n["uninstall.result.status.notRun"],
         _ => status.ToString(),
     };
 
@@ -755,15 +752,6 @@ public sealed class UninstallWizardViewModel : ObservableObject
     }
 
     // ---- helpers ----
-
-    private static ExecutionReport ToReport(ExecutionOutcome outcome, OperationPlan plan)
-    {
-        ActionStatus status = outcome.Ran ? ActionStatus.Done : ActionStatus.NotRun;
-        var results = plan.Actions
-            .Select(a => new ActionResult(a.Id, a.Kind, status, outcome.Reason))
-            .ToArray();
-        return new ExecutionReport(outcome.Ran, plan.ComputeHash(), results);
-    }
 
     /// <summary>Re-raise the selection-derived state (call after a per-row check changes).</summary>
     public void RaiseSelectionState()

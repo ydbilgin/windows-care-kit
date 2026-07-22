@@ -3,6 +3,7 @@ using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution.Adapters;
+using WindowsCareKit.Win32;
 using Xunit;
 using WindowsCareKit.Tests.TestInfra;
 
@@ -61,7 +62,7 @@ public class AiToolCredentialLeakTests
             // Simulate the LEGACY backup path (cx cross-family review finding): the manifest recipe supplies
             // ONLY its own cache excludes and does NOT plumb the secret overlay. The engine must add the
             // overlay BUILT-IN, so the token files are still pruned even though the caller never listed them.
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,
@@ -141,7 +142,7 @@ public class AiToolCredentialLeakTests
                 new BackupManifest(new[] { entry }), payload, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
             var copy = Assert.IsType<CopyAction>(Assert.Single(result.Plan.Actions));
-            new CopyAdapter().Copy(copy);
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(copy);
 
             string dstDir = Path.Combine(payload, "ai-araclari", ".codex");
             Assert.True(File.Exists(Path.Combine(dstDir, "config.toml")), "benign config.toml should be backed up");

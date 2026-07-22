@@ -436,7 +436,7 @@ public sealed class ViewRenderSmokeTests
                         profile + @"\AppData\Local")),
                     gate);
                 var service = new MigrationRestoreService(runner, MigrationRestoreTestData.Executor(gate), new RestoreStateStore(new SanctionedFileWriter()));
-                var vm = new RestoreViewModel(i18n, service, new MigrationRestoreManifestStore(new SanctionedFileWriter()), new RestoreStateStore(new SanctionedFileWriter()));
+                var vm = new RestoreViewModel(i18n, new GatedMigrationRestoreService(service), new MigrationRestoreManifestStore(new SanctionedFileWriter()), new RestoreStateStore(new SanctionedFileWriter()));
 
                 var view = new RestoreView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
@@ -1136,9 +1136,11 @@ public sealed class ViewRenderSmokeTests
         public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages() => Array.Empty<InstalledAppx>();
     }
 
-    private sealed class FakeExecutor : IExecutor
+    private sealed class FakeExecutor : IPlanExecutor
     {
-        public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash) => new(true, "not used");
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+            => new(true, approvedPlanHash,
+                plan.Actions.Select(a => new PlanActionResult(a.Id, a.Kind, PlanActionStatus.Done, "not used")).ToArray());
     }
 
     private sealed class FakeFolderOpener : IFolderOpener

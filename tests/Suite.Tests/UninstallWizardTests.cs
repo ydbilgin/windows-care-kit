@@ -1,3 +1,4 @@
+using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
@@ -355,7 +356,7 @@ public class UninstallWizardTests
         // delete, approve, and assert the recording registry adapter ran EXACTLY ONCE — for the leaf only.
         using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
         I18n i18n = TestI18n.Full("tr");
-        var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), ProbeWithAllThreeTiers(), fx.Executor, () => T0);
+        var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), ProbeWithAllThreeTiers(), new GatedPlanExecutor(fx.Executor), () => T0);
         wizard.Open(MachineWideApp());
         wizard.ScanCommand.Execute(null);
         await PumpAsync(() => wizard.Beat == UninstallWizardViewModel.WizardBeat.Leftovers);
@@ -389,7 +390,7 @@ public class UninstallWizardTests
         // adapter, the gate never opens, and the failure surfaces loudly (fix #8: fail-loud, not crash).
         using var fx = new WindowsCareKit.Tests.Execution.ExecutorFixture(TestData.Gate());
         I18n i18n = TestI18n.Full("tr");
-        var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), ProbeWithAllThreeTiers(), fx.Executor, () => T0);
+        var wizard = new UninstallWizardViewModel(i18n, TestData.Gate(), ProbeWithAllThreeTiers(), new GatedPlanExecutor(fx.Executor), () => T0);
         wizard.Open(MachineWideApp());
         wizard.ScanCommand.Execute(null);
         await PumpAsync(() => wizard.Beat == UninstallWizardViewModel.WizardBeat.Leftovers);
@@ -460,18 +461,85 @@ public class UninstallWizardTests
 
     // ---- fakes ----
 
-    private sealed class FakeExecutor : IExecutor
+    private sealed class FakeExecutor : IPlanExecutor
     {
         public int CallCount { get; private set; }
         public OperationPlan? LastPlan { get; private set; }
         public string? LastHash { get; private set; }
 
-        public ExecutionOutcome Execute(OperationPlan plan, string approvedPlanHash)
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
         {
             CallCount++;
             LastPlan = plan;
             LastHash = approvedPlanHash;
-            return new ExecutionOutcome(true, "faked");
+            return new PlanExecutionReport(true, approvedPlanHash,
+                plan.Actions.Select(a => new PlanActionResult(a.Id, a.Kind, PlanActionStatus.Done, "faked")).ToArray());
         }
+    }
+
+    private sealed class MixedReportExecutor : IPlanExecutor
+    {
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+            => new(true, approvedPlanHash, plan.Actions
+                .Select((a, i) => new PlanActionResult(a.Id, a.Kind,
+                    i == 0 ? PlanActionStatus.Done : PlanActionStatus.Failed, "mixed"))
+                .ToArray());
+    }
+
+    // ---- LSP-01 regression: a conforming non-GatedExecutor IPlanExecutor must report mixed outcomes faithfully ----
+
+    [Fact]
+    public async Task Non_gated_executor_substitute_reports_each_action_faithfully()
+    {
+        // Stage a plan with >=2 actions, approve it through the gate, but run it with a conforming
+        // IPlanExecutor substitute that is NOT GatedExecutor. Before the fix, the wizard's
+        // `_executor is GatedExecutor` downcast meant any non-GatedExecutor substitute collapsed the whole
+        // plan to a single all-Done/all-NotRun bool via ToReport — a mixed Done/Failed outcome was
+        // inexpressible. Post-fix, IPlanExecutor.ExecuteWithReport carries the per-action results faithfully,
+        // so both a Done row and a Failed row must appear.
+        //
+        // NOTE: ProbeWithAllThreeTiers() (the scan harness the SPEC names) yields only ONE ProgramOwned
+        // candidate (the vendor leaf) — "select all owned" alone cannot produce a >=2-action plan from it.
+        // Using the same candidateOverride bypass this file already relies on for defense-in-depth coverage
+        // (see Force_injecting_a_selected_shared_candidate_...), two ProgramOwned-classified candidates are
+        // staged directly so the LeftoverPlanBuilder accepts both and the plan carries exactly two actions.
+        // Built inline (not via OpenScannedAsync/BuildWizard) because those helpers pin the concrete
+        // FakeExecutor fake type; MixedReportExecutor is a distinct conforming IPlanExecutor substitute.
+        I18n i18n = TestI18n.Full("tr");
+        var wizard = new UninstallWizardViewModel(
+            i18n, TestData.Gate(), ProbeWithAllThreeTiers(), new MixedReportExecutor(), () => T0);
+        wizard.Open(MachineWideApp());
+        wizard.ScanCommand.Execute(null);
+        await PumpAsync(() => wizard.Beat == UninstallWizardViewModel.WizardBeat.Leftovers);
+
+        LeftoverCandidate ownedCandidate = wizard.RegistryNodes.Concat(wizard.FileNodes)
+            .Single(n => n.IsProgramOwned).ToCandidate() with { Selected = true };
+        var secondOwnedCandidate = new LeftoverCandidate
+        {
+            Action = new RegistryDeleteAction
+            {
+                Hive = RegistryHive.LocalMachine,
+                SubKeyPath = @"SOFTWARE\SomeVendor\SomeApp\Second",
+                View = RegistryView.Registry64,
+                Description = "second vendor leaf (ProgramOwned)",
+                Reason = "owned",
+                Risk = RiskLevel.Medium,
+                Undo = UndoCapability.Partial, // matches LeftoverScanner's real ProgramOwned registry shape
+            },
+            Classification = LeftoverClassification.ProgramOwned,
+            Selected = true,
+            GateReason = string.Empty,
+        };
+        wizard.StageLeftovers(new[] { ownedCandidate, secondOwnedCandidate });
+        Assert.True(wizard.Gate.IsOpen);
+        Assert.Equal(2, wizard.Gate.Rows.Count);
+
+        ApproveThroughGuard(wizard);
+        await PumpAsync(() => wizard.IsResultBeat && wizard.HasResult);
+
+        Assert.Contains(wizard.ExecutionResults, r => r.RiskText == wizard.I18n["uninstall.result.status.done"]);
+        Assert.Contains(wizard.ExecutionResults, r => r.RiskText == wizard.I18n["uninstall.result.status.failed"]);
+        Assert.StartsWith("1 tamam", wizard.ResultSummary);
+        Assert.True(wizard.ResultSummary.Contains("başarısız") && !wizard.ResultSummary.Contains("0 başarısız"));
     }
 }

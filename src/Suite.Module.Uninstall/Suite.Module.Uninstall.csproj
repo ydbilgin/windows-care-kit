@@ -12,7 +12,6 @@
     <ProjectReference Include="..\Suite.App.Abstractions\Suite.App.Abstractions.csproj" />
     <ProjectReference Include="..\Suite.Core\Suite.Core.csproj" />
     <ProjectReference Include="..\Suite.Win32\Suite.Win32.csproj" />
-    <ProjectReference Include="..\Suite.Execution\Suite.Execution.csproj" />
   </ItemGroup>
 
   <ItemGroup>

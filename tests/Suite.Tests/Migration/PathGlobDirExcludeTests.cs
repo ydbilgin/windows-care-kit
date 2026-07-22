@@ -1,5 +1,6 @@
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Execution.Adapters;
+using WindowsCareKit.Win32;
 using Xunit;
 using WindowsCareKit.Tests.TestInfra;
 
@@ -45,7 +46,7 @@ public class PathGlobDirExcludeTests
             Seed(src, "antigravity_x/state.bin");     // excluded (antigravity*/**, wildcard segment)
 
             string dst = Path.Combine(root, "dst");
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,
@@ -75,7 +76,7 @@ public class PathGlobDirExcludeTests
             Seed(src, "top/sub/keep.txt");     // NOT covered by top/* — must survive
 
             string dst = Path.Combine(root, "dst");
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,

@@ -2,6 +2,7 @@ using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Execution.Adapters;
 using WindowsCareKit.Tests.TestInfra;
+using WindowsCareKit.Win32;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -26,7 +27,7 @@ public class CopyAdapterTests
             string dst = Path.Combine(root, "out", "a.txt");
             File.WriteAllText(src, "hello");
 
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,
@@ -51,7 +52,7 @@ public class CopyAdapterTests
             File.WriteAllText(Path.Combine(src, "nested", "deep.txt"), "2");
             string dst = Path.Combine(root, "dst");
 
-            new CopyAdapter().Copy(new CopyAction { Source = src, Destination = dst, Description = "copy", Reason = "t" });
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction { Source = src, Destination = dst, Description = "copy", Reason = "t" });
 
             Assert.Equal("1", File.ReadAllText(Path.Combine(dst, "top.txt")));
             Assert.Equal("2", File.ReadAllText(Path.Combine(dst, "nested", "deep.txt")));
@@ -70,7 +71,7 @@ public class CopyAdapterTests
             File.WriteAllText(src, "NEW");
             File.WriteAllText(dst, "OLD");
 
-            new CopyAdapter().Merge(new RestoreMergeAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction
             {
                 Source = src,
                 Destination = dst,
@@ -99,7 +100,7 @@ public class CopyAdapterTests
             File.WriteAllText(src, "NEW");
             File.WriteAllText(dst, "OLD");
 
-            new CopyAdapter().Merge(new RestoreMergeAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction
             {
                 Source = src,
                 Destination = dst,
@@ -128,7 +129,7 @@ public class CopyAdapterTests
             File.WriteAllText(dst, "OLD");
             File.WriteAllText(bak, "EXISTING");
 
-            Assert.Throws<IOException>(() => new CopyAdapter().Merge(new RestoreMergeAction
+            Assert.Throws<IOException>(() => new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction
             {
                 Source = src,
                 Destination = dst,
@@ -157,7 +158,7 @@ public class CopyAdapterTests
             File.WriteAllText(src, "NEW");
             File.WriteAllText(dst, "OLD");
 
-            Assert.Throws<ArgumentException>(() => new CopyAdapter().Merge(new RestoreMergeAction
+            Assert.Throws<ArgumentException>(() => new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction
             {
                 Source = src,
                 Destination = dst,
@@ -201,7 +202,7 @@ public class CopyAdapterTests
             string dst = Path.Combine(root, "sub", "live.cfg");
             File.WriteAllText(src, "NEW");
 
-            new CopyAdapter().Merge(new RestoreMergeAction { Source = src, Destination = dst, Description = "m", Reason = "t" });
+            new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction { Source = src, Destination = dst, Description = "m", Reason = "t" });
 
             Assert.Equal("NEW", File.ReadAllText(dst));
             Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(dst)!, "*.bak.*"));
@@ -218,7 +219,7 @@ public class CopyAdapterTests
             string src = Path.Combine(root, "Login Data");
             File.WriteAllText(src, "secret");
 
-            CopyAdapterResult result = new CopyAdapter().Copy(new CopyAction
+            CopyAdapterResult result = new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = Path.Combine(root, "out"),
@@ -247,7 +248,7 @@ public class CopyAdapterTests
             File.WriteAllText(Path.Combine(src, "keybindings.json"), "{}");
 
             string dst = Path.Combine(root, "out");
-            CopyAdapterResult result = new CopyAdapter().Copy(new CopyAction
+            CopyAdapterResult result = new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,
@@ -287,7 +288,7 @@ public class CopyAdapterTests
 
             string dst = Path.Combine(root, "payload", "Default");
 
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = profile,
                 Destination = dst,
@@ -324,7 +325,7 @@ public class CopyAdapterTests
             File.WriteAllText(Path.Combine(src, "cache2", "blob"), "C");                  // not included
 
             string dst = Path.Combine(root, "out");
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,
@@ -357,7 +358,7 @@ public class CopyAdapterTests
             File.CreateSymbolicLink(link, secret);
 
             string dst = Path.Combine(root, "out");
-            new CopyAdapter().Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
 
             Assert.True(File.Exists(Path.Combine(dst, "Bookmarks")));
             Assert.False(File.Exists(Path.Combine(dst, "InnocentName"))); // file reparse point skipped
@@ -371,7 +372,7 @@ public class CopyAdapterTests
         string root = TempDir();
         try
         {
-            Assert.Throws<FileNotFoundException>(() => new CopyAdapter().Copy(new CopyAction
+            Assert.Throws<FileNotFoundException>(() => new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = Path.Combine(root, "nope.txt"),
                 Destination = Path.Combine(root, "out.txt"),
@@ -404,7 +405,7 @@ public class CopyAdapterTests
             // Destination is UNDER the junction parent → the write boundary must refuse it.
             string dest = Path.Combine(junctionParent, "a.txt");
 
-            Assert.Throws<DestinationReparseException>(() => new CopyAdapter().Copy(new CopyAction
+            Assert.Throws<DestinationReparseException>(() => new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dest,
@@ -433,7 +434,7 @@ public class CopyAdapterTests
             Directory.CreateDirectory(realTarget);
             Assert.True(JunctionHelper.TryCreateJunction(junctionDest, realTarget)); // gated by [FactRequiresJunction]
 
-            Assert.Throws<DestinationReparseException>(() => new CopyAdapter().Copy(new CopyAction
+            Assert.Throws<DestinationReparseException>(() => new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = junctionDest, // the destination root itself is the junction
@@ -462,7 +463,7 @@ public class CopyAdapterTests
 
             string dest = Path.Combine(junctionParent, "live.cfg");
 
-            Assert.Throws<DestinationReparseException>(() => new CopyAdapter().Merge(new RestoreMergeAction
+            Assert.Throws<DestinationReparseException>(() => new CopyAdapter(new Win32PathCanonicalizer()).Merge(new RestoreMergeAction
             {
                 Source = src,
                 Destination = dest,
@@ -495,7 +496,7 @@ public class CopyAdapterTests
             File.WriteAllText(srcA, "AAA");
             File.WriteAllText(srcB, "BBB");
 
-            var adapter = new CopyAdapter();
+            var adapter = new CopyAdapter(new Win32PathCanonicalizer());
             // First restore merge: backs up O, then writes A.
             adapter.Merge(new RestoreMergeAction
             {
@@ -542,7 +543,7 @@ public class CopyAdapterTests
             Assert.True(HardLinkInterop.TryCreateHardLink(link, secret)); // gated by [FactRequiresHardlink]
 
             string dst = Path.Combine(root, "out");
-            new CopyAdapter().Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
 
             Assert.True(File.Exists(Path.Combine(dst, "Bookmarks")));         // normal file copied
             Assert.False(File.Exists(Path.Combine(dst, "settings.json")));    // multi-linked alias refused
@@ -563,7 +564,7 @@ public class CopyAdapterTests
 
             string dst = Path.Combine(root, "out", "notes.db");
             CopyAdapterResult result =
-                new CopyAdapter().Copy(new CopyAction { Source = link, Destination = dst, Description = "c", Reason = "t" });
+                new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction { Source = link, Destination = dst, Description = "c", Reason = "t" });
 
             Assert.False(File.Exists(dst));
             CopySkippedItem skip = Assert.Single(result.Skipped);
@@ -584,7 +585,7 @@ public class CopyAdapterTests
             string dst = Path.Combine(root, "out", "ordinary.txt");
             File.WriteAllText(src, "hello");
 
-            new CopyAdapter().Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction { Source = src, Destination = dst, Description = "c", Reason = "t" });
 
             Assert.Equal("hello", File.ReadAllText(dst));
         }
@@ -608,7 +609,7 @@ public class CopyAdapterTests
             File.WriteAllText(Path.Combine(src, "a", "b", "c", "note.md"), "N");     // matched by **/*.md
 
             string dst = Path.Combine(root, "out");
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,
@@ -637,7 +638,7 @@ public class CopyAdapterTests
             File.WriteAllText(Path.Combine(src, "a", "sub", "deep.md"), "D");
 
             string dst = Path.Combine(root, "out");
-            new CopyAdapter().Copy(new CopyAction
+            new CopyAdapter(new Win32PathCanonicalizer()).Copy(new CopyAction
             {
                 Source = src,
                 Destination = dst,

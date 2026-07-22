@@ -2,10 +2,6 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.App.Views;
-using WindowsCareKit.Core.Modules.Install;
-using WindowsCareKit.Core.Modules.Migration;
-using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Execution;
 
 namespace WindowsCareKit.App.Modules;
 
@@ -20,12 +16,6 @@ public sealed class RestoreModule : IWckModule
 
     public void RegisterServices(IServiceCollection services)
     {
-        services.AddSingleton<MigrationRestoreService>(sp => new MigrationRestoreService(
-            new MigrationRestoreRunner(
-                new RecipePathResolver(ProfileRoots.ForCurrentUser()),
-                sp.GetRequiredService<ISafetyGate>()),
-            sp.GetRequiredService<GatedExecutor>(),
-            sp.GetRequiredService<IRestoreStateStore>()));
         services.AddSingleton<RestoreViewModel>();
     }
 

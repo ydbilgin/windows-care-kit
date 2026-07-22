@@ -158,7 +158,7 @@ internal static class Program
             new ThrowingServiceAdapter(),
             new ThrowingTaskAdapter(),
             new ThrowingProcessAdapter(),
-            new CopyAdapter());
+            new CopyAdapter(new Win32PathCanonicalizer()));
 
         var backupRunner = new MigrationBackupRunner(
             new RecipeResolver(new RecipePathResolver(rootsA), new Win32RecipeFileSystem()),
@@ -262,7 +262,7 @@ internal static class Program
             new ThrowingServiceAdapter(),
             new ThrowingTaskAdapter(),
             new ThrowingProcessAdapter(),
-            new CopyAdapter());
+            new CopyAdapter(new Win32PathCanonicalizer()));
 
         var restoreRunner = new MigrationRestoreRunner(new RecipePathResolver(rootsB), restoreGate);
         var stateStore = new RestoreStateStore(new SanctionedFileWriter());
@@ -951,7 +951,7 @@ internal static class Program
             new ThrowingServiceAdapter(),
             new ThrowingTaskAdapter(),
             new ThrowingProcessAdapter(),
-            new CopyAdapter());
+            new CopyAdapter(new Win32PathCanonicalizer()));
 
     // Build a SafetyGate that treats profileRoot as the current-user profile so
     // writes into its subtree are allowed (mirrors MigrationRestoreTestData.GateForProfile).

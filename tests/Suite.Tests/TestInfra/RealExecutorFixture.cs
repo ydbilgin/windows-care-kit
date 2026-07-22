@@ -61,7 +61,7 @@ internal sealed class RealExecutorFixture : IDisposable
             new ServiceControlAdapter(),
             new ScheduledTaskAdapter(),
             new ProcessAdapter(),
-            new CopyAdapter());
+            new CopyAdapter(new Win32PathCanonicalizer()));
     }
 
     /// <summary>The lines written to the execution log so far.</summary>

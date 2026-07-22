@@ -47,6 +47,30 @@ public class ArchitectureTests
         }
     }
 
+    [Fact]
+    public void Suite_Module_Restore_csproj_does_not_reference_Suite_Execution()
+    {
+        string csproj = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Suite.Module.Restore", "Suite.Module.Restore.csproj"));
+        Assert.DoesNotContain("Suite.Execution", csproj, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Suite_Module_Uninstall_csproj_does_not_reference_Suite_Execution()
+    {
+        string csproj = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Suite.Module.Uninstall", "Suite.Module.Uninstall.csproj"));
+        Assert.DoesNotContain("Suite.Execution", csproj, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Suite_Execution_csproj_does_not_reference_Suite_Win32()
+    {
+        string csproj = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Suite.Execution", "Suite.Execution.csproj"));
+        Assert.DoesNotContain("Suite.Win32", csproj, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> CoreSourceFiles()
         => Directory.EnumerateFiles(
             Path.Combine(FindRepositoryRoot(), "src", "Suite.Core"), "*.cs", SearchOption.AllDirectories);

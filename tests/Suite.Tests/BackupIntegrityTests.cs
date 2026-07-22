@@ -259,7 +259,7 @@ public class BackupIntegrityTests
         string dst = ws.Combine("payload", "note.txt");
 
         // Real copy adapter performs the copy (temp→temp), real hasher + real filesystem build the row.
-        new WindowsCareKit.Execution.Adapters.CopyAdapter().Copy(
+        new WindowsCareKit.Execution.Adapters.CopyAdapter(new WindowsCareKit.Win32.Win32PathCanonicalizer()).Copy(
             new CopyAction { Source = src, Destination = dst, Description = "copy", Reason = "t" });
 
         var copied = CopiedReport(new CopyFileOutcome("note", src, dst, true, null, "ok"));

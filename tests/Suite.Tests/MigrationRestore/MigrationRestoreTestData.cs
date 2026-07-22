@@ -66,7 +66,7 @@ internal static class MigrationRestoreTestData
             new ThrowingServiceAdapter(),
             new ThrowingTaskAdapter(),
             new ThrowingProcessAdapter(),
-            new CopyAdapter());
+            new CopyAdapter(new Win32PathCanonicalizer()));
 
     // Restore plans only ever dispatch CopyAction/RestoreMergeAction; the other sinks must never be reached.
     private sealed class ThrowingFileDeleteAdapter : IFileDeleteAdapter

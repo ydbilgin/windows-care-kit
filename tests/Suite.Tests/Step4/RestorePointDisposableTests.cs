@@ -41,7 +41,7 @@ public class RestorePointDisposableTests
             var executor = new GatedExecutor(
                 gate, new ExecutionLog(logPath, new LogRedactor(null, null)),
                 new RecycleBinFileDeleteAdapter(), new RegistryDeleteAdapter(Path.GetTempPath()),
-                new ServiceControlAdapter(), new ScheduledTaskAdapter(), new ProcessAdapter(), new CopyAdapter(),
+                new ServiceControlAdapter(), new ScheduledTaskAdapter(), new ProcessAdapter(), new CopyAdapter(new Win32PathCanonicalizer()),
                 new Win32RestorePointCreator(capability));
 
             var rp = new CreateRestorePointAction

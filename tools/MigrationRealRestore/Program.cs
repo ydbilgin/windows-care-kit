@@ -374,7 +374,7 @@ internal static class Program
             new ThrowingServiceAdapter(),
             new ThrowingTaskAdapter(),
             new ThrowingProcessAdapter(),
-            new CopyAdapter());
+            new CopyAdapter(new Win32PathCanonicalizer()));
 
     private static SafetyGate BuildGate(string profileRoot, string usersRoot) =>
         new(
