@@ -99,13 +99,13 @@ public sealed class UninstallWizardViewModel : ObservableObject
         // single instance — no new confirm dialog (Hard rules: ConfirmGate reuse).
         Gate = new ConfirmGateViewModel(
             i18n,
-            onApprove: () => _ = ApproveAsync(),
+            onApprove: ApproveAsync,
             onCancel: CancelPending,
             isBusy: () => IsBusy);
 
         RunOfficialCommand = new RelayCommand(StageOfficial, () => CanRunOfficial);
-        ScanCommand = new RelayCommand(async () => await ScanAsync(), () => CanScan);
-        SkipToScanCommand = new RelayCommand(async () => await SkipToScanAsync(), () => CanSkipToScan);
+        ScanCommand = new AsyncRelayCommand(ScanAsync, () => CanScan);
+        SkipToScanCommand = new AsyncRelayCommand(SkipToScanAsync, () => CanSkipToScan);
         SelectAllOwnedCommand = new RelayCommand(SelectAllOwned, () => HasSelectableLeftovers && !IsBusy);
         DeleteSelectedCommand = new RelayCommand(StageLeftovers, () => HasCheckedLeftovers && !IsBusy);
         NextWithoutDeletingCommand = new RelayCommand(GoToResult, () => Beat == WizardBeat.Leftovers && !IsBusy);

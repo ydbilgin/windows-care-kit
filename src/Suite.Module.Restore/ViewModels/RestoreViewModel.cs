@@ -55,10 +55,10 @@ public sealed class RestoreViewModel : ObservableObject
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         I18n.PropertyChanged += OnLanguageChanged;
 
-        LoadAndPreviewCommand = new RelayCommand(async () => await LoadAndPreviewAsync(), () => CanPreview);
-        RunRestoreCommand = new RelayCommand(async () => await RunRestoreAsync(), () => CanRunRestore);
-        PreviewUndoCommand = new RelayCommand(async () => await PreviewUndoAsync(), () => CanPreviewUndo);
-        UndoCommand = new RelayCommand(async () => await UndoAsync(), () => CanRunUndo);
+        LoadAndPreviewCommand = new AsyncRelayCommand(LoadAndPreviewAsync, () => CanPreview);
+        RunRestoreCommand = new AsyncRelayCommand(RunRestoreAsync, () => CanRunRestore);
+        PreviewUndoCommand = new AsyncRelayCommand(PreviewUndoAsync, () => CanPreviewUndo);
+        UndoCommand = new AsyncRelayCommand(UndoAsync, () => CanRunUndo);
     }
 
     public I18n I18n { get; }
@@ -81,6 +81,9 @@ public sealed class RestoreViewModel : ObservableObject
         get => _packageDir;
         set
         {
+            if (IsBusy)
+                return;
+
             if (SetField(ref _packageDir, value))
             {
                 OnPropertyChanged(nameof(HasPackageDir));
@@ -94,6 +97,9 @@ public sealed class RestoreViewModel : ObservableObject
         get => _stateDir;
         set
         {
+            if (IsBusy)
+                return;
+
             if (SetField(ref _stateDir, value))
             {
                 OnPropertyChanged(nameof(HasStateDir));
@@ -122,6 +128,7 @@ public sealed class RestoreViewModel : ObservableObject
             : "migration.restore.disposition.Restored"];
     public bool HasUndoCandidates =>
         _completedState?.Journal.Any(entry => !string.IsNullOrWhiteSpace(entry.BakPath)) == true;
+    public bool CanEditDirectories => !IsBusy;
     public bool CanPreview => !IsBusy && HasPackageDir && HasStateDir;
 
     public bool CanRunRestore =>
@@ -148,7 +155,10 @@ public sealed class RestoreViewModel : ObservableObject
         private set
         {
             if (SetField(ref _isBusy, value))
+            {
+                OnPropertyChanged(nameof(CanEditDirectories));
                 RaiseCommandState();
+            }
         }
     }
 

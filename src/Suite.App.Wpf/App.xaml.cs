@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -28,7 +29,7 @@ public partial class App : Application
 {
     public IServiceProvider Services { get; private set; } = null!;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -48,7 +49,14 @@ public partial class App : Application
         var window = new MainWindow { DataContext = main };
         window.Show();
 
-        main.OnShellStartup(); // kick off the read-only inventory load
+        try
+        {
+            await main.OnShellStartupAsync(); // kick off and observe the read-only inventory load
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceError("Shell startup load failed: " + ex);
+        }
     }
 
     /// <summary>
@@ -178,7 +186,7 @@ public partial class App : Application
             sp.GetRequiredService<ICopyAdapter>(),
             sp.GetRequiredService<IRestorePointCreator>(),
             sp.GetRequiredService<IRecycleBinEmptier>(),
-            new Win32AppxRemover(sp.GetRequiredService<ExecutionLog>())));
+            new AppxRemoveAdapter(sp.GetRequiredService<ExecutionLog>())));
         s.AddSingleton<IExecutor>(sp => sp.GetRequiredService<GatedExecutor>());
         s.AddSingleton<IPlanExecutor>(sp => new GatedPlanExecutor(sp.GetRequiredService<GatedExecutor>()));
 

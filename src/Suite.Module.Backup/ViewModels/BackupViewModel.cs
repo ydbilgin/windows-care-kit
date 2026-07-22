@@ -38,8 +38,8 @@ public sealed class BackupViewModel : ObservableObject
         _planner = planner;
         _runner = runner;
 
-        BuildPlanCommand = new RelayCommand(async () => await BuildPlanAsync(), () => !IsBusy && HasPayloadDir);
-        ApproveAndRunCommand = new RelayCommand(async () => await RunAsync(), () => CanRun);
+        BuildPlanCommand = new AsyncRelayCommand(BuildPlanAsync, () => !IsBusy && HasPayloadDir);
+        ApproveAndRunCommand = new AsyncRelayCommand(RunAsync, () => CanRun);
     }
 
     public I18n I18n { get; }

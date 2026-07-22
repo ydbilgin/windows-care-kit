@@ -85,14 +85,14 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
 
         // Confirm dialog buttons. These remain the canonical approve/cancel surface; the reusable
         // ConfirmGate (UI decision §B2) drives them through its own buttons via the Gate view-model below.
-        ApproveCommand = new RelayCommand(async () => await ApproveAsync(), () => RequiresConfirmation && !IsBusy);
+        ApproveCommand = new AsyncRelayCommand(ApproveAsync, () => RequiresConfirmation && !IsBusy);
         CancelCommand = new RelayCommand(CancelPending, () => RequiresConfirmation && !IsBusy);
 
         // The reusable confirmation gate. It owns tier selection + type-to-confirm; Approve/Cancel delegate
         // straight back into the existing flow so the staging/hash semantics are untouched.
         Gate = new ConfirmGateViewModel(
             i18n,
-            onApprove: () => ApproveCommand.Execute(null),
+            onApprove: ApproveAsync,
             onCancel: () => CancelCommand.Execute(null),
             isBusy: () => IsBusy);
 
@@ -260,16 +260,17 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
             var rows = await Task.Run(() =>
             {
                 InstalledAppReadResult inventory = _appReader.ReadAllWithStatus();
+                AppxReadResult appxInventory = _appxReader.ReadCurrentUserPackagesWithStatus();
                 var apps = inventory.Apps
                     .Where(a => !a.IsSystemComponent)
                     .Select(AppRow.FromApp);
-                var packages = _appxReader.ReadCurrentUserPackages()
+                var packages = appxInventory.Packages
                     .Where(p => !p.IsFrameworkOrSystem)
                     .Select(AppRow.FromAppx);
                 var loadedRows = apps.Concat(packages)
                     .OrderBy(r => r.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
-                return (Rows: loadedRows, inventory.Status);
+                return (Rows: loadedRows, Status: CombineInventoryStatus(inventory.Status, appxInventory.Status));
             });
 
             // G2: discard a superseded load. A newer LoadAsync incremented _loadGeneration while this one was in
@@ -309,6 +310,17 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
         AppRow.BrokenBadge => I18n["uninstall.badge.broken"],
         _ => string.Empty,
     };
+
+    private static InstalledAppReadStatus CombineInventoryStatus(
+        InstalledAppReadStatus classicStatus,
+        AppxReadStatus appxStatus)
+    {
+        if (classicStatus == InstalledAppReadStatus.Complete && appxStatus == AppxReadStatus.Complete)
+            return InstalledAppReadStatus.Complete;
+        if (classicStatus == InstalledAppReadStatus.Unavailable && appxStatus == AppxReadStatus.Unavailable)
+            return InstalledAppReadStatus.Unavailable;
+        return InstalledAppReadStatus.Partial;
+    }
 
     /// <summary>The ICollectionView <c>Filter</c> predicate — pure, never mutates the source (UI decision §2).</summary>
     private bool MatchesSearch(object item)

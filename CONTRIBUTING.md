@@ -18,17 +18,12 @@ wrong file or leak a credential. This guide explains how to work within that mod
 git clone https://github.com/ydbilgin/windows-care-kit.git
 cd windows-care-kit
 dotnet build WindowsCareKit.slnx -c Debug
-dotnet test  tests/Suite.Tests/Suite.Tests.csproj -c Debug
+dotnet test  WindowsCareKit.slnx -c Debug --filter "Category!=Destructive"
 ```
 
-The default test run is **host-safe** — it excludes the `Destructive` category, which is designed
-to run **only inside a throwaway Windows Sandbox** (see `sandbox/`), never against your real
-machine:
-
-```powershell
-# Host-safe (what CI runs):
-dotnet test tests/Suite.Tests/Suite.Tests.csproj --filter "Category!=Destructive"
-```
+The explicit `Category!=Destructive` filter is required for a **host-safe** run. Tests in the
+`Destructive` category are designed to run **only inside a throwaway Windows Sandbox** (see
+`sandbox/`), never against your real machine.
 
 A green PR means: **build 0 warnings / 0 errors** and the host-safe suite passing.
 
@@ -42,7 +37,7 @@ A green PR means: **build 0 warnings / 0 errors** and the host-safe suite passin
 | `src/Suite.App.Wpf/` | The WPF UI (EN/TR) |
 | `tests/Suite.Tests/` | Automated tests (fakes + synthetic data) |
 | `sandbox/` | Throwaway Windows Sandbox harness for the `Destructive` test tier |
-| `docs/` | Architecture & security notes |
+| `docs/` | Tracked design assets and screenshots |
 
 ## The non-negotiable rules
 

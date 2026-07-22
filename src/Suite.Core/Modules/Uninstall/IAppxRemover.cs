@@ -6,11 +6,10 @@ namespace WindowsCareKit.Core.Modules.Uninstall;
 public sealed record AppxRemovalResult(bool Removed, string Reason);
 
 /// <summary>
-/// Per-user AppX removal contract. v1 is per-user only (spec §1.1, §7): framework / system /
-/// resource / provisioned / all-users packages are refused. AppX removal is NOT a typed
-/// <c>PlannedAction</c> (it is an async COM call, not a recycle-bin/registry/process operation), so it
-/// does not flow through <c>OperationPlan</c> / the executor — it is a separate, explicitly-confirmed,
-/// gated-by-its-own-guard call. It is irreversible (<c>UndoCapability.None</c> conceptually); the UI must warn.
+/// Per-user AppX removal sink contract. Framework, system, resource, provisioned, and all-users packages
+/// are refused. Production dispatch is a typed <c>AppxRemoveAction</c> inside an approved
+/// <c>OperationPlan</c>; only <c>GatedExecutor</c> calls the sanctioned Suite.Execution adapter after the
+/// shared gate revalidates the action at execution time. Removal is irreversible, so the UI must warn.
 /// </summary>
 public interface IAppxRemover
 {

@@ -58,7 +58,7 @@ public sealed class DirectoryModuleCatalogTests
     }
 
     [Fact] // t3 — structural floor: the catalog never returns empty; the shell stays safe.
-    public void Missing_or_empty_root_still_yields_settings_only_and_a_safe_shell()
+    public async Task Missing_or_empty_root_still_yields_settings_only_and_a_safe_shell()
     {
         string nonexistent = Path.Combine(Path.GetTempPath(), "wck-modcat-nonexistent-" + Guid.NewGuid().ToString("N"));
         IReadOnlyList<IWckModule> fromMissing = new DirectoryModuleCatalog(nonexistent).LoadModules();
@@ -75,7 +75,7 @@ public sealed class DirectoryModuleCatalogTests
         NavItem onlyNav = Assert.Single(vm.Nav);
         Assert.Equal("settings", onlyNav.Id);
         Assert.NotNull(vm.CurrentContent);
-        Assert.Null(Record.Exception(() => vm.OnShellStartup()));
+        Assert.Null(await Record.ExceptionAsync(vm.OnShellStartupAsync));
     }
 
     [Fact] // t4 — every kind of bad folder is skipped with a diagnostic; valid modules still load.

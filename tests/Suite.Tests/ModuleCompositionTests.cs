@@ -77,7 +77,7 @@ public sealed class ModuleCompositionTests
     }
 
     [Fact]
-    public void OnShellStartup_is_safe_when_uninstall_module_is_absent_and_invokes_only_startup_aware_content()
+    public async Task OnShellStartup_is_safe_when_uninstall_module_is_absent_and_invokes_only_startup_aware_content()
     {
         var subsetConstructed = new List<string>();
         var subset = new IWckModule[]
@@ -87,7 +87,7 @@ public sealed class ModuleCompositionTests
         };
         var subsetVm = new MainViewModel(new I18n(), subset);
 
-        Exception? thrown = Record.Exception(() => subsetVm.OnShellStartup());
+        Exception? thrown = await Record.ExceptionAsync(subsetVm.OnShellStartupAsync);
         Assert.Null(thrown);
 
         var startupAware = new RecordingStartupAware();
@@ -99,9 +99,34 @@ public sealed class ModuleCompositionTests
         };
         var mixedVm = new MainViewModel(new I18n(), mixed);
 
-        mixedVm.OnShellStartup();
+        await mixedVm.OnShellStartupAsync();
 
         Assert.Equal(1, startupAware.StartupCount);
+
+        var faultingVm = new MainViewModel(new I18n(), new IWckModule[]
+        {
+            new TestModule("uninstall", "nav.uninstall", "nav.uninstall.desc", "", 10, false, _ => new FaultingStartupAware()),
+        });
+        InvalidOperationException fault = await Assert.ThrowsAsync<InvalidOperationException>(
+            faultingVm.OnShellStartupAsync);
+        Assert.Equal("synthetic startup failure", fault.Message);
+    }
+
+    [Fact]
+    public void Shell_startup_exposes_an_observable_task_instead_of_discarding_module_faults()
+    {
+        System.Reflection.MethodInfo? startup = typeof(MainViewModel).GetMethod("OnShellStartupAsync");
+
+        Assert.NotNull(startup);
+        Assert.Equal(typeof(Task), startup.ReturnType);
+
+        string shellSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Suite.App.Wpf",
+            "ViewModels",
+            "MainViewModel.cs"));
+        Assert.DoesNotContain("_ = aware.OnShellStartupAsync()", shellSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -491,6 +516,19 @@ public sealed class ModuleCompositionTests
         return services.BuildServiceProvider();
     }
 
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? current = new(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "WindowsCareKit.slnx")))
+                return current.FullName;
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate WindowsCareKit.slnx.");
+    }
+
     private sealed class TestModule(
         string id,
         string titleKey,
@@ -546,6 +584,15 @@ public sealed class ModuleCompositionTests
         {
             StartupCount++;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FaultingStartupAware : IWckStartupAware
+    {
+        public async Task OnShellStartupAsync()
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("synthetic startup failure");
         }
     }
 

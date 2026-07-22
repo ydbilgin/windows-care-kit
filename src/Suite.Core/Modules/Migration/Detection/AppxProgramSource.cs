@@ -19,18 +19,27 @@ public sealed class AppxProgramSource : IProgramSource
 
     public ProgramEnumeration Enumerate()
     {
-        IReadOnlyList<InstalledAppx> packages;
+        AppxReadResult inventory;
         try
         {
-            packages = _reader.ReadCurrentUserPackages();
+            inventory = _reader.ReadCurrentUserPackagesWithStatus();
         }
         catch
         {
             return new ProgramEnumeration([], new ProgramSourceReport(ProgramSourceKind.Appx, ProgramSourceStatus.SourceFailed, 0));
         }
 
-        if (packages.Count == 0)
+        if (inventory.Status == AppxReadStatus.Unavailable)
             return new ProgramEnumeration([], new ProgramSourceReport(ProgramSourceKind.Appx, ProgramSourceStatus.SourceUnavailable, 0));
+
+        IReadOnlyList<InstalledAppx> packages = inventory.Packages;
+        if (packages.Count == 0)
+        {
+            ProgramSourceStatus emptyStatus = inventory.Status == AppxReadStatus.Partial
+                ? ProgramSourceStatus.Incomplete
+                : ProgramSourceStatus.SourceUnavailable;
+            return new ProgramEnumeration([], new ProgramSourceReport(ProgramSourceKind.Appx, emptyStatus, 0));
+        }
 
         var programs = new List<DiscoveredProgram>(packages.Count);
         foreach (InstalledAppx package in packages)
@@ -65,7 +74,10 @@ public sealed class AppxProgramSource : IProgramSource
         if (programs.Count == 0)
             return new ProgramEnumeration([], new ProgramSourceReport(ProgramSourceKind.Appx, ProgramSourceStatus.SourceFailed, 0));
 
-        return new ProgramEnumeration(programs, new ProgramSourceReport(ProgramSourceKind.Appx, ProgramSourceStatus.Ok, programs.Count));
+        ProgramSourceStatus status = inventory.Status == AppxReadStatus.Partial
+            ? ProgramSourceStatus.Incomplete
+            : ProgramSourceStatus.Ok;
+        return new ProgramEnumeration(programs, new ProgramSourceReport(ProgramSourceKind.Appx, status, programs.Count));
     }
 
     private static string? NullIfWhiteSpace(string? value)

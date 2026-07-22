@@ -1,13 +1,13 @@
 using System.IO;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Uninstall;
-using WindowsCareKit.Win32;
+using WindowsCareKit.Execution.Adapters;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
 
 /// <summary>
-/// Tests the <see cref="Win32AppxRemover"/> guards that run BEFORE any COM call (so they execute on any
+/// Tests the <see cref="AppxRemoveAdapter"/> guards that run BEFORE any COM call (so they execute on any
 /// box, CI included). Framework/system packages and packages with no full name are refused without ever
 /// constructing a <c>PackageManager</c> — the fail-closed, per-user-only contract (spec §1.1).
 /// </summary>
@@ -23,7 +23,7 @@ public class AppxRemoverTests
     [Fact]
     public async Task Refuses_framework_or_system_package_without_touching_com()
     {
-        var remover = new Win32AppxRemover();
+        var remover = new AppxRemoveAdapter();
 
         var result = await remover.RemoveCurrentUserAsync(Appx("Contoso.Framework_1.0.0.0_x64__abc", frameworkOrSystem: true));
 
@@ -34,7 +34,7 @@ public class AppxRemoverTests
     [Fact]
     public async Task Refuses_when_package_full_name_is_missing()
     {
-        var remover = new Win32AppxRemover();
+        var remover = new AppxRemoveAdapter();
 
         var result = await remover.RemoveCurrentUserAsync(Appx("   ", frameworkOrSystem: false));
 
@@ -45,7 +45,7 @@ public class AppxRemoverTests
     [Fact]
     public async Task Null_package_throws_argument_null()
     {
-        var remover = new Win32AppxRemover();
+        var remover = new AppxRemoveAdapter();
         await Assert.ThrowsAsync<ArgumentNullException>(() => remover.RemoveCurrentUserAsync(null!));
     }
 
@@ -58,7 +58,7 @@ public class AppxRemoverTests
         try
         {
             var log = new ExecutionLog(logPath, new LogRedactor(null, null));
-            var remover = new Win32AppxRemover(log);
+            var remover = new AppxRemoveAdapter(log);
             const string fullName = "Contoso.Framework_1.0.0.0_x64__abc";
 
             var result = await remover.RemoveCurrentUserAsync(Appx(fullName, frameworkOrSystem: true));
@@ -80,7 +80,7 @@ public class AppxRemoverTests
         // A made-up full name that cannot belong to the current user → the per-user membership guard refuses it.
         // (This DOES touch the packaging API; if the API is unavailable on this SKU we still get a non-removed
         // result with a reason, never a throw — so the assertion holds either way.)
-        var remover = new Win32AppxRemover();
+        var remover = new AppxRemoveAdapter();
 
         var result = await remover.RemoveCurrentUserAsync(
             Appx("WindowsCareKit.NonExistent_9.9.9.9_x64__zzzzzzzzzzzzz", frameworkOrSystem: false));

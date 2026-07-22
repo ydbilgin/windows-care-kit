@@ -234,6 +234,24 @@ public sealed class RestoreViewModelTests
         Assert.Empty(vm.PlanRows);
     }
 
+    [Fact]
+    public void Package_and_state_directories_cannot_change_during_an_in_flight_operation()
+    {
+        using var fx = Fixture.Create("vm-busy-paths");
+        RestoreViewModel vm = fx.CreateViewModel();
+        string package = vm.PackageDir;
+        string state = vm.StateDir;
+        SetBusy(vm, true);
+
+        Assert.False(vm.CanEditDirectories);
+
+        vm.PackageDir = Path.Combine(fx.Root, "other-package");
+        vm.StateDir = Path.Combine(fx.Root, "other-state");
+
+        Assert.Equal(package, vm.PackageDir);
+        Assert.Equal(state, vm.StateDir);
+    }
+
     private static MigrationRestoreTarget Target(
         string entryId,
         string relativePath,
@@ -259,6 +277,14 @@ public sealed class RestoreViewModelTests
     {
         FieldInfo field = typeof(RestoreViewModel).GetField(
             "_approvedHash",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        field.SetValue(vm, value);
+    }
+
+    private static void SetBusy(RestoreViewModel vm, bool value)
+    {
+        FieldInfo field = typeof(RestoreViewModel).GetField(
+            "_isBusy",
             BindingFlags.Instance | BindingFlags.NonPublic)!;
         field.SetValue(vm, value);
     }

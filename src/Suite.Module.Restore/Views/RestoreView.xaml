@@ -203,8 +203,10 @@
                                   Background="{DynamicResource Backup.Card}" Foreground="{DynamicResource Backup.Ink}"
                                   BorderBrush="{DynamicResource Backup.LineStrong}" BorderThickness="1"
                                   FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12.5"
+                                  IsEnabled="{Binding CanEditDirectories}"
                                   Text="{Binding PackageDir, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Grid.Column="1" Margin="9,0,0,0" Style="{StaticResource RestoreSecondaryButton}"
+                                IsEnabled="{Binding CanEditDirectories}"
                                 Content="{Binding I18n[migration.restore.chooseFolder]}" Click="ChoosePackageFolder_Click" />
                         <Button Grid.Column="2" Margin="9,0,0,0" Style="{StaticResource RestorePrimaryButton}"
                                 Content="{Binding I18n[migration.restore.buildPlan]}" Command="{Binding LoadAndPreviewCommand}" />
@@ -216,6 +218,7 @@
                              Background="{DynamicResource Backup.Card}" Foreground="{DynamicResource Backup.Ink}"
                              BorderBrush="{DynamicResource Backup.LineStrong}" BorderThickness="1"
                              FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12.5"
+                             IsEnabled="{Binding CanEditDirectories}"
                              Text="{Binding StateDir, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Text="{Binding StateFilePath}" Style="{StaticResource RestoreMetaText}" Margin="0,4,0,0" />
 

@@ -8,7 +8,7 @@ surface Codex uses when it works here — read it before making changes.
 ## What Codex does in this project
 
 - **Implementation** — features and fixes are written by Codex from a written spec/brief.
-- **Test authoring** — Codex writes the automated tests for every change (the suite is **1,140+
+- **Test authoring** — Codex writes the automated tests for every change (the suite is **1,380+
   tests**, all host-safe by default). New behavior is not "done" until its tests exist and pass.
 - **Independent review** — each change goes through a separate, multi-pass review before the
   maintainer merges it; over-claims, safety-rule violations, and missing tests are caught there.
@@ -69,7 +69,7 @@ A change that breaks any of these is rejected:
 | `src/Suite.App.Wpf/` | The WPF UI (EN/TR) |
 | `tests/Suite.Tests/` | Automated tests (fakes + synthetic data) |
 | `sandbox/` | Throwaway Windows Sandbox harness for the `Destructive` test tier |
-| `docs/` | Architecture & security notes |
+| `docs/` | Tracked design assets and screenshots |
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contributor process and [`SECURITY.md`](SECURITY.md)
 for disclosure.

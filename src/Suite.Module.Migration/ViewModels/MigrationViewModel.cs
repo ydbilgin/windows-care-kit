@@ -51,7 +51,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         _recipeSource = recipeSource ?? throw new ArgumentNullException(nameof(recipeSource));
         I18n.PropertyChanged += OnLanguageChanged;
 
-        StartScanCommand = new RelayCommand(async () => await StartScanAsync(), () => !IsScanning && !IsScanComplete);
+        StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => !IsScanning && !IsScanComplete);
         CancelScanCommand = new RelayCommand(CancelScan, () => IsScanning);
         ConfirmProfileCommand = new RelayCommand(ConfirmProfile, () => ScanGate is { EnumerationComplete: true, ProfileConfirmed: false });
         ToggleGroupCommand = new RelayCommand(
@@ -63,11 +63,11 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         SelectRecommendedCommand = new RelayCommand(SelectRecommended, () => CanSelect);
         ClearOptionalCommand = new RelayCommand(ClearOptional, () => CanSelect);
         PreviewCommandsCommand = new RelayCommand(BuildPreview, () => CanSelect && SelectedCount > 0);
-        BuildCapturePlanCommand = new RelayCommand(
-            async () => await BuildCapturePlanAsync(),
+        BuildCapturePlanCommand = new AsyncRelayCommand(
+            BuildCapturePlanAsync,
             () => !IsScanning && !IsBusy && SelectedCount > 0 && HasPackageDir);
-        RunCaptureCommand = new RelayCommand(
-            async () => await RunCaptureAsync(),
+        RunCaptureCommand = new AsyncRelayCommand(
+            RunCaptureAsync,
             () => CanRunCapture);
     }
 

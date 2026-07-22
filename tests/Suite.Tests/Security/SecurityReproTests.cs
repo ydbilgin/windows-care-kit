@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Runtime.Loader;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -64,6 +65,30 @@ public sealed class DestructivePathSecurityReproTests
         Assert.True(TestData.Gate().Evaluate(action).Allowed);
         Assert.False(TestData.Gate().Evaluate(action with { IsFrameworkOrSystem = true }).Allowed);
         Assert.False(TestData.Gate().Evaluate(action with { PackageFullName = string.Empty }).Allowed);
+    }
+
+    /// <summary>C1 execution boundary: the destructive AppX COM sink is confined to Suite.Execution.</summary>
+    [Fact]
+    public void C1_appx_remove_sink_exists_only_in_the_sanctioned_execution_layer()
+    {
+        string[] sinks = Directory
+            .EnumerateFiles(RepoSource.PathFor("src"), "*.cs", SearchOption.AllDirectories)
+            .Where(path => File.ReadAllText(path).Contains(".RemovePackageAsync(", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(RepoSource.PathFor("."), path).Replace('\\', '/'))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["src/Suite.Execution/Adapters/AppxRemoveAdapter.cs"], sinks);
+
+        string banned = RepoSource.Read("BannedSymbols.txt");
+        Assert.Contains(
+            "M:Windows.Management.Deployment.PackageManager.RemovePackageAsync(System.String,Windows.Management.Deployment.RemovalOptions)",
+            banned,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "M:Windows.Management.Deployment.PackageManager.RemovePackageAsync(System.String)",
+            banned,
+            StringComparison.Ordinal);
     }
 
     /// <summary>S4: the gate blocks a recursive key delete below a protected registry root.</summary>
@@ -397,6 +422,33 @@ public sealed class UiReliabilitySecurityReproTests
         }
     }
 
+    /// <summary>
+    /// G3 integration guard: constructing a plain RelayCommand from an async lambda creates an async-void
+    /// boundary outside AsyncRelayCommand, so post-await faults escape to WPF's dispatcher. Every asynchronous
+    /// view-model command must use the fault-observing command type, not merely keep that type available.
+    /// </summary>
+    [Fact]
+    public void G3_async_view_model_commands_use_the_fault_observing_command_type()
+    {
+        string[] offenders = Directory
+            .EnumerateFiles(RepoSource.PathFor("src"), "*ViewModel.cs", SearchOption.AllDirectories)
+            .Where(path => Regex.IsMatch(
+                File.ReadAllText(path),
+                @"new\s+RelayCommand\s*\(\s*async\b",
+                RegexOptions.CultureInvariant))
+            .Select(path => Path.GetRelativePath(RepoSource.PathFor("."), path))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(offenders);
+
+        string uninstallWizard = RepoSource.Read(
+            "src/Suite.Module.Uninstall/ViewModels/UninstallWizardViewModel.cs");
+        Assert.DoesNotMatch(
+            @"onApprove:\s*\(\)\s*=>\s*_\s*=\s*ApproveAsync\s*\(\s*\)",
+            uninstallWizard);
+    }
+
     /// <summary>G4: a backup plan is discarded if PayloadDir changes while planning is in flight.</summary>
     [Fact]
     public async Task G4_backup_build_discards_a_plan_when_the_payload_path_changed()
@@ -467,6 +519,33 @@ public sealed class UiReliabilitySecurityReproTests
         Assert.Empty(emptyVm.AllRows);
         Assert.False(emptyVm.HasInventoryNotice);
         Assert.Equal(string.Empty, emptyVm.InventoryNotice);
+    }
+
+    /// <summary>G-m3 AppX: a failed package inventory is typed and cannot masquerade as a valid empty list.</summary>
+    [Fact]
+    public void G_m3_appx_inventory_has_a_typed_health_result_consumed_by_the_ui()
+    {
+        string contract = RepoSource.Read("src/Suite.Core/Modules/Uninstall/Readers.cs");
+        string reader = RepoSource.Read("src/Suite.Win32/Win32AppxReader.cs");
+        string viewModel = RepoSource.Read("src/Suite.Module.Uninstall/ViewModels/UninstallViewModel.cs");
+
+        Assert.Contains("AppxReadResult ReadCurrentUserPackagesWithStatus()", contract, StringComparison.Ordinal);
+        Assert.Contains("public AppxReadResult ReadCurrentUserPackagesWithStatus()", reader, StringComparison.Ordinal);
+        Assert.Contains("_appxReader.ReadCurrentUserPackagesWithStatus()", viewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task G_m3_unavailable_appx_inventory_surfaces_a_partial_inventory_notice()
+    {
+        var vm = BuildUninstallVm(
+            new Win32InstalledAppReader(new EmptyRegistryProbe()),
+            new UnavailableAppxReader());
+
+        await vm.LoadAsync();
+
+        Assert.Empty(vm.AllRows);
+        Assert.True(vm.HasInventoryNotice);
+        Assert.False(string.IsNullOrWhiteSpace(vm.InventoryNotice));
     }
 
     /// <summary>G-m4: the render harness rejects PathError diagnostics and nullable strings avoid Length paths.</summary>
@@ -624,6 +703,14 @@ public sealed class UiReliabilitySecurityReproTests
     private sealed class EmptyAppxReader : IAppxReader
     {
         public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages() => Array.Empty<InstalledAppx>();
+    }
+
+    private sealed class UnavailableAppxReader : IAppxReader
+    {
+        public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages() => Array.Empty<InstalledAppx>();
+
+        public AppxReadResult ReadCurrentUserPackagesWithStatus()
+            => new(Array.Empty<InstalledAppx>(), AppxReadStatus.Unavailable);
     }
 
     private sealed class NoOpExecutor : IExecutor
@@ -1222,16 +1309,27 @@ public sealed class LowConfidenceSecurityReproTests
         Assert.DoesNotContain("CommunityRecipeSource", module, StringComparison.Ordinal);
     }
 
-    /// <summary>§6 release inputs: installer language is implicit and release tags are not checked against VersionPrefix.</summary>
+    /// <summary>§6 release inputs: one validated tag version drives both the .NET binaries and installer metadata.</summary>
     [Fact]
-    public void Installer_language_and_release_tag_version_sync_are_not_enforced()
+    public void Release_tag_version_is_validated_and_applied_to_every_binary_output()
     {
-        string installer = RepoSource.Read("installer/WindowsCareKit.iss");
         string release = RepoSource.Read(".github/workflows/release.yml");
 
-        Assert.DoesNotContain("[Languages]", installer, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("$appVer = $refName.TrimStart('v')", release, StringComparison.Ordinal);
-        Assert.DoesNotContain("VersionPrefix", release, StringComparison.Ordinal);
+        Assert.Contains("name: Resolve build version", release, StringComparison.Ordinal);
+        Assert.Contains("BUILD_VERSION=$buildVersion", release, StringComparison.Ordinal);
+        Assert.Contains("BUILD_VERSION_NUM=$numericVersion", release, StringComparison.Ordinal);
+        Assert.Contains("ARTIFACT_VERSION=$artifactVersion", release, StringComparison.Ordinal);
+        Assert.Contains("^v(?<version>", release, StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            Regex.Matches(
+                release,
+                @"-p:Version=\$\{\{ env\.BUILD_VERSION \}\}",
+                RegexOptions.CultureInvariant).Count);
+        Assert.Contains("$appVer = \"${{ env.BUILD_VERSION }}\"", release, StringComparison.Ordinal);
+        Assert.Contains("$appVerNum = \"${{ env.BUILD_VERSION_NUM }}\"", release, StringComparison.Ordinal);
+        Assert.DoesNotContain("$appVer = $refName.TrimStart('v')", release, StringComparison.Ordinal);
+        RepoSource.AssertOrdered(release, "name: Resolve build version", "name: Build");
     }
 
     /// <summary>G5: the release step throws on a failed upload/edit/create before the job can report success.</summary>
@@ -1261,6 +1359,28 @@ public sealed class LowConfidenceSecurityReproTests
         string copy = RepoSource.Read("src/Suite.Execution/Adapters/CopyAdapter.cs");
         RepoSource.AssertOrdered(copy, "GuardDestinationNotReparse(destination)", "PublishFromHandle(src, destination)");
         Assert.Contains("SafeFileHandle", copy, StringComparison.Ordinal);
+    }
+}
+
+/// <summary>OSS-facing documentation guards for the project's non-destructive default workflow.</summary>
+public sealed class OssDocumentationSecurityReproTests
+{
+    [Theory]
+    [InlineData("README.md")]
+    [InlineData("README.tr.md")]
+    [InlineData("CONTRIBUTING.md")]
+    [InlineData("AGENTS.md")]
+    public void Public_host_test_commands_explicitly_exclude_the_destructive_tier(string relativePath)
+    {
+        string[] commands = RepoSource.Read(relativePath)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => line.StartsWith("dotnet test ", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.NotEmpty(commands);
+        Assert.All(
+            commands,
+            command => Assert.Contains("Category!=Destructive", command, StringComparison.Ordinal));
     }
 }
 

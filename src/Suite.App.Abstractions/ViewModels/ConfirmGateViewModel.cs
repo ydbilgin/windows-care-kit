@@ -39,7 +39,7 @@ public enum ConfirmTier
 /// </summary>
 public sealed class ConfirmGateViewModel : ObservableObject
 {
-    private readonly Action _onApprove;
+    private readonly Func<Task> _onApprove;
     private readonly Action _onCancel;
     private readonly Func<bool> _isBusy;
 
@@ -54,17 +54,36 @@ public sealed class ConfirmGateViewModel : ObservableObject
     /// <param name="onCancel">Invoked when the user cancels (the host clears the staged plan here).</param>
     /// <param name="isBusy">True while a run is in flight — disables the gate buttons.</param>
     public ConfirmGateViewModel(I18n i18n, Action onApprove, Action onCancel, Func<bool> isBusy)
+        : this(i18n, AsAsync(onApprove), onCancel, isBusy)
+    {
+    }
+
+    /// <summary>
+    /// Async approval overload. The gate owns the async-void ICommand boundary through
+    /// <see cref="AsyncRelayCommand"/>, so post-await faults are observed and double approval is refused.
+    /// </summary>
+    public ConfirmGateViewModel(I18n i18n, Func<Task> onApprove, Action onCancel, Func<bool> isBusy)
     {
         I18n = i18n;
-        _onApprove = onApprove;
+        _onApprove = onApprove ?? throw new ArgumentNullException(nameof(onApprove));
         _onCancel = onCancel;
         _isBusy = isBusy;
 
-        ApproveCommand = new RelayCommand(_onApprove, () => CanApprove);
+        ApproveCommand = new AsyncRelayCommand(_onApprove, () => CanApprove);
         CancelCommand = new RelayCommand(_onCancel, () => IsOpen && !_isBusy());
 
         // I18n raises "Item[]" on a language switch; refresh the computed (non-indexer) strings too.
         I18n.PropertyChanged += (_, _) => OnLanguageChanged();
+    }
+
+    private static Func<Task> AsAsync(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        return () =>
+        {
+            action();
+            return Task.CompletedTask;
+        };
     }
 
     public I18n I18n { get; }

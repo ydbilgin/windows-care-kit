@@ -6,7 +6,7 @@
 
 **Windows'u yeniden kurarken ayarlarınızı yanınızda taşıyın — ve onları doğru yere geri alın.**
 
-*Açık kaynak, reklamsız, kökten dürüst: başarıyı taklit etmek yerine nelerin taşınamayacağını söyler. Tüm format yaşam döngüsünü kapsar: Kaldır · Temizle · Yedekle · Yeniden Kur.*
+*Açık kaynak, reklamsız, kökten dürüst: başarıyı taklit etmek yerine nelerin taşınamayacağını söyler. Tüm format yaşam döngüsünü kapsar: Kaldır · Temizle · Yedekle · Taşı · Yeniden Kur · Geri Yükle.*
 
 [![CI](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml) ![status](https://img.shields.io/badge/status-beta-orange) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
 
@@ -18,7 +18,7 @@
 
 ## ⚠️ Durum — Beta, önce bunu okuyun
 
-Dört modülün tamamı **uygulanmış** durumda, build **temiz (0 uyarı / 0 hata)** ve test paketi **1.080+ otomatik testten** geçiyor. Her yıkıcı işlem, tek bir güvenlik kapısı üzerinden **yalnızca dry-run önizleme + açık onayınızdan sonra** çalışır.
+Temel bakım, yedekleme, taşıma, yeniden kurulum ve geri yükleme akışları **uygulanmış** durumda, build **temiz (0 uyarı / 0 hata)** ve test paketi **1.380+ otomatik testten** geçiyor. Her yıkıcı işlem, tek bir güvenlik kapısı üzerinden **yalnızca dry-run önizleme + açık onayınızdan sonra** çalışır.
 
 > **🚧 Gerçek dünyadaki yıkıcı işlemler hâlâ gözetimli testten geçiyor.** Bunu **beta** olarak değerlendirin: önemsediğiniz bir makinede silme, geri yükleme veya taşıma yaptırmadan önce her zaman ayrı bir yedeğiniz olsun. Nelerin tamamlandığını ve nelerin planlandığını görmek için [Yol Haritası](#-yol-haritası) bölümüne bakın.
 
@@ -33,7 +33,9 @@ Windows Care Kit, tüm **format / yeniden kurulum yaşam döngüsünü** kapsaya
 | 🗑️ **Uninstall** | **Sil** | Klasik + UWP uygulamaları kaldırır, artıkları tarayıp temizler, resmi kaldırıcıyı çalıştırır, kullanıcı bazlı AppX kaldırma yapar |
 | 🧹 **Clean** | **Temizle** | Gereksiz/geçici dosya temizliği (Geri Dönüşüm Kutusu'na), başlangıç yöneticisi, tarayıcı eklentisi envanteri, Geri Dönüşüm Kutusu'nu boşaltma |
 | 💾 **Backup** | **Yedekle** | Format öncesinde *yeniden indirilemeyen az sayıdaki önemli şeyi* manifest tabanlı olarak yedekler |
-| 📦 **Install** | **Kur** | Format sonrasında uygulamaları winget/npm ile yeniden kurar, ayarları güvenli ve zaman damgalı `.bak` birleştirmesiyle geri yükler |
+| 📦 **Install** | **Kur** | Format sonrasında uygulamaları winget/npm ile bağımlılık sırasına ve checkpoint/resume desteğine göre yeniden kurar |
+| 💼 **Migration** | **Taşı** | Taşınabilir uygulama ayarlarını tespit edip yeni bilgisayara götürülecekleri seçtirir; taşınamayanları dürüstçe gösterir |
+| ♻️ **Restore** | **Geri Yükle** | Taşıma paketini açar, tam planı önizletip onaylatır; uygun ayarları zaman damgalı `.bak` koruması ve geri alma desteğiyle yükler |
 
 **Kimler için:** oyuncular, AI/geliştirici güç kullanıcıları ve Windows'u yeniden kurmak üzere olup önemli şeylerini kaybetmek istemeyen herkes.
 
@@ -45,12 +47,13 @@ Windows Care Kit, tüm **format / yeniden kurulum yaşam döngüsünü** kapsaya
 flowchart LR
   U[Uninstall - istenmeyen uygulamalari kaldir] --> C[Clean - gereksiz dosyalari temizle]
   C --> B[Backup - ayarlari ve verileri paketle, sirlar haric]
-  B --> F[FORMAT - temiz Windows]
+  B --> M[Migration - tasinabilir ayarlari bul ve yakala]
+  M --> F[FORMAT - temiz Windows]
   F --> R[Reinstall - uygulamalari yeniden kur]
-  R --> M[Migration - tasinabilir ayarlari tasi ve sinirlari bildir]
+  R --> S[Restore - uygun ayarlari onizle ve geri yukle]
 ```
 
-Bakım daha format kararından önce başlar, Backup taşınabilir olanları yakalar, Migration ise nelerin taşınamayacağını dürüstçe söyler.
+Bakım daha format kararından önce başlar, Backup ve Migration taşınabilir olanları yakalar, Restore ise nelerin taşınamayacağını dürüstçe söyler.
 
 ---
 
@@ -118,8 +121,9 @@ olduğunu ve nelerin hâlâ manuel iş gerektirdiğini açıklar.
 
 **Bugün mevcut:** WPF Migration ekranında recipe-tabanlı tespit, seçim ve **canlı yakalama (capture)** —
 bir yedek klasörü seç, dry-run planı onayla, seçilen ayarlar aynı güvenlik-kapılı yedekleme motoruyla
-oraya kopyalanır (makineye-kilitli öğeler dürüstçe gösterilir, asla sahte-başarı yok). **Yeni makinede
-geri yükleme akışı (ayarları temiz kuruluma yerine yazma) sonraki slice'tır ve bu build'de henüz yok.**
+oraya kopyalanır. Yeni makinede Restore ekranı bu paketi açar, tam planı yeniden oluşturup gösterir,
+planın hash'i için açık onay ister, uygun ayarları zaman damgalı `.bak` korumasıyla yazar ve onaylı
+bir geri alma akışı sunar. Makineye kilitli ve manuel öğeler dürüstçe atlanır; geri yüklenmiş gibi gösterilmez.
 
 ---
 
@@ -138,9 +142,9 @@ geri yükleme akışı (ayarları temiz kuruluma yerine yazma) sonraki slice'tı
 
 ## ⬇️ İndir & çalıştır
 
-1. En yeni **self-contained, single-file, portable ZIP** paketini [Releases](https://github.com/ydbilgin/windows-care-kit/releases) sayfasından indirin.
-2. ZIP'in **SHA256** değerini release sayfasındaki değerle doğrulayın.
-3. Açın ve çalıştırın — **installer yok**, sistem klasörlerine hiçbir şey yazılmaz.
+1. En yeni **bileşen seçilebilir installer** paketini (önerilen) veya self-contained **portable ZIP** paketini [Releases](https://github.com/ydbilgin/windows-care-kit/releases) sayfasından indirin.
+2. Seçtiğiniz paketin **SHA256** değerini release sayfasındaki değerle doğrulayın.
+3. Setup'ı çalıştırıp istediğiniz modülleri seçin veya portable ZIP'in **tamamını** çıkarıp `WindowsCareKit.exe` dosyasını çalıştırın.
 
 > **Not:** build **imzasızdır** (bu ücretsiz, gelir üretmeyen bir proje olduğu için kod imzalama sertifikası yok). Windows **SmartScreen** ilk çalıştırmada uyarabilir — imzasız uygulamalar için bu beklenen bir durumdur; SHA256 kontrolü bütünlük garantinizdir. **Otomatik güncelleyici yoktur** — Releases sayfasını kontrol edin.
 
@@ -154,10 +158,10 @@ geri yükleme akışı (ayarları temiz kuruluma yerine yazma) sonraki slice'tı
 git clone https://github.com/ydbilgin/windows-care-kit.git
 cd windows-care-kit
 dotnet build WindowsCareKit.slnx -c Release
-dotnet test  WindowsCareKit.slnx
+dotnet test  WindowsCareKit.slnx -c Release --filter "Category!=Destructive"
 ```
 
-Proje yerleşimi: `src/` (modüller + güvenlik çekirdeği + yürütme katmanı), `tests/` (otomatik testler), `docs/` (mimari ve güvenlik notları).
+Proje yerleşimi: `src/` (modüller + güvenlik çekirdeği + yürütme katmanı), `tests/` (otomatik testler), `sandbox/` (tek kullanımlık yıkıcı doğrulama ortamları), `docs/` (izlenen tasarım varlıkları ve ekran görüntüleri).
 
 ---
 
@@ -165,7 +169,7 @@ Proje yerleşimi: `src/` (modüller + güvenlik çekirdeği + yürütme katmanı
 
 Windows Care Kit, birincil kodlama ajanı olarak **OpenAI Codex** ile geliştirilir ve sürdürülür.
 Her değişiklik yazılı bir spekten başlar; **Codex implementasyonu ve otomatik testleri yazar**
-(test paketi **1.140+ testten** oluşur, varsayılan olarak host-safe), ve her değişiklik maintainer
+(test paketi **1.380+ testten** oluşur ve açık non-destructive filtreyle host-safe çalışır), ve her değişiklik maintainer
 tarafından merge edilmeden önce bağımsız, çok geçişli bir incelemeden geçer. Codex ayrıca rutin
 maintainer işlerini de yürütür: build/test doğrulaması, changelog ve doküman güncellemeleri,
 recipe katalog hijyeni.
@@ -179,17 +183,16 @@ scope belirleme, son inceleme ve her merge kararı insan maintainer'a aittir.
 
 ## 🗺️ Yol Haritası
 
-**Bugün mevcut (beta):** yukarıdaki dört modül, güvenlik kapısı + gated executor, EN/TR UI, otomatik test paketi.
+**Bugün mevcut (beta):** yukarıdaki altı akış, 40 uygulamalık ayar recipe kataloğu, makine-farkındalıklı yakalama/geri yükleme, güvenlik kapısı + gated executor, EN/TR UI ve otomatik test paketi.
 
-**Tasarlanmış & planlanmış (bu build'de henüz yok):** daha zengin bir Backup/Restore motoru —
-- 🔎 Yerel uygulama ayarları ve geliştirici CLI yapılandırmaları (Codex/Discord/VS Code…) için **auto-discovery katalog**, checkbox seçim ekranı + manuel yol ekleme.
-- 🖥️ **Makine farkındalıklı restore** — kaynak/hedef makineyi (kullanıcı profili, sürücü harfleri, bilinen klasörler) soyutlayarak yedeğin *farklı* bir PC'de gerçekten çalışmasını sağlar.
+**Sıradaki adaylar:**
+- 🔎 Daha geniş ve küratörlü ayar-recipe kapsamı ile manuel yol ekleme akışı.
 - 💽 **Çoklu sürücü taraması** (yalnızca C: değil), bulut yedekliliği tespitiyle (Steam Cloud / OneDrive zaten tutuyorsa atla).
-- 📋 **Paket envanteri** — pip/npm/winget içinde *nelerin kurulu olduğunu* yakala (dosyaları değil, listeyi) ve yeniden kur.
+- 📋 Daha fazla paket yöneticisini kapsayan **paket envanteri** — *nelerin kurulu olduğunu* yakala (dosyaları değil, listeyi) ve yeniden kur.
 - 📥 **Import / "recovery profile"** — taşınabilir seçim profili + eksik uygulamaların isteğe bağlı otomatik kurulumu.
 - 🎮 **İsteğe bağlı oyun dosyası yedeği** (Steam/Epic), platform sınırlarını dürüstçe belirterek (Xbox/Game Pass = yalnızca yeniden kurulum).
 
-Tam tasarım kararları için `docs/` klasörüne bakın.
+Mühendislik ve güvenlik kuralları için [`CONTRIBUTING.md`](CONTRIBUTING.md) ve [`SECURITY.md`](SECURITY.md) dosyalarına bakın.
 
 ---
 

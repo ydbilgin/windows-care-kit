@@ -67,6 +67,27 @@ public sealed record InstalledAppx
     public bool IsFrameworkOrSystem { get; init; }
 }
 
+/// <summary>Whether the current-user AppX inventory was complete, partial, or unavailable.</summary>
+public enum AppxReadStatus
+{
+    Complete,
+    Partial,
+    Unavailable,
+}
+
+/// <summary>
+/// Typed AppX inventory outcome. An unavailable packaging API or a failed enumeration is never represented as
+/// a legitimate empty package list; callers can surface the degraded result honestly.
+/// </summary>
+public sealed record AppxReadResult(
+    IReadOnlyList<InstalledAppx> Packages,
+    AppxReadStatus Status,
+    int FailedPackageCount = 0)
+{
+    public static AppxReadResult Complete(IReadOnlyList<InstalledAppx> packages)
+        => new(packages, AppxReadStatus.Complete);
+}
+
 /// <summary>
 /// Lists per-user AppX packages. v1 is per-user only — provisioned / all-users / framework removal is
 /// out of scope (spec §1.1). This is read-only.
@@ -74,4 +95,8 @@ public sealed record InstalledAppx
 public interface IAppxReader
 {
     IReadOnlyList<InstalledAppx> ReadCurrentUserPackages();
+
+    /// <summary>Inventory plus source-read health. Simple fakes remain complete by default.</summary>
+    AppxReadResult ReadCurrentUserPackagesWithStatus()
+        => AppxReadResult.Complete(ReadCurrentUserPackages());
 }

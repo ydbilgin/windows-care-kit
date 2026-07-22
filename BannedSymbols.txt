@@ -36,3 +36,5 @@ M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(System.String,Microsoft.Vis
 M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(System.String,Microsoft.VisualBasic.FileIO.DeleteDirectoryOption);Use GatedExecutor sanctioned sink
 M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(System.String,Microsoft.VisualBasic.FileIO.UIOption,Microsoft.VisualBasic.FileIO.RecycleOption);Use GatedExecutor sanctioned sink
 M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(System.String,Microsoft.VisualBasic.FileIO.UIOption,Microsoft.VisualBasic.FileIO.RecycleOption,Microsoft.VisualBasic.FileIO.UICancelOption);Use GatedExecutor sanctioned sink
+M:Windows.Management.Deployment.PackageManager.RemovePackageAsync(System.String,Windows.Management.Deployment.RemovalOptions);AppX removal must be a SafetyGate-approved AppxRemoveAction dispatched by the sanctioned Suite.Execution adapter.
+M:Windows.Management.Deployment.PackageManager.RemovePackageAsync(System.String);AppX removal must be a SafetyGate-approved AppxRemoveAction dispatched by the sanctioned Suite.Execution adapter.

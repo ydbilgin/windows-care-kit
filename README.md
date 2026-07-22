@@ -4,7 +4,7 @@
 
 **Carry your settings across a Windows reinstall — and get them back in the right place.**
 
-*Open-source, ad-free, radically honest: it tells you what can't transfer instead of faking success. Covers the full format lifecycle: Uninstall · Clean · Backup · Reinstall.*
+*Open-source, ad-free, radically honest: it tells you what can't transfer instead of faking success. Covers the full format lifecycle: Uninstall · Clean · Backup · Migrate · Reinstall · Restore.*
 
 [![CI](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ydbilgin/windows-care-kit/actions/workflows/ci.yml) ![status](https://img.shields.io/badge/status-beta-orange) [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6) ![dotnet](https://img.shields.io/badge/.NET-10-512BD4)
 
@@ -16,7 +16,7 @@
 
 ## ⚠️ Status — Beta, read this first
 
-All four modules are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the suite passes **1,140+ automated tests**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
+The core maintenance, backup, migration, reinstall, and restore workflows are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the suite passes **1,380+ automated tests**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
 
 > **🚧 Real-world destructive operations are still undergoing supervised testing.** Treat this as **beta**: always have a separate backup before letting it delete, restore, or migrate on a machine you care about. See [Roadmap](#-roadmap) for what's built vs. planned.
 
@@ -31,8 +31,9 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 | 🗑️ **Uninstall** | Remove classic + UWP apps, scan & clean leftovers, run the official uninstaller, per-user AppX removal |
 | 🧹 **Clean** | Junk/temp cleanup (to Recycle Bin), startup manager, browser-extension inventory, empty Recycle Bin |
 | 💾 **Backup** | Manifest-driven backup of the *few things you can't just re-download* before a format |
-| 📦 **Reinstall** | Reinstall apps via winget/npm after a format, restore settings with a safe timestamped `.bak` merge |
+| 📦 **Reinstall** | Reinstall apps via winget/npm after a format, with dependency ordering and checkpoint/resume |
 | 💼 **Migration** | Detect portable app settings and choose what to carry to the new PC — honest about what can't transfer |
+| ♻️ **Restore** | Load a migration package, preview and approve the exact plan, then restore eligible settings with timestamped `.bak` protection and undo |
 
 **Who it's for:** gamers, AI/developer power-users, and everyday people who are about to reinstall Windows and don't want to lose what matters.
 
@@ -44,12 +45,13 @@ Windows Care Kit is **one native Windows app** that covers the whole **format / 
 flowchart LR
   U[Uninstall - remove unwanted apps] --> C[Clean - clear junk]
   C --> B[Backup - package settings and data, credential files filtered]
-  B --> F[FORMAT - fresh Windows]
+  B --> M[Migration - detect and capture portable settings]
+  M --> F[FORMAT - fresh Windows]
   F --> R[Reinstall - reinstall your apps]
-  R --> M[Migration - carry portable settings and report limits]
+  R --> S[Restore - preview and restore eligible settings]
 ```
 
-Maintenance starts before you decide to format, Backup captures what is portable, and Migration stays honest about what cannot move.
+Maintenance starts before you decide to format, Backup and Migration capture what is portable, and Restore stays honest about what cannot move.
 
 ---
 
@@ -116,9 +118,10 @@ work.
 
 **Available today:** recipe-based detection, selection, and **live capture** in the WPF Migration
 screen — pick a backup folder, approve the dry-run plan, and the selected settings are copied there
-through the same safety-gated backup engine (machine-locked items are surfaced honestly, never
-faked). **The new-machine restore flow (writing settings back into place on a fresh install) is the
-next slice and is not in this build yet.**
+through the same safety-gated backup engine. On the new machine, the Restore screen loads that
+package, rebuilds and displays the exact plan, requires explicit approval of its hash, writes
+eligible settings with timestamped `.bak` protection, and offers an approved undo flow.
+Machine-locked and manual items remain honest skips; they are never reported as restored.
 
 ---
 
@@ -137,9 +140,9 @@ This is the part most "cleaner" tools get wrong. Here it is the core design:
 
 ## ⬇️ Download & run
 
-1. Download the latest **self-contained, single-file, portable ZIP** from [Releases](https://github.com/ydbilgin/windows-care-kit/releases).
-2. **Verify the SHA256** of the ZIP against the value on the release page.
-3. Unzip and run — **no installer**, nothing written to system folders.
+1. Download the latest **component installer** (recommended) or the self-contained **portable ZIP** from [Releases](https://github.com/ydbilgin/windows-care-kit/releases).
+2. **Verify the SHA256** of the asset against the value on the release page.
+3. Run Setup and choose the modules you want, or extract the **entire** portable ZIP and run `WindowsCareKit.exe`.
 
 > **Note:** the build is **unsigned** (this is a free, no-revenue project, so there's no code-signing certificate). Windows **SmartScreen** may warn on first run — this is expected for unsigned apps; the SHA256 check is your integrity guarantee. There is **no auto-updater** — check the Releases page.
 
@@ -153,10 +156,10 @@ Requires the **.NET 10 SDK**.
 git clone https://github.com/ydbilgin/windows-care-kit.git
 cd windows-care-kit
 dotnet build WindowsCareKit.slnx -c Release
-dotnet test  WindowsCareKit.slnx
+dotnet test  WindowsCareKit.slnx -c Release --filter "Category!=Destructive"
 ```
 
-Project layout: `src/` (modules + safety core + execution layer), `tests/` (automated tests), `docs/` (architecture & security notes).
+Project layout: `src/` (modules + safety core + execution layer), `tests/` (automated tests), `sandbox/` (disposable destructive-proof harnesses), `docs/` (tracked design assets and screenshots).
 
 ---
 
@@ -164,7 +167,7 @@ Project layout: `src/` (modules + safety core + execution layer), `tests/` (auto
 
 Windows Care Kit is developed and maintained with **OpenAI Codex** as the primary coding agent.
 Each change starts from a written spec; **Codex writes the implementation and the automated tests**
-(the suite is **1,140+ tests**, host-safe by default), and every change goes through an independent,
+(the suite is **1,380+ tests**, host-safe with the explicit non-destructive filter), and every change goes through an independent,
 multi-pass review before the maintainer merges it. Codex also handles the routine maintainer chores:
 build/test verification, changelog and doc updates, and recipe-catalog hygiene.
 
@@ -177,17 +180,16 @@ scoping, final review, and every merge.
 
 ## 🗺️ Roadmap
 
-**Built today (beta):** the four modules above, the safety gate + gated executor, a localizable UI with a language selector (English/Turkish), automated test suite.
+**Built today (beta):** the six workflows above, a 40-application settings recipe catalog, machine-aware capture/restore, the safety gate + gated executor, a localizable English/Turkish UI, and the automated test suite.
 
-**Designed & planned (not in this build yet):** a richer Backup/Restore engine —
-- 🔎 **Auto-discovery catalog** of local app settings & developer CLI configs (Codex/Discord/VS Code…), with a checkbox selection screen + manual-path add.
-- 🖥️ **Machine-aware restore** — abstracts the source/target machine (user profile, drive letters, known-folders) so a backup actually works on a *different* PC.
+**Next candidates:**
+- 🔎 Broader curated settings-recipe coverage and a manual-path addition flow.
 - 💽 **Multi-drive scan** (not just C:), with cloud-redundancy detection (skip what Steam Cloud / OneDrive already holds).
-- 📋 **Package inventory** — capture *what's installed* in pip/npm/winget (the list, not the files) and reinstall it.
+- 📋 Broader **package inventory** coverage — capture *what's installed* across more package managers (the list, not the files) and reinstall it.
 - 📥 **Import / "recovery profile"** — portable selection profile + optional auto-install of missing apps.
 - 🎮 **Optional game-file backup** (Steam/Epic), with honest platform limits (Xbox/Game Pass = reinstall-only).
 
-See `docs/` for the full design decisions.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md) for the engineering and safety rules.
 
 ---
 

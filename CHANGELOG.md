@@ -5,9 +5,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **BETA NOTICE:** Real-world destructive operations (uninstall, disk clean,
-> backup, install) are under supervised testing on dedicated disposable machines.
+> backup, migration/restore, install) are under supervised testing on dedicated disposable machines.
 > Do not run destructive actions on a production system without reviewing the
 > safety model first.
+
+---
+
+## [Unreleased]
+
+### Security
+
+- Moved the real AppX `RemovePackageAsync` sink from `Suite.Win32` into the
+  sanctioned `Suite.Execution` adapter layer and added it to the banned-API
+  analyzer list, while preserving plan-hash, SafetyGate, and execution-time OS
+  flag revalidation.
+- Public host-test commands now explicitly exclude `Category=Destructive`;
+  regression coverage prevents README and contributor instructions from
+  accidentally publishing an unfiltered command again.
+
+### Fixed
+
+- Replaced async lambdas wrapped in synchronous `RelayCommand` instances with
+  the fault-observing, non-reentrant `AsyncRelayCommand`; confirmation and shell
+  startup async faults are now observed instead of escaping or disappearing.
+- Changing the Install checkpoint directory now invalidates its preview and
+  approval, preventing a plan built from one checkpoint from running or being
+  exported against another.
+- Restore package/state paths are immutable while preview, restore, or undo work
+  is in flight, closing a stale-path/approved-plan race in the WPF screen.
+- AppX inventory has typed complete/partial/unavailable health. Packaging API or
+  per-package read failures now produce an honest partial/unavailable notice
+  instead of masquerading as a successful empty Store-app scan.
+- Release tags are validated once and the same version is applied to .NET
+  binaries, ZIP naming, and installer metadata.
+
+### Changed
+
+- Updated English and Turkish public documentation to reflect the implemented
+  six workflows, new-machine restore, component installer, current test-suite
+  scale, and the actual roadmap.
 
 ---
 

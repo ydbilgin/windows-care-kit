@@ -131,6 +131,32 @@ public sealed class InstallViewModelTests
         Assert.False(vm.ApproveCommand.CanExecute(null)); // already approved → approve disabled
     }
 
+    [Fact]
+    public void Changing_state_directory_invalidates_the_preview_and_its_approval()
+    {
+        using var fx = new ExecutorFixture();
+        var store = new RecordingStateStore();
+        var vm = BuildVm(fx, store, NoopRunner(), Winget("git", "Git.Git"));
+        vm.StateDirectory = @"X:\synthetic-state-a";
+        vm.LoadManifest();
+        vm.BuildPlan();
+        vm.ApproveCommand.Execute(null);
+        Assert.True(vm.RunCommand.CanExecute(null));
+
+        // The checkpoint participates in planning (already-done entries are skipped). Redirecting it after
+        // approval must discard the old plan rather than run/export a plan derived from another checkpoint.
+        vm.StateDirectory = @"X:\synthetic-state-b";
+
+        Assert.False(vm.HasPlan);
+        Assert.False(vm.IsPreviewApproved);
+        Assert.False(vm.RunCommand.CanExecute(null));
+        Assert.False(vm.ExportPlanCommand.CanExecute(null));
+
+        vm.Run();
+        Assert.Empty(fx.Adapters.Calls);
+        Assert.Equal(0, store.SaveCount);
+    }
+
     // ---- no-run-without-approval (the load-bearing non-vacuous proof) ----
 
     [Fact]

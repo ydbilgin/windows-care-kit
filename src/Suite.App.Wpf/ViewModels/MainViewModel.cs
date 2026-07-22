@@ -92,12 +92,18 @@ public sealed class MainViewModel : ObservableObject
         return false;
     }
 
-    /// <summary>Fire-and-forget startup loads for any nav content that opts in (IWckStartupAware).</summary>
-    public void OnShellStartup()
+    /// <summary>
+    /// Starts every opted-in module load and returns one observable task. The WPF startup boundary awaits this
+    /// task so post-await module faults are logged instead of becoming unobserved fire-and-forget failures.
+    /// </summary>
+    public async Task OnShellStartupAsync()
     {
+        var loads = new List<Task>();
         foreach (NavItem item in Nav)
             if (item.Content is IWckStartupAware aware)
-                _ = aware.OnShellStartupAsync();
+                loads.Add(aware.OnShellStartupAsync());
+
+        await Task.WhenAll(loads);
     }
 
     private object HostContent(NavItem item)

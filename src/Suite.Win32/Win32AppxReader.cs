@@ -12,6 +12,9 @@ namespace WindowsCareKit.Win32;
 public sealed class Win32AppxReader : IAppxReader
 {
     public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages()
+        => ReadCurrentUserPackagesWithStatus().Packages;
+
+    public AppxReadResult ReadCurrentUserPackagesWithStatus()
     {
         var result = new List<InstalledAppx>();
 
@@ -22,7 +25,7 @@ public sealed class Win32AppxReader : IAppxReader
         }
         catch (Exception)
         {
-            return result; // packaging APIs unavailable on this SKU
+            return new AppxReadResult(result, AppxReadStatus.Unavailable); // packaging APIs unavailable on this SKU
         }
 
         IEnumerable<Package> packages;
@@ -33,17 +36,33 @@ public sealed class Win32AppxReader : IAppxReader
         }
         catch (Exception)
         {
-            return result;
+            return new AppxReadResult(result, AppxReadStatus.Unavailable);
         }
 
-        foreach (Package package in packages)
+        int failedPackages = 0;
+        try
         {
-            InstalledAppx? entry = TryMap(package);
-            if (entry is not null)
-                result.Add(entry);
+            foreach (Package package in packages)
+            {
+                InstalledAppx? entry = TryMap(package);
+                if (entry is not null)
+                    result.Add(entry);
+                else
+                    failedPackages++;
+            }
+        }
+        catch (Exception)
+        {
+            return new AppxReadResult(
+                result,
+                result.Count > 0 ? AppxReadStatus.Partial : AppxReadStatus.Unavailable,
+                failedPackages + 1);
         }
 
-        return result;
+        return new AppxReadResult(
+            result,
+            failedPackages == 0 ? AppxReadStatus.Complete : AppxReadStatus.Partial,
+            failedPackages);
     }
 
     private static InstalledAppx? TryMap(Package package)
@@ -75,7 +94,9 @@ public sealed class Win32AppxReader : IAppxReader
             }
             catch (Exception)
             {
-                // leave as false
+                // These flags decide whether removal may be offered. Unknown must fail closed: omit the package
+                // and mark the inventory partial rather than treating it as an ordinary removable app.
+                return null;
             }
 
             return new InstalledAppx

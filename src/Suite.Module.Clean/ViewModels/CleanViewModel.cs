@@ -58,16 +58,16 @@ public sealed class CleanViewModel : ObservableObject
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
 
-        ScanJunkCommand = new RelayCommand(async () => await ScanJunkAsync(), () => !IsBusy);
-        RunJunkCommand = new RelayCommand(async () => await RunJunkAsync(), () => !IsBusy && _pendingJunkPlan is { IsEmpty: false });
-        LoadStartupCommand = new RelayCommand(async () => await LoadStartupAsync(), () => !IsBusy);
-        DisableStartupCommand = new RelayCommand(async () => await DisableStartupAsync(), () => !IsBusy && _selectedStartup is not null);
-        RefreshRecycleCommand = new RelayCommand(async () => await RefreshRecycleAsync(), () => !IsBusy);
+        ScanJunkCommand = new AsyncRelayCommand(ScanJunkAsync, () => !IsBusy);
+        RunJunkCommand = new AsyncRelayCommand(RunJunkAsync, () => !IsBusy && _pendingJunkPlan is { IsEmpty: false });
+        LoadStartupCommand = new AsyncRelayCommand(LoadStartupAsync, () => !IsBusy);
+        DisableStartupCommand = new AsyncRelayCommand(DisableStartupAsync, () => !IsBusy && _selectedStartup is not null);
+        RefreshRecycleCommand = new AsyncRelayCommand(RefreshRecycleAsync, () => !IsBusy);
         // Emptying the bin is irreversible → stage a confirm first; the actual empty needs explicit approval.
         EmptyRecycleCommand = new RelayCommand(StageEmptyRecycle, () => !IsBusy && !RecycleConfirmPending);
-        ConfirmEmptyRecycleCommand = new RelayCommand(async () => await ConfirmEmptyRecycleAsync(), () => RecycleConfirmPending && !IsBusy);
+        ConfirmEmptyRecycleCommand = new AsyncRelayCommand(ConfirmEmptyRecycleAsync, () => RecycleConfirmPending && !IsBusy);
         CancelEmptyRecycleCommand = new RelayCommand(() => RecycleConfirmPending = false, () => RecycleConfirmPending);
-        LoadExtensionsCommand = new RelayCommand(async () => await LoadExtensionsAsync(), () => !IsBusy);
+        LoadExtensionsCommand = new AsyncRelayCommand(LoadExtensionsAsync, () => !IsBusy);
         OpenExtensionFolderCommand = new RelayCommand(p => OpenExtensionFolder(p as BrowserExtension), _ => !IsBusy);
     }
 

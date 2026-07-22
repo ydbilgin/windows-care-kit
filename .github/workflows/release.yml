@@ -52,11 +52,39 @@ jobs:
           dotnet-version: 10.0.301
           global-json-file: global.json
 
+      - name: Resolve build version
+        shell: pwsh
+        env:
+          # Passed as data (env var), never spliced into the script text, so a
+          # crafted ref name cannot execute before the regex check below runs.
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $refType = $env:REF_TYPE
+
+          if ($refType -eq 'tag') {
+            $artifactVersion = $env:REF_NAME
+            if ($artifactVersion -notmatch '^v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?)$') {
+              throw "Release tag '$artifactVersion' must be a version such as v0.2.0 or v0.2.0-beta.1."
+            }
+            $buildVersion = $Matches.version
+          } else {
+            $artifactVersion = 'v0.0.0-dev'
+            $buildVersion = '0.0.0-dev'
+          }
+
+          $numericVersion = ($buildVersion -split '-', 2)[0]
+          Write-Host "BuildVersion=$buildVersion NumericVersion=$numericVersion ArtifactVersion=$artifactVersion"
+          "BUILD_VERSION=$buildVersion"       >> $env:GITHUB_ENV
+          "BUILD_VERSION_NUM=$numericVersion" >> $env:GITHUB_ENV
+          "ARTIFACT_VERSION=$artifactVersion" >> $env:GITHUB_ENV
+
       - name: Restore
         run: dotnet restore WindowsCareKit.slnx
 
       - name: Build
-        run: dotnet build WindowsCareKit.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
+        run: dotnet build WindowsCareKit.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Version=${{ env.BUILD_VERSION }}
 
       - name: Test
         # Destructive tests (Category=Destructive) are EXCLUDED: they touch real
@@ -74,13 +102,14 @@ jobs:
           --runtime win-x64
           --self-contained true
           -p:ContinuousIntegrationBuild=true
+          -p:Version=${{ env.BUILD_VERSION }}
           --output publish/win-x64
 
       - name: Package ZIP and compute SHA256
         shell: pwsh
         run: |
-          # Derive the tag name (e.g. "v0.1.0") from the git ref.
-          $tag = "${{ github.ref_name }}"
+          # Use the validated release tag, or the unmistakable dispatch placeholder.
+          $tag = "${{ env.ARTIFACT_VERSION }}"
           $zipName = "WindowsCareKit-$tag-win-x64.zip"
 
           # Debug symbols are not shipped to end users — drop them before packaging.
@@ -166,21 +195,15 @@ jobs:
 
       - name: Build installer (Inno Setup component installer, M5)
         # Base (mandatory) + one optional component per Modules\<id>\ folder. AppVer/
-        # AppVerNum/OutputName derive from the tag on a tag run; a workflow_dispatch
-        # (gate) run uses the fixed dev placeholder "v0.0.0-dev" so the artifact name
-        # is stable and unmistakably non-released.
+        # AppVer/AppVerNum/OutputName use the same value already applied to the .NET
+        # binaries; a workflow_dispatch gate run receives the fixed dev placeholder.
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $refType = "${{ github.ref_type }}"
-          if ($refType -eq 'tag') {
-            $refName = "${{ github.ref_name }}"
-          } else {
-            $refName = 'v0.0.0-dev'
-          }
-          $appVer = $refName.TrimStart('v')
-          if ($appVer -match '^(\d+\.\d+\.\d+)') { $appVerNum = $Matches[1] } else { $appVerNum = '0.0.0' }
-          $outputName = "WindowsCareKit-Setup-$refName-win-x64"
+          $appVer = "${{ env.BUILD_VERSION }}"
+          $appVerNum = "${{ env.BUILD_VERSION_NUM }}"
+          $artifactVersion = "${{ env.ARTIFACT_VERSION }}"
+          $outputName = "WindowsCareKit-Setup-$artifactVersion-win-x64"
 
           Write-Host "AppVer=$appVer AppVerNum=$appVerNum OutputName=$outputName"
 

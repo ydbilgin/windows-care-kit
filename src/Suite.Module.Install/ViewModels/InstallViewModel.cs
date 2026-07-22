@@ -135,8 +135,14 @@ public sealed class InstallViewModel : ObservableObject
         get => _stateDirectory;
         set
         {
+            if (IsBusy)
+                return;
+
             if (SetField(ref _stateDirectory, value ?? string.Empty))
+            {
+                ResetPlanState();
                 RefreshResumeAvailability();
+            }
         }
     }
 

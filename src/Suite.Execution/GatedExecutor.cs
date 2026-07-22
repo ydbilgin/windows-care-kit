@@ -290,8 +290,8 @@ public sealed class GatedExecutor : IExecutor
             DisplayName = appx.PackageDisplayName,
             IsFrameworkOrSystem = appx.IsFrameworkOrSystem,
         };
-        // The Win32 adapter re-enumerates the current user's packages and re-checks framework/system flags
-        // before removing (execution-time identity re-resolution). Sync-wait: this runs on a background thread.
+        // The sanctioned AppX adapter re-enumerates the current user's packages and re-checks framework/system
+        // flags before removing (execution-time identity re-resolution). Sync-wait: this runs on a background thread.
         return _appxRemover.RemoveCurrentUserAsync(package).GetAwaiter().GetResult();
     }
 

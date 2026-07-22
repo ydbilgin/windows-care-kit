@@ -3,29 +3,19 @@ using Windows.Management.Deployment;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Uninstall;
 
-namespace WindowsCareKit.Win32;
+namespace WindowsCareKit.Execution.Adapters;
 
 /// <summary>
-/// Removes a per-user AppX/UWP package via <see cref="PackageManager.RemovePackageAsync(string, RemovalOptions)"/>
-/// (per-user, <see cref="RemovalOptions.None"/> — spec §1.1, §4). This is the ONLY sanctioned destructive Win32
-/// call that is not behind <c>Suite.Execution</c>: it is async COM, not a typed <c>PlannedAction</c>, so it lives
-/// here as a tiny, auditable class that performs its OWN per-user / framework guard before calling Remove.
-///
-/// <para>Guards (fail closed): it refuses framework/system/resource packages
-/// (<see cref="InstalledAppx.IsFrameworkOrSystem"/>) and refuses any package whose
-/// <see cref="InstalledAppx.PackageFullName"/> is not in the CURRENT user's package list. Removal is
-/// irreversible (<c>UndoCapability.None</c> conceptually); the caller must have confirmed first.</para>
-///
-/// <para>The banned-API analyzer bans <c>System.IO</c>/registry/<c>Process</c>, NOT <c>PackageManager</c>, so
-/// this stays analyzer-clean inside <c>Suite.Win32</c>.</para>
+/// The sanctioned per-user AppX removal sink. <see cref="GatedExecutor"/> invokes this adapter only after an
+/// <c>AppxRemoveAction</c> has passed the shared safety gate and its approved plan hash has been revalidated.
+/// The adapter then re-resolves the package for the current user and rechecks the OS protection flags at the
+/// final destructive boundary. Provisioned/all-user removal remains out of scope.
 /// </summary>
-public sealed class Win32AppxRemover : IAppxRemover
+public sealed class AppxRemoveAdapter : IAppxRemover
 {
     private readonly ExecutionLog? _log;
 
-    /// <param name="log">Optional audit log. Kept optional (default null) so existing
-    /// <c>new Win32AppxRemover()</c> callers/tests still compile and logging stays best-effort.</param>
-    public Win32AppxRemover(ExecutionLog? log = null) => _log = log;
+    public AppxRemoveAdapter(ExecutionLog? log = null) => _log = log;
 
     /// <inheritdoc />
     public async Task<AppxRemovalResult> RemoveCurrentUserAsync(InstalledAppx package, CancellationToken ct = default)
@@ -38,7 +28,6 @@ public sealed class Win32AppxRemover : IAppxRemover
         if (string.IsNullOrWhiteSpace(package.PackageFullName))
             return Refused(fullName, "missing package full name");
 
-        // Guard 1: never touch framework / system / resource packages.
         if (package.IsFrameworkOrSystem)
             return Refused(fullName, "framework/system packages are out of scope (per-user only)");
 
@@ -52,8 +41,6 @@ public sealed class Win32AppxRemover : IAppxRemover
             return Failed(fullName, $"packaging API unavailable: {ex.GetType().Name}");
         }
 
-        // Guard 2: the package MUST be in the current user's package list. This also re-confirms it is per-user
-        // (an empty user SID resolves to the current user) and that it is not framework/system at the OS level.
         Package? resolved;
         try
         {
@@ -69,7 +56,6 @@ public sealed class Win32AppxRemover : IAppxRemover
         if (resolved is null)
             return Refused(fullName, "package is not installed for the current user");
 
-        // Defense in depth: re-check the OS flags on the resolved package (the inventory could be stale).
         try
         {
             if (resolved.IsFramework || resolved.IsResourcePackage
@@ -80,17 +66,17 @@ public sealed class Win32AppxRemover : IAppxRemover
         }
         catch (Exception)
         {
-            // If the flags cannot be read, fail closed.
             return Refused(fullName, "could not verify package is per-user (refused)");
         }
 
-        // Remove — per-user, no options. RemovalOptions.None keeps it to the current user (no all-users/provisioned).
         try
         {
+#pragma warning disable RS0030 // Sanctioned sink: GatedExecutor is the only production caller.
             DeploymentResult result = await manager
                 .RemovePackageAsync(package.PackageFullName, RemovalOptions.None)
                 .AsTask(ct)
                 .ConfigureAwait(false);
+#pragma warning restore RS0030
 
             if (result.ExtendedErrorCode is not null)
                 return Failed(fullName, $"removal failed: {result.ErrorText}");

@@ -1,4 +1,5 @@
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.App.ViewModels;
 using Xunit;
 
@@ -37,6 +38,14 @@ public class ConfirmGateViewModelTests
         gate.TypedConfirm = gate.ConfirmWord;
         Assert.True(gate.TypedMatches);
         Assert.True(gate.CanApprove);
+    }
+
+    [Fact]
+    public void Approve_command_owns_the_fault_observing_async_boundary()
+    {
+        ConfirmGateViewModel gate = BuildGate();
+
+        Assert.IsType<AsyncRelayCommand>(gate.ApproveCommand);
     }
 
     [Fact]
