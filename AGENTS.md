@@ -50,6 +50,21 @@ A change that breaks any of these is rejected:
    credentials, or real machine state. A test that "passes" only because the thing under test was
    skipped is treated as a failure.
 
+## Architecture and design principles
+
+Beyond the non-negotiable rules above, this project follows the owner's global engineering
+standard in full: `~/.claude/CLEAN_ARCHITECTURE_REFERENCE.md` (SOLID + DRY/KISS/YAGNI/Law of
+Demeter + 21 architectural patterns + a C1-C12 always-run checklist + 108 red-flag items). Read at
+least the Core Checklist (its §2) before any implementation task, and the relevant
+principle/pattern sections before an architecture-sensitive change or review. That file is
+binding and refines — never weakens — the rules in this one.
+
+A same-day audit against this standard found real, tracked gaps: three forbidden project-reference
+edges (`Suite.Module.Restore` -> `Suite.Execution`, `Suite.Module.Uninstall` -> `Suite.Execution`,
+`Suite.Execution` -> `Suite.Win32`), several multi-responsibility ViewModels, and a few dead/unwired
+abstractions — see `.planning/STAGING/SOLID-MODULAR-AUDIT_2026-07-22.md`. Treat these as known debt
+to eventually close, not a pattern to copy in new code.
+
 ## Commit conventions
 
 - Commits are authored by the maintainer (**Yasin Derya Bilgin**); do **not** add AI co-author
