@@ -71,6 +71,17 @@ public class ArchitectureTests
         Assert.DoesNotContain("Suite.Win32", csproj, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Migration_composition_constructs_no_shadow_concretes_for_registered_ports()
+    {
+        string module = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Suite.Module.Migration", "MigrationModule.cs"));
+        // DIP-01: the module must resolve IMsiCatalog / IPathCanonicalizer, never `new` a shadow
+        // concrete that bypasses its own (Win32MsiCatalog) / the shell's (Win32PathCanonicalizer) registration.
+        Assert.DoesNotContain("new Win32PathCanonicalizer(", module, StringComparison.Ordinal);
+        Assert.DoesNotContain("new Win32MsiCatalog(", module, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> CoreSourceFiles()
         => Directory.EnumerateFiles(
             Path.Combine(FindRepositoryRoot(), "src", "Suite.Core"), "*.cs", SearchOption.AllDirectories);

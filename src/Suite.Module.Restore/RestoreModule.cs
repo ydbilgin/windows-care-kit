@@ -11,7 +11,7 @@ public sealed class RestoreModule : IWckModule
     public string TitleKey => "nav.restore";
     public string DescKey => "nav.restore.desc";
     public string IconKey => "\uE81C";
-    public int Order => 50;
+    public int Order => ModuleOrder.Restore;
     public bool IsSettings => false;
 
     public void RegisterServices(IServiceCollection services)

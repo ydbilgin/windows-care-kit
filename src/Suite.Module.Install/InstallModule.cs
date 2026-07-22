@@ -14,7 +14,7 @@ public sealed class InstallModule : IWckModule
     public string TitleKey => "nav.install";
     public string DescKey => "nav.install.desc";
     public string IconKey => "\uE896";
-    public int Order => 60;
+    public int Order => ModuleOrder.Install;
     public bool IsSettings => false;
 
     public void RegisterServices(IServiceCollection services)

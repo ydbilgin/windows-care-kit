@@ -10,7 +10,7 @@ public sealed class SettingsModule : IWckModule
     public string TitleKey => "nav.settings";
     public string DescKey => "nav.settings.desc";
     public string IconKey => "\uE713";
-    public int Order => 900;
+    public int Order => ModuleOrder.Settings;
     public bool IsSettings => true;
 
     public void RegisterServices(IServiceCollection services)

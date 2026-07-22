@@ -122,7 +122,4 @@ public sealed class Win32InstalledAppReader : IInstalledAppReader
 
     private static string? NormalizeNullable(string? s)
         => string.IsNullOrWhiteSpace(s) ? null : s.Trim().TrimEnd('\\');
-
-    /// <summary>The Core <see cref="CoreView"/> equivalent of the given app, for callers that need it.</summary>
-    public static CoreView ViewOf(InstalledApp app) => app.View;
 }

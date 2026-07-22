@@ -12,9 +12,9 @@ public sealed record ExecutionOutcome(bool Ran, string Reason);
 /// authorized (gate-clean + matching approved hash). Implementations live in a sanctioned layer that
 /// is the single place allowed to touch destructive OS APIs.
 ///
-/// No implementation ships in PR1: this build is read-only (inventory + dry-run). The interface exists
-/// so the typed-action contract is expressed in code and so later PRs have one, testable entry point
-/// for execution rather than scattered destructive calls (spec §2, §8.5).
+/// The production implementation is <c>GatedExecutor</c> in the sanctioned Suite.Execution layer — the single
+/// place allowed to touch destructive OS APIs. Keeping the contract here lets Core policy express and test the
+/// typed-action execution seam without depending on that layer.
 /// </summary>
 public interface IExecutor
 {

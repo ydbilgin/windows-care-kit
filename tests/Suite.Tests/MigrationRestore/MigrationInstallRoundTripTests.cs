@@ -11,7 +11,7 @@ namespace WindowsCareKit.Tests.MigrationRestore;
 /// The INSTALL-phase enablement proof: a v2 recipe's install intent flows recipe → backup →
 /// <c>migration-install.json</c> → STRICT load → the EXISTING gated <see cref="InstallPlanner"/>, yielding either a
 /// gate-approved <see cref="CommandAction"/> or an honest manual-only step — with NO process ever executed (no
-/// <see cref="IInstallExecutor"/>, no auto-launch). Host-safe: every test inspects the plan, never runs it.
+/// execution seam, no auto-launch). Host-safe: every test inspects the plan, never runs it.
 /// </summary>
 public class MigrationInstallRoundTripTests
 {
@@ -94,7 +94,7 @@ public class MigrationInstallRoundTripTests
         Assert.Empty(result.Plan.Actions);                 // ZERO command actions
         Assert.Contains(result.Skipped, s => s.Reason == InstallSkipReason.GateBlocked);
 
-        // This slice is EXPORT-ONLY: no IInstallExecutor is wired, so a fake process executor is never reached.
+        // This slice is EXPORT-ONLY: no execution seam is wired, so a fake process executor is never reached.
         // We prove it cannot run anything: there is no action to run, and the spy was never invoked.
         var spy = new SpyProcessExecutor();
         Assert.Empty(result.Plan.Actions);

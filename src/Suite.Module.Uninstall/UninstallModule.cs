@@ -13,7 +13,7 @@ public sealed class UninstallModule : IWckModule
     public string TitleKey => "nav.uninstall";
     public string DescKey => "nav.uninstall.desc";
     public string IconKey => "\uE74D";
-    public int Order => 10;
+    public int Order => ModuleOrder.Uninstall;
     public bool IsSettings => false;
 
     public void RegisterServices(IServiceCollection services)

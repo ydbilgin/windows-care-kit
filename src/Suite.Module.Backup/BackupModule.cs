@@ -13,7 +13,7 @@ public sealed class BackupModule : IWckModule
     public string TitleKey => "nav.backup";
     public string DescKey => "nav.backup.desc";
     public string IconKey => "\uE74E";
-    public int Order => 30;
+    public int Order => ModuleOrder.Backup;
     public bool IsSettings => false;
 
     public void RegisterServices(IServiceCollection services)

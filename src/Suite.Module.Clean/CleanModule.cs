@@ -13,7 +13,7 @@ public sealed class CleanModule : IWckModule
     public string TitleKey => "nav.clean";
     public string DescKey => "nav.clean.desc";
     public string IconKey => "\uE75C";
-    public int Order => 20;
+    public int Order => ModuleOrder.Clean;
     public bool IsSettings => false;
 
     public void RegisterServices(IServiceCollection services)

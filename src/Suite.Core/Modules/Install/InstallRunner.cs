@@ -17,33 +17,25 @@ public sealed record InstallRunResult(bool Authorized, InstallPlanExportDoc Expo
 /// <c>BackupRunner</c> as a thin orchestrator. <see cref="ExportPlan"/> projects an already-built
 /// <see cref="InstallPlanResult"/> into an <see cref="InstallPlanExportDoc"/> (<see cref="InstallPlanExport.Build"/>)
 /// and writes <c>install_plan.json</c> via the <see cref="IInstallPlanWriter"/> (which re-gates the payload root).
-/// It is a DRY-RUN: it reads the plan and writes JSON only. It NEVER calls the <see cref="IInstallExecutor"/>
-/// seam (that is Step 4's execute mode) and produces no new gated action (the writer's single write-target probe
-/// is the only gate evaluation — invariant, locked decision #6). A refusal writes nothing.
-///
-/// <para>The <see cref="IInstallExecutor"/> is an OPTIONAL/nullable dependency, kept here only so Step 4 can add
-/// the execute path without re-shaping the runner; this slice does not reference it (no dormant dead-code path
-/// that runs).</para>
+/// It is a DRY-RUN: it reads the plan and writes JSON only, and produces no new gated action (the writer's single
+/// write-target probe is the only gate evaluation — invariant, locked decision #6). A refusal writes nothing.
 /// </summary>
 public sealed class InstallRunner
 {
     private readonly IInstallPlanWriter _writer;
     private readonly IClock _clock;
-    private readonly IInstallExecutor? _executor;
 
-    public InstallRunner(IInstallPlanWriter writer, IClock clock, IInstallExecutor? executor = null)
+    public InstallRunner(IInstallPlanWriter writer, IClock clock)
     {
         _writer = writer ?? throw new ArgumentNullException(nameof(writer));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        // Optional: only Step 4's execute mode uses it. The export slice never touches it.
-        _executor = executor;
     }
 
     /// <summary>
     /// Build the export document from <paramref name="result"/> and write <c>install_plan.json</c> into
     /// <paramref name="payloadRoot"/>. The writer re-gates the payload root first; when the gate refuses it the
     /// writer throws and this method surfaces an unauthorized result WITHOUT writing anything. This is a dry-run:
-    /// the <see cref="IInstallExecutor"/> seam is never invoked.
+    /// no execution seam is invoked (the runner reads the plan and writes JSON).
     /// </summary>
     public InstallRunResult ExportPlan(
         InstallPlanResult result, string payloadRoot, ISafetyGate gate)

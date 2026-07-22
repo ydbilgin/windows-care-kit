@@ -37,9 +37,10 @@ internal static class ModuleAssemblyResolver
     private static bool _hooked;
 
     /// <summary>
-    /// Registers <paramref name="moduleDir"/> as a private-dependency probe path and hooks the resolver
-    /// onto the default context exactly once. Called by the catalog BEFORE it loads a module so the
-    /// module's private deps resolve during type-scan.
+    /// Registers <paramref name="moduleDir"/> as a private-dependency probe path and hooks the resolver onto the
+    /// default context exactly once. Called by the catalog AFTER a module's assembly is loaded, type-scanned,
+    /// constructed, and identity-validated; the folder stays registered so the module's private dependencies resolve
+    /// later during lazy WPF BAML / pack-URI binds (which happen long after first load).
     /// </summary>
     internal static void Register(string moduleDir)
     {
