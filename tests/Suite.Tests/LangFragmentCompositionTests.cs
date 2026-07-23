@@ -20,7 +20,8 @@ public sealed class LangFragmentCompositionTests
     // G6 (2026-07-11, committed) adds 21 live-localized plan.* keys (verb/risk/undo/blocked/whole-tree);
     // G-m3 (2026-07-11) adds 2 uninstall.inventory.* degraded-notice keys;
     // G-m2 adds one net preview/result split key to Backup and one preview key to Migration.
-    private const int ExpectedMergedKeyCount = 400;
+    // NEW-07 (Round 3B2, 2026-07-23) adds 3 Clean source-health-note keys (recycle/startup/extensions).
+    private const int ExpectedMergedKeyCount = 403;
 
     private static readonly Regex XamlKeyRegex = new(@"I18n\[([a-z][A-Za-z0-9_.]+)\]", RegexOptions.Compiled);
     private static readonly Regex CsKeyRegex =
@@ -37,7 +38,7 @@ public sealed class LangFragmentCompositionTests
     ];
 
     [Fact]
-    public void Merged_runtime_map_has_exactly_400_keys_no_meta_no_placeholder_and_en_tr_parity()
+    public void Merged_runtime_map_has_expected_key_count_no_meta_no_placeholder_and_en_tr_parity()
     {
         I18n en = TestI18n.Full("en");
         I18n tr = TestI18n.Full("tr");

@@ -216,6 +216,9 @@
                         <TextBlock Text="{Binding I18n[clean.recycle.title]}" Style="{StaticResource CleanSectionTitle}" />
                         <TextBlock Text="{Binding RecycleStats}" Foreground="{DynamicResource Backup.Muted}" FontSize="13"
                                    TextWrapping="Wrap" Margin="0,10,0,0" />
+                        <TextBlock x:Name="RecycleHealthNoteText" Text="{Binding RecycleHealthNote}" Foreground="{DynamicResource Backup.DangerStrong}"
+                                   FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding RecycleHealthNote, Converter={StaticResource NonEmptyToVis}}" />
                         <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                             <Button Style="{StaticResource CleanSecondaryButton}" Content="{Binding I18n[common.refresh]}"
                                     Command="{Binding RefreshRecycleCommand}" />
@@ -269,6 +272,9 @@
                             <Button Grid.Column="1" Style="{StaticResource CleanSecondaryButton}"
                                     Content="{Binding I18n[common.refresh]}" Command="{Binding LoadStartupCommand}" />
                         </Grid>
+                        <TextBlock x:Name="StartupHealthNoteText" Text="{Binding StartupHealthNote}" Foreground="{DynamicResource Backup.DangerStrong}"
+                                   FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding StartupHealthNote, Converter={StaticResource NonEmptyToVis}}" />
                         <ListBox Style="{DynamicResource AppList}" ItemContainerStyle="{DynamicResource AppItem}"
                                  Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.Line}"
                                  Margin="0,12,0,0" MaxHeight="220" BorderThickness="1"
@@ -314,6 +320,9 @@
                                     Content="{Binding I18n[common.refresh]}" Command="{Binding LoadExtensionsCommand}" />
                         </Grid>
                         <TextBlock Text="{Binding I18n[clean.ext.note]}" Style="{StaticResource CleanMeta}" Margin="0,10,0,0" />
+                        <TextBlock x:Name="ExtensionsHealthNoteText" Text="{Binding ExtensionsHealthNote}" Foreground="{DynamicResource Backup.DangerStrong}"
+                                   FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding ExtensionsHealthNote, Converter={StaticResource NonEmptyToVis}}" />
                         <ItemsControl ItemsSource="{Binding Extensions}" Margin="0,12,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>

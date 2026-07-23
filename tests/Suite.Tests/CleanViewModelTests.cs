@@ -36,19 +36,27 @@ public sealed class CleanViewModelTests
         public IReadOnlyList<JunkCandidate> FindJunk() => candidates;
     }
 
-    private sealed class FakeStartupProbe(params StartupEntry[] entries) : IStartupProbe
+    private sealed class FakeStartupProbe(StartupInventory inventory) : IStartupProbe
     {
-        public IReadOnlyList<StartupEntry> ReadAll() => entries;
+        public FakeStartupProbe(params StartupEntry[] entries)
+            : this(new StartupInventory(entries, SourceHealth.Complete, Array.Empty<InventorySourceFault>())) { }
+
+        public StartupInventory ReadAll() => inventory;
     }
 
-    private sealed class FakeBrowserExtensionInventory(params BrowserExtension[] exts) : IBrowserExtensionInventory
+    private sealed class FakeRecycleBinService(RecycleBinInventory inventory) : IRecycleBinService
     {
-        public IReadOnlyList<BrowserExtension> ReadAll() => exts;
+        public FakeRecycleBinService(RecycleBinStats stats) : this(RecycleBinInventory.Complete(stats)) { }
+
+        public RecycleBinInventory Query() => inventory;
     }
 
-    private sealed class FakeRecycleBinService(RecycleBinStats stats) : IRecycleBinService
+    private sealed class FakeBrowserExtensionInventory(BrowserExtensionListing listing) : IBrowserExtensionInventory
     {
-        public RecycleBinStats Query() => stats;
+        public FakeBrowserExtensionInventory(params BrowserExtension[] exts)
+            : this(new BrowserExtensionListing(exts, SourceHealth.Complete, Array.Empty<InventorySourceFault>())) { }
+
+        public BrowserExtensionListing ReadAll() => listing;
     }
 
     private sealed class RecordingFolderOpener : IFolderOpener
@@ -280,5 +288,71 @@ public sealed class CleanViewModelTests
         Assert.Equal(1, opener.CallCount);                              // routed through IFolderOpener
         Assert.Equal(ext.FolderPath, opener.LastPath);
         Assert.Empty(fx.Adapters.Calls);                               // never the destructive executor
+    }
+
+    // ---- NEW-07: read-adapter source health is surfaced honestly, never a fake empty ----
+
+    [Fact]
+    public async Task Recycle_query_failure_shows_a_health_note_and_no_fabricated_zero_totals()
+    {
+        using var fx = new ExecutorFixture();
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
+            recycle: new FakeRecycleBinService(RecycleBinInventory.Unavailable("HRESULT 0x80004005")));
+
+        vm.RefreshRecycleCommand.Execute(null);
+        await PumpAsync(() => !vm.IsBusy);
+
+        Assert.False(string.IsNullOrEmpty(vm.RecycleHealthNote)); // "could not inspect" is surfaced
+        Assert.Equal(string.Empty, vm.RecycleStats);              // NOT a fake "0 items · ~0 B"
+    }
+
+    [Fact]
+    public async Task Recycle_complete_query_shows_totals_and_no_health_note()
+    {
+        using var fx = new ExecutorFixture();
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
+            recycle: new FakeRecycleBinService(new RecycleBinStats(3, 2048)));
+
+        vm.RefreshRecycleCommand.Execute(null);
+        await PumpAsync(() => !vm.IsBusy);
+
+        Assert.Equal(string.Empty, vm.RecycleHealthNote);         // healthy → no caution
+        Assert.False(string.IsNullOrEmpty(vm.RecycleStats));      // totals shown
+    }
+
+    [Fact]
+    public async Task Startup_partial_read_keeps_the_entries_read_and_shows_an_incomplete_note()
+    {
+        using var fx = new ExecutorFixture();
+        var entry = new StartupEntry("Steam", @"C:\Steam\steam.exe", StartupSource.HkcuRun, FolderPath: null);
+        var partial = new StartupInventory(
+            new[] { entry },
+            SourceHealth.Partial,
+            new[] { new InventorySourceFault("HKLM Run", "SecurityException") });
+        var vm = BuildVm(fx, new RecordingFolderOpener(), startup: new FakeStartupProbe(partial));
+
+        vm.LoadStartupCommand.Execute(null);
+        await PumpAsync(() => !vm.IsBusy && vm.StartupEntries.Count == 1);
+
+        Assert.Single(vm.StartupEntries);                         // partial data preserved
+        Assert.False(string.IsNullOrEmpty(vm.StartupHealthNote)); // incompleteness surfaced
+    }
+
+    [Fact]
+    public async Task Extensions_partial_read_keeps_items_and_shows_an_incomplete_note()
+    {
+        using var fx = new ExecutorFixture();
+        var ext = new BrowserExtension("Chrome", "Default", "abcdef", "Some Ext", @"C:\U\abcdef");
+        var partial = new BrowserExtensionListing(
+            new[] { ext },
+            SourceHealth.Partial,
+            new[] { new InventorySourceFault("Edge/Default", "UnauthorizedAccessException") });
+        var vm = BuildVm(fx, new RecordingFolderOpener(), extensions: new FakeBrowserExtensionInventory(partial));
+
+        vm.LoadExtensionsCommand.Execute(null);
+        await PumpAsync(() => !vm.IsBusy && vm.Extensions.Count == 1);
+
+        Assert.Single(vm.Extensions);                                 // partial data preserved
+        Assert.False(string.IsNullOrEmpty(vm.ExtensionsHealthNote));  // incompleteness surfaced
     }
 }

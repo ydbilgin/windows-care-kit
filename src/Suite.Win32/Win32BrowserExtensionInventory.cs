@@ -12,29 +12,83 @@ namespace WindowsCareKit.Win32;
 /// </summary>
 public sealed class Win32BrowserExtensionInventory : IBrowserExtensionInventory
 {
-    public IReadOnlyList<BrowserExtension> ReadAll()
+    private readonly Func<string, string[]> _getDirectories;
+
+    public Win32BrowserExtensionInventory() : this(Directory.GetDirectories) { }
+
+    /// <summary>Test-only seam (NEW-07 MAJOR-01 fix): lets unit tests inject a synthetic
+    /// <see cref="DirectoryNotFoundException"/>/<see cref="UnauthorizedAccessException"/>/<see cref="IOException"/>
+    /// for a browser's <c>User Data</c> root or a profile's <c>Extensions</c> folder without needing a real
+    /// inaccessible directory. Production always uses the real-FS default above.</summary>
+    internal Win32BrowserExtensionInventory(Func<string, string[]> getDirectories)
+        => _getDirectories = getDirectories;
+
+    public BrowserExtensionListing ReadAll()
     {
         var found = new List<BrowserExtension>();
+        var faults = new List<InventorySourceFault>();
+        int attempted = 0, failed = 0;
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
         foreach ((string vendor, string label) in Browsers())
         {
             string userData = Path.Combine(localAppData, vendor, "User Data");
-            if (!Directory.Exists(userData))
-                continue;
 
-            foreach (string profileDir in EnumerateProfileDirs(userData))
+            // NEW-07 MAJOR-01 fix: no Directory.Exists preflight — per Microsoft's own documented behavior it
+            // returns false both for genuine absence AND when determining existence fails (insufficient
+            // permissions, I/O errors), which would silently collapse an access-denied "User Data" root into
+            // "browser not installed" (honest-empty). Attempt the enumeration directly and classify the outcome.
+            string[] profileDirs;
+            try
+            {
+                profileDirs = EnumerateProfileDirs(userData, _getDirectories);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                continue; // browser not installed — legitimate empty, not a fault.
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                attempted++;
+                failed++;
+                faults.Add(new InventorySourceFault(label, ex.GetType().Name));
+                continue;
+            }
+
+            attempted++; // listing this browser's profiles is one sub-source.
+
+            foreach (string profileDir in profileDirs)
             {
                 string extensionsRoot = Path.Combine(profileDir, "Extensions");
-                if (!Directory.Exists(extensionsRoot))
-                    continue;
-
                 string profileName = Path.GetFileName(profileDir);
-                ReadExtensions(label, profileName, extensionsRoot, found);
+                // MINOR-01 fix: the fault Source is a fixed, non-path-derived descriptor (never the actual
+                // captured profile directory name, which — per the accept filter below — is not restricted to
+                // a closed enum and could carry an attacker/user-influenced string).
+                string profileLabel = profileName.Equals("Default", StringComparison.OrdinalIgnoreCase)
+                    ? "Default"
+                    : "numbered-profile";
+
+                try
+                {
+                    ReadExtensions(label, profileName, extensionsRoot, _getDirectories, found);
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    continue; // profile has no Extensions folder — legitimate empty.
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+                {
+                    attempted++;
+                    failed++;
+                    faults.Add(new InventorySourceFault($"{label}/{profileLabel}", ex.GetType().Name));
+                    continue;
+                }
+
+                attempted++; // enumerating this profile's extensions is one sub-source.
             }
         }
 
-        return found;
+        return new BrowserExtensionListing(found, InventoryHealth.Aggregate(attempted, failed), faults);
     }
 
     private static IEnumerable<(string Vendor, string Label)> Browsers()
@@ -46,28 +100,31 @@ public sealed class Win32BrowserExtensionInventory : IBrowserExtensionInventory
         yield return (@"Opera Software\Opera Stable", "Opera");
     }
 
-    private static IEnumerable<string> EnumerateProfileDirs(string userData)
+    /// <summary>The Default + numbered profile directories under a browser's User Data. Throws
+    /// <see cref="DirectoryNotFoundException"/> when <paramref name="userData"/> genuinely does not exist, or an
+    /// access/I/O exception when it exists but cannot be read — both are classified by the caller.</summary>
+    private static string[] EnumerateProfileDirs(string userData, Func<string, string[]> getDirectories)
     {
-        string[] dirs;
-        try { dirs = Directory.GetDirectories(userData); }
-        catch { yield break; }
-
-        foreach (string d in dirs)
+        var profiles = new List<string>();
+        foreach (string d in getDirectories(userData))
         {
             string name = Path.GetFileName(d);
             if (name.Equals("Default", StringComparison.OrdinalIgnoreCase)
                 || name.StartsWith("Profile ", StringComparison.OrdinalIgnoreCase))
-                yield return d;
+                profiles.Add(d);
         }
+        return profiles.ToArray();
     }
 
-    private static void ReadExtensions(string browser, string profile, string extensionsRoot, List<BrowserExtension> sink)
+    /// <summary>Add every extension under a profile's Extensions root. Throws
+    /// <see cref="DirectoryNotFoundException"/> when the Extensions folder genuinely does not exist, or an
+    /// access/I/O exception when it exists but cannot be enumerated — both are classified by the caller.
+    /// A single extension whose manifest name is unresolvable still yields a row with a null Name
+    /// (audit Nuance) — that is NOT a source fault.</summary>
+    private static void ReadExtensions(
+        string browser, string profile, string extensionsRoot, Func<string, string[]> getDirectories, List<BrowserExtension> sink)
     {
-        string[] idDirs;
-        try { idDirs = Directory.GetDirectories(extensionsRoot); }
-        catch { return; }
-
-        foreach (string idDir in idDirs)
+        foreach (string idDir in getDirectories(extensionsRoot))
         {
             string id = Path.GetFileName(idDir);
             if (id.Equals("Temp", StringComparison.OrdinalIgnoreCase))

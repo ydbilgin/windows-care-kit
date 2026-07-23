@@ -10,16 +10,27 @@ namespace WindowsCareKit.Win32;
 /// </summary>
 public sealed class Win32RecycleBinService : IRecycleBinService
 {
-    public RecycleBinStats Query()
+    public RecycleBinInventory Query()
     {
         var info = new SHQUERYRBINFO { cbSize = Marshal.SizeOf<SHQUERYRBINFO>() };
-        int hr = SHQueryRecycleBin(null, ref info);
-        if (hr != 0)
-            return new RecycleBinStats(0, 0); // S_OK is 0; any failure → report empty rather than throw
+
+        int hr;
+        try
+        {
+            hr = SHQueryRecycleBin(null, ref info);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException)
+        {
+            // shell32 unavailable / marshalling fault — the totals are UNKNOWN, not zero (NEW-07).
+            return RecycleBinInventory.Unavailable(ex.GetType().Name);
+        }
+
+        if (hr != 0) // S_OK is 0; any failure means the totals are UNKNOWN, not empty (was: new RecycleBinStats(0,0)).
+            return RecycleBinInventory.Unavailable($"HRESULT 0x{hr:X8}");
 
         long bytes = info.i64Size < 0 ? 0 : info.i64Size;
         long items = info.i64NumItems < 0 ? 0 : info.i64NumItems;
-        return new RecycleBinStats(items, bytes);
+        return RecycleBinInventory.Complete(new RecycleBinStats(items, bytes));
     }
 
     [StructLayout(LayoutKind.Sequential)]

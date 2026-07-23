@@ -48,9 +48,20 @@ public sealed record StartupEntry(string Name, string Command, StartupSource Sou
     };
 }
 
+/// <summary>
+/// The result of listing startup entries: the entries actually read (partial data is preserved), the overall
+/// <see cref="SourceHealth"/> across the four Run/RunOnce keys and the two Startup folders, and a per-failed-
+/// source fault list with SAFE categories (NEW-07). A lost hive/folder is surfaced as non-Complete health, not
+/// hidden as "no entries there".
+/// </summary>
+public sealed record StartupInventory(
+    IReadOnlyList<StartupEntry> Entries,
+    SourceHealth Health,
+    IReadOnlyList<InventorySourceFault> Faults);
+
 /// <summary>Read-only listing of HKCU/HKLM Run + RunOnce values and Startup-folder shortcuts (spec §1.2).</summary>
 public interface IStartupProbe
 {
-    /// <summary>Every startup entry across the registry Run/RunOnce keys and the Startup folders.</summary>
-    IReadOnlyList<StartupEntry> ReadAll();
+    /// <summary>Every startup entry across the registry Run/RunOnce keys and Startup folders, with source health.</summary>
+    StartupInventory ReadAll();
 }

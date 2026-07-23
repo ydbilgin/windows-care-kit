@@ -12,11 +12,24 @@ namespace WindowsCareKit.Core.Modules.Clean;
 public sealed record BrowserExtension(string Browser, string Profile, string Id, string? Name, string FolderPath);
 
 /// <summary>
+/// The result of enumerating installed browser extensions: the extensions found (partial data preserved), the
+/// overall <see cref="SourceHealth"/> across the scanned browser profiles, and a per-failed-profile fault list
+/// with SAFE categories (NEW-07). An absent browser or a profile with no Extensions folder is a legitimate
+/// empty, not a fault; a profile whose Extensions folder could not be enumerated IS surfaced as Partial. An
+/// individual extension whose manifest name is unresolvable still yields a row with a null <c>Name</c> — that
+/// is not a source fault (audit Nuance). Named "Listing" (not "Inventory") to avoid clashing with the port.
+/// </summary>
+public sealed record BrowserExtensionListing(
+    IReadOnlyList<BrowserExtension> Extensions,
+    SourceHealth Health,
+    IReadOnlyList<InventorySourceFault> Faults);
+
+/// <summary>
 /// Inventory-only listing of installed browser extensions across Chromium-family browsers. Read-only;
 /// removal is intentionally not offered (spec §1.2). No <c>PlannedAction</c> is ever produced from this.
 /// </summary>
 public interface IBrowserExtensionInventory
 {
-    /// <summary>Every discoverable extension across the supported browsers and their profiles.</summary>
-    IReadOnlyList<BrowserExtension> ReadAll();
+    /// <summary>Every discoverable extension across the supported browsers and their profiles, with source health.</summary>
+    BrowserExtensionListing ReadAll();
 }

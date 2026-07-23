@@ -131,7 +131,10 @@ public sealed class ViewRenderSmokeTests
     /// <summary>UI rollout (2026-07): Clean's four section cards + the shared PlanRowTemplate were reskinned to
     /// the emerald evidence-row language. Seed one junk candidate + one startup entry so BOTH the empty-state
     /// AND the populated PlanRow branch render (the honesty-critical "undo: None" elevation lives in the row
-    /// template, so an empty list alone would not exercise it).</summary>
+    /// template, so an empty list alone would not exercise it).
+    /// NEW-07 MAJOR-02 fix (2026-07-23): also drives the Recycle and Extensions Complete-source commands (not
+    /// just Startup) and asserts the three health-note TextBlocks are actually <see cref="Visibility.Collapsed"/>
+    /// when every source is Complete — the note-free-healthy-render half of the render-boundary proof.</summary>
     [Theory]
     [InlineData("Strongbox")]
     [InlineData("Daylight")]
@@ -144,11 +147,15 @@ public sealed class ViewRenderSmokeTests
             {
                 I18n i18n = TestI18n.Full("en");
                 using var fx = new ExecutorFixture();
+                var completeExtensions = new BrowserExtensionListing(
+                    new[] { new BrowserExtension("Edge", "Default", "abc123", "Test Extension", @"C:\ext\abc123") },
+                    SourceHealth.Complete,
+                    Array.Empty<InventorySourceFault>());
                 var vm = new CleanViewModel(
                     i18n,
                     new RenderFakeJunkProbe(new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 1024, "Temp files")),
                     new RenderFakeStartupProbe(new StartupEntry("Updater", @"C:\Program Files\App\updater.exe", StartupSource.HkcuRun, null)),
-                    new RenderFakeBrowserExtensionInventory(),
+                    new RenderFakeBrowserExtensionInventory(completeExtensions),
                     new RenderFakeRecycleBinService(new RecycleBinStats(3, 2048)),
                     new RenderFakeFolderOpener(),
                     fx.Gate,
@@ -158,6 +165,10 @@ public sealed class ViewRenderSmokeTests
                 PumpAsyncWork(() => vm.JunkScanned && !vm.IsBusy, TimeSpan.FromSeconds(5));
                 vm.LoadStartupCommand.Execute(null);
                 PumpAsyncWork(() => !vm.IsBusy && vm.StartupEntries.Count > 0, TimeSpan.FromSeconds(5));
+                vm.RefreshRecycleCommand.Execute(null);
+                PumpAsyncWork(() => !vm.IsBusy && vm.RecycleStats.Length > 0, TimeSpan.FromSeconds(5));
+                vm.LoadExtensionsCommand.Execute(null);
+                PumpAsyncWork(() => !vm.IsBusy && vm.Extensions.Count > 0, TimeSpan.FromSeconds(5));
 
                 var view = new CleanView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
@@ -166,6 +177,74 @@ public sealed class ViewRenderSmokeTests
                 host.Measure(size);
                 host.Arrange(new Rect(size));
                 host.UpdateLayout();
+
+                AssertHealthNoteCollapsed(view, "RecycleHealthNoteText");
+                AssertHealthNoteCollapsed(view, "StartupHealthNoteText");
+                AssertHealthNoteCollapsed(view, "ExtensionsHealthNoteText");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>NEW-07 (2026-07-23): a degraded read source must render a visible, honest, non-green caution note
+    /// — "could not inspect" must not render as "found nothing". Seeds an Unavailable recycle query + a Partial
+    /// startup read + a Partial extensions read, drives the three load commands, and asserts each localized health
+    /// note is actually in the visual tree in BOTH themes (the render-boundary proof that the ViewModel's health
+    /// state reaches the screen).
+    /// NEW-07 MAJOR-02 fix (2026-07-23): locates each health-note TextBlock BY NAME (not just "any TextBlock with
+    /// this text" — a permanently-Collapsed element would still satisfy a text-membership check) and asserts
+    /// <see cref="Visibility.Visible"/> plus a non-zero rendered height after layout, so a regression that leaves
+    /// the note bound but Collapsed/out-of-layout cannot pass.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void CleanView_renders_source_health_notes_when_a_source_is_degraded(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                using var fx = new ExecutorFixture();
+                var startup = new StartupInventory(
+                    new[] { new StartupEntry("Updater", @"C:\Program Files\App\updater.exe", StartupSource.HkcuRun, null) },
+                    SourceHealth.Partial,
+                    new[] { new InventorySourceFault("HKLM Run", "SecurityException") });
+                var exts = new BrowserExtensionListing(
+                    Array.Empty<BrowserExtension>(),
+                    SourceHealth.Partial,
+                    new[] { new InventorySourceFault("Edge/Default", "UnauthorizedAccessException") });
+                var vm = new CleanViewModel(
+                    i18n,
+                    new RenderFakeJunkProbe(),
+                    new RenderFakeStartupProbe(startup),
+                    new RenderFakeBrowserExtensionInventory(exts),
+                    new RenderFakeRecycleBinService(RecycleBinInventory.Unavailable("HRESULT 0x80004005")),
+                    new RenderFakeFolderOpener(),
+                    fx.Gate,
+                    new RenderPlanExecutor(fx.Executor));
+                InstallDispatcherSyncContext();
+                vm.RefreshRecycleCommand.Execute(null);
+                PumpAsyncWork(() => !vm.IsBusy && vm.RecycleHealthNote.Length > 0, TimeSpan.FromSeconds(5));
+                vm.LoadStartupCommand.Execute(null);
+                PumpAsyncWork(() => !vm.IsBusy && vm.StartupHealthNote.Length > 0, TimeSpan.FromSeconds(5));
+                vm.LoadExtensionsCommand.Execute(null);
+                PumpAsyncWork(() => !vm.IsBusy && vm.ExtensionsHealthNote.Length > 0, TimeSpan.FromSeconds(5));
+
+                var view = new CleanView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                AssertHealthNoteVisible(view, "RecycleHealthNoteText", i18n["clean.recycle.unavailable"]);
+                AssertHealthNoteVisible(view, "StartupHealthNoteText", i18n["clean.startup.incomplete"]);
+                AssertHealthNoteVisible(view, "ExtensionsHealthNoteText", i18n["clean.ext.incomplete"]);
             }
             finally
             {
@@ -873,6 +952,27 @@ public sealed class ViewRenderSmokeTests
         }
     }
 
+    /// <summary>NEW-07 MAJOR-02 fix: locate a health-note TextBlock BY NAME on a rendered <see cref="CleanView"/>
+    /// (not by scanning for matching text, which a Collapsed duplicate could also satisfy) and assert it is
+    /// genuinely visible: <see cref="Visibility.Visible"/> AND a non-zero rendered height/bounds after
+    /// <c>UpdateLayout</c> — a Collapsed or out-of-layout element fails Measure/Arrange and cannot pass this.</summary>
+    private static void AssertHealthNoteVisible(CleanView view, string elementName, string expectedText)
+    {
+        var block = Assert.IsType<TextBlock>(view.FindName(elementName));
+        Assert.Equal(expectedText, block.Text);
+        Assert.Equal(Visibility.Visible, block.Visibility);
+        Assert.True(block.ActualHeight > 0 || block.RenderSize.Height > 0,
+            $"{elementName} claimed Visible but had zero rendered height.");
+    }
+
+    /// <summary>NEW-07 MAJOR-02 fix: the healthy-path counterpart — asserts the same named health-note
+    /// TextBlock is <see cref="Visibility.Collapsed"/> (no caution text shown) when its source is Complete.</summary>
+    private static void AssertHealthNoteCollapsed(CleanView view, string elementName)
+    {
+        var block = Assert.IsType<TextBlock>(view.FindName(elementName));
+        Assert.Equal(Visibility.Collapsed, block.Visibility);
+    }
+
     private static void AssertInside(FrameworkElement ancestor, FrameworkElement element, double maxWidth, string label)
     {
         Rect bounds = element.TransformToAncestor(ancestor)
@@ -1157,19 +1257,27 @@ public sealed class ViewRenderSmokeTests
         public IReadOnlyList<JunkCandidate> FindJunk() => candidates;
     }
 
-    private sealed class RenderFakeStartupProbe(params StartupEntry[] entries) : IStartupProbe
+    private sealed class RenderFakeStartupProbe(StartupInventory inventory) : IStartupProbe
     {
-        public IReadOnlyList<StartupEntry> ReadAll() => entries;
+        public RenderFakeStartupProbe(params StartupEntry[] entries)
+            : this(new StartupInventory(entries, SourceHealth.Complete, Array.Empty<InventorySourceFault>())) { }
+
+        public StartupInventory ReadAll() => inventory;
     }
 
-    private sealed class RenderFakeBrowserExtensionInventory : IBrowserExtensionInventory
+    private sealed class RenderFakeBrowserExtensionInventory(BrowserExtensionListing listing) : IBrowserExtensionInventory
     {
-        public IReadOnlyList<BrowserExtension> ReadAll() => Array.Empty<BrowserExtension>();
+        public RenderFakeBrowserExtensionInventory()
+            : this(new BrowserExtensionListing(Array.Empty<BrowserExtension>(), SourceHealth.Complete, Array.Empty<InventorySourceFault>())) { }
+
+        public BrowserExtensionListing ReadAll() => listing;
     }
 
-    private sealed class RenderFakeRecycleBinService(RecycleBinStats stats) : IRecycleBinService
+    private sealed class RenderFakeRecycleBinService(RecycleBinInventory inventory) : IRecycleBinService
     {
-        public RecycleBinStats Query() => stats;
+        public RenderFakeRecycleBinService(RecycleBinStats stats) : this(RecycleBinInventory.Complete(stats)) { }
+
+        public RecycleBinInventory Query() => inventory;
     }
 
     private sealed class RenderFakeFolderOpener : IFolderOpener

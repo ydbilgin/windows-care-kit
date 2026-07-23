@@ -27,5 +27,8 @@
   "clean.dryRun.caption": " — nothing is deleted until you approve and run",
   "clean.recycle.irreversible": "Can't be undone",
   "clean.count.found": " found",
-  "clean.count.entries": " entries"
+  "clean.count.entries": " entries",
+  "clean.recycle.unavailable": "Couldn't read the Recycle Bin — its contents are unknown.",
+  "clean.startup.incomplete": "Some startup sources couldn't be read — this list may be incomplete.",
+  "clean.ext.incomplete": "Some browser profiles couldn't be read — this list may be incomplete."
 }

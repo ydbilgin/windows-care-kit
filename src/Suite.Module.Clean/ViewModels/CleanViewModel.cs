@@ -38,6 +38,9 @@ public sealed class CleanViewModel : ObservableObject
     private StartupRow? _selectedStartup;
     private string _recycleStats = string.Empty;
     private string _resultSummary = string.Empty;
+    private string _recycleHealthNote = string.Empty;
+    private string _startupHealthNote = string.Empty;
+    private string _extensionsHealthNote = string.Empty;
 
     public CleanViewModel(
         I18n i18n,
@@ -87,6 +90,9 @@ public sealed class CleanViewModel : ObservableObject
     public ICommand LoadStartupCommand { get; }
     public ICommand DisableStartupCommand { get; }
 
+    /// <summary>Non-empty when one or more startup sources could not be read — the list may be incomplete (NEW-07).</summary>
+    public string StartupHealthNote { get => _startupHealthNote; private set => SetField(ref _startupHealthNote, value); }
+
     public StartupRow? SelectedStartup
     {
         get => _selectedStartup;
@@ -109,6 +115,9 @@ public sealed class CleanViewModel : ObservableObject
     public ICommand CancelEmptyRecycleCommand { get; }
     public string RecycleStats { get => _recycleStats; private set => SetField(ref _recycleStats, value); }
 
+    /// <summary>Non-empty when the recycle-bin query could not be completed — the totals are unknown, not zero (NEW-07).</summary>
+    public string RecycleHealthNote { get => _recycleHealthNote; private set => SetField(ref _recycleHealthNote, value); }
+
     /// <summary>True while the irreversible empty-bin confirm panel is shown.</summary>
     public bool RecycleConfirmPending
     {
@@ -120,6 +129,9 @@ public sealed class CleanViewModel : ObservableObject
     public ObservableCollection<BrowserExtension> Extensions { get; } = new();
     public ICommand LoadExtensionsCommand { get; }
     public ICommand OpenExtensionFolderCommand { get; }
+
+    /// <summary>Non-empty when one or more browser profiles could not be read — the list may be incomplete (NEW-07).</summary>
+    public string ExtensionsHealthNote { get => _extensionsHealthNote; private set => SetField(ref _extensionsHealthNote, value); }
 
     // Shared
     public bool IsBusy { get => _isBusy; private set => SetField(ref _isBusy, value); }
@@ -173,6 +185,12 @@ public sealed class CleanViewModel : ObservableObject
         await ScanJunkAsync();
     }
 
+    /// <summary>Localized caution note for a non-Complete inventory source; empty string when Complete
+    /// (so the bound TextBlock stays collapsed via NonEmptyToVisibleConverter). Partial and Unavailable both
+    /// surface the same "may be incomplete" caution — the list is not to be trusted as a complete empty.</summary>
+    private string IncompleteNote(SourceHealth health, string incompleteKey)
+        => health == SourceHealth.Complete ? string.Empty : I18n[incompleteKey];
+
     // ---- Startup ----
 
     private async Task LoadStartupAsync()
@@ -181,11 +199,13 @@ public sealed class CleanViewModel : ObservableObject
         StartupEntries.Clear();
         StartupPreview.Clear();
         SelectedStartup = null;
+        StartupHealthNote = string.Empty;
         try
         {
-            IReadOnlyList<StartupEntry> entries = await Task.Run(() => _startupProbe.ReadAll());
-            foreach (StartupEntry e in entries)
+            StartupInventory inventory = await Task.Run(() => _startupProbe.ReadAll());
+            foreach (StartupEntry e in inventory.Entries)
                 StartupEntries.Add(new StartupRow(e, I18n.Format("clean.startup.source", e.Source.ToString())));
+            StartupHealthNote = IncompleteNote(inventory.Health, "clean.startup.incomplete");
         }
         finally
         {
@@ -226,8 +246,17 @@ public sealed class CleanViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            RecycleBinStats stats = await Task.Run(() => _recycleBin.Query());
-            RecycleStats = I18n.Format("clean.recycle.stats", stats.ItemCount, JunkScanner.FormatBytes(stats.ApproxBytes));
+            RecycleBinInventory inventory = await Task.Run(() => _recycleBin.Query());
+            if (inventory.Health == SourceHealth.Complete && inventory.Stats is { } stats)
+            {
+                RecycleStats = I18n.Format("clean.recycle.stats", stats.ItemCount, JunkScanner.FormatBytes(stats.ApproxBytes));
+                RecycleHealthNote = string.Empty;
+            }
+            else
+            {
+                RecycleStats = string.Empty;                       // never a fake zero (NEW-07)
+                RecycleHealthNote = I18n["clean.recycle.unavailable"];
+            }
         }
         finally
         {
@@ -270,11 +299,13 @@ public sealed class CleanViewModel : ObservableObject
     {
         IsBusy = true;
         Extensions.Clear();
+        ExtensionsHealthNote = string.Empty;
         try
         {
-            IReadOnlyList<BrowserExtension> list = await Task.Run(() => _extensions.ReadAll());
-            foreach (BrowserExtension ext in list)
+            BrowserExtensionListing listing = await Task.Run(() => _extensions.ReadAll());
+            foreach (BrowserExtension ext in listing.Extensions)
                 Extensions.Add(ext);
+            ExtensionsHealthNote = IncompleteNote(listing.Health, "clean.ext.incomplete");
         }
         finally
         {

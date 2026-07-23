@@ -27,5 +27,8 @@
   "clean.dryRun.caption": " — onaylayıp çalıştırana kadar hiçbir şey silinmez",
   "clean.recycle.irreversible": "Geri alınamaz",
   "clean.count.found": " bulundu",
-  "clean.count.entries": " giriş"
+  "clean.count.entries": " giriş",
+  "clean.recycle.unavailable": "Geri Dönüşüm Kutusu okunamadı — içeriği bilinmiyor.",
+  "clean.startup.incomplete": "Bazı başlangıç kaynakları okunamadı — bu liste eksik olabilir.",
+  "clean.ext.incomplete": "Bazı tarayıcı profilleri okunamadı — bu liste eksik olabilir."
 }

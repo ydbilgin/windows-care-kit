@@ -338,7 +338,7 @@ internal static class Program
             Console.WriteLine("[C-E2E] Step 4: P3 — startup probe, planner, gate + execute...");
 
             // Find the seeded value via the REAL Win32StartupProbe.
-            IReadOnlyList<StartupEntry> allEntries = new Win32StartupProbe().ReadAll();
+            IReadOnlyList<StartupEntry> allEntries = new Win32StartupProbe().ReadAll().Entries;
             StartupEntry? seedEntry = allEntries.FirstOrDefault(e =>
                 e.Source == StartupSource.HkcuRun &&
                 string.Equals(e.Name, seedRunValueName, StringComparison.OrdinalIgnoreCase));
