@@ -42,6 +42,7 @@ using Xunit;
 
 namespace WindowsCareKit.Tests;
 
+[Collection(WpfResourceCollection.Name)]
 public sealed class ViewRenderSmokeTests
 {
     private static readonly object BindingTraceLock = new();

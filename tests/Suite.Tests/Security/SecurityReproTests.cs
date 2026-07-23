@@ -349,6 +349,7 @@ public sealed class CopyAndPlanningSecurityReproTests
 }
 
 /// <summary>Deterministic UI/reliability characterizations that never open an application window.</summary>
+[Collection(WpfResourceCollection.Name)]
 public sealed class UiReliabilitySecurityReproTests
 {
     /// <summary>G2: a superseded uninstall load is discarded so the later refresh wins without duplicates.</summary>
@@ -732,6 +733,7 @@ public sealed class UiReliabilitySecurityReproTests
 }
 
 /// <summary>Host-safe closure proofs for the findings carried into the 2026-07-11 continuation pass.</summary>
+[Collection(WpfResourceCollection.Name)]
 public sealed class SecurityReproPart2Tests
 {
     private static readonly DateTime T0 = new(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc);

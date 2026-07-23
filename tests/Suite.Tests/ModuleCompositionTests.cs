@@ -25,6 +25,7 @@ using WpfApp = WindowsCareKit.App.App;
 
 namespace WindowsCareKit.Tests;
 
+[Collection(WpfResourceCollection.Name)]
 public sealed class ModuleCompositionTests
 {
     [Fact]
