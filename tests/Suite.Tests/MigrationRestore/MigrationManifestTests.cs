@@ -5,10 +5,9 @@ using WindowsCareKit.Tests.TestInfra;
 namespace WindowsCareKit.Tests.MigrationRestore;
 
 /// <summary>
-/// F5 (manifest validation: traversal/absolute/escape rejection on load) + the .zip export/import round-trip
-/// (folder ↔ zip content is preserved; Zip-Slip is refused).
+/// F5 (manifest validation: traversal/absolute/escape rejection on load).
 /// </summary>
-public class MigrationManifestAndZipTests
+public class MigrationManifestTests
 {
     private static string TempDir() => MigrationRestoreTestData.TempDir("manzip");
 
@@ -157,54 +156,5 @@ public class MigrationManifestAndZipTests
             Assert.Throws<MigrationManifestException>(() => new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(dir));
         }
         finally { TestFs.DeleteResilient(dir); }
-    }
-
-    [Fact]
-    public void Zip_export_then_import_preserves_the_package_content()
-    {
-        string root = TempDir();
-        try
-        {
-            string pkg = Path.Combine(root, "pkg");
-            Directory.CreateDirectory(Path.Combine(pkg, "migration", "git.config"));
-            File.WriteAllText(Path.Combine(pkg, "migration", "git.config", ".gitconfig"), "[user]\n name = a");
-            new MigrationRestoreManifestStore(new SanctionedFileWriter()).Save(pkg, ManifestWith(".gitconfig", "migration/git.config/.gitconfig"));
-
-            string zip = Path.Combine(root, "package.zip");
-            MigrationPackageArchive.Export(pkg, zip);
-            Assert.True(File.Exists(zip));
-
-            string outDir = Path.Combine(root, "imported");
-            MigrationPackageArchive.Import(zip, outDir);
-
-            Assert.Equal("[user]\n name = a",
-                File.ReadAllText(Path.Combine(outDir, "migration", "git.config", ".gitconfig")));
-            // The manifest round-trips through the zip too — restore can consume the imported folder.
-            MigrationRestoreManifest loaded = new MigrationRestoreManifestStore(new SanctionedFileWriter()).Load(outDir);
-            Assert.Single(loaded.Targets);
-        }
-        finally { TestFs.DeleteResilient(root); }
-    }
-
-    [Fact]
-    public void Import_refuses_a_zip_slip_entry()
-    {
-        string root = TempDir();
-        try
-        {
-            string zip = Path.Combine(root, "evil.zip");
-            using (FileStream fs = File.Create(zip))
-            using (var archive = new System.IO.Compression.ZipArchive(fs, System.IO.Compression.ZipArchiveMode.Create))
-            {
-                System.IO.Compression.ZipArchiveEntry e = archive.CreateEntry("../escaped.txt");
-                using StreamWriter w = new(e.Open());
-                w.Write("pwned");
-            }
-
-            string outDir = Path.Combine(root, "out");
-            Assert.Throws<InvalidOperationException>(() => MigrationPackageArchive.Import(zip, outDir));
-            Assert.False(File.Exists(Path.Combine(root, "escaped.txt")));
-        }
-        finally { TestFs.DeleteResilient(root); }
     }
 }

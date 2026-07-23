@@ -39,6 +39,13 @@ public sealed record LegacyVerify(IReadOnlyList<string> Exists, int? MaxSizeMB);
 
 public sealed record LegacyRestore(int? Order, string? Mode, string? Notes);
 
+/// <summary>
+/// Reachability status (NEW-13 decision, 2026-07-23): no production caller by design for slice-1.
+/// Exercised by the conversion fitness suite over the shipped Backup/Install manifests
+/// (convert-or-reject, gate-clean, loader round-trip) as the M2 "CI dry-run". Planned production
+/// consumer: M2 catalog import. Any change forced through this type must re-affirm that path or
+/// delete this conversion graph in the same change; unscheduled at the v0.3.0 cut → delete.
+/// </summary>
 public static partial class ManifestToRecipeV3
 {
     public static RecipeConversionResult Convert(LegacyManifestEntry entry)
