@@ -160,7 +160,7 @@ public sealed class MigrationRestoreRunner
             // 2) F0/F4 cap: non-profile roots are inventory/manual only, even if a package was tampered to
             //    claim a higher restoreTier. The loader caps recipe data; the runner keeps the execution-path
             //    double block.
-            if (!IsProfileFolder(target.KnownFolder))
+            if (!RestoreCapabilityPolicy.IsProfileRoot(target.KnownFolder))
             {
                 skipped.Add(new RestoreSkip(target, RestoreSkipReason.NonProfileRoot,
                     "EN: Non-profile data is listed for manual restore/re-add only; no file write is planned. TR: Profil disi veri yalnizca elle geri ekleme/listedir; dosya yazma planlanmaz."));
@@ -256,9 +256,6 @@ public sealed class MigrationRestoreRunner
             InstallManualChecklist = installManualChecklist,
         };
     }
-
-    private static bool IsProfileFolder(KnownFolder folder)
-        => folder is KnownFolder.UserProfile or KnownFolder.AppData or KnownFolder.LocalAppData;
 
     private static RestoreTier EffectiveRestoreTier(MigrationRestoreTarget target)
         => target.RestoreTier == RestoreTier.Unspecified

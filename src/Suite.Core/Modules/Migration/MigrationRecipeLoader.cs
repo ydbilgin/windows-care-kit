@@ -647,9 +647,7 @@ public static class MigrationRecipeLoader
         RecipeDetect detect,
         IReadOnlyList<RecipeItem> items)
         => portability == PortabilityClass.MachineLocked
-           || !IsProfileFolder(detect.KnownFolder)
+           || !RestoreCapabilityPolicy.IsProfileRoot(detect.KnownFolder)
            || items.Any(i => i.Kind is RecipeItemKind.MachineRoot or RecipeItemKind.WindowsEtc or RecipeItemKind.ExportCmd or RecipeItemKind.ManualTodo);
 
-    private static bool IsProfileFolder(KnownFolder folder)
-        => folder is KnownFolder.UserProfile or KnownFolder.AppData or KnownFolder.LocalAppData;
 }

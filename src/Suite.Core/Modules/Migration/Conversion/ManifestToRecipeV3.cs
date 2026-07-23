@@ -73,11 +73,11 @@ public static partial class ManifestToRecipeV3
         if (hasSecretSignal)
             AddMissing(exclude, SecretGlobOverlay.Globs);
 
-        PortabilityClass portability = IsProfileFolder(parsedSource.KnownFolder!.Value) && !hasSecretSignal
+        PortabilityClass portability = RestoreCapabilityPolicy.IsProfileRoot(parsedSource.KnownFolder!.Value) && !hasSecretSignal
             ? PortabilityClass.ProfileRelative
             : PortabilityClass.MachineLocked;
         RestoreTier restoreTier = MapTier(entry.Tier);
-        if (portability == PortabilityClass.MachineLocked || !IsProfileFolder(parsedSource.KnownFolder.Value))
+        if (portability == PortabilityClass.MachineLocked || !RestoreCapabilityPolicy.IsProfileRoot(parsedSource.KnownFolder.Value))
             restoreTier = RestoreTier.InventoryOnly;
 
         var preconditions = entry.RequiresClosedProcesses
@@ -254,9 +254,6 @@ public static partial class ManifestToRecipeV3
         int slash = s.LastIndexOf('/');
         return slash >= 0 ? s[(slash + 1)..] : s;
     }
-
-    private static bool IsProfileFolder(KnownFolder folder)
-        => folder is KnownFolder.UserProfile or KnownFolder.AppData or KnownFolder.LocalAppData;
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$", RegexOptions.CultureInvariant)]
     private static partial Regex IdGrammar();
