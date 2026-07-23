@@ -73,7 +73,7 @@ public sealed class ViewRenderSmokeTests
 
                 var view = new SettingsView
                 {
-                    DataContext = new SettingsViewModel(i18n, new FakeThemeService())
+                    DataContext = new SettingsViewModel(i18n, new FakeThemeService(), new RecordingUrlOpener())
                 };
 
                 var host = new ContentControl
@@ -113,13 +113,64 @@ public sealed class ViewRenderSmokeTests
             {
                 I18n i18n = TestI18n.Full("en");
 
-                var view = new SettingsView { DataContext = new SettingsViewModel(i18n, new FakeThemeService()) };
+                var view = new SettingsView
+                {
+                    DataContext = new SettingsViewModel(i18n, new FakeThemeService(), new RecordingUrlOpener())
+                };
                 var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
                 var size = new Size(1000, 800);
 
                 host.Measure(size);
                 host.Arrange(new Rect(size));
                 host.UpdateLayout();
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Fact]
+    public void SettingsView_binds_and_invokes_repository_link_command()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources("Strongbox", out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                var opener = new RecordingUrlOpener();
+                var viewModel = new SettingsViewModel(i18n, new FakeThemeService(), opener);
+                var view = new SettingsView { DataContext = viewModel };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
+                var size = new Size(1000, 800);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+                view.Measure(size);
+                view.Arrange(new Rect(size));
+                view.UpdateLayout();
+
+                var link = view.FindName("RepositoryLink") as System.Windows.Documents.Hyperlink;
+                Assert.NotNull(link);
+                Assert.Same(viewModel.OpenExternalLinkCommand, link!.Command);
+                Assert.Equal(SettingsViewModel.ProjectRepositoryUrl, link.CommandParameter);
+
+                // The two links are symmetric in XAML, so a typo in the second one would otherwise ship unseen.
+                var releasesLink = view.FindName("ReleasesLink") as System.Windows.Documents.Hyperlink;
+                Assert.NotNull(releasesLink);
+                Assert.Same(viewModel.OpenExternalLinkCommand, releasesLink!.Command);
+                Assert.Equal(SettingsViewModel.ProjectReleasesUrl, releasesLink.CommandParameter);
+
+                var peer = new System.Windows.Automation.Peers.HyperlinkAutomationPeer(link);
+                var invokeProvider = (System.Windows.Automation.Provider.IInvokeProvider)
+                    peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke)!;
+                invokeProvider.Invoke();
+
+                Assert.Equal(new Uri(SettingsViewModel.ProjectRepositoryUrl, UriKind.Absolute),
+                    Assert.Single(opener.Opened));
             }
             finally
             {

@@ -1,7 +1,9 @@
 using System.Reflection;
+using System.Windows.Input;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.App.Theming;
+using WindowsCareKit.Core.Execution;
 
 namespace WindowsCareKit.App.ViewModels;
 
@@ -14,12 +16,29 @@ public sealed class SettingsViewModel : ObservableObject
     public const string ProjectReleasesUrl = "https://github.com/ydbilgin/windows-care-kit/releases";
 
     private readonly IThemeService _themeService;
+    private readonly IUrlOpener _urlOpener;
     private bool _themeSaveFailed;
 
-    public SettingsViewModel(I18n i18n, IThemeService themeService)
+    public SettingsViewModel(I18n i18n, IThemeService themeService, IUrlOpener urlOpener)
     {
         I18n = i18n ?? throw new ArgumentNullException(nameof(i18n));
         _themeService = themeService ?? throw new ArgumentNullException(nameof(themeService));
+        _urlOpener = urlOpener ?? throw new ArgumentNullException(nameof(urlOpener));
+        OpenExternalLinkCommand = new RelayCommand(parameter =>
+        {
+            Uri? uri = parameter switch
+            {
+                Uri candidate when candidate.IsAbsoluteUri => candidate,
+                string value when Uri.TryCreate(value, UriKind.Absolute, out Uri? parsed) => parsed,
+                _ => null
+            };
+
+            if (uri is null || !uri.IsAbsoluteUri ||
+                !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            _urlOpener.Open(uri);
+        });
         Version = ResolveVersion(typeof(SettingsViewModel).Assembly);
         I18n.PropertyChanged += (_, e) =>
         {
@@ -36,6 +55,7 @@ public sealed class SettingsViewModel : ObservableObject
     public string License => LicenseName;
     public string RepositoryUrl => ProjectRepositoryUrl;
     public string ReleasesUrl => ProjectReleasesUrl;
+    public ICommand OpenExternalLinkCommand { get; }
     public IReadOnlyList<ThemeChoice> AvailableThemes
         => _themeService.AvailableThemes
             .Select(theme => new ThemeChoice(theme, I18n[ThemeResourceKey(theme)]))

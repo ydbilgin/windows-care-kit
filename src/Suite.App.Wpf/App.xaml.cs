@@ -27,7 +27,9 @@ namespace WindowsCareKit.App;
 
 public partial class App : Application
 {
-    public IServiceProvider Services { get; private set; } = null!;
+    /// <summary>The composition root's provider. Private on purpose: it is not a service locator — views and
+    /// view models take explicit constructor dependencies instead of reaching through the application object.</summary>
+    private IServiceProvider Services { get; set; } = null!;
 
     protected override async void OnStartup(StartupEventArgs e)
     {

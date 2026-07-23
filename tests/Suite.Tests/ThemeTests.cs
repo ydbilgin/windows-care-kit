@@ -237,7 +237,7 @@ public sealed class ThemeTests
     {
         I18n i18n = TestI18n.Full("en");
         var themeService = new RecordingThemeService();
-        var vm = new SettingsViewModel(i18n, themeService);
+        var vm = new SettingsViewModel(i18n, themeService, new RecordingUrlOpener());
         var raised = new List<string?>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 

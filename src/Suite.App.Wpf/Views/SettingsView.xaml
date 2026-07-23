@@ -130,9 +130,11 @@
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding I18n[settings.about.repository]}"
                                    Style="{StaticResource SettingsMeta}" Margin="0,0,12,10" />
                         <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" FontSize="12.5">
-                            <Hyperlink NavigateUri="{Binding RepositoryUrl}"
+                            <Hyperlink x:Name="RepositoryLink"
+                                       NavigateUri="{Binding RepositoryUrl}"
                                        Foreground="{StaticResource Backup.Em}"
-                                       RequestNavigate="ExternalLink_RequestNavigate">
+                                       Command="{Binding OpenExternalLinkCommand}"
+                                       CommandParameter="{Binding RepositoryUrl}">
                                 <Run Text="{Binding I18n[settings.about.repositoryLink], Mode=OneWay}" />
                             </Hyperlink>
                         </TextBlock>
@@ -140,9 +142,11 @@
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding I18n[settings.about.releases]}"
                                    Style="{StaticResource SettingsMeta}" Margin="0,0,12,0" />
                         <TextBlock Grid.Row="4" Grid.Column="1" FontSize="12.5">
-                            <Hyperlink NavigateUri="{Binding ReleasesUrl}"
+                            <Hyperlink x:Name="ReleasesLink"
+                                       NavigateUri="{Binding ReleasesUrl}"
                                        Foreground="{StaticResource Backup.Em}"
-                                       RequestNavigate="ExternalLink_RequestNavigate">
+                                       Command="{Binding OpenExternalLinkCommand}"
+                                       CommandParameter="{Binding ReleasesUrl}">
                                 <Run Text="{Binding I18n[settings.about.releasesLink], Mode=OneWay}" />
                             </Hyperlink>
                         </TextBlock>
