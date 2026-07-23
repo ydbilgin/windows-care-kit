@@ -77,6 +77,134 @@ public sealed class ModuleCompositionTests
     }
 
     [Fact]
+    public async Task Navigating_away_cancels_the_active_navigation_load_and_the_shell_observes_completion()
+    {
+        var blocking = new BlockingNavigationAware();
+        var vm = new MainViewModel(new I18n(), new IWckModule[]
+        {
+            TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
+            new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => blocking),
+        });
+
+        // Constructor selected the first, non-nav-aware tab (clean, order 20): no load started.
+        Assert.Equal(0, blocking.StartedCount);
+        Assert.True(vm.ActiveNavigationTask.IsCompleted);
+
+        Assert.True(vm.SelectNavByKey("migration"));
+        Assert.Equal(1, blocking.StartedCount);
+        Assert.False(blocking.SawCancellation);
+        Assert.False(vm.ActiveNavigationTask.IsCompleted);   // the shell retained the still-running load
+
+        Assert.True(vm.SelectNavByKey("clean"));             // navigate away
+        await vm.ActiveNavigationTask;                        // completion is observable, not discarded
+
+        Assert.True(blocking.SawCancellation);               // cancellation reached the module
+        Assert.True(blocking.ObservedToken.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task A_navigation_load_that_fails_after_yielding_is_observed_without_faulting_the_shell()
+    {
+        var faulting = new ControllableFaultingNavigationAware();
+        var vm = new MainViewModel(new I18n(), new IWckModule[]
+        {
+            TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
+            new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => faulting),
+        });
+
+        Exception? thrown = Record.Exception(() => { vm.SelectNavByKey("migration"); });
+        Assert.Null(thrown);                                  // the fault never escapes the synchronous setter
+
+        // Proves the shell is genuinely TRACKING this load, not a stale already-completed sentinel: a
+        // regression that discarded the returned task would leave ActiveNavigationTask already-completed here.
+        Assert.False(vm.ActiveNavigationTask.IsCompleted);
+
+        faulting.ReleaseFault();                              // let the pending load fault, now that it was observed pending
+        await vm.ActiveNavigationTask;                        // the shell observed it (swallow + Trace), task completes
+        Assert.Equal(TaskStatus.RanToCompletion, vm.ActiveNavigationTask.Status);
+    }
+
+    [Fact]
+    public async Task RetireNavigation_never_clobbers_a_newer_navigations_cts_when_an_install_is_forced_into_its_exact_race_window()
+    {
+        // Deterministic race, not a timing gamble: MainViewModel.RaceTestHook_AfterRetireOwnershipRead lets this
+        // test pause an OLD navigation's retirement at exactly the point the MAJOR finding describes — AFTER
+        // that retirement has genuinely observed (via Volatile.Read) "yes, I still own this CTS", but BEFORE its
+        // atomic clear takes effect. Then a NEWER navigation's CTS is installed while the old retirement is
+        // paused in that exact post-observation window, and only then is the old retirement released to
+        // perform its clear. This reproduces the historical bug's real shape: old retirement observes ownership
+        // as true → newer navigation installs → old retirement's clear attempt must not clobber the newer
+        // reference. A stale ReferenceEquals-then-plain-assign observes "still active" as true during the same
+        // window and then unconditionally clobbers the newer reference with null once released.
+        // Interlocked.CompareExchange resolves against whatever is CURRENT at the instant it actually runs (even
+        // though that instant was deliberately forced to be strictly after the competing install), so it must
+        // correctly refuse to clear the newer CTS.
+        var oldLoad = new BlockingNavigationAware();
+        var newLoad = new BlockingNavigationAware();
+        var vm = new MainViewModel(new I18n(), new IWckModule[]
+        {
+            TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
+            new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => oldLoad),
+            new TestModule("restore", "nav.restore", "nav.restore.desc", "", 45, false, _ => newLoad),
+        });
+
+        Assert.True(vm.SelectNavByKey("migration"));
+        Task oldNavigationTask = vm.ActiveNavigationTask;
+
+        using var oldRetirementPaused = new ManualResetEventSlim(false);
+        using var releaseOldRetirement = new ManualResetEventSlim(false);
+        vm.RaceTestHook_AfterRetireOwnershipRead = () =>
+        {
+            oldRetirementPaused.Set();
+            releaseOldRetirement.Wait(TimeSpan.FromSeconds(5));
+        };
+
+        oldLoad.Complete(); // lets the old load finish; its retirement continuation will hit the hook and pause
+
+        Assert.True(oldRetirementPaused.Wait(TimeSpan.FromSeconds(2))); // old retirement is now paused, mid-retire
+
+        // Install a NEW navigation now — while the old retirement is paused exactly at "about to clear".
+        Assert.True(vm.SelectNavByKey("restore"));
+
+        releaseOldRetirement.Set(); // let the old retirement's atomic clear finally run
+        await oldNavigationTask;
+
+        System.Reflection.FieldInfo ctsField = typeof(MainViewModel).GetField(
+            "_navigationCts", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var currentCts = (CancellationTokenSource?)ctsField.GetValue(vm);
+        Assert.NotNull(currentCts);                        // the NEW navigation's CTS must survive the race
+        Assert.False(currentCts!.IsCancellationRequested);  // not cancelled/cleared by the older retirement
+        Assert.Equal(1, newLoad.StartedCount);
+        Assert.False(newLoad.SawCancellation);              // the new load must still be genuinely running
+
+        // Navigating away from the new (still-active) load must still be able to cancel it — proving the
+        // shell's field still references it (it was not nulled/disposed by the older retirement).
+        Assert.True(vm.SelectNavByKey("clean"));
+        await vm.ActiveNavigationTask;
+        Assert.True(newLoad.SawCancellation);
+        Assert.True(newLoad.ObservedToken.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task A_navigation_aware_initial_tab_starts_its_load_during_construction_and_it_is_observable()
+    {
+        var blocking = new BlockingNavigationAware();
+        var vm = new MainViewModel(new I18n(), new IWckModule[]
+        {
+            new TestModule("migration", "nav.migration", "nav.migration.desc", "", 5, false, _ => blocking),
+            TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
+        });
+
+        Assert.Equal("migration", vm.Nav[0].Id);              // the nav-aware tab sorts first (order 5)
+        Assert.Equal(1, blocking.StartedCount);               // its load started during construction
+        Assert.False(vm.ActiveNavigationTask.IsCompleted);    // retained and observable, not discarded
+
+        blocking.Complete();
+        await vm.ActiveNavigationTask;                         // drains cleanly (RanToCompletion), no leaked task
+        Assert.Equal(TaskStatus.RanToCompletion, vm.ActiveNavigationTask.Status);
+    }
+
+    [Fact]
     public async Task OnShellStartup_is_safe_when_uninstall_module_is_absent_and_invokes_only_startup_aware_content()
     {
         var subsetConstructed = new List<string>();
@@ -579,7 +707,51 @@ public sealed class ModuleCompositionTests
     {
         public int NavigatedToCount { get; private set; }
 
-        public void OnNavigatedTo() => NavigatedToCount++;
+        public Task OnNavigatedToAsync(CancellationToken cancellationToken)
+        {
+            NavigatedToCount++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingNavigationAware : IWckNavigationAware
+    {
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int StartedCount { get; private set; }
+        public bool SawCancellation { get; private set; }
+        public CancellationToken ObservedToken { get; private set; }
+
+        public async Task OnNavigatedToAsync(CancellationToken cancellationToken)
+        {
+            StartedCount++;
+            ObservedToken = cancellationToken;
+            using CancellationTokenRegistration reg = cancellationToken.Register(() =>
+            {
+                SawCancellation = true;
+                _release.TrySetResult();
+            });
+            await _release.Task.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        /// <summary>Let the load finish successfully (used by the initial-tab test so no running task leaks).</summary>
+        public void Complete() => _release.TrySetResult();
+    }
+
+    private sealed class ControllableFaultingNavigationAware : IWckNavigationAware
+    {
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task OnNavigatedToAsync(CancellationToken cancellationToken)
+        {
+            await _release.Task.ConfigureAwait(false);
+            throw new InvalidOperationException("synthetic navigation failure");
+        }
+
+        /// <summary>Let the pending load fault now (used so the test can first prove the shell was genuinely
+        /// tracking this load while pending, not a discarded task).</summary>
+        public void ReleaseFault() => _release.TrySetResult();
     }
 
     private sealed class RecordingStartupAware : IWckStartupAware

@@ -217,7 +217,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         private set => SetField(ref _scanError, value);
     }
 
-    public void OnNavigatedTo() => _ = StartScanAsync();
+    public Task OnNavigatedToAsync(CancellationToken cancellationToken) => StartScanAsync(cancellationToken);
 
     /// <summary>Runs the read-only scan once, off the UI thread, then applies the result on the caller's UI context.</summary>
     public async Task StartScanAsync(CancellationToken cancellationToken = default)
@@ -238,6 +238,12 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
             MigrationScanResult result = await Task.Run(() => _scanService.Scan(token), token).ConfigureAwait(false);
             await RunOnContextAsync(uiContext, () =>
             {
+                // Re-check immediately before applying: the shell may have cancelled navigation to this view
+                // (or a user Cancel arrived) after the background scan returned but before this posted callback
+                // ran. Applying scan state to a now-deactivated view would be a stale mutation (P27-R2); throwing
+                // here routes through the existing OperationCanceledException handling below, which resets
+                // _scanStarted so a later navigation retries instead of latching a phantom "complete".
+                token.ThrowIfCancellationRequested();
                 LoadScan(result.Detection, result.ProfileRoot, result.Candidates);
                 ConfirmProfile();
             }).ConfigureAwait(false);

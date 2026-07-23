@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Backup;
@@ -365,6 +366,115 @@ public sealed class MigrationViewModelTests
         Assert.Equal("✅", vm.Groups
             .Single(group => group.Category == MigrationCategory.IrreplaceablePersonal)
             .Items.Single().Badge.Glyph);
+    }
+
+    [Fact]
+    public async Task OnNavigatedToAsync_runs_the_scan_and_populates_state()
+    {
+        MigrationSelectionCandidate candidate = Candidate("project", "projects");
+        var scan = new FakeScanService(new MigrationScanResult(
+            Detection(1, 0), @"C:\Users\demo", [candidate]));
+        MigrationViewModel vm = CreateVm(scan);
+
+        await vm.OnNavigatedToAsync(CancellationToken.None);
+
+        Assert.Equal(1, scan.CallCount);
+        Assert.True(vm.IsScanComplete);
+        Assert.True(vm.CanSelect);
+    }
+
+    [Fact]
+    public async Task OnNavigatedToAsync_with_a_precancelled_token_applies_no_state_and_allows_retry()
+    {
+        var scan = new FakeScanService(new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", []));
+        MigrationViewModel vm = CreateVm(scan);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await vm.OnNavigatedToAsync(cts.Token);
+
+        Assert.False(vm.IsScanComplete);            // a cancelled navigation applied no state (P27-R2)
+        Assert.Equal(0, scan.CallCount);            // Task.Run never entered Scan on an already-cancelled token
+
+        await vm.OnNavigatedToAsync(CancellationToken.None);   // navigate back / retry
+        Assert.True(vm.IsScanComplete);             // the re-entry latch was reset on cancellation
+        Assert.Equal(1, scan.CallCount);
+    }
+
+    [Fact]
+    public async Task Cancellation_between_scan_completion_and_the_queued_UI_apply_applies_no_state_and_allows_retry()
+    {
+        // Reproduces the exact BLOCKER window: the background scan already finished (result in hand) and the
+        // apply callback has been POSTED to the captured UI context, but it has NOT run yet — the shell can
+        // still cancel the navigation in that gap (e.g. the user navigated away). A controllable
+        // SynchronizationContext lets the test hold the posted callback pending so cancellation can land
+        // strictly between "scan work finished" and "the posted apply callback actually running".
+        MigrationSelectionCandidate candidate = Candidate("project", "projects");
+        var scan = new FakeScanService(new MigrationScanResult(
+            Detection(1, 0), @"C:\Users\demo", [candidate]));
+        MigrationViewModel vm = CreateVm(scan);
+
+        var context = new QueuingSynchronizationContext();
+        using var cts = new CancellationTokenSource();
+
+        Task scanTask;
+        SynchronizationContext? previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(context);
+        try
+        {
+            scanTask = vm.StartScanAsync(cts.Token);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+
+        // Wait until the background scan finished and posted the apply callback — but it has not run yet.
+        Assert.True(SpinWait.SpinUntil(() => context.PendingCount > 0, TimeSpan.FromSeconds(2)));
+        Assert.Equal(1, scan.CallCount);
+        Assert.False(vm.IsScanComplete);           // the posted callback has not applied anything yet
+
+        cts.Cancel();                              // the shell's navigate-away cancellation arrives in the gap
+
+        // Drain the queued callback(s) (the apply attempt, then StartScanAsync's own cleanup posts) until the
+        // scan task completes. TaskCreationOptions.RunContinuationsAsynchronously means further posts can
+        // arrive slightly later than this call, so keep draining until the task is actually done.
+        Assert.True(SpinWait.SpinUntil(() =>
+        {
+            context.RunAll();
+            return scanTask.IsCompleted;
+        }, TimeSpan.FromSeconds(5)));
+        await scanTask;
+
+        Assert.False(vm.IsScanComplete);            // no scan state was applied after the cancelled apply (P27-R2)
+        Assert.Empty(vm.Groups);
+        Assert.Null(vm.ScanGate);
+        Assert.False(vm.IsScanning);
+
+        // Retry must work: a later navigation actually re-runs the scan instead of being suppressed.
+        await vm.OnNavigatedToAsync(CancellationToken.None);
+        Assert.True(vm.IsScanComplete);
+        Assert.Equal(2, scan.CallCount);
+    }
+
+    /// <summary>Queues posted callbacks instead of running them, so a test can hold a
+    /// <c>SynchronizationContext.Post</c>-ed action pending and control exactly when (and whether) it runs.</summary>
+    private sealed class QueuingSynchronizationContext : SynchronizationContext
+    {
+        private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _queue = new();
+
+        public int PendingCount => _queue.Count;
+
+        public override void Post(SendOrPostCallback d, object? state) => _queue.Enqueue((d, state));
+
+        public override void Send(SendOrPostCallback d, object? state) => d(state);
+
+        /// <summary>Runs every callback currently queued (does not wait for new ones to arrive).</summary>
+        public void RunAll()
+        {
+            while (_queue.TryDequeue(out (SendOrPostCallback Callback, object? State) item))
+                item.Callback(item.State);
+        }
     }
 
     [Fact]
