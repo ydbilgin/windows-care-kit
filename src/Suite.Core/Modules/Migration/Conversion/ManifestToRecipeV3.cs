@@ -60,8 +60,11 @@ public static partial class ManifestToRecipeV3
         if (restore.Reason is not null)
             return Reject(restore.Reason);
 
-        if (restore.Strategy == RestoreStrategy.Replace)
-            return Reject("restore mode 'replace' is not executable by the migration restore runner");
+        // Strategy is non-null whenever ParseRestore reported no reason (see the early return above).
+        // The message names the actual strategy rather than hardcoding 'replace': the condition asks whether
+        // the runner can write this strategy, so a future non-writable strategy must not be reported as replace.
+        if (!RestoreCapabilityPolicy.AllowsAutomaticWrite(restore.Strategy!.Value))
+            return Reject($"restore mode '{restore.Strategy.Value}' is not executable by the migration restore runner");
 
         string relativePath = parsedSource.RelativePath!;
         if (HasUnsafeRelativePath(relativePath))
@@ -77,7 +80,8 @@ public static partial class ManifestToRecipeV3
             ? PortabilityClass.ProfileRelative
             : PortabilityClass.MachineLocked;
         RestoreTier restoreTier = MapTier(entry.Tier);
-        if (portability == PortabilityClass.MachineLocked || !RestoreCapabilityPolicy.IsProfileRoot(parsedSource.KnownFolder.Value))
+        if (RestoreCapabilityPolicy.RequiresInventoryOnlyTier(portability)
+            || !RestoreCapabilityPolicy.IsProfileRoot(parsedSource.KnownFolder.Value))
             restoreTier = RestoreTier.InventoryOnly;
 
         var preconditions = entry.RequiresClosedProcesses

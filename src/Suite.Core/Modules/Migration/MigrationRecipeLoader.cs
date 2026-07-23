@@ -646,8 +646,8 @@ public static class MigrationRecipeLoader
         PortabilityClass portability,
         RecipeDetect detect,
         IReadOnlyList<RecipeItem> items)
-        => portability == PortabilityClass.MachineLocked
+        => RestoreCapabilityPolicy.RequiresInventoryOnlyTier(portability)
            || !RestoreCapabilityPolicy.IsProfileRoot(detect.KnownFolder)
-           || items.Any(i => i.Kind is RecipeItemKind.MachineRoot or RecipeItemKind.WindowsEtc or RecipeItemKind.ExportCmd or RecipeItemKind.ManualTodo);
+           || items.Any(i => RestoreCapabilityPolicy.RequiresInventoryOnlyTier(i.Kind));
 
 }

@@ -15,26 +15,23 @@ public static class RecipeCapabilityHonestyGate
     {
         ArgumentNullException.ThrowIfNull(recipe);
 
-        // Static twin of the per-target blocks in MigrationRestoreRunner.BuildPlan. Each check below mirrors,
-        // in declaration order, one runtime block (search those reasons if the runner's line numbers drift):
-        //   tier short-circuit  <-> RestoreSkipReason.InventoryOnly (effectiveTier < RestoreTier.ConfigCopy)
-        //   portability         <-> RestoreSkipReason.MachineLocked (PortabilityClass != ProfileRelative, the F4 fail-safe)
-        //   profile-root        <-> RestoreSkipReason.NonProfileRoot (!RestoreCapabilityPolicy.IsProfileRoot(KnownFolder))
-        //   item-kind/strategy  <-> RestoreSkipReason.UnsupportedStrategy (non-ConfigWrite/MergeAfterInstall)
+        // This conversion boundary composes the shared capability predicates in its own required order.
+        // BuildPlan independently composes the target facts in execution order; it never trusts this verdict.
+        // The gate also sees item kinds, which per-target restore manifests deliberately do not carry.
         // A recipe whose declared restoreTier >= ConfigCopy but which any of these would block is OVER-CLAIMING.
-        if (recipe.RestoreTier < RestoreTier.ConfigCopy)
+        if (!RestoreCapabilityPolicy.AllowsAutomaticWrite(recipe.RestoreTier))
             return new RecipeCapabilityGateResult.Ok();
 
-        if (recipe.PortabilityClass != PortabilityClass.ProfileRelative)
+        if (!RestoreCapabilityPolicy.AllowsAutomaticWrite(recipe.PortabilityClass))
             return Violate($"recipe '{recipe.Id}' declares {recipe.RestoreTier} but portability is {recipe.PortabilityClass}");
 
         if (!RestoreCapabilityPolicy.IsProfileRoot(recipe.Detect.KnownFolder))
             return Violate($"recipe '{recipe.Id}' declares {recipe.RestoreTier} for non-profile root {recipe.Detect.KnownFolder}");
 
-        if (recipe.Items.Any(i => i.Kind is RecipeItemKind.MachineRoot or RecipeItemKind.WindowsEtc or RecipeItemKind.ExportCmd or RecipeItemKind.ManualTodo))
+        if (recipe.Items.Any(i => RestoreCapabilityPolicy.RequiresInventoryOnlyTier(i.Kind)))
             return Violate($"recipe '{recipe.Id}' declares {recipe.RestoreTier} with a non-profile/manual/export item");
 
-        if (recipe.Restore.Strategy is not (RestoreStrategy.ConfigWrite or RestoreStrategy.MergeAfterInstall))
+        if (!RestoreCapabilityPolicy.AllowsAutomaticWrite(recipe.Restore.Strategy))
             return Violate($"recipe '{recipe.Id}' declares {recipe.RestoreTier} with unsupported strategy {recipe.Restore.Strategy}");
 
         return new RecipeCapabilityGateResult.Ok();

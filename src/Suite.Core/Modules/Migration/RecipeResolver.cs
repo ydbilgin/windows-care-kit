@@ -96,7 +96,8 @@ public sealed class RecipeResolver
         for (int itemOrdinal = 0; itemOrdinal < recipe.Items.Count; itemOrdinal++)
         {
             RecipeItem item = recipe.Items[itemOrdinal];
-            if (item.Kind != RecipeItemKind.ProfilePath || !RestoreCapabilityPolicy.IsProfileRoot(recipe.Detect.KnownFolder))
+            if (!RestoreCapabilityPolicy.IsProfilePathItem(item.Kind)
+                || !RestoreCapabilityPolicy.IsProfileRoot(recipe.Detect.KnownFolder))
             {
                 skipped.Add(new RecipeItemSkip(item.Path, "inventory-only item kind is not copied by the profile resolver"));
                 continue;

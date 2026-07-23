@@ -150,7 +150,7 @@ public sealed class MigrationRestoreRunner
 
             // 1) F4 fail-safe BLOCK — wired into the execution path: machine-locked / partial → NO action.
             //    The runner decides this itself; it never trusts a presentation badge.
-            if (target.PortabilityClass != PortabilityClass.ProfileRelative)
+            if (!RestoreCapabilityPolicy.AllowsAutomaticWrite(target.PortabilityClass))
             {
                 skipped.Add(new RestoreSkip(target, RestoreSkipReason.MachineLocked,
                     "Machine-locked / partial: not restored — re-install or re-login on the new machine"));
@@ -167,11 +167,13 @@ public sealed class MigrationRestoreRunner
                 continue;
             }
 
-            RestoreTier effectiveTier = EffectiveRestoreTier(target);
+            RestoreTier effectiveTier = RestoreCapabilityPolicy.GetEffectiveTier(
+                target.RestoreTier,
+                target.RecipeId);
 
             // 3) F0 restoreTier gate: catalog data, not a hardcoded recipe-id allow-list, decides config-copy
             //    eligibility for new manifests. Legacy manifests with no tier fall back to the old tiny set.
-            if (effectiveTier < RestoreTier.ConfigCopy)
+            if (!RestoreCapabilityPolicy.AllowsAutomaticWrite(effectiveTier))
             {
                 RestoreSkipReason reason = target.RestoreTier == RestoreTier.Unspecified
                     ? RestoreSkipReason.NotAllowListed
@@ -184,7 +186,7 @@ public sealed class MigrationRestoreRunner
             }
 
             // 4) M4 executes ConfigWrite/MergeAfterInstall-class single-file strategies only.
-            if (target.RestoreStrategy is not (RestoreStrategy.ConfigWrite or RestoreStrategy.MergeAfterInstall))
+            if (!RestoreCapabilityPolicy.AllowsAutomaticWrite(target.RestoreStrategy))
             {
                 skipped.Add(new RestoreSkip(target, RestoreSkipReason.UnsupportedStrategy,
                     $"Strategy {target.RestoreStrategy} is not executed by the M4 file-placement runner"));
@@ -256,11 +258,6 @@ public sealed class MigrationRestoreRunner
             InstallManualChecklist = installManualChecklist,
         };
     }
-
-    private static RestoreTier EffectiveRestoreTier(MigrationRestoreTarget target)
-        => target.RestoreTier == RestoreTier.Unspecified
-            ? RestoreAllowList.LegacyTierFor(target.RecipeId)
-            : target.RestoreTier;
 
     private static bool IsContained(string root, string candidate)
     {
