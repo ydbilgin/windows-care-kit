@@ -21,7 +21,10 @@ public sealed class LangFragmentCompositionTests
     // G-m3 (2026-07-11) adds 2 uninstall.inventory.* degraded-notice keys;
     // G-m2 adds one net preview/result split key to Backup and one preview key to Migration.
     // NEW-07 (Round 3B2, 2026-07-23) adds 3 Clean source-health-note keys (recycle/startup/extensions).
-    private const int ExpectedMergedKeyCount = 403;
+    // Manifest honesty adds 2 Install and 3 Backup health-note keys.
+    // MINOR-03 (2026-07-29) adds 2 Install and 2 Backup manifest failure-cause clauses (corrupt/unreadable),
+    // so the actionable difference stops being carried only by an untranslated CLR type name.
+    private const int ExpectedMergedKeyCount = 412;
 
     private static readonly Regex XamlKeyRegex = new(@"I18n\[([a-z][A-Za-z0-9_.]+)\]", RegexOptions.Compiled);
     private static readonly Regex CsKeyRegex =

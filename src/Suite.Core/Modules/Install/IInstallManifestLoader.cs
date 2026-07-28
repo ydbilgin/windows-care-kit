@@ -7,9 +7,42 @@ namespace WindowsCareKit.Core.Modules.Install;
 /// </summary>
 public interface IInstallManifestLoader
 {
-    /// <summary>Loads and parses the manifest from the given file path, assigning the restore order.</summary>
-    InstallManifest Load(string manifestPath);
+    /// <summary>
+    /// Loads and parses the manifest from the given file path, preserving whether it was absent, loaded,
+    /// malformed, or unreadable.
+    /// </summary>
+    InstallManifestLoadResult Load(string manifestPath);
 
     /// <summary>Parses an already-read JSON document (used by tests and when the file is embedded content).</summary>
-    InstallManifest Parse(string json);
+    InstallManifestLoadResult Parse(string json);
+}
+
+/// <summary>The outcome of inspecting the single install-manifest boundary.</summary>
+public enum InstallManifestLoadStatus
+{
+    /// <summary>The optional install-manifest component is genuinely absent.</summary>
+    NotInstalled,
+
+    /// <summary>The document was read and parsed. Its manifest may legitimately contain zero entries.</summary>
+    Loaded,
+
+    /// <summary>The document was present but was blank or invalid JSON.</summary>
+    Malformed,
+
+    /// <summary>The document was present but could not be read.</summary>
+    Unreadable,
+}
+
+/// <summary>
+/// Honest single-file result. <paramref name="FailureCategory"/> is a safe category token, never file
+/// contents or an exception message.
+/// </summary>
+public sealed record InstallManifestLoadResult(
+    InstallManifest Manifest,
+    InstallManifestLoadStatus Status,
+    string ManifestPath,
+    string? FailureCategory)
+{
+    public static InstallManifestLoadResult Loaded(InstallManifest manifest, string manifestPath)
+        => new(manifest, InstallManifestLoadStatus.Loaded, manifestPath, null);
 }

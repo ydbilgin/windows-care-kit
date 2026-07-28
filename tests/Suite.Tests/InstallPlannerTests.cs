@@ -16,7 +16,7 @@ public class InstallPlannerTests
 {
     private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    private static InstallManifestLoader Loader => new();
+    private static InstallManifest Parse(string json) => new InstallManifestLoader().Parse(json).Manifest;
 
     private static InstallPlanner Planner(FakeDriverGuard? guard = null)
         => new(TestData.Gate(), guard ?? new FakeDriverGuard());
@@ -27,7 +27,7 @@ public class InstallPlannerTests
     [Fact]
     public void Winget_auto_entry_becomes_a_command_action()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-chrome", "category": "tarayici", "method": "install-winget",
               "wingetId": "Google.Chrome", "installTier": "auto", "requiresAdmin": false }
             """));
@@ -45,7 +45,7 @@ public class InstallPlannerTests
     [Fact]
     public void RequiresAdmin_winget_entry_is_manual_only()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-ghub", "category": "arac", "method": "install-winget",
               "wingetId": "Logitech.GHUB", "installTier": "auto", "requiresAdmin": true }
             """));
@@ -58,7 +58,7 @@ public class InstallPlannerTests
     [Fact]
     public void Npm_auto_entry_becomes_npm_install_g()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-claude", "category": "ai-cli", "method": "install-npm",
               "npmPackage": "@anthropic-ai/claude-code", "installTier": "auto", "requiresNode": true }
             """));
@@ -71,7 +71,7 @@ public class InstallPlannerTests
     [Fact]
     public void Manual_after_entry_is_listed_not_planned()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-steam", "category": "oyun-launcher", "method": "install-winget",
               "wingetId": "Valve.Steam", "installTier": "manual-after", "requiresAdmin": false }
             """));
@@ -86,7 +86,7 @@ public class InstallPlannerTests
     [Fact]
     public void Url_manual_entry_goes_to_the_manual_checklist()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-nvidia", "category": "arac", "method": "install-url-manual",
               "manualUrl": "https://nvidia.com/app", "installTier": "manual-after", "requiresAdmin": true }
             """));
@@ -101,7 +101,7 @@ public class InstallPlannerTests
     [Fact]
     public void Driver_entry_is_skipped_unless_class_is_net()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "driver-realtek", "category": "ag-surucusu", "method": "install-winget",
               "wingetId": "Realtek.NetDriver", "installTier": "auto", "requiresAdmin": true }
             """));
@@ -120,7 +120,7 @@ public class InstallPlannerTests
     [Fact]
     public void Already_done_entry_is_skipped_on_resume()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-git", "category": "gelistirici", "method": "install-winget",
               "wingetId": "Git.Git", "installTier": "auto" },
             { "id": "install-vscode", "category": "gelistirici", "method": "install-winget",
@@ -139,7 +139,7 @@ public class InstallPlannerTests
     public void Node_is_ordered_before_ai_cli()
     {
         // ai-cli appears first in the file, but Node (gelistirici) must come first in the restore order.
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-claude", "category": "ai-cli", "method": "install-npm",
               "npmPackage": "@anthropic-ai/claude-code", "installTier": "auto", "requiresNode": true },
             { "id": "install-node", "category": "gelistirici", "method": "install-winget",
@@ -160,7 +160,7 @@ public class InstallPlannerTests
     [Fact]
     public void Plan_is_gate_clean_and_uses_the_install_module_name()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-firefox", "category": "tarayici", "method": "install-winget",
               "wingetId": "Mozilla.Firefox", "installTier": "auto" }
             """));
@@ -174,7 +174,7 @@ public class InstallPlannerTests
     [Fact]
     public void Config_restore_entry_becomes_a_restore_merge_with_bak()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "restore-gitconfig", "category": "config", "method": "config-restore",
               "installTier": "auto", "source": "C:\\payload\\.gitconfig", "target": "C:\\Users\\alice\\.gitconfig" }
             """));
@@ -189,7 +189,7 @@ public class InstallPlannerTests
     public void ActionEntryIds_stamps_each_action_with_its_originating_entry()
     {
         // Two automatable entries (+ one skipped manual-after) — the correlation must be by id, not position.
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-claude", "category": "ai-cli", "method": "install-npm",
               "npmPackage": "@anthropic-ai/claude-code", "installTier": "auto", "requiresNode": true },
             { "id": "install-steam", "category": "oyun-launcher", "method": "install-winget",
@@ -212,7 +212,7 @@ public class InstallPlannerTests
     [Fact]
     public void Incomplete_winget_entry_without_id_is_reported_not_planned()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-broken", "category": "arac", "method": "install-winget", "installTier": "auto" }
             """));
 
@@ -232,7 +232,7 @@ public class InstallPlannerTests
     [InlineData("a;calc.exe")]          // shell-ish characters
     public void Winget_entry_with_an_invalid_id_is_rejected_not_planned(string wingetId)
     {
-        var manifest = Loader.Parse(ManifestJson($$"""
+        var manifest = Parse(ManifestJson($$"""
             { "id": "install-crafted", "category": "arac", "method": "install-winget",
               "wingetId": "{{wingetId}}", "installTier": "auto" }
             """));
@@ -246,7 +246,7 @@ public class InstallPlannerTests
     [Fact]
     public void Winget_entry_with_a_valid_id_is_accepted()
     {
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-powertoys", "category": "arac", "method": "install-winget",
               "wingetId": "Microsoft.PowerToys", "installTier": "auto" }
             """));
@@ -290,7 +290,7 @@ public class InstallPlannerTests
     public void Phase1_real_npm_planner_action_is_gate_clean()
     {
         // End-to-end through the planner: the shipped npm-install entry shape produces a gate-clean .cmd action.
-        var manifest = Loader.Parse(ManifestJson("""
+        var manifest = Parse(ManifestJson("""
             { "id": "install-claude", "category": "ai-cli", "method": "install-npm",
               "npmPackage": "@anthropic-ai/claude-code", "installTier": "auto", "requiresNode": true }
             """));

@@ -137,6 +137,13 @@
                        FontSize="13" TextWrapping="Wrap" Margin="0,4,0,0" />
             <TextBlock Text="{Binding I18n[install.reboot.note]}" Style="{StaticResource InstallMetaText}"
                        Margin="0,8,0,0" />
+            <TextBlock x:Name="InstallManifestInfoNoteText" Text="{Binding ManifestInfoNote}"
+                       Foreground="{DynamicResource Backup.Muted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Visibility="{Binding ManifestInfoNote, Converter={StaticResource NonEmptyToVis}}" />
+            <TextBlock x:Name="InstallManifestHealthNoteText" Text="{Binding ManifestHealthNote}"
+                       Foreground="{DynamicResource Backup.DangerStrong}" FontSize="11.5" FontWeight="SemiBold"
+                       TextWrapping="Wrap" Margin="0,8,0,0"
+                       Visibility="{Binding ManifestHealthNote, Converter={StaticResource NonEmptyToVis}}" />
             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                 <Button Style="{StaticResource InstallSecondaryButton}" Content="{Binding I18n[install.loadManifest]}"
                         Command="{Binding LoadManifestCommand}" />

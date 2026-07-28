@@ -57,6 +57,8 @@ public sealed class InstallViewModel : ObservableObject
     private string _summary = string.Empty;
     private string _resultSummary = string.Empty;
     private string _checkpointWarning = string.Empty;
+    private string _manifestInfoNote = string.Empty;
+    private string _manifestHealthNote = string.Empty;
 
     public InstallViewModel(
         I18n i18n,
@@ -120,6 +122,8 @@ public sealed class InstallViewModel : ObservableObject
     public string Summary { get => _summary; private set => SetField(ref _summary, value); }
     public string ResultSummary { get => _resultSummary; private set => SetField(ref _resultSummary, value); }
     public string CheckpointWarning { get => _checkpointWarning; private set => SetField(ref _checkpointWarning, value); }
+    public string ManifestInfoNote { get => _manifestInfoNote; private set => SetField(ref _manifestInfoNote, value); }
+    public string ManifestHealthNote { get => _manifestHealthNote; private set => SetField(ref _manifestHealthNote, value); }
 
     public bool IsPreviewApproved
     {
@@ -161,7 +165,15 @@ public sealed class InstallViewModel : ObservableObject
         try
         {
             string path = AppLayout.Current.Resource(Path.Combine(ManifestsFolderName, InstallManifestFileName));
-            _manifest = File.Exists(path) ? _loader.Load(path) : InstallManifest.Empty;
+            InstallManifestLoadResult load = _loader.Load(path);
+            _manifest = load.Manifest;
+            ManifestInfoNote = load.Status == InstallManifestLoadStatus.NotInstalled
+                ? I18n["install.manifest.notInstalled"]
+                : string.Empty;
+            ManifestHealthNote = load.Status is InstallManifestLoadStatus.Malformed or InstallManifestLoadStatus.Unreadable
+                ? I18n.Format("install.manifest.failed", load.ManifestPath,
+                    $"{FailureCause(load.Status)}, {load.FailureCategory ?? load.Status.ToString()}")
+                : string.Empty;
 
             BuildAuthRows();
             Summary = I18n.Format("install.loaded.summary", _manifest.Entries.Count);
@@ -173,6 +185,18 @@ public sealed class InstallViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    /// <summary>Localized cause clause for a failed manifest load. "A corrupt file" and "a file we could not
+    /// read" call for different user action (repair/reinstall vs. release the lock or fix permissions), and the
+    /// raw <c>FailureCategory</c> that follows it is an untranslated CLR type name — a diagnostic token, not
+    /// language. Retaining both keeps the sentence actionable in every locale without losing the token a bug
+    /// report needs. Falls back to the status name so a future status is visibly unmapped rather than mislabelled.</summary>
+    private string FailureCause(InstallManifestLoadStatus status) => status switch
+    {
+        InstallManifestLoadStatus.Malformed => I18n["install.manifest.cause.corrupt"],
+        InstallManifestLoadStatus.Unreadable => I18n["install.manifest.cause.unreadable"],
+        _ => status.ToString(),
+    };
 
     /// <summary>Builds the ordered restore plan, skipping entries already done in the checkpoint.</summary>
     public void BuildPlan()

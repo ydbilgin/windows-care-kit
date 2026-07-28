@@ -1,4 +1,5 @@
 using WindowsCareKit.Core.Modules.Install;
+using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -6,22 +7,93 @@ namespace WindowsCareKit.Tests;
 public class InstallManifestLoaderTests
 {
     private static InstallManifestLoader Loader => new();
+    private static InstallManifest Parse(string json) => Loader.Parse(json).Manifest;
 
-    [Fact]
-    public void Empty_or_blank_json_yields_empty_manifest()
+    // MINOR-04: the test this replaced covered BOTH "" and "   "; keep both inputs rather than ship a
+    // strictly weaker test than the one that was removed.
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Blank_json_is_reported_as_malformed(string json)
     {
-        Assert.Empty(Loader.Parse("").Entries);
-        Assert.Empty(Loader.Parse("   ").Entries);
+        InstallManifestLoadResult result = Loader.Parse(json);
+
+        Assert.Equal(InstallManifestLoadStatus.Malformed, result.Status);
+        Assert.Empty(result.Manifest.Entries);
     }
 
     [Fact]
-    public void Malformed_json_fails_safe_to_empty()
-        => Assert.Empty(Loader.Parse("{ not json").Entries);
+    public void Malformed_json_is_reported_as_malformed()
+    {
+        InstallManifestLoadResult result = Loader.Parse("{ not json");
+
+        Assert.Equal(InstallManifestLoadStatus.Malformed, result.Status);
+        Assert.Empty(result.Manifest.Entries);
+    }
+
+    [Fact]
+    public void Load_absent_manifest_reports_not_installed()
+    {
+        using var ws = new TempWorkspace("wck-install-manifest-absent-");
+        string path = Path.Combine(ws.Root, "missing.json");
+
+        InstallManifestLoadResult result = Loader.Load(path);
+
+        Assert.Equal(InstallManifestLoadStatus.NotInstalled, result.Status);
+        Assert.Equal(path, result.ManifestPath);
+        Assert.Null(result.FailureCategory);
+        Assert.Empty(result.Manifest.Entries);
+    }
+
+    [Fact]
+    public void Load_valid_empty_manifest_is_loaded_not_failed()
+    {
+        using var ws = new TempWorkspace("wck-install-manifest-empty-");
+        string path = Path.Combine(ws.Root, "90-install.json");
+        File.WriteAllText(path, """{ "entries": [] }""");
+
+        InstallManifestLoadResult result = Loader.Load(path);
+
+        Assert.Equal(InstallManifestLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Manifest.Entries);
+        Assert.Null(result.FailureCategory);
+    }
+
+    [Fact]
+    public void Load_malformed_manifest_names_path_and_safe_category()
+    {
+        using var ws = new TempWorkspace("wck-install-manifest-bad-");
+        string path = Path.Combine(ws.Root, "90-install.json");
+        File.WriteAllText(path, "{ not json");
+
+        InstallManifestLoadResult result = Loader.Load(path);
+
+        Assert.Equal(InstallManifestLoadStatus.Malformed, result.Status);
+        Assert.Equal(path, result.ManifestPath);
+        Assert.Equal("JsonException", result.FailureCategory);
+        Assert.Empty(result.Manifest.Entries);
+    }
+
+    [Fact]
+    public void Load_unreadable_manifest_names_path_and_safe_category()
+    {
+        using var ws = new TempWorkspace("wck-install-manifest-locked-");
+        string path = Path.Combine(ws.Root, "90-install.json");
+        File.WriteAllText(path, """{ "entries": [] }""");
+        using var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        InstallManifestLoadResult result = Loader.Load(path);
+
+        Assert.Equal(InstallManifestLoadStatus.Unreadable, result.Status);
+        Assert.Equal(path, result.ManifestPath);
+        Assert.Equal("IOException", result.FailureCategory);
+        Assert.Empty(result.Manifest.Entries);
+    }
 
     [Fact]
     public void Parses_core_fields_and_optional_fields()
     {
-        var manifest = Loader.Parse("""
+        var manifest = Parse("""
             { "schemaVersion": 1, "entries": [
               { "id": "install-codex", "phase": "install", "category": "ai-cli", "method": "install-npm",
                 "npmPackage": "@openai/codex", "requiresAdmin": false, "rebootExpected": false,
@@ -46,7 +118,7 @@ public class InstallManifestLoaderTests
     [Fact]
     public void Manual_after_tier_is_not_automatable()
     {
-        var manifest = Loader.Parse("""
+        var manifest = Parse("""
             { "entries": [
               { "id": "install-vs", "category": "developer", "method": "install-winget",
                 "wingetId": "Microsoft.VisualStudio.2022.Community", "installTier": "manual-after" }
@@ -59,7 +131,7 @@ public class InstallManifestLoaderTests
     [Fact]
     public void Url_manual_method_is_not_automatable()
     {
-        var manifest = Loader.Parse("""
+        var manifest = Parse("""
             { "entries": [
               { "id": "install-antigravity", "category": "ai-cli", "method": "install-url-manual",
                 "manualUrl": "https://antigravity.google/", "installTier": "manual-after" }
@@ -75,7 +147,7 @@ public class InstallManifestLoaderTests
     public void Restore_order_follows_the_category_sequence()
     {
         // ai-cli before developer in the FILE, but developer must get a lower RestoreOrder band.
-        var manifest = Loader.Parse("""
+        var manifest = Parse("""
             { "entries": [
               { "id": "a-ai", "category": "ai-cli", "method": "install-npm", "npmPackage": "x", "installTier": "auto" },
               { "id": "b-dev", "category": "developer", "method": "install-winget", "wingetId": "y", "installTier": "auto" }
@@ -90,7 +162,7 @@ public class InstallManifestLoaderTests
     [Fact]
     public void Entries_missing_id_or_method_are_dropped()
     {
-        var manifest = Loader.Parse("""
+        var manifest = Parse("""
             { "entries": [
               { "category": "arac", "method": "install-winget", "wingetId": "x", "installTier": "auto" },
               { "id": "ok", "category": "arac", "method": "install-winget", "wingetId": "y", "installTier": "auto" }
@@ -104,7 +176,7 @@ public class InstallManifestLoaderTests
     public void The_bundled_install_manifest_parses_into_entries()
     {
         // Mirrors the real 90-install.json shape; ensures the schema the planner relies on is honored.
-        var manifest = Loader.Parse("""
+        var manifest = Parse("""
             { "schemaVersion": 1, "entries": [
               { "id": "install-google-chrome", "phase": "install", "category": "browser",
                 "method": "install-winget", "wingetId": "Google.Chrome", "installTier": "auto",
@@ -125,8 +197,10 @@ public class InstallManifestLoaderTests
     {
         string path = Path.Combine(FindRepositoryRoot(), "src", "Suite.Module.Install", "manifests", "90-install.json");
 
-        InstallManifest manifest = Loader.Load(path);
+        InstallManifestLoadResult result = Loader.Load(path);
+        InstallManifest manifest = result.Manifest;
 
+        Assert.Equal(InstallManifestLoadStatus.Loaded, result.Status);
         Assert.NotEmpty(manifest.Entries);
         Assert.Contains(manifest.Entries, e => e.Id == "install-google-chrome" && e.Category == "browser");
         Assert.DoesNotContain(manifest.Entries, e => e.Category.Contains("tarayici", StringComparison.OrdinalIgnoreCase));
@@ -138,8 +212,10 @@ public class InstallManifestLoaderTests
         string path = Path.Combine(AppContext.BaseDirectory, "manifests", "90-install.json");
 
         Assert.True(File.Exists(path), path);
-        InstallManifest manifest = Loader.Load(path);
+        InstallManifestLoadResult result = Loader.Load(path);
+        InstallManifest manifest = result.Manifest;
 
+        Assert.Equal(InstallManifestLoadStatus.Loaded, result.Status);
         Assert.NotEmpty(manifest.Entries);
         Assert.Contains(manifest.Entries, e => e.Id == "install-google-chrome" && e.Category == "browser");
     }

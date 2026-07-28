@@ -35,6 +35,8 @@ public sealed class BackupViewModel : ObservableObject
     private BackupPlanResult? _planResult;
     private string _summary = string.Empty;
     private string _payloadWarning = string.Empty;
+    private string _manifestInfoNote = string.Empty;
+    private string _manifestHealthNote = string.Empty;
 
     public BackupViewModel(I18n i18n, IManifestLoader manifestLoader, BackupPlanner planner, BackupRunner runner)
     {
@@ -116,6 +118,8 @@ public sealed class BackupViewModel : ObservableObject
 
     /// <summary>Set when the chosen payload folder is invalid (inside the app folder, etc.).</summary>
     public string PayloadWarning { get => _payloadWarning; private set => SetField(ref _payloadWarning, value); }
+    public string ManifestInfoNote { get => _manifestInfoNote; private set => SetField(ref _manifestInfoNote, value); }
+    public string ManifestHealthNote { get => _manifestHealthNote; private set => SetField(ref _manifestHealthNote, value); }
 
     /// <summary>Build the dry-run copy plan from the manifest. Read-only; nothing is copied here.</summary>
     public async Task BuildPlanAsync()
@@ -131,10 +135,10 @@ public sealed class BackupViewModel : ObservableObject
             string manifestsDir = AppLayout.Current.Resource(ManifestsFolderName);
             DateTime now = DateTime.UtcNow;
 
-            (BackupPlanResult result, HashSet<string> wholeTreeIds) = await Task.Run(() =>
+            (BackupManifestLoadResult load, BackupPlanResult result, HashSet<string> wholeTreeIds) = await Task.Run(() =>
             {
-                BackupManifest manifest = _manifestLoader.LoadFromDirectory(manifestsDir);
-                BackupPlanResult r = _planner.BuildPlan(manifest, payload, now);
+                BackupManifestLoadResult loaded = _manifestLoader.LoadFromDirectory(manifestsDir);
+                BackupPlanResult r = _planner.BuildPlan(loaded.Manifest, payload, now);
 
                 // L7: probe each copy Source OFF-thread (Source is already env-expanded by the planner/loader).
                 // A directory source means a recursive whole-tree copy → flag it so the preview row warns.
@@ -144,7 +148,7 @@ public sealed class BackupViewModel : ObservableObject
                     if (a is CopyAction cp && !string.IsNullOrWhiteSpace(cp.Source) && Directory.Exists(cp.Source))
                         wholeTree.Add(cp.Id);
                 }
-                return (r, wholeTree);
+                return (loaded, r, wholeTree);
             });
 
             // G4: if the user changed the payload path while planning was in flight, this plan was built against a
@@ -154,6 +158,7 @@ public sealed class BackupViewModel : ObservableObject
             if (!string.Equals(_payloadDir, payload, StringComparison.OrdinalIgnoreCase))
                 return;
 
+            SetManifestHealth(load);
             _planResult = result;
             _approvedHash = result.Plan.ComputeHash();
 
@@ -242,10 +247,44 @@ public sealed class BackupViewModel : ObservableObject
         IsPreviewApproved = false;
         Summary = string.Empty;
         PayloadWarning = string.Empty;
+        ManifestInfoNote = string.Empty;
+        ManifestHealthNote = string.Empty;
         OnPropertyChanged(nameof(HasPlan));
         OnPropertyChanged(nameof(HasResults));
         OnPropertyChanged(nameof(CanRun));
     }
+
+    private void SetManifestHealth(BackupManifestLoadResult load)
+    {
+        ManifestInfoNote = load.Status == BackupManifestLoadStatus.NotInstalled
+            ? I18n["backup.manifest.notInstalled"]
+            : string.Empty;
+
+        if (load.Status is not (BackupManifestLoadStatus.Partial or BackupManifestLoadStatus.Unavailable))
+        {
+            ManifestHealthNote = string.Empty;
+            return;
+        }
+
+        string failures = string.Join("; ", load.Files
+            .Where(f => f.Status != BackupManifestFileStatus.Loaded)
+            .Select(f => $"{f.Path} ({FailureCause(f.Status)}, {f.FailureCategory ?? f.Status.ToString()})"));
+        string key = load.Status == BackupManifestLoadStatus.Partial
+            ? "backup.manifest.partial"
+            : "backup.manifest.unavailable";
+        ManifestHealthNote = I18n.Format(key, failures);
+    }
+
+    /// <summary>Localized cause clause for one failed manifest file. A corrupt file and one we could not read
+    /// call for different user action, and the raw <c>FailureCategory</c> that follows is an untranslated CLR
+    /// type name — a diagnostic token, not language. Per-file rather than per-aggregate because one Partial
+    /// load can mix both causes. Falls back to the status name so a future status is visibly unmapped.</summary>
+    private string FailureCause(BackupManifestFileStatus status) => status switch
+    {
+        BackupManifestFileStatus.Malformed => I18n["backup.manifest.cause.corrupt"],
+        BackupManifestFileStatus.Unreadable => I18n["backup.manifest.cause.unreadable"],
+        _ => status.ToString(),
+    };
 
     private PlanRow ManualRow(BackupEntry e) => new()
     {

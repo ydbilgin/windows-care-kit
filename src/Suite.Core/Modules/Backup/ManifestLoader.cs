@@ -26,50 +26,111 @@ public sealed class ManifestLoader : IManifestLoader
         => _expander = expander ?? throw new ArgumentNullException(nameof(expander));
 
     /// <inheritdoc />
-    public BackupManifest LoadFromDirectory(string manifestsDirectory)
+    public BackupManifestLoadResult LoadFromDirectory(string manifestsDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestsDirectory);
-        if (!Directory.Exists(manifestsDirectory))
-            return new BackupManifest(Array.Empty<BackupEntry>());
+        string[] paths;
+        try
+        {
+            // Materialize inside the try: enumeration is deferred and can fail after EnumerateFiles returns.
+            paths = Directory.EnumerateFiles(manifestsDirectory, "*.json", SearchOption.TopDirectoryOnly)
+                .Where(f => !Path.GetFileName(f).StartsWith("90-", StringComparison.Ordinal))
+                .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new(new BackupManifest(Array.Empty<BackupEntry>()), BackupManifestLoadStatus.NotInstalled,
+                Array.Empty<BackupManifestFileOutcome>());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new(new BackupManifest(Array.Empty<BackupEntry>()), BackupManifestLoadStatus.Unavailable,
+                [new(manifestsDirectory, BackupManifestFileStatus.Unreadable, ex.GetType().Name)]);
+        }
 
-        // Deterministic order: the numeric file-name prefixes (00-, 10-, ...) sort the categories.
-        var docs = Directory.EnumerateFiles(manifestsDirectory, "*.json", SearchOption.TopDirectoryOnly)
-            .Where(f => !Path.GetFileName(f).StartsWith("90-", StringComparison.Ordinal)) // 90-install.json is the install manifest
-            .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
-            .Select(File.ReadAllText);
+        var entries = new List<BackupEntry>();
+        var outcomes = new List<BackupManifestFileOutcome>(paths.Length);
+        foreach (string path in paths)
+        {
+            string json;
+            try
+            {
+                json = File.ReadAllText(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                outcomes.Add(new(path, BackupManifestFileStatus.Unreadable, ex.GetType().Name));
+                continue;
+            }
 
-        return LoadFromJson(docs);
+            ParseDocument(json, path, entries, outcomes);
+        }
+
+        return BuildResult(entries, outcomes);
     }
 
     /// <inheritdoc />
-    public BackupManifest LoadFromJson(IEnumerable<string> jsonDocuments)
+    public BackupManifestLoadResult LoadFromJson(IEnumerable<string> jsonDocuments)
     {
         ArgumentNullException.ThrowIfNull(jsonDocuments);
         var entries = new List<BackupEntry>();
+        var outcomes = new List<BackupManifestFileOutcome>();
+        int index = 0;
 
         foreach (string json in jsonDocuments)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                continue;
+            index++;
+            ParseDocument(json, $"<memory:{index}>", entries, outcomes);
+        }
 
-            ManifestFile? file;
-            try
-            {
-                file = JsonSerializer.Deserialize<ManifestFile>(json, JsonOptions);
-            }
-            catch (JsonException)
-            {
-                continue; // a malformed manifest file is skipped, not fatal — the others still load
-            }
+        return BuildResult(entries, outcomes);
+    }
 
-            if (file?.Entries is null)
-                continue;
+    private void ParseDocument(
+        string json,
+        string path,
+        List<BackupEntry> entries,
+        List<BackupManifestFileOutcome> outcomes)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            outcomes.Add(new(path, BackupManifestFileStatus.Malformed, "BlankDocument"));
+            return;
+        }
 
+        ManifestFile? file;
+        try
+        {
+            file = JsonSerializer.Deserialize<ManifestFile>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            outcomes.Add(new(path, BackupManifestFileStatus.Malformed, nameof(JsonException)));
+            return;
+        }
+
+        if (file?.Entries is not null)
+        {
             foreach (RawEntry raw in file.Entries)
                 entries.Add(Map(raw));
         }
 
-        return new BackupManifest(entries);
+        outcomes.Add(new(path, BackupManifestFileStatus.Loaded, null));
+    }
+
+    private static BackupManifestLoadResult BuildResult(
+        List<BackupEntry> entries,
+        List<BackupManifestFileOutcome> outcomes)
+    {
+        int failures = outcomes.Count(o => o.Status != BackupManifestFileStatus.Loaded);
+        int loaded = outcomes.Count - failures;
+        BackupManifestLoadStatus status = failures == 0
+            ? BackupManifestLoadStatus.Complete
+            : loaded == 0
+                ? BackupManifestLoadStatus.Unavailable
+                : BackupManifestLoadStatus.Partial;
+        return new(new BackupManifest(entries), status, outcomes);
     }
 
     private BackupEntry Map(RawEntry raw)

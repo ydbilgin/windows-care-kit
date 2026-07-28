@@ -35,8 +35,16 @@ public sealed class InstallViewModelTests
     /// <summary>A manifest loader that ignores the path and returns the entries the test supplied.</summary>
     private sealed class FakeManifestLoader(params InstallEntry[] entries) : IInstallManifestLoader
     {
-        public InstallManifest Load(string manifestPath) => new(entries);
-        public InstallManifest Parse(string json) => new(entries);
+        public InstallManifestLoadResult Load(string manifestPath)
+            => InstallManifestLoadResult.Loaded(new InstallManifest(entries), manifestPath);
+        public InstallManifestLoadResult Parse(string json)
+            => InstallManifestLoadResult.Loaded(new InstallManifest(entries), "<memory>");
+    }
+
+    private sealed class ResultManifestLoader(InstallManifestLoadResult result) : IInstallManifestLoader
+    {
+        public InstallManifestLoadResult Load(string manifestPath) => result;
+        public InstallManifestLoadResult Parse(string json) => result;
     }
 
     /// <summary>A driver guard confirming every identifier as Net so a Net-driver entry is never class-skipped.</summary>
@@ -87,9 +95,15 @@ public sealed class InstallViewModelTests
         RecordingStateStore stateStore,
         InstallRunner runner,
         params InstallEntry[] entries)
+        => BuildVm(fx, stateStore, runner, new FakeManifestLoader(entries), new I18n());
+
+    private static InstallViewModel BuildVm(
+        ExecutorFixture fx,
+        RecordingStateStore stateStore,
+        InstallRunner runner,
+        IInstallManifestLoader loader,
+        I18n i18n)
     {
-        var i18n = new I18n();
-        var loader = new FakeManifestLoader(entries);
         var planner = new InstallPlanner(fx.Gate, new AllNetDriverGuard());
         return new InstallViewModel(
             i18n, loader, planner, new FakeAuthProbe(), stateStore, fx.Gate, new GatedPlanExecutor(fx.Executor), runner);
@@ -126,6 +140,49 @@ public sealed class InstallViewModelTests
             Started.Dispose();
             Release.Dispose();
         }
+    }
+
+    [Fact]
+    public void Manifest_outcomes_reach_distinct_visible_state()
+    {
+        using var fx = new ExecutorFixture(TestData.Gate());
+        var stateStore = new RecordingStateStore();
+        InstallEntry entry = Winget("git", "Git.Git");
+        var cases = new[]
+        {
+            new InstallManifestLoadResult(InstallManifest.Empty, InstallManifestLoadStatus.NotInstalled,
+                @"C:\app\manifests\90-install.json", null),
+            InstallManifestLoadResult.Loaded(new InstallManifest([entry]), @"C:\app\manifests\90-install.json"),
+            InstallManifestLoadResult.Loaded(InstallManifest.Empty, @"C:\app\manifests\90-install.json"),
+            new InstallManifestLoadResult(InstallManifest.Empty, InstallManifestLoadStatus.Malformed,
+                @"C:\app\manifests\bad.json", "JsonException"),
+            new InstallManifestLoadResult(InstallManifest.Empty, InstallManifestLoadStatus.Unreadable,
+                @"C:\app\manifests\locked.json", "IOException"),
+        };
+
+        var visibleStates = new HashSet<(string Summary, string Info, string Health)>();
+        foreach (InstallManifestLoadResult load in cases)
+        {
+            InstallViewModel vm = BuildVm(
+                fx, stateStore, NoopRunner(), new ResultManifestLoader(load), TestI18n.Full());
+            vm.LoadManifest();
+            visibleStates.Add((vm.Summary, vm.ManifestInfoNote, vm.ManifestHealthNote));
+        }
+
+        Assert.Equal(5, visibleStates.Count);
+        // MAJOR-03: Health MUST stay empty for NotInstalled — an absent optional component is the calm,
+        // most common production state, not breakage. Without this clause, widening the health-note
+        // condition to include NotInstalled leaves the whole suite green.
+        Assert.Contains(visibleStates, s => s.Summary == "0 entries loaded" && s.Info.Contains("not installed")
+            && s.Health.Length == 0);
+        Assert.Contains(visibleStates, s => s.Summary == "1 entries loaded" && s.Info.Length == 0 && s.Health.Length == 0);
+        Assert.Contains(visibleStates, s => s.Summary == "0 entries loaded" && s.Info.Length == 0 && s.Health.Length == 0);
+        // MINOR-03: the localized cause clause must distinguish corrupt from unreadable — the raw CLR type
+        // name that follows it is a diagnostic token, not language, and is untranslated in every locale.
+        Assert.Contains(visibleStates, s => s.Health.Contains(@"C:\app\manifests\bad.json") && s.Health.Contains("JsonException")
+            && s.Health.Contains("(corrupt, "));
+        Assert.Contains(visibleStates, s => s.Health.Contains(@"C:\app\manifests\locked.json") && s.Health.Contains("IOException")
+            && s.Health.Contains("(unreadable, "));
     }
 
     // ---- plan shape ----

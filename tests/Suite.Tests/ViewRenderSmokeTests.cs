@@ -339,6 +339,112 @@ public sealed class ViewRenderSmokeTests
                 host.Measure(size);
                 host.Arrange(new Rect(size));
                 host.UpdateLayout();
+
+                // MINOR-02: the healthy path must show NEITHER note. Absence of a warning is a claim too.
+                AssertHealthNoteCollapsed(view, "InstallManifestInfoNoteText");
+                AssertHealthNoteCollapsed(view, "InstallManifestHealthNoteText");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>MAJOR-01 (2026-07-29): <c>NotInstalled</c> is the most common production state at this boundary —
+    /// <c>installer/WindowsCareKit.iss</c> excludes <c>manifests\*</c> from the base file set, so every compact
+    /// and most custom installs produce it — and it was the one state of five with no render proof. Hardcoding
+    /// this note's Visibility to Collapsed left the whole suite green: the property, its VM assignment and its
+    /// unit assertion all survived, and only the user stopped seeing it. That is the reviewed defect's exact
+    /// shape (a typed result nobody renders) reintroduced at the state that matters most.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void InstallView_renders_manifest_not_installed_info_note(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                using var fx = new ExecutorFixture();
+                var load = new InstallManifestLoadResult(
+                    InstallManifest.Empty,
+                    InstallManifestLoadStatus.NotInstalled,
+                    @"C:\app\manifests\90-install.json",
+                    null);
+                var vm = new InstallViewModel(
+                    i18n,
+                    new RenderFakeManifestLoader(load),
+                    new InstallPlanner(fx.Gate, new RenderAllNetDriverGuard()),
+                    new RenderFakeAuthProbe(),
+                    new RenderRecordingStateStore(),
+                    fx.Gate,
+                    new RenderPlanExecutor(fx.Executor),
+                    new InstallRunner(new RenderThrowingPlanWriter(), new FakeClock(DateTime.UtcNow)));
+                vm.LoadManifest();
+
+                var view = new InstallView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                AssertHealthNoteVisible(view, "InstallManifestInfoNoteText", i18n["install.manifest.notInstalled"]);
+                // An absent optional component is calm, not breakage — the red danger note must stay hidden.
+                AssertHealthNoteCollapsed(view, "InstallManifestHealthNoteText");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void InstallView_renders_manifest_failure_health_note(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                using var fx = new ExecutorFixture();
+                var load = new InstallManifestLoadResult(
+                    InstallManifest.Empty,
+                    InstallManifestLoadStatus.Malformed,
+                    @"C:\app\manifests\90-install.json",
+                    "JsonException");
+                var vm = new InstallViewModel(
+                    i18n,
+                    new RenderFakeManifestLoader(load),
+                    new InstallPlanner(fx.Gate, new RenderAllNetDriverGuard()),
+                    new RenderFakeAuthProbe(),
+                    new RenderRecordingStateStore(),
+                    fx.Gate,
+                    new RenderPlanExecutor(fx.Executor),
+                    new InstallRunner(new RenderThrowingPlanWriter(), new FakeClock(DateTime.UtcNow)));
+                vm.LoadManifest();
+
+                var view = new InstallView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
+                var size = new Size(1100, 900);
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                // MINOR-01: source the expectation from the i18n table, NOT from vm.ManifestHealthNote —
+                // asserting a TextBlock equals the very property it is bound to only proves the binding
+                // exists, and would still pass if the VM selected the wrong key.
+                AssertHealthNoteVisible(view, "InstallManifestHealthNoteText",
+                    i18n.Format("install.manifest.failed", @"C:\app\manifests\90-install.json",
+                        $"{i18n["install.manifest.cause.corrupt"]}, JsonException"));
+                AssertHealthNoteCollapsed(view, "InstallManifestInfoNoteText");
             }
             finally
             {
@@ -835,6 +941,85 @@ public sealed class ViewRenderSmokeTests
                 Assert.Single(vm.PlanRows);
                 Assert.Single(vm.ManualRows);
                 Assert.Single(vm.SkippedRows);
+
+                // MINOR-02: the healthy path must show NEITHER note. Absence of a warning is a claim too.
+                AssertHealthNoteCollapsed(view, "BackupManifestInfoNoteText");
+                AssertHealthNoteCollapsed(view, "BackupManifestHealthNoteText");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>MAJOR-01 (2026-07-29): the Backup twin of the Install NotInstalled render proof — same reasoning,
+    /// same installer-component cause. See <see cref="InstallView_renders_manifest_not_installed_info_note"/>.</summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void BackupView_renders_manifest_not_installed_info_note(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                var load = new BackupManifestLoadResult(
+                    new BackupManifest([]),
+                    BackupManifestLoadStatus.NotInstalled,
+                    []);
+                BackupViewModel vm = BuildBackupRenderViewModel(i18n, new FixedBackupRenderManifestLoader(load));
+                vm.BuildPlanAsync().GetAwaiter().GetResult();
+
+                var view = new BackupView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 720 };
+                var size = new Size(1000, 720);
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                AssertHealthNoteVisible(view, "BackupManifestInfoNoteText", i18n["backup.manifest.notInstalled"]);
+                AssertHealthNoteCollapsed(view, "BackupManifestHealthNoteText");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void BackupView_renders_manifest_failure_health_note(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                var load = new BackupManifestLoadResult(
+                    new BackupManifest([]),
+                    BackupManifestLoadStatus.Unavailable,
+                    [new(@"C:\app\manifests\00-bad.json", BackupManifestFileStatus.Malformed, "JsonException")]);
+                BackupViewModel vm = BuildBackupRenderViewModel(i18n, new FixedBackupRenderManifestLoader(load));
+                vm.BuildPlanAsync().GetAwaiter().GetResult();
+
+                var view = new BackupView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 720 };
+                var size = new Size(1000, 720);
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                // MINOR-01: independently-sourced expectation (see the Install twin above).
+                AssertHealthNoteVisible(view, "BackupManifestHealthNoteText",
+                    i18n.Format("backup.manifest.unavailable",
+                        $@"C:\app\manifests\00-bad.json ({i18n["backup.manifest.cause.corrupt"]}, JsonException)"));
+                AssertHealthNoteCollapsed(view, "BackupManifestInfoNoteText");
             }
             finally
             {
@@ -939,7 +1124,7 @@ public sealed class ViewRenderSmokeTests
         return createdApplication;
     }
 
-    private static BackupViewModel BuildBackupRenderViewModel(I18n i18n)
+    private static BackupViewModel BuildBackupRenderViewModel(I18n i18n, IManifestLoader? manifestLoader = null)
     {
         var gate = TestData.Gate();
         var planner = new BackupPlanner(gate, new FakeEnvironmentExpander());
@@ -952,7 +1137,7 @@ public sealed class ViewRenderSmokeTests
             new FakeHasher(),
             new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
 
-        return new BackupViewModel(i18n, new BackupRenderManifestLoader(), planner, runner)
+        return new BackupViewModel(i18n, manifestLoader ?? new BackupRenderManifestLoader(), planner, runner)
         {
             PayloadDir = @"D:\WCK-BackupOut"
         };
@@ -964,8 +1149,10 @@ public sealed class ViewRenderSmokeTests
 
     private sealed class BackupRenderManifestLoader : IManifestLoader
     {
-        public BackupManifest LoadFromDirectory(string manifestsDirectory) => Load();
-        public BackupManifest LoadFromJson(IEnumerable<string> jsonDocuments) => Load();
+        public BackupManifestLoadResult LoadFromDirectory(string manifestsDirectory)
+            => BackupManifestLoadResult.Complete(Load());
+        public BackupManifestLoadResult LoadFromJson(IEnumerable<string> jsonDocuments)
+            => BackupManifestLoadResult.Complete(Load());
 
         private static BackupManifest Load() => new(new[]
         {
@@ -977,6 +1164,12 @@ public sealed class ViewRenderSmokeTests
                 "tool/cache", Array.Empty<string>(), SecretHandling.Normal, 80, "skip",
                 "Cache and tokens", null),
         });
+    }
+
+    private sealed class FixedBackupRenderManifestLoader(BackupManifestLoadResult result) : IManifestLoader
+    {
+        public BackupManifestLoadResult LoadFromDirectory(string manifestsDirectory) => result;
+        public BackupManifestLoadResult LoadFromJson(IEnumerable<string> jsonDocuments) => result;
     }
 
     private sealed class NoOpBackupExecutor : IBackupExecutor
@@ -1008,7 +1201,7 @@ public sealed class ViewRenderSmokeTests
     /// (not by scanning for matching text, which a Collapsed duplicate could also satisfy) and assert it is
     /// genuinely visible: <see cref="Visibility.Visible"/> AND a non-zero rendered height/bounds after
     /// <c>UpdateLayout</c> — a Collapsed or out-of-layout element fails Measure/Arrange and cannot pass this.</summary>
-    private static void AssertHealthNoteVisible(CleanView view, string elementName, string expectedText)
+    private static void AssertHealthNoteVisible(FrameworkElement view, string elementName, string expectedText)
     {
         var block = Assert.IsType<TextBlock>(view.FindName(elementName));
         Assert.Equal(expectedText, block.Text);
@@ -1018,8 +1211,11 @@ public sealed class ViewRenderSmokeTests
     }
 
     /// <summary>NEW-07 MAJOR-02 fix: the healthy-path counterpart — asserts the same named health-note
-    /// TextBlock is <see cref="Visibility.Collapsed"/> (no caution text shown) when its source is Complete.</summary>
-    private static void AssertHealthNoteCollapsed(CleanView view, string elementName)
+    /// TextBlock is <see cref="Visibility.Collapsed"/> (no caution text shown) when its source is Complete.
+    /// MINOR-02 (2026-07-29): widened from <c>CleanView</c> to <see cref="FrameworkElement"/> so the Install and
+    /// Backup manifest notes can use it too — the absence of a warning is a claim that needs proving as much as
+    /// its presence does.</summary>
+    private static void AssertHealthNoteCollapsed(FrameworkElement view, string elementName)
     {
         var block = Assert.IsType<TextBlock>(view.FindName(elementName));
         Assert.Equal(Visibility.Collapsed, block.Visibility);
@@ -1361,10 +1557,19 @@ public sealed class ViewRenderSmokeTests
         };
     }
 
-    private sealed class RenderFakeManifestLoader(params InstallEntry[] entries) : IInstallManifestLoader
+    private sealed class RenderFakeManifestLoader : IInstallManifestLoader
     {
-        public InstallManifest Load(string manifestPath) => new(entries);
-        public InstallManifest Parse(string json) => new(entries);
+        private readonly InstallManifestLoadResult _result;
+
+        public RenderFakeManifestLoader(params InstallEntry[] entries)
+            : this(InstallManifestLoadResult.Loaded(new InstallManifest(entries), "<render>"))
+        {
+        }
+
+        public RenderFakeManifestLoader(InstallManifestLoadResult result) => _result = result;
+
+        public InstallManifestLoadResult Load(string manifestPath) => _result;
+        public InstallManifestLoadResult Parse(string json) => _result;
     }
 
     private sealed class RenderAllNetDriverGuard : IDriverGuard

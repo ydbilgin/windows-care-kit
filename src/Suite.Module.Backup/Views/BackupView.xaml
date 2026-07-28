@@ -352,6 +352,13 @@
             <TextBlock Text="{Binding PayloadWarning}" Foreground="{DynamicResource Backup.DangerStrong}"
                        FontSize="12" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap"
                        Visibility="{Binding PayloadWarning, Converter={StaticResource NonEmptyToVis}}" />
+            <TextBlock x:Name="BackupManifestInfoNoteText" Text="{Binding ManifestInfoNote}"
+                       Foreground="{DynamicResource Backup.Muted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,6,0,0"
+                       Visibility="{Binding ManifestInfoNote, Converter={StaticResource NonEmptyToVis}}" />
+            <TextBlock x:Name="BackupManifestHealthNoteText" Text="{Binding ManifestHealthNote}"
+                       Foreground="{DynamicResource Backup.DangerStrong}" FontSize="11.5" FontWeight="SemiBold"
+                       TextWrapping="Wrap" Margin="0,6,0,0"
+                       Visibility="{Binding ManifestHealthNote, Converter={StaticResource NonEmptyToVis}}" />
 
             <Border Background="{DynamicResource Backup.EmWash}"
                     BorderBrush="{DynamicResource Backup.EmBorder}"

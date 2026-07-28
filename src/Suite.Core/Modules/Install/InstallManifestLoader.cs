@@ -54,18 +54,36 @@ public sealed class InstallManifestLoader : IInstallManifestLoader
     };
 
     /// <inheritdoc />
-    public InstallManifest Load(string manifestPath)
+    public InstallManifestLoadResult Load(string manifestPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
-        string json = File.ReadAllText(manifestPath);
-        return Parse(json);
+        try
+        {
+            string json = File.ReadAllText(manifestPath);
+            return Parse(json, manifestPath);
+        }
+        catch (FileNotFoundException)
+        {
+            return new(InstallManifest.Empty, InstallManifestLoadStatus.NotInstalled, manifestPath, null);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new(InstallManifest.Empty, InstallManifestLoadStatus.NotInstalled, manifestPath, null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new(InstallManifest.Empty, InstallManifestLoadStatus.Unreadable, manifestPath, ex.GetType().Name);
+        }
     }
 
     /// <inheritdoc />
-    public InstallManifest Parse(string json)
+    public InstallManifestLoadResult Parse(string json)
+        => Parse(json, "<memory>");
+
+    private InstallManifestLoadResult Parse(string json, string manifestPath)
     {
         if (string.IsNullOrWhiteSpace(json))
-            return InstallManifest.Empty;
+            return new(InstallManifest.Empty, InstallManifestLoadStatus.Malformed, manifestPath, "BlankDocument");
 
         ManifestDto? dto;
         try
@@ -74,11 +92,11 @@ public sealed class InstallManifestLoader : IInstallManifestLoader
         }
         catch (JsonException)
         {
-            return InstallManifest.Empty;
+            return new(InstallManifest.Empty, InstallManifestLoadStatus.Malformed, manifestPath, nameof(JsonException));
         }
 
         if (dto?.Entries is null || dto.Entries.Count == 0)
-            return InstallManifest.Empty;
+            return InstallManifestLoadResult.Loaded(InstallManifest.Empty, manifestPath);
 
         var entries = new List<InstallEntry>(dto.Entries.Count);
         int sequence = 0;
@@ -116,7 +134,7 @@ public sealed class InstallManifestLoader : IInstallManifestLoader
             });
         }
 
-        return new InstallManifest(entries);
+        return InstallManifestLoadResult.Loaded(new InstallManifest(entries), manifestPath);
     }
 
     private static int CategoryRank(string? category)

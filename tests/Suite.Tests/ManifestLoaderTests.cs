@@ -53,7 +53,7 @@ public class ManifestLoaderTests
         }
         """;
 
-        BackupManifest manifest = Loader().LoadFromJson(new[] { json });
+        BackupManifest manifest = Loader().LoadFromJson(new[] { json }).Manifest;
 
         BackupEntry e = Assert.Single(manifest.Entries);
         Assert.Equal("chrome-profile", e.Id);
@@ -80,7 +80,7 @@ public class ManifestLoaderTests
         }
         """;
 
-        BackupManifest manifest = Loader().LoadFromJson(new[] { json });
+        BackupManifest manifest = Loader().LoadFromJson(new[] { json }).Manifest;
 
         BackupEntry disabledSecret = manifest.Entries.First(e => e.Id == "codex-auth");
         BackupEntry enabledSecret = manifest.Entries.First(e => e.Id == "claude-json");
@@ -104,7 +104,7 @@ public class ManifestLoaderTests
         }
         """;
 
-        BackupManifest manifest = Loader().LoadFromJson(new[] { json });
+        BackupManifest manifest = Loader().LoadFromJson(new[] { json }).Manifest;
 
         Assert.True(manifest.Entries.First(e => e.Id == "vscode-install").IsInstall);
         Assert.False(manifest.Entries.First(e => e.Id == "wifi-export").IsCopyable);   // export-cmd is listed only
@@ -117,10 +117,128 @@ public class ManifestLoaderTests
         const string good = """{ "entries": [ { "id": "a", "enabled": true, "method": "copy", "source": "%WINDIR%\\x", "target": "t" } ] }""";
         const string bad = "{ this is not json";
 
-        BackupManifest manifest = Loader().LoadFromJson(new[] { bad, good });
+        BackupManifestLoadResult result = Loader().LoadFromJson(new[] { bad, good });
+        BackupManifest manifest = result.Manifest;
 
+        Assert.Equal(BackupManifestLoadStatus.Partial, result.Status);
+        Assert.Equal(BackupManifestFileStatus.Malformed, result.Files[0].Status);
+        Assert.Equal("JsonException", result.Files[0].FailureCategory);
         Assert.Single(manifest.Entries);
         Assert.Equal("a", manifest.Entries[0].Id);
+    }
+
+    [Fact]
+    public void Absent_directory_reports_not_installed()
+    {
+        using var ws = new TempWorkspace("wck-backup-manifest-absent-");
+        string path = Path.Combine(ws.Root, "missing");
+
+        BackupManifestLoadResult result = Loader().LoadFromDirectory(path);
+
+        Assert.Equal(BackupManifestLoadStatus.NotInstalled, result.Status);
+        Assert.Empty(result.Manifest.Entries);
+        Assert.Empty(result.Files);
+    }
+
+    [Fact]
+    public void Valid_zero_entry_file_is_complete_and_recorded_as_loaded()
+    {
+        using var ws = new TempWorkspace("wck-backup-manifest-empty-");
+        string path = Path.Combine(ws.Root, "00-empty.json");
+        File.WriteAllText(path, """{ "entries": [] }""");
+
+        BackupManifestLoadResult result = Loader().LoadFromDirectory(ws.Root);
+
+        Assert.Equal(BackupManifestLoadStatus.Complete, result.Status);
+        Assert.Empty(result.Manifest.Entries);
+        BackupManifestFileOutcome file = Assert.Single(result.Files);
+        Assert.Equal(path, file.Path);
+        Assert.Equal(BackupManifestFileStatus.Loaded, file.Status);
+        Assert.Null(file.FailureCategory);
+    }
+
+    [Fact]
+    public void Malformed_file_is_unavailable_and_names_the_file()
+    {
+        using var ws = new TempWorkspace("wck-backup-manifest-bad-");
+        string path = Path.Combine(ws.Root, "00-bad.json");
+        File.WriteAllText(path, "{ not json");
+
+        BackupManifestLoadResult result = Loader().LoadFromDirectory(ws.Root);
+
+        Assert.Equal(BackupManifestLoadStatus.Unavailable, result.Status);
+        Assert.Empty(result.Manifest.Entries);
+        BackupManifestFileOutcome file = Assert.Single(result.Files);
+        Assert.Equal(path, file.Path);
+        Assert.Equal(BackupManifestFileStatus.Malformed, file.Status);
+        Assert.Equal("JsonException", file.FailureCategory);
+    }
+
+    [Fact]
+    public void Unreadable_file_is_unavailable_and_names_the_file()
+    {
+        using var ws = new TempWorkspace("wck-backup-manifest-locked-");
+        string path = Path.Combine(ws.Root, "00-locked.json");
+        File.WriteAllText(path, """{ "entries": [] }""");
+        using var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        BackupManifestLoadResult result = Loader().LoadFromDirectory(ws.Root);
+
+        Assert.Equal(BackupManifestLoadStatus.Unavailable, result.Status);
+        Assert.Empty(result.Manifest.Entries);
+        BackupManifestFileOutcome file = Assert.Single(result.Files);
+        Assert.Equal(path, file.Path);
+        Assert.Equal(BackupManifestFileStatus.Unreadable, file.Status);
+        Assert.Equal("IOException", file.FailureCategory);
+    }
+
+    [Fact]
+    public void One_malformed_and_two_good_files_returns_good_entries_and_records_bad_file()
+    {
+        using var ws = new TempWorkspace("wck-backup-manifest-partial-");
+        string badPath = Path.Combine(ws.Root, "10-bad.json");
+        File.WriteAllText(Path.Combine(ws.Root, "00-good.json"),
+            """{ "entries": [ { "id": "a", "enabled": true, "method": "copy", "source": "a", "target": "a" } ] }""");
+        File.WriteAllText(badPath, "{ not json");
+        File.WriteAllText(Path.Combine(ws.Root, "20-good.json"),
+            """{ "entries": [ { "id": "b", "enabled": true, "method": "copy", "source": "b", "target": "b" } ] }""");
+
+        BackupManifestLoadResult result = Loader().LoadFromDirectory(ws.Root);
+
+        Assert.Equal(BackupManifestLoadStatus.Partial, result.Status);
+        Assert.Equal(["a", "b"], result.Manifest.Entries.Select(e => e.Id));
+        BackupManifestFileOutcome failure = Assert.Single(result.Files,
+            f => f.Status == BackupManifestFileStatus.Malformed);
+        Assert.Equal(badPath, failure.Path);
+        Assert.Equal("JsonException", failure.FailureCategory);
+    }
+
+    /// <summary>MAJOR-04: the malformed branch's continuation is proven above; the UNREADABLE branch is a
+    /// separate try/catch/continue and was only ever exercised with a single file, so nothing stopped its
+    /// <c>continue</c> becoming a <c>return</c>. Under that regression one locked manifest truncates the whole
+    /// plan — every later good entry silently vanishes — while the aggregate still reports the softer
+    /// <c>Partial</c>, "may be incomplete". For a recovery tool that is worse than the defect this change closed,
+    /// so the sweep must be shown to survive an unreadable file with good manifests on BOTH sides of it.</summary>
+    [Fact]
+    public void One_unreadable_and_two_good_files_returns_good_entries_and_records_locked_file()
+    {
+        using var ws = new TempWorkspace("wck-backup-manifest-locked-partial-");
+        string lockedPath = Path.Combine(ws.Root, "10-locked.json");
+        File.WriteAllText(Path.Combine(ws.Root, "00-good.json"),
+            """{ "entries": [ { "id": "a", "enabled": true, "method": "copy", "source": "a", "target": "a" } ] }""");
+        File.WriteAllText(lockedPath, """{ "entries": [] }""");
+        File.WriteAllText(Path.Combine(ws.Root, "20-good.json"),
+            """{ "entries": [ { "id": "b", "enabled": true, "method": "copy", "source": "b", "target": "b" } ] }""");
+        using var held = new FileStream(lockedPath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        BackupManifestLoadResult result = Loader().LoadFromDirectory(ws.Root);
+
+        Assert.Equal(BackupManifestLoadStatus.Partial, result.Status);
+        Assert.Equal(["a", "b"], result.Manifest.Entries.Select(e => e.Id));
+        BackupManifestFileOutcome failure = Assert.Single(result.Files,
+            f => f.Status == BackupManifestFileStatus.Unreadable);
+        Assert.Equal(lockedPath, failure.Path);
+        Assert.Equal("IOException", failure.FailureCategory);
     }
 
     [Fact]
@@ -129,7 +247,7 @@ public class ManifestLoaderTests
         const string a = """{ "entries": [ { "id": "a", "method": "copy", "enabled": true, "source": "%WINDIR%\\a", "target": "a" } ] }""";
         const string b = """{ "entries": [ { "id": "b", "method": "copy", "enabled": true, "source": "%WINDIR%\\b", "target": "b" } ] }""";
 
-        BackupManifest manifest = Loader().LoadFromJson(new[] { a, b });
+        BackupManifest manifest = Loader().LoadFromJson(new[] { a, b }).Manifest;
 
         Assert.Equal(2, manifest.Entries.Count);
         Assert.Equal("a", manifest.Entries[0].Id);
@@ -151,7 +269,7 @@ public class ManifestLoaderTests
             File.Copy(Path.Combine(backupManifestDirectory, file), Path.Combine(ws.Root, file));
         File.Copy(installManifestPath, Path.Combine(ws.Root, "90-install.json"));
 
-        BackupManifest manifest = Loader().LoadFromDirectory(ws.Root);
+        BackupManifest manifest = Loader().LoadFromDirectory(ws.Root).Manifest;
 
         Assert.NotEmpty(manifest.Entries);
         Assert.Contains(manifest.Entries, e => e.Id == "vscode-user");
@@ -170,7 +288,7 @@ public class ManifestLoaderTests
             Assert.True(File.Exists(Path.Combine(manifestsDirectory, file)), file);
         Assert.True(File.Exists(Path.Combine(manifestsDirectory, "90-install.json")), "90-install.json");
 
-        BackupManifest manifest = Loader().LoadFromDirectory(manifestsDirectory);
+        BackupManifest manifest = Loader().LoadFromDirectory(manifestsDirectory).Manifest;
 
         Assert.NotEmpty(manifest.Entries);
         Assert.Contains(manifest.Entries, e => e.Id == "vscode-user");

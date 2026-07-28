@@ -632,15 +632,16 @@ public sealed class UiReliabilitySecurityReproTests
         public ManualResetEventSlim Entered { get; } = new();
         public ManualResetEventSlim Release { get; } = new();
 
-        public BackupManifest LoadFromDirectory(string manifestsDirectory)
+        public BackupManifestLoadResult LoadFromDirectory(string manifestsDirectory)
         {
             Entered.Set();
             if (!Release.Wait(TimeSpan.FromSeconds(10)))
                 throw new TimeoutException("synthetic manifest load was not released");
-            return new BackupManifest([entry]);
+            return BackupManifestLoadResult.Complete(new BackupManifest([entry]));
         }
 
-        public BackupManifest LoadFromJson(IEnumerable<string> jsonDocuments) => new([entry]);
+        public BackupManifestLoadResult LoadFromJson(IEnumerable<string> jsonDocuments)
+            => BackupManifestLoadResult.Complete(new BackupManifest([entry]));
     }
 
     private sealed class ExceptionCapturingSynchronizationContext : SynchronizationContext

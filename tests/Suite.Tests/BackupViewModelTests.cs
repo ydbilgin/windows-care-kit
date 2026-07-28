@@ -42,8 +42,16 @@ public sealed class BackupViewModelTests
 
     private sealed class FakeManifestLoader(params BackupEntry[] entries) : IManifestLoader
     {
-        public BackupManifest LoadFromDirectory(string manifestsDirectory) => new(entries);
-        public BackupManifest LoadFromJson(IEnumerable<string> jsonDocuments) => new(entries);
+        public BackupManifestLoadResult LoadFromDirectory(string manifestsDirectory)
+            => BackupManifestLoadResult.Complete(new BackupManifest(entries));
+        public BackupManifestLoadResult LoadFromJson(IEnumerable<string> jsonDocuments)
+            => BackupManifestLoadResult.Complete(new BackupManifest(entries));
+    }
+
+    private sealed class ResultManifestLoader(BackupManifestLoadResult result) : IManifestLoader
+    {
+        public BackupManifestLoadResult LoadFromDirectory(string manifestsDirectory) => result;
+        public BackupManifestLoadResult LoadFromJson(IEnumerable<string> jsonDocuments) => result;
     }
 
     private static BackupEntry CopyEntry(string id, string source, string target)
@@ -97,8 +105,14 @@ public sealed class BackupViewModelTests
 
     /// <summary>The VM over the real planner + the real runner bridged onto the recording GatedExecutor.</summary>
     private static BackupViewModel BuildVm(ExecutorFixture fx, TempWorkspace ws, params BackupEntry[] entries)
+        => BuildVm(fx, ws, new FakeManifestLoader(entries), new I18n());
+
+    private static BackupViewModel BuildVm(
+        ExecutorFixture fx,
+        TempWorkspace ws,
+        IManifestLoader manifestLoader,
+        I18n i18n)
     {
-        var i18n = new I18n();
         var planner = new BackupPlanner(fx.Gate, new Win32EnvironmentExpander());
         var runner = new BackupRunner(
             new BackupExecutorAdapter(fx.Executor),
@@ -108,10 +122,72 @@ public sealed class BackupViewModelTests
             new PhysicalFileSystem(),
             new Sha256Hasher(),
             new FakeClock(T0));
-        return new BackupViewModel(i18n, new FakeManifestLoader(entries), planner, runner)
+        return new BackupViewModel(i18n, manifestLoader, planner, runner)
         {
             PayloadDir = ws.Root,
         };
+    }
+
+    [Fact]
+    public async Task Manifest_outcomes_reach_distinct_visible_state()
+    {
+        using var fx = new ExecutorFixture(RealGate());
+        using var ws = new TempWorkspace("wck-backup-manifest-health-");
+        BackupEntry entry = CopyEntry("docs", Path.Combine(Path.GetTempPath(), "source", "settings.json"), "cat/settings.json");
+        var cases = new[]
+        {
+            new BackupManifestLoadResult(new BackupManifest([]), BackupManifestLoadStatus.NotInstalled, []),
+            BackupManifestLoadResult.Complete(new BackupManifest([entry])),
+            BackupManifestLoadResult.Complete(new BackupManifest([])),
+            new BackupManifestLoadResult(new BackupManifest([]), BackupManifestLoadStatus.Unavailable,
+                [new(@"C:\app\manifests\bad.json", BackupManifestFileStatus.Malformed, "JsonException")]),
+            new BackupManifestLoadResult(new BackupManifest([]), BackupManifestLoadStatus.Unavailable,
+                [new(@"C:\app\manifests\locked.json", BackupManifestFileStatus.Unreadable, "IOException")]),
+        };
+
+        var visibleStates = new HashSet<(string Summary, string Info, string Health)>();
+        foreach (BackupManifestLoadResult load in cases)
+        {
+            BackupViewModel vm = BuildVm(
+                fx, ws, new ResultManifestLoader(load), TestI18n.Full());
+            await vm.BuildPlanAsync();
+            visibleStates.Add((vm.Summary, vm.ManifestInfoNote, vm.ManifestHealthNote));
+        }
+
+        Assert.Equal(5, visibleStates.Count);
+        Assert.Contains(visibleStates, s => s.Info.Contains("not installed") && s.Health.Length == 0);
+        Assert.Contains(visibleStates, s => s.Summary.StartsWith("1 to copy") && s.Info.Length == 0 && s.Health.Length == 0);
+        Assert.Contains(visibleStates, s => s.Summary.StartsWith("0 to copy") && s.Info.Length == 0 && s.Health.Length == 0);
+        // MAJOR-02: both cases are Unavailable, so the sentence must be the HARD one ("could not be
+        // determined"), never the softer Partial wording ("may be incomplete"). Collapsing the VM's
+        // status->key choice to always-Partial is otherwise a silent, materially false downgrade.
+        // MINOR-03: the localized cause clause must distinguish corrupt from unreadable.
+        Assert.Contains(visibleStates, s => s.Health.Contains(@"C:\app\manifests\bad.json") && s.Health.Contains("JsonException")
+            && s.Health.Contains("could not be determined") && s.Health.Contains("(corrupt, "));
+        Assert.Contains(visibleStates, s => s.Health.Contains(@"C:\app\manifests\locked.json") && s.Health.Contains("IOException")
+            && s.Health.Contains("could not be determined") && s.Health.Contains("(unreadable, "));
+    }
+
+    [Fact]
+    public async Task Partial_manifest_inventory_keeps_good_entries_and_surfaces_incomplete_health()
+    {
+        using var fx = new ExecutorFixture(RealGate());
+        using var ws = new TempWorkspace("wck-backup-manifest-partial-vm-");
+        BackupEntry entry = CopyEntry("docs", Path.Combine(Path.GetTempPath(), "source", "settings.json"), "cat/settings.json");
+        var load = new BackupManifestLoadResult(
+            new BackupManifest([entry]),
+            BackupManifestLoadStatus.Partial,
+            [
+                new(@"C:\app\manifests\good.json", BackupManifestFileStatus.Loaded, null),
+                new(@"C:\app\manifests\bad.json", BackupManifestFileStatus.Malformed, "JsonException"),
+            ]);
+        BackupViewModel vm = BuildVm(fx, ws, new ResultManifestLoader(load), TestI18n.Full());
+
+        await vm.BuildPlanAsync();
+
+        Assert.Single(vm.PlanRows);
+        Assert.Contains("may be incomplete", vm.ManifestHealthNote);
+        Assert.Contains(@"C:\app\manifests\bad.json", vm.ManifestHealthNote);
     }
 
     // ---- build-plan → preview → approve gating ----
