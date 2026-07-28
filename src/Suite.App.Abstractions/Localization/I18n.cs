@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using WindowsCareKit.App.Deployment;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
 
@@ -101,22 +102,47 @@ public sealed class I18n : ObservableObject
     /// bindings and view-models alike — reads strings through the indexer, never by enumerating this.</summary>
     internal IReadOnlyDictionary<string, string> Map => _map;
 
+    /// <summary>
+    /// Raised when a load could not obtain the mandatory English base table. The live string table is
+    /// <b>unchanged</b> when this fires and the requested culture was not switched to, so the shell's job is to
+    /// TELL the user why — not to carry on as if the strings had merely been empty. That fabrication is the
+    /// shipped raw-key defect, and it is why this is an announcement rather than a silent degradation.
+    /// </summary>
+    public event EventHandler<BaseStringTableResult>? BaseStringTableUnusable;
+
     public void Load(string culture)
     {
-        culture = string.IsNullOrWhiteSpace(culture) ? "en" : culture.Trim().ToLowerInvariant();
-        Dictionary<string, string> merged = BuildLayer("en");
+        culture = string.IsNullOrWhiteSpace(culture)
+            ? BaseStringTable.CultureCode
+            : culture.Trim().ToLowerInvariant();
 
-        if (culture != "en")
+        // The mandatory base goes through the one strict loader the startup preflight also uses, so what the
+        // shell verified before starting and what actually becomes the live table are the same contract.
+        BaseStringTableResult baseTable = BaseStringTable.Load(BaseTablePath);
+        if (!baseTable.IsLoaded)
+        {
+            // Keep the last known-good table: an empty one would turn every label into its own key. Nothing
+            // about the live state changed, so the selector is snapped back to the culture still in effect.
+            Raise(nameof(SelectedCulture));
+            BaseStringTableUnusable?.Invoke(this, baseTable);
+            return;
+        }
+
+        Dictionary<string, string> merged = MergeModuleFragments(
+            BaseStringTable.CultureCode,
+            new Dictionary<string, string>(baseTable.Entries, StringComparer.Ordinal));
+
+        if (culture != BaseStringTable.CultureCode)
         {
             string overlayPath = Path.Combine(_langDir, culture + ".json");
             if (File.Exists(overlayPath))
             {
-                foreach ((string key, string value) in BuildLayer(culture))
+                foreach ((string key, string value) in MergeModuleFragments(culture, ReadOverlay(overlayPath)))
                     merged[key] = value; // en→culture overlay is replacement by design, not a collision
             }
             else
             {
-                culture = "en";
+                culture = BaseStringTable.CultureCode;
             }
         }
 
@@ -133,14 +159,13 @@ public sealed class I18n : ObservableObject
     }
 
     /// <summary>
-    /// Builds one culture's full layer: the shell base file, then every module's embedded fragment for
-    /// that culture merged on top in catalog order. A key repeated within the layer — shell-vs-module or
-    /// module-vs-module — is always a partition bug, so it hard-fails here rather than silently shadowing.
+    /// Completes one culture's layer: the shell file's entries (already read by the caller — strictly for the
+    /// base, tolerantly for an overlay), then every module's embedded fragment for that culture merged on top
+    /// in catalog order. A key repeated within the layer — shell-vs-module or module-vs-module — is always a
+    /// partition bug, so it hard-fails here rather than silently shadowing.
     /// </summary>
-    private Dictionary<string, string> BuildLayer(string culture)
+    private Dictionary<string, string> MergeModuleFragments(string culture, Dictionary<string, string> map)
     {
-        Dictionary<string, string> map = ReadMap(Path.Combine(_langDir, culture + ".json"));
-
         foreach (IWckModule module in _modules)
         {
             foreach ((string key, string value) in module.GetLangFragment(culture))
@@ -156,9 +181,21 @@ public sealed class I18n : ObservableObject
         return map;
     }
 
-    private static string DefaultLangDir => Path.Combine(AppContext.BaseDirectory, "lang");
+    /// <summary>The shipped string table's folder, from the one owner of the app's layout. Throws rather than
+    /// resolving a plausible-but-wrong directory when that layout is undetermined; the shell's startup
+    /// preflight has already refused to start in that case, so production never reaches the throw.</summary>
+    private static string DefaultLangDir => AppLayout.Current.Resource(BaseStringTable.LangFolderName);
 
-    private static Dictionary<string, string> ReadMap(string path)
+    /// <summary>The mandatory English base file inside this instance's lang directory.</summary>
+    private string BaseTablePath => Path.Combine(_langDir, BaseStringTable.FileName);
+
+    /// <summary>
+    /// Reads a NON-English overlay. Deliberately tolerant, and only here: a community-dropped or partially
+    /// translated <c>&lt;culture&gt;.json</c> that is missing, malformed or wrongly shaped falls back to the
+    /// English strings already in the layer, which is a legitimate policy. The mandatory base has no such
+    /// fallback to fall back TO, so it goes through the strict loader instead.
+    /// </summary>
+    private static Dictionary<string, string> ReadOverlay(string path)
     {
         try
         {

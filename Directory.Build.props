@@ -10,7 +10,12 @@
     <Company>Windows Care Kit (open source, MIT)</Company>
     <Product>Windows Care Kit</Product>
     <!-- Release metadata (M5: component installer; artifact shape changed since v0.1.2-beta). -->
-    <VersionPrefix>0.2.0</VersionPrefix>
+    <!-- NOT a release version and never hand-bumped. The release workflow injects the real
+         version from the validated git tag (-p:Version), and asserts it back off the produced
+         binary. This sentinel exists so a local or mis-wired build is unmistakable rather than
+         plausible: v0.1.2-beta shipped displaying "0.1.0" precisely because a hardcoded prefix
+         looked like a real version when no injection happened. -->
+    <VersionPrefix>0.0.0-dev</VersionPrefix>
     <Authors>Yasin Derya Bilgin</Authors>
     <RepositoryUrl>https://github.com/ydbilgin/windows-care-kit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

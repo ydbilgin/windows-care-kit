@@ -1,6 +1,7 @@
 using System.IO;
 using System.Reflection;
 using System.Runtime.Loader;
+using WindowsCareKit.App.Deployment;
 
 namespace WindowsCareKit.App.Modules;
 
@@ -11,9 +12,11 @@ namespace WindowsCareKit.App.Modules;
 /// Ratified M4 trust policy (owner Gate3):
 /// </para>
 /// <list type="bullet">
-///   <item>The production load root is FIXED to <c>Path.Combine(AppContext.BaseDirectory, "Modules")</c>.
-///     The directory-override constructor is <c>internal</c> (tests only) — no CLI/env/config/registry
-///     path can redirect where modules load from.</item>
+///   <item>The production load root is FIXED to <c>Modules\</c> under <see cref="AppLayout.Root"/> — the
+///     single owner of the app's layout, which derives that root from resolved process identity alone
+///     (never from a marker file, cwd, env, config or registry, and never from a search). The
+///     directory-override constructor is <c>internal</c> (tests only), so nothing outside this assembly
+///     can redirect where modules load from.</item>
 ///   <item>One level of directories only (no recursion, no <c>..</c> traversal). Every candidate is
 ///     canonicalized with <see cref="Path.GetFullPath(string)"/> and confirmed contained under the
 ///     canonical root before it is loaded.</item>
@@ -40,12 +43,16 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
     private const string ModuleAssemblyPrefix = "Suite.Module.";
     private const string ReservedSettingsId = "settings";
 
+    /// <summary>The module load root's folder name, owned here — the catalog is what a "Modules" folder means.
+    /// Internal so the startup preflight can report on the same folder instead of repeating the literal.</summary>
+    internal const string ModulesFolderName = "Modules";
+
     private readonly string _modulesRoot;
     private readonly List<string> _diagnostics = new();
 
     /// <summary>Production entry point: discovers modules from <c>&lt;appdir&gt;\Modules</c> only.</summary>
     public DirectoryModuleCatalog()
-        : this(Path.Combine(AppContext.BaseDirectory, "Modules"))
+        : this(AppLayout.Current.Resource(ModulesFolderName))
     {
     }
 
@@ -87,6 +94,13 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
                 // loop) must degrade to the Settings floor, never crash startup (per the trust policy).
                 _diagnostics.Add($"skip enumeration: {ex.GetType().Name}");
             }
+        }
+        else
+        {
+            // "The module root is not there" and "the module root is there and holds nothing" are different
+            // facts, and both end in the same Settings-only nav rail below. Recording the first keeps them
+            // distinguishable instead of silently identical (a "Base only" install is the legitimate case).
+            _diagnostics.Add($"module root absent: '{_modulesRoot}' does not exist; no module is installed.");
         }
 
         // Deterministic, filesystem-order-independent ordering; duplicate ids are impossible because

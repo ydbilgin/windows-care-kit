@@ -1361,6 +1361,32 @@ public sealed class LowConfidenceSecurityReproTests
         Assert.DoesNotContain("PSNativeCommandUseErrorActionPreference", release, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The artifact gate's report is ASSERTED, not merely captured. Capturing stdout and rejecting a nonzero
+    /// exit still passes a regression that recognises <c>--verify-layout</c> and returns 0 without writing
+    /// its line — a silent successful no-op, which for a gate is the worst failure mode there is.
+    /// <para>
+    /// A source guard, because the failure boundary is a GitHub Actions step this suite cannot host. The
+    /// assertion's actual behaviour against a printing and a silent verifier was exercised by hand at the
+    /// process boundary when it was written; this is what keeps it from being quietly removed afterwards.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void The_layout_verifier_step_requires_the_report_line_it_captures()
+    {
+        string release = RepoSource.Read(".github/workflows/release.yml");
+
+        // Order matters: the exit code is the authoritative failure signal, so a nonzero exit must still
+        // throw with its own message rather than being re-diagnosed as a missing report.
+        RepoSource.AssertOrdered(
+            release,
+            "throw \"The released artifact fails its own layout check",
+            "$okLines = @(@(Get-Content $verifyOut");
+
+        Assert.Contains("""'^WCK-LAYOUT status=Ok(\s|$)'""", release, StringComparison.Ordinal);
+        Assert.Contains("if ($okLines.Count -ne 1)", release, StringComparison.Ordinal);
+    }
+
     /// <summary>§6 destination race: reparse validation and staged destination publish remain separate operations.</summary>
     [Fact]
     public void Destination_reparse_check_and_publish_are_not_handle_bound()

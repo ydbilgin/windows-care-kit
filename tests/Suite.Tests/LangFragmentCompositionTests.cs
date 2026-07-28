@@ -115,6 +115,64 @@ public sealed class LangFragmentCompositionTests
         }
     }
 
+    /// <summary>
+    /// The fitness check for <see cref="BaseStringTable.RequiredKeys"/>: the floor a shipped base table has
+    /// to clear must keep covering the shell as the shell grows. Without this, adding a label to the shell
+    /// silently narrows the floor — the table could ship without that key, the gate would still say
+    /// <c>Ok</c>, and the new label alone would render as its raw key.
+    /// </summary>
+    [Fact]
+    public void Every_shell_key_the_source_references_is_required_of_the_shipped_base_table()
+    {
+        var required = BaseStringTable.RequiredKeys.ToHashSet(StringComparer.Ordinal);
+
+        foreach (string project in new[] { "Suite.App.Wpf", "Suite.App.Abstractions" })
+        {
+            string[] uncovered = ScanReferencedKeys(Path.Combine(RepoRoot, "src", project))
+                .Where(k => !required.Contains(k))
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+
+            Assert.True(uncovered.Length == 0,
+                $"'{project}' renders key(s) that BaseStringTable.RequiredKeys does not require of the base " +
+                "table, so a table shipped without them would still pass the startup gate: " +
+                string.Join(", ", uncovered));
+        }
+    }
+
+    /// <summary>
+    /// The half the source scan cannot see: the scan only matches a key written as a literal inside the
+    /// lookup, and the shell reaches plenty of its keys through a variable instead — <c>PlanRow</c> builds
+    /// <c>"plan.risk." + the enum name</c>, <c>SettingsViewModel</c> picks <c>theme.light</c>/<c>theme.dark</c>
+    /// in a helper. Those are shell strings all the same, so the floor is the shell table's whole key set.
+    /// Pinning the equality is what makes adding or removing a shell string a decision about the floor
+    /// rather than an accident to it.
+    /// </summary>
+    [Fact]
+    public void The_required_key_floor_is_exactly_the_shipped_shell_tables_own_keys()
+    {
+        Assert.Equal(
+            BaseStringTable.RequiredKeys.Count,
+            BaseStringTable.RequiredKeys.Distinct(StringComparer.Ordinal).Count());
+
+        Assert.Equal(
+            ReadJsonKeys(Path.Combine(ShellLangDir, "en.json")).Order(StringComparer.Ordinal),
+            BaseStringTable.RequiredKeys.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>A floor the product's own artifact cannot clear would be a rule that only ever fails in the
+    /// field, so the shipped table is run through the production loader itself.</summary>
+    [Fact]
+    public void The_shipped_shell_table_clears_the_floor_it_is_judged_by()
+    {
+        BaseStringTableResult result =
+            BaseStringTable.Load(Path.Combine(ShellLangDir, BaseStringTable.FileName));
+
+        Assert.Equal(BaseStringTableStatus.Loaded, result.Status);
+        foreach (string key in BaseStringTable.RequiredKeys)
+            Assert.False(string.IsNullOrWhiteSpace(result.Entries[key]), key + " is blank in the shipped table");
+    }
+
     [Fact]
     public void Every_catalog_modules_titleKey_and_descKey_resolve_in_the_merged_map()
     {

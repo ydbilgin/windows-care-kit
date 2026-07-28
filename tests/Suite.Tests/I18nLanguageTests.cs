@@ -1,4 +1,5 @@
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -26,6 +27,15 @@ public sealed class I18nLanguageTests
             pairs.Add($"  {System.Text.Json.JsonSerializer.Serialize(k)}: {System.Text.Json.JsonSerializer.Serialize(v)}");
         File.WriteAllText(Path.Combine(dir, code + ".json"), "{\n" + string.Join(",\n", pairs) + "\n}");
     }
+
+    /// <summary>
+    /// The English file for the tests that actually <c>Load()</c>. Discovery (above) only reads
+    /// <c>meta.languageName</c> and is happy with a stub; loading goes through the strict base-table rule,
+    /// which requires the whole shell floor — so these fixtures ship a complete table with the test's own
+    /// entries laid on top, exactly as a real translation would sit on a real base file.
+    /// </summary>
+    private static void WriteBaseLang(string dir, params (string Key, string Value)[] extra)
+        => File.WriteAllText(Path.Combine(dir, "en.json"), BaseTableFixture.Json(extra));
 
     [Fact]
     public void Discovers_every_language_file_with_its_display_name()
@@ -104,10 +114,8 @@ public sealed class I18nLanguageTests
     public void Load_partial_language_uses_english_fallback_for_missing_keys()
     {
         string dir = NewLangDir();
-        WriteLang(
+        WriteBaseLang(
             dir,
-            "en",
-            "English",
             ("shared.key", "English shared"),
             ("english.only", "English fallback"));
         WriteLang(
@@ -132,7 +140,7 @@ public sealed class I18nLanguageTests
     public void Load_english_uses_english_base()
     {
         string dir = NewLangDir();
-        WriteLang(dir, "en", "English", ("app.title", "Windows Care Kit"));
+        WriteBaseLang(dir, ("app.title", "Windows Care Kit"));
         WriteLang(dir, "xx", "Example", ("app.title", "Example title"));
 
         var i18n = new I18n(dir);
@@ -147,7 +155,7 @@ public sealed class I18nLanguageTests
     public void Load_missing_language_file_falls_back_to_english()
     {
         string dir = NewLangDir();
-        WriteLang(dir, "en", "English", ("app.title", "Windows Care Kit"));
+        WriteBaseLang(dir, ("app.title", "Windows Care Kit"));
 
         var i18n = new I18n(dir);
 

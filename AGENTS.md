@@ -86,5 +86,84 @@ to eventually close, not a pattern to copy in new code.
 | `sandbox/` | Throwaway Windows Sandbox harness for the `Destructive` test tier |
 | `docs/` | Tracked design assets and screenshots |
 
+## The Deployment Contract (artifact-level rules)
+
+The layout table above describes **source**. This section describes the **artifact**. A change can be
+correct in every layer above and still ship broken: `v0.1.2-beta` displayed the wrong version number
+and rendered its entire UI as raw i18n keys, and both defects were found by an external reviewer
+installing the package — not by 1471 passing tests, and not by the VM render harness, which publishes
+and then launches the exe from inside its own publish folder, where sibling resources are always
+present by construction.
+
+**Supported launch modes.** Every artifact-level claim must name the mode it was verified under:
+
+1. `ExtractedZip` — the user unzips a release and runs `WindowsCareKit.exe` in place.
+2. `InstalledProgramFiles` — the Inno component installer placed it under Program Files. Component
+   selection is real: the supported **compact** type ships neither `Modules\` nor `manifests\`
+   (`installer/WindowsCareKit.iss:48-51,64-65`), so their absence is a valid state, never corruption.
+3. `AliasedShim` — **unsupported, and loud.** A shim or symlink elsewhere (as a winget *portable*
+   package creates under `%LOCALAPPDATA%\Microsoft\WinGet\Links\`) makes `AppContext.BaseDirectory`
+   resolve to the *link's* directory, so sibling `lang\`, `manifests\` and `Modules\` are absent.
+   Because the app publishes as a multi-file apphost, an exe-only link additionally fails natively
+   before managed code runs. This mode is documented as unsupported and must fail visibly, never
+   silently.
+
+**Rules.**
+
+- Code that reads a file it did not itself create resolves its path through the layout owner. The
+  root derives from **resolved process identity only** — never from a marker file, cwd, environment,
+  config, or registry. Module loading is code execution: a root chosen by user-writable filesystem
+  evidence is an arbitrary-code-execution vector, not a cosmetic concern.
+- A missing shipped resource is a **failure that says so** — never an empty collection, a raw i18n
+  key, or a silently shorter nav rail. Optional components absent is a different statement from
+  resources unreadable, and the UI must not conflate them.
+- Any value that appears in both the repo and the shipped binary (version, product name, SHA) is
+  **asserted against the produced binary** in `release.yml` — never assumed to have been injected.
+- Changing packaging, publish layout, `installer/*.iss`, or `release.yml` means re-running the
+  artifact gates. Any change to the artifact *shape* (for example enabling single-file publish) is an
+  amendment to this contract and must be recorded here first. "Tests pass" says nothing about the
+  artifact.
+
+### The `--verify-layout` artifact gate
+
+The **only** check that runs the released binary against the released layout and reports what the app
+itself resolves. Path existence cannot answer this: the shipped `lang\en.json` can be present and still
+be unusable, which is exactly how `v0.1.2-beta` rendered raw i18n keys. This is a **stable, public
+contract** — `release.yml` and anyone packaging the artifact depend on it, so its exit codes and report
+format do not change without amending this section.
+
+**Invocation.** `WindowsCareKit.exe --verify-layout`, run from the extracted/installed folder.
+
+- The exe is **GUI-subsystem**: it has no console of its own, so the caller **must redirect stdout**
+  (and ideally stderr) to capture the report. Unredirected, the line is silently discarded and only the
+  exit code survives.
+- From PowerShell use `Start-Process -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput <file>`.
+  The `&` call operator does not wait for a GUI-subsystem process and leaves `$LASTEXITCODE` stale.
+- It verifies only; it shows no window, composes no services, and — the load-bearing part — loads **no
+  module**, because module loading executes third-party code. It exits in about a second.
+
+**Report.** Exactly one line on stdout, prefixed `WCK-LAYOUT `, with `key=value` tokens:
+
+```text
+WCK-LAYOUT status=Ok root="C:\Program Files\WindowsCareKit" lang\en.json=OK Modules=OPTIONAL-PRESENT manifests=OPTIONAL-PRESENT
+```
+
+- `status=` — `Ok`, `LayoutUndetermined`, `BaseStringTableMissing`, or `BaseStringTableUnreadable`.
+- Required resources report `OK`, `MISSING`, `UNREADABLE`, or `UNKNOWN` (root undeterminable, so nothing
+  was checked). Optional inventory reports `OPTIONAL-PRESENT` / `OPTIONAL-ABSENT` / `UNKNOWN` and never
+  affects the exit code — a compact install legitimately ships neither `Modules\` nor `manifests\`.
+- `detail="…"` carries the preserved cause when there is one. `processDir=`/`baseDir=` appear only when
+  the root could not be determined.
+
+**Exit codes.**
+
+| Code | Meaning | Release action |
+|---|---|---|
+| `0` | The layout is trustworthy and the app may start. | Ship. |
+| `2` | The app root could **not** be determined — the two launch identities disagree (link/shim launch) or one is unobtainable. Nothing about the install can be stated. | Fail the gate. |
+| `3` | The root is known, but a required shipped resource is missing or unusable (including a `lang\en.json` that is not a JSON object of string values, or that lacks a non-blank value for any string the shell itself renders — `{}` parses and is still an all-raw-key UI). | Fail the gate. |
+
+Treat any non-zero exit as a failed release. Do not collapse `2` and `3`: they name different repairs.
+
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contributor process and [`SECURITY.md`](SECURITY.md)
 for disclosure.

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using WindowsCareKit.App.Deployment;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
@@ -27,6 +28,11 @@ public sealed class AuthRow
 /// </summary>
 public sealed class InstallViewModel : ObservableObject
 {
+    /// <summary>The shipped manifest folder and file, addressed relative to the app root (never to the
+    /// process's ambient base directory, which a link-launched process reports as the link's folder).</summary>
+    private const string ManifestsFolderName = "manifests";
+    private const string InstallManifestFileName = "90-install.json";
+
     private readonly IInstallManifestLoader _loader;
     private readonly InstallPlanner _planner;
     private readonly IAuthProbe _authProbe;
@@ -154,7 +160,7 @@ public sealed class InstallViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            string path = Path.Combine(AppContext.BaseDirectory, "manifests", "90-install.json");
+            string path = AppLayout.Current.Resource(Path.Combine(ManifestsFolderName, InstallManifestFileName));
             _manifest = File.Exists(path) ? _loader.Load(path) : InstallManifest.Empty;
 
             BuildAuthRows();

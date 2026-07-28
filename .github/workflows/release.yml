@@ -105,6 +105,20 @@ jobs:
           -p:Version=${{ env.BUILD_VERSION }}
           --output publish/win-x64
 
+      - name: Assert the published binary carries the release version
+        shell: pwsh
+        # The pipeline must verify its own claim. v0.1.2-beta shipped displaying "0.1.0" because
+        # the workflow of the day never passed -p:Version and nobody checked the produced bytes.
+        # ProductVersion is populated from AssemblyInformationalVersion, which is exactly what the
+        # About screen renders after trimming "+<sha>" (SettingsViewModel.ReadVersion).
+        run: |
+          $exe   = 'publish/win-x64/WindowsCareKit.exe'
+          $shown = ([Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $exe))).ProductVersion.Split('+')[0]
+          Write-Host "About will display: $shown"
+          if ($shown -ne $env:BUILD_VERSION) {
+            throw "Version mismatch: the app will display '$shown' but this release is '$($env:BUILD_VERSION)'."
+          }
+
       - name: Package ZIP and compute SHA256
         shell: pwsh
         run: |
@@ -128,6 +142,85 @@ jobs:
           # Pass values to subsequent steps via environment file.
           "ZIP_NAME=$zipName"  >> $env:GITHUB_ENV
           "SHA256=$hash"       >> $env:GITHUB_ENV
+
+      - name: Assert the ZIP's own copy of the binary, run the layout verifier, check the CHANGELOG heading
+        shell: pwsh
+        env:
+          # Whether this run is a real tag build is a property of the RUN, not of the version string
+          # (v0.0.0-dev is a legal tag under the regex above). Passed as data, like REF_NAME.
+          REF_TYPE: ${{ github.ref_type }}
+        # Asserting the publish folder is not enough: the artifact users download is the ZIP, and a
+        # stale-folder packaging bug would slip past a publish-only check. Extract and re-read.
+        run: |
+          $extract = Join-Path $env:RUNNER_TEMP 'zipcheck'
+          Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -Path $env:ZIP_NAME -DestinationPath $extract
+          $exe   = Join-Path $extract 'WindowsCareKit.exe'
+          if (-not (Test-Path $exe)) { throw "WindowsCareKit.exe is missing from $($env:ZIP_NAME)." }
+          $shown = ([Diagnostics.FileVersionInfo]::GetVersionInfo($exe)).ProductVersion.Split('+')[0]
+          if ($shown -ne $env:BUILD_VERSION) {
+            throw "In-ZIP version mismatch: '$shown' vs release '$($env:BUILD_VERSION)'."
+          }
+          # The string tables ship beside the exe; without them the UI renders raw i18n keys
+          # (the v0.1.2-beta defect). Prove the artifact actually carries them. This is a FULL-artifact
+          # shape check: 'manifests' is optional to the app (the compact install ships without it) but
+          # mandatory in this ZIP, so the verifier below cannot replace it.
+          foreach ($required in 'lang\en.json', 'manifests') {
+            if (-not (Test-Path (Join-Path $extract $required))) {
+              throw "Release artifact is missing '$required' — the app would start without its resources."
+            }
+          }
+          Write-Host "ZIP verified: version $shown, lang/ and manifests/ present."
+
+          # THE artifact gate: the released exe reports on the layout IT resolves, using the same rules the
+          # real startup uses -- including whether lang\en.json is actually a usable string table, which no
+          # Test-Path can tell. Contract (AGENTS.md, "The --verify-layout artifact gate"): one WCK-LAYOUT
+          # line on stdout; exit 0 = may start, 2 = root undeterminable, 3 = required resource unusable.
+          # It is a GUI-subsystem process, so it has no console of its own: stdout/stderr MUST be redirected
+          # to files by the caller or the report is lost. Start-Process -Wait -PassThru is likewise required
+          # (pwsh's '&' does not wait for a GUI-subsystem exe and leaves $LASTEXITCODE stale -- the same F1
+          # lesson as the ISCC step below).
+          $verifyOut = Join-Path $env:RUNNER_TEMP 'verify-layout.out'
+          $verifyErr = Join-Path $env:RUNNER_TEMP 'verify-layout.err'
+          $verify = Start-Process -FilePath $exe -ArgumentList '--verify-layout' `
+                                  -Wait -PassThru -WindowStyle Hidden `
+                                  -RedirectStandardOutput $verifyOut -RedirectStandardError $verifyErr
+          # -join, not .Trim(): an empty capture file reads as $null and would blow up on a method call,
+          # turning "the verifier printed nothing" into an unrelated PowerShell error.
+          $report = ((Get-Content $verifyOut -ErrorAction SilentlyContinue) -join ' ').Trim()
+          Write-Host "Layout verifier (exit $($verify.ExitCode)): $report"
+          if ($verify.ExitCode -ne 0) {
+            $verifyStderr = ((Get-Content $verifyErr -ErrorAction SilentlyContinue) -join ' ').Trim()
+            throw "The released artifact fails its own layout check (exit $($verify.ExitCode)): $report $verifyStderr"
+          }
+          # Exit 0 alone does not prove the gate RAN. A regression that recognises --verify-layout and
+          # returns without writing its report is a silent successful no-op: it passes an exit-code-only
+          # check while reporting nothing about the layout. The contract (AGENTS.md, "Report") promises
+          # exactly one WCK-LAYOUT line, so require exactly one and require it to be the passing one. The
+          # exit code stays authoritative for FAILURE; this closes the only hole left above it.
+          # The inner @() matters: Get-Content on an empty file yields $null, and `$null -match ...`
+          # evaluates as a scalar $false -- which @() would then wrap into a one-element array and count as
+          # a report. Forcing an array first makes -match the filter it is meant to be.
+          $okLines = @(@(Get-Content $verifyOut -ErrorAction SilentlyContinue) -match '^WCK-LAYOUT status=Ok(\s|$)')
+          if ($okLines.Count -ne 1) {
+            throw "The released artifact exited 0 but did not print exactly one 'WCK-LAYOUT status=Ok' line (found $($okLines.Count)). Captured stdout: '$report'"
+          }
+
+          # A release whose CHANGELOG does not mention it is a release nobody can read about. Only meaningful
+          # for a real tag: a workflow_dispatch run builds the 0.0.0-dev placeholder, which is deliberately
+          # absent from the CHANGELOG. Keyed on the run being a tag run -- NOT on the version string, because
+          # 'v0.0.0-dev' is a tag the regex accepts and a real release must not skip this check.
+          if ($env:REF_TYPE -eq 'tag') {
+            # An anchored heading, not a mention: a version that appears only in prose or a link is not a
+            # release entry. Keep-a-Changelog format is '## [<version>] - <date>'.
+            $pattern = '^## \[' + [regex]::Escape($env:BUILD_VERSION) + '\](\s|$)'
+            if (-not (Select-String -Path CHANGELOG.md -Pattern $pattern -Quiet)) {
+              throw "CHANGELOG.md has no '## [$($env:BUILD_VERSION)]' release heading."
+            }
+            Write-Host "CHANGELOG heading found for $($env:BUILD_VERSION)."
+          } else {
+            Write-Host "CHANGELOG assert skipped: not a tag run (dispatch placeholder build)."
+          }
 
       - name: Acquire ISCC (Inno Setup 6.7.3, pinned + SHA256-verified)
         # The runner image ships an UNPINNED InnoSetup (6.7.1 on windows-2025 today;

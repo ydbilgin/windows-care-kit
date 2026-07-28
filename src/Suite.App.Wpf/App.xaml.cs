@@ -3,9 +3,11 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using WindowsCareKit.App.Deployment;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
+using WindowsCareKit.App.Startup;
 using WindowsCareKit.App.Theming;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
@@ -31,22 +33,71 @@ public partial class App : Application
     /// view models take explicit constructor dependencies instead of reaching through the application object.</summary>
     private IServiceProvider Services { get; set; } = null!;
 
+    /// <summary>Verification switch: report the resolved layout and exit, without showing a window and — the
+    /// load-bearing part — without loading a single module, since module loading executes third-party code.
+    /// This is what CI runs against a published artifact.</summary>
+    internal const string VerifyLayoutFlag = "--verify-layout";
+
+    private const string FatalDialogTitle = "Windows Care Kit";
+
+    /// <summary>
+    /// The gate runs BEFORE <c>base.OnStartup</c>, which is the only thing this override does other than
+    /// gather the gate's two inputs. WPF's base implementation raises the public <c>Startup</c> event, so
+    /// running it first would let a subscriber execute before the app root was verified — and
+    /// <c>DirectoryModuleCatalog</c> loads assemblies from that root, i.e. it executes third-party code.
+    /// The ordering lives in <see cref="StartupSequence"/>, which reaches <c>base.OnStartup</c> only through
+    /// <see cref="IStartupSequenceHost.PublishStartupEvent"/> on the branch where the preflight passed.
+    /// <para>The one <c>async void</c> in the shell, as the WPF lifecycle override it is; everything it starts
+    /// is awaited below.</para>
+    /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
+        await StartupSequence.RunAsync(
+            HasFlag(e.Args, VerifyLayoutFlag),
+            StartupPreflight.Run(AppLayout.Current),
+            new WpfStartupHost(this, e));
+    }
 
+    /// <summary>Adapts the WPF application onto the sequence's host contract. Nothing here decides anything —
+    /// the order these run in belongs to <see cref="StartupSequence"/>.</summary>
+    private sealed class WpfStartupHost(App app, StartupEventArgs e) : IStartupSequenceHost
+    {
+        /// <summary>A GUI-subsystem process has no console of its own; the line lands wherever the caller
+        /// redirected stdout (how CI reads it) and is discarded otherwise. The exit code is the contract
+        /// either way.</summary>
+        public void ReportVerification(string reportLine) => Console.Out.WriteLine(reportLine);
+
+        /// <summary>Hardcoded English: the string table is exactly what is unavailable, so I18n here would
+        /// print the raw keys this dialog exists to explain (the v0.1.2-beta defect).</summary>
+        public void ShowFatalError(string message) =>
+            MessageBox.Show(message, FatalDialogTitle, MessageBoxButton.OK, MessageBoxImage.Error);
+
+        public void Shutdown(int exitCode) => app.Shutdown(exitCode);
+
+        public void PublishStartupEvent() => app.PublishStartupEvent(e);
+
+        public Task StartShellAsync() => app.StartShellAsync(e.Args);
+    }
+
+    /// <summary>Raises WPF's public <c>Startup</c> event. Private, and called from one place, so the gate
+    /// cannot be bypassed by a later edit that merely reorders this class.</summary>
+    private void PublishStartupEvent(StartupEventArgs e) => base.OnStartup(e);
+
+    private async Task StartShellAsync(string[] args)
+    {
         var services = new ServiceCollection();
-        ConfigureServices(services, e.Args);
+        ConfigureServices(services, args);
         Services = services.BuildServiceProvider();
 
         var i18n = Services.GetRequiredService<I18n>();
-        i18n.Load(ResolveCulture(e.Args));
+        if (!TryLoadStartupLanguage(i18n, ResolveCulture(args)))
+            return; // the fatal dialog is up and shutdown is requested; do not raise a window on top of it
 
         var themeService = Services.GetRequiredService<IThemeService>();
         ThemeDictionary.ApplyStartupTheme(Resources, themeService.AppliedTheme);
 
         var main = Services.GetRequiredService<MainViewModel>();
-        if (main.SelectNavByKey(ExtractOption(e.Args, "--screen")))
+        if (main.SelectNavByKey(ExtractOption(args, "--screen")))
             main.ShowFirstRun = false; // deep-linked to a module → skip the first-run modal (demo/screenshot mode)
         var window = new MainWindow { DataContext = main };
         window.Show();
@@ -59,6 +110,62 @@ public partial class App : Application
         {
             Trace.TraceError("Shell startup load failed: " + ex);
         }
+    }
+
+    /// <summary>
+    /// The first string-table load is still part of the gate. Preflight proved the file usable a moment ago,
+    /// but this is a second read of the same file, so it can fail in between — and there is no last known-good
+    /// table yet to fall back on, which would leave exactly the raw-key UI the gate exists to prevent. A
+    /// failure here is therefore fatal, reported through the very same verdict-to-message mapping preflight
+    /// uses. Every LATER load (live language switching) keeps the live table instead — see
+    /// <see cref="OnBaseStringTableUnusable"/>.
+    /// </summary>
+    private bool TryLoadStartupLanguage(I18n i18n, string culture)
+    {
+        BaseStringTableResult? failure = null;
+        void Record(object? _, BaseStringTableResult result) => failure ??= result;
+
+        i18n.BaseStringTableUnusable += Record;
+        try
+        {
+            i18n.Load(culture);
+        }
+        finally
+        {
+            i18n.BaseStringTableUnusable -= Record;
+        }
+
+        if (failure is null)
+        {
+            i18n.BaseStringTableUnusable += OnBaseStringTableUnusable;
+            return true;
+        }
+
+        StartupPreflightResult verdict = StartupPreflight.FromBaseStringTable(AppLayout.Current, failure);
+        MessageBox.Show(
+            verdict.ToFatalMessage(), FatalDialogTitle, MessageBoxButton.OK, MessageBoxImage.Error);
+        Shutdown(verdict.ExitCode);
+        return false;
+    }
+
+    /// <summary>
+    /// The base string table became unusable while the app was running — the supported <c>ExtractedZip</c>
+    /// mode is user-writable, so the file can be deleted or corrupted at any time. The live strings are kept,
+    /// so the UI still reads correctly; this says why the language did not change. Hardcoded English for the
+    /// same reason the fatal dialog is.
+    /// </summary>
+    private static void OnBaseStringTableUnusable(object? sender, BaseStringTableResult failure)
+    {
+        MessageBox.Show(
+            "Windows Care Kit could not reload its text, so the language was not changed." +
+            Environment.NewLine + Environment.NewLine +
+            "File: " + failure.FilePath + Environment.NewLine +
+            "Reason: " + failure.FailureDetail + Environment.NewLine + Environment.NewLine +
+            "The interface is still showing the text loaded at startup. Reinstall Windows Care Kit, or " +
+            "re-extract the release archive, to replace the missing or damaged file.",
+            FatalDialogTitle,
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
     }
 
     /// <summary>
@@ -101,6 +208,22 @@ public partial class App : Application
                 return args[i + 1];
         }
         return null;
+    }
+
+    /// <summary>
+    /// Reads a bare boolean switch (<c>--name</c>) from the argv, case-insensitively. Separate from
+    /// <see cref="ExtractOption"/> on purpose: that parser consumes the NEXT argument as a value, which for a
+    /// flag would silently swallow an unrelated argument.
+    /// </summary>
+    internal static bool HasFlag(string[] args, string name)
+    {
+        foreach (string arg in args)
+        {
+            if (arg.Equals(name, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static string? Normalize(string? code)

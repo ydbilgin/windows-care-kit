@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
+using WindowsCareKit.App.Deployment;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Execution;
@@ -19,6 +20,10 @@ namespace WindowsCareKit.App.ViewModels;
 /// </summary>
 public sealed class BackupViewModel : ObservableObject
 {
+    /// <summary>The shipped manifest folder, addressed relative to the app root (never to the process's
+    /// ambient base directory, which a link-launched process reports as the link's folder).</summary>
+    private const string ManifestsFolderName = "manifests";
+
     private readonly IManifestLoader _manifestLoader;
     private readonly BackupPlanner _planner;
     private readonly BackupRunner _runner;
@@ -123,7 +128,7 @@ public sealed class BackupViewModel : ObservableObject
         try
         {
             string payload = _payloadDir;
-            string manifestsDir = Path.Combine(AppContext.BaseDirectory, "manifests");
+            string manifestsDir = AppLayout.Current.Resource(ManifestsFolderName);
             DateTime now = DateTime.UtcNow;
 
             (BackupPlanResult result, HashSet<string> wholeTreeIds) = await Task.Run(() =>

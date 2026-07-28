@@ -78,6 +78,27 @@ public sealed class DirectoryModuleCatalogTests
         Assert.Null(await Record.ExceptionAsync(vm.OnShellStartupAsync));
     }
 
+    [Fact] // t3b — "no module root" and "empty module root" reach the same Settings-only rail, but they are
+           // different facts about the install; only the first is recorded, so they stay tellable apart.
+    public void An_absent_module_root_is_recorded_distinctly_from_an_empty_one()
+    {
+        string nonexistent = Path.Combine(Path.GetTempPath(), "wck-modcat-nonexistent-" + Guid.NewGuid().ToString("N"));
+        var absent = new DirectoryModuleCatalog(nonexistent);
+        absent.LoadModules();
+
+        string absentDiagnostic = Assert.Single(absent.Diagnostics);
+        Assert.Contains("module root absent", absentDiagnostic, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(nonexistent, absentDiagnostic, StringComparison.OrdinalIgnoreCase);
+
+        using var ws = new TempWorkspace("wck-modcat-");
+        string emptyRoot = ws.Combine("Modules");
+        Directory.CreateDirectory(emptyRoot);
+        var empty = new DirectoryModuleCatalog(emptyRoot);
+        empty.LoadModules();
+
+        Assert.Empty(empty.Diagnostics); // present-but-empty: nothing was skipped and nothing is missing
+    }
+
     [Fact] // t4 — every kind of bad folder is skipped with a diagnostic; valid modules still load.
     public void Corrupt_id_mismatched_and_non_module_folders_are_skipped_with_diagnostics()
     {
