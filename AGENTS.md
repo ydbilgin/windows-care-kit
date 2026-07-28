@@ -8,8 +8,8 @@ surface Codex uses when it works here — read it before making changes.
 ## What Codex does in this project
 
 - **Implementation** — features and fixes are written by Codex from a written spec/brief.
-- **Test authoring** — Codex writes the automated tests for every change (the suite is **1,380+
-  tests**, all host-safe by default). New behavior is not "done" until its tests exist and pass.
+- **Test authoring** — Codex writes the automated tests for every change (the suite is **extensive and
+  host-safe by default**). New behavior is not "done" until its tests exist and pass.
 - **Independent review** — each change goes through a separate, multi-pass review before the
   maintainer merges it; over-claims, safety-rule violations, and missing tests are caught there.
 - **Release & maintenance chores** — build/test verification, changelog and doc updates, dependency
@@ -59,11 +59,27 @@ least the Core Checklist (its §2) before any implementation task, and the relev
 principle/pattern sections before an architecture-sensitive change or review. That file is
 binding and refines — never weakens — the rules in this one.
 
+**Graphify usage.** `graphify` is a declaration map, not a call graph; the project graph lives at
+`graphify-out/graph.json`, which is git-ignored.
+
+- Rebuild before querying if the graph is older than `HEAD`: `graphify update <path> --force` (no LLM
+  cost). A stale graph is active misinformation. Use `explain` / `affected`; do not use `query` for
+  relationship questions — it was measured seeding unrelated nodes and inverting dependency direction.
+- Without a confirming grep, trust it only for which types implement an interface, project-reference
+  direction / module boundaries, and interface-typed field and constructor seams.
+- Go straight to grep for who constructs or consumes type `X`: `new`-expression receivers and DI
+  registration produce no edges at all, so the composition root is invisible. Do not use `path A B` as
+  evidence of a dependency; traversal is undirected and routes through namespace hubs, and it returned
+  paths between deliberately unconnected nodes. Do not make completeness or absence claims about a node
+  whose degree exceeds 18; `explain` truncates silently. Do not rely on it for deployment, artifacts,
+  or runtime.
+- Absence of an edge is never evidence that nothing uses a symbol. Never use `graphify` as evidence in
+  a release or version gate.
+
 A same-day audit against this standard found real, tracked gaps: three forbidden project-reference
 edges (`Suite.Module.Restore` -> `Suite.Execution`, `Suite.Module.Uninstall` -> `Suite.Execution`,
 `Suite.Execution` -> `Suite.Win32`), several multi-responsibility ViewModels, and a few dead/unwired
-abstractions — see `.planning/STAGING/SOLID-MODULAR-AUDIT_2026-07-22.md`. Treat these as known debt
-to eventually close, not a pattern to copy in new code.
+abstractions. Treat these as known debt to eventually close, not a pattern to copy in new code.
 
 ## Commit conventions
 
@@ -91,9 +107,9 @@ to eventually close, not a pattern to copy in new code.
 The layout table above describes **source**. This section describes the **artifact**. A change can be
 correct in every layer above and still ship broken: `v0.1.2-beta` displayed the wrong version number
 and rendered its entire UI as raw i18n keys, and both defects were found by an external reviewer
-installing the package — not by 1471 passing tests, and not by the VM render harness, which publishes
-and then launches the exe from inside its own publish folder, where sibling resources are always
-present by construction.
+installing the package — not by the host-safe suite alone, and not by the VM render harness, which
+publishes and then launches the exe from inside its own publish folder, where sibling resources are
+always present by construction.
 
 **Supported launch modes.** Every artifact-level claim must name the mode it was verified under:
 

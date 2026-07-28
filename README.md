@@ -16,7 +16,7 @@
 
 ## ⚠️ Status — Beta, read this first
 
-The core maintenance, backup, migration, reinstall, and restore workflows are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the suite passes **1,380+ automated tests**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
+The core maintenance, backup, migration, reinstall, and restore workflows are **implemented**, the build is **clean (0 warnings / 0 errors)**, and the project has an **extensive host-safe test suite**. Every destructive action runs **only** behind a **dry-run preview + your explicit approval** through a single safety gate.
 
 > **🚧 Real-world destructive operations are still undergoing supervised testing.** Treat this as **beta**: always have a separate backup before letting it delete, restore, or migrate on a machine you care about. See [Roadmap](#-roadmap) for what's built vs. planned.
 
@@ -167,7 +167,7 @@ Project layout: `src/` (modules + safety core + execution layer), `tests/` (auto
 
 Windows Care Kit is developed and maintained with **OpenAI Codex** as the primary coding agent.
 Each change starts from a written spec; **Codex writes the implementation and the automated tests**
-(the suite is **1,380+ tests**, host-safe with the explicit non-destructive filter), and every change goes through an independent,
+(the suite is **extensive and host-safe** under the explicit non-destructive filter), and every change goes through an independent,
 multi-pass review before the maintainer merges it. Codex also handles the routine maintainer chores:
 build/test verification, changelog and doc updates, and recipe-catalog hygiene.
 
