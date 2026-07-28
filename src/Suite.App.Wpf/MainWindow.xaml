@@ -4,7 +4,8 @@
         Title="{Binding I18n[app.title]}" Height="720" Width="1100"
         MinHeight="560" MinWidth="900"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource Bg.Window}">
+        Background="{StaticResource Bg.Window}"
+        Icon="app.ico">
 
     <Grid>
         <Grid.RowDefinitions>

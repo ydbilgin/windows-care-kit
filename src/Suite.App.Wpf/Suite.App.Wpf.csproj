@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <!-- App opens as standard user (asInvoker). Elevation is per-action via a helper (spec §3). -->
 
     <!-- Self-contained folder-publish ZIP target: WindowsCareKit.exe + dependency DLLs
@@ -16,6 +17,11 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embedded so MainWindow.xaml's Icon="app.ico" resolves via WPF's resource pack URI, not just the exe's own icon. -->
+    <Resource Include="app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Suite.App.Abstractions\Suite.App.Abstractions.csproj" />
