@@ -5,6 +5,7 @@ using System.Windows.Input;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
@@ -13,7 +14,7 @@ using WindowsCareKit.Core.Modules.Migration.Selection;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Migration.ViewModels;
 
 /// <summary>
 /// Migration orchestration: completed detection → scan/profile gate → derived badges/defaults/groups →

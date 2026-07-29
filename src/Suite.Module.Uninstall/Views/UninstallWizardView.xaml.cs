@@ -1,7 +1,7 @@
 using System.Windows.Controls;
-using WindowsCareKit.App.ViewModels;
+using WindowsCareKit.Module.Uninstall.ViewModels;
 
-namespace WindowsCareKit.App.Views;
+namespace WindowsCareKit.Module.Uninstall.Views;
 
 /// <summary>
 /// The 4-beat uninstall wizard overlay (PR-4). Pure view; all state lives in the bound

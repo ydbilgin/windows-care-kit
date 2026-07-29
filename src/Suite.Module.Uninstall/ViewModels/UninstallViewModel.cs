@@ -7,12 +7,13 @@ using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Uninstall.ViewModels;
 
 /// <summary>
 /// The Sil (Uninstall) view-model: lists installed programs and per-user Store apps. A desktop app's

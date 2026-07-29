@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 
-namespace WindowsCareKit.App.Views;
+namespace WindowsCareKit.Module.Install.Views;
 
 public partial class InstallView : UserControl
 {

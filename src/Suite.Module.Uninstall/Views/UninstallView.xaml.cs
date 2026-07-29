@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 
-namespace WindowsCareKit.App.Views;
+namespace WindowsCareKit.Module.Uninstall.Views;
 
 public partial class UninstallView : UserControl
 {

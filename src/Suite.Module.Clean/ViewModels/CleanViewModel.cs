@@ -3,13 +3,14 @@ using System.Windows.Input;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Clean.ViewModels;
 
 /// <summary>
 /// The Temizle (Clean) view-model. Four read-only sections each feed the one execution path: build a

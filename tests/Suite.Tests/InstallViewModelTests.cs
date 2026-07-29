@@ -1,13 +1,13 @@
 using System.IO;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
-using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
+using WindowsCareKit.Module.Install.ViewModels;
 using WindowsCareKit.Tests.Execution;
 using WindowsCareKit.Tests.TestInfra;
 using Xunit;

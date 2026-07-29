@@ -1,12 +1,12 @@
 using System.IO;
 using WindowsCareKit.App.Localization;
-using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Logging;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
+using WindowsCareKit.Module.Backup.ViewModels;
 using WindowsCareKit.Tests.Execution;
 using WindowsCareKit.Tests.TestInfra;
 using WindowsCareKit.Win32;

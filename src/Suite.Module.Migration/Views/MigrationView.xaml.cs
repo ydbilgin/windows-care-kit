@@ -1,8 +1,8 @@
 using Microsoft.Win32;
 using System.Windows.Controls;
-using WindowsCareKit.App.ViewModels;
+using WindowsCareKit.Module.Migration.ViewModels;
 
-namespace WindowsCareKit.App.Views;
+namespace WindowsCareKit.Module.Migration.Views;
 
 public partial class MigrationView : UserControl
 {

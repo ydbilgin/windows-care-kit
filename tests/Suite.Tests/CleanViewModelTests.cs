@@ -6,6 +6,7 @@ using WindowsCareKit.Core.Modules.Clean;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Execution;
+using WindowsCareKit.Module.Clean.ViewModels;
 using WindowsCareKit.Tests.Execution;
 using Xunit;
 

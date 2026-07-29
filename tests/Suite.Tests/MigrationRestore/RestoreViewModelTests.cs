@@ -1,10 +1,10 @@
 using System.Reflection;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
-using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Execution;
+using WindowsCareKit.Module.Restore.ViewModels;
 using Xunit;
 using WindowsCareKit.Tests.TestInfra;
 

@@ -1,4 +1,4 @@
-<UserControl x:Class="WindowsCareKit.App.Views.BackupView"
+<UserControl x:Class="WindowsCareKit.Module.Backup.Views.BackupView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions">

@@ -1,9 +1,11 @@
 using System.Reflection;
 
-// Namespace intentionally stays WindowsCareKit.Core.Modules.Migration even though this type now lives in the
-// Suite.Module.Migration.Recipes assembly (Slice-2b precedent: moved types keep their original namespace, e.g.
-// MigrationModule lives in Suite.Module.Migration but declares WindowsCareKit.App.Modules) — the assembly, not
-// the namespace, is what carries module ownership here.
+// Namespace intentionally stays WindowsCareKit.Core.Modules.Migration even though this type lives in the
+// Suite.Module.Migration.Recipes assembly: these seeds are Core-domain recipe vocabulary (MigrationRecipe,
+// MigrationRecipeLoader) that merely ships from a module-owned assembly. This is a DELIBERATE, documented
+// exception to the NAME-01 rule that a module assembly declares its own WindowsCareKit.Module.<Feature> root
+// (see .planning/STAGING/ARCH-FIX-SPEC-NAME01_module-namespaces_2026-07-29.md §2.3); it is deliberately NOT
+// covered by the ArchitectureTests namespace-ownership guard, whose module list is explicit for that reason.
 namespace WindowsCareKit.Core.Modules.Migration;
 
 /// <summary>

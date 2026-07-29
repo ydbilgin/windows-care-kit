@@ -3,11 +3,12 @@ using System.Windows.Input;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Uninstall.ViewModels;
 
 /// <summary>
 /// The 4-beat uninstall wizard (UI decision §4), a centered overlay opened by the detail-pane "Kaldır →".

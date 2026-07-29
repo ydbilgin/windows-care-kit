@@ -1,9 +1,10 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using WindowsCareKit.App.ViewModels;
-using WindowsCareKit.App.Views;
+using WindowsCareKit.App.Modules;
+using WindowsCareKit.Module.Restore.ViewModels;
+using WindowsCareKit.Module.Restore.Views;
 
-namespace WindowsCareKit.App.Modules;
+namespace WindowsCareKit.Module.Restore;
 
 public sealed class RestoreModule : IWckModule
 {

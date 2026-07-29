@@ -1,11 +1,12 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using WindowsCareKit.App.ViewModels;
-using WindowsCareKit.App.Views;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.Core.Modules.Uninstall;
+using WindowsCareKit.Module.Uninstall.ViewModels;
+using WindowsCareKit.Module.Uninstall.Views;
 using WindowsCareKit.Win32;
 
-namespace WindowsCareKit.App.Modules;
+namespace WindowsCareKit.Module.Uninstall;
 
 public sealed class UninstallModule : IWckModule
 {

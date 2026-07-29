@@ -1,10 +1,10 @@
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
-using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Module.Uninstall.ViewModels;
 using Xunit;
 
 namespace WindowsCareKit.Tests;

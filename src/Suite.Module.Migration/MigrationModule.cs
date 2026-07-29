@@ -1,15 +1,16 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using WindowsCareKit.App.ViewModels;
-using WindowsCareKit.App.Views;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Modules.Migration.Detection;
 using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Module.Migration.ViewModels;
+using WindowsCareKit.Module.Migration.Views;
 using WindowsCareKit.Win32;
 
-namespace WindowsCareKit.App.Modules;
+namespace WindowsCareKit.Module.Migration;
 
 public sealed class MigrationModule : IWckModule
 {

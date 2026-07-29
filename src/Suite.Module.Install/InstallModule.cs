@@ -1,12 +1,13 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using WindowsCareKit.App.ViewModels;
-using WindowsCareKit.App.Views;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.Core.Abstractions;
 using WindowsCareKit.Core.Modules.Install;
+using WindowsCareKit.Module.Install.ViewModels;
+using WindowsCareKit.Module.Install.Views;
 using WindowsCareKit.Win32;
 
-namespace WindowsCareKit.App.Modules;
+namespace WindowsCareKit.Module.Install;
 
 public sealed class InstallModule : IWckModule
 {

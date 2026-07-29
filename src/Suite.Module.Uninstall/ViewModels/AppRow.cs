@@ -1,7 +1,7 @@
 using System.Windows.Media;
 using WindowsCareKit.Core.Modules.Uninstall;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Uninstall.ViewModels;
 
 /// <summary>
 /// One row in the unified Sil DataGrid. It flattens the two inventory sources — classic desktop programs

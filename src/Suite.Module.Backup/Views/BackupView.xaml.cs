@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 
-namespace WindowsCareKit.App.Views;
+namespace WindowsCareKit.Module.Backup.Views;
 
 public partial class BackupView : UserControl
 {

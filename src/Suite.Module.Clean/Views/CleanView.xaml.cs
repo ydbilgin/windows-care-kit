@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 
-namespace WindowsCareKit.App.Views;
+namespace WindowsCareKit.Module.Clean.Views;
 
 public partial class CleanView : UserControl
 {

@@ -5,11 +5,12 @@ using WindowsCareKit.App.Deployment;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Install.ViewModels;
 
 /// <summary>One sign-in row in the auth panel: present/absent (probed by existence only — contents never read).</summary>
 public sealed class AuthRow

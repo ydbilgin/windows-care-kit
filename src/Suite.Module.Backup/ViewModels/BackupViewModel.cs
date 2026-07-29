@@ -4,12 +4,13 @@ using System.Windows.Input;
 using WindowsCareKit.App.Deployment;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Backup;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Backup.ViewModels;
 
 /// <summary>
 /// The Yedekle (Backup) view-model (spec §1.3). Flow: choose a payload folder OUTSIDE the app → load the

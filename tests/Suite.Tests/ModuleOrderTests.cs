@@ -1,4 +1,10 @@
 using WindowsCareKit.App.Modules;
+using WindowsCareKit.Module.Backup;
+using WindowsCareKit.Module.Clean;
+using WindowsCareKit.Module.Install;
+using WindowsCareKit.Module.Migration;
+using WindowsCareKit.Module.Restore;
+using WindowsCareKit.Module.Uninstall;
 using Xunit;
 
 namespace WindowsCareKit.Tests;

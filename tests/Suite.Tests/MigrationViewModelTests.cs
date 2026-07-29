@@ -8,6 +8,7 @@ using WindowsCareKit.Core.Modules.Migration.Execution;
 using WindowsCareKit.Core.Modules.Migration.Selection;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Module.Migration.ViewModels;
 using Xunit;
 
 namespace WindowsCareKit.Tests;

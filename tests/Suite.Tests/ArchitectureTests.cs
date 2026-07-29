@@ -1,6 +1,14 @@
+using System.Reflection;
 using WindowsCareKit.App.Deployment;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
+using WindowsCareKit.Module.Backup;
+using WindowsCareKit.Module.Clean;
+using WindowsCareKit.Module.Install;
+using WindowsCareKit.Module.Migration;
+using WindowsCareKit.Module.Restore;
+using WindowsCareKit.Module.Uninstall;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -13,6 +21,82 @@ namespace WindowsCareKit.Tests;
 /// </summary>
 public class ArchitectureTests
 {
+    /// <summary>Anchor types, one per feature module assembly. Compile-time references, so a renamed or
+    /// deleted module is a build error here rather than a silently shrinking guard.</summary>
+    private static readonly Type[] ModuleAnchors =
+    [
+        typeof(BackupModule), typeof(CleanModule), typeof(InstallModule),
+        typeof(MigrationModule), typeof(RestoreModule), typeof(UninstallModule),
+    ];
+
+    /// <summary>Every distinct WCK-owned namespace declared in <paramref name="assembly"/>. The
+    /// "WindowsCareKit." prefix filter excludes compiler-emitted types the C# compiler injects into every
+    /// assembly (Microsoft.CodeAnalysis.EmbeddedAttribute, System.Runtime.CompilerServices.*) and the
+    /// null-namespace &lt;PrivateImplementationDetails&gt; type. Do NOT widen this filter: without it the
+    /// guard reds on compiler output and would be "fixed" by weakening the real assertion.</summary>
+    private static string[] WckNamespaces(Assembly assembly) =>
+        assembly.GetTypes()
+            .Select(type => type.Namespace)
+            .Where(ns => ns is not null && ns.StartsWith("WindowsCareKit.", StringComparison.Ordinal))
+            .Select(ns => ns!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(ns => ns, StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>NAME-01: physical ownership and namespaces must agree. Every WCK type compiled into a feature
+    /// module assembly declares that module's own root — a module may not declare a shell namespace. Asserted
+    /// over real assembly metadata (what actually ships), not over source text.
+    /// <para>Suite.Module.Migration.Recipes is deliberately absent: it declares the Core-domain namespace
+    /// WindowsCareKit.Core.Modules.Migration as a documented exception (see BuiltinRecipeSource.cs:3-6 and
+    /// ARCH-FIX-SPEC-NAME01 §2.3). The module list is explicit rather than a wildcard scan precisely so that
+    /// exception is visible here instead of silent.</para></summary>
+    [Theory]
+    [InlineData("Suite.Module.Backup", "WindowsCareKit.Module.Backup")]
+    [InlineData("Suite.Module.Clean", "WindowsCareKit.Module.Clean")]
+    [InlineData("Suite.Module.Install", "WindowsCareKit.Module.Install")]
+    [InlineData("Suite.Module.Migration", "WindowsCareKit.Module.Migration")]
+    [InlineData("Suite.Module.Restore", "WindowsCareKit.Module.Restore")]
+    [InlineData("Suite.Module.Uninstall", "WindowsCareKit.Module.Uninstall")]
+    public void Module_assembly_declares_only_its_own_namespace_root(string assemblyName, string expectedRoot)
+    {
+        Assembly module = ModuleAnchors
+            .Select(anchor => anchor.Assembly)
+            .Single(assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.Ordinal));
+
+        string[] foreign = WckNamespaces(module)
+            .Where(ns => !string.Equals(ns, expectedRoot, StringComparison.Ordinal)
+                      && !ns.StartsWith(expectedRoot + ".", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.True(
+            foreign.Length == 0,
+            $"{assemblyName} must declare only namespaces rooted at '{expectedRoot}' (NAME-01: physical " +
+            $"ownership and namespaces must agree). Foreign namespaces found: [{string.Join(", ", foreign)}]");
+    }
+
+    /// <summary>The converse fence: the shell and the abstraction assembly must not claim a module namespace.
+    /// Without this, "ownership agrees" could be satisfied by moving shell types into a module root.</summary>
+    [Theory]
+    // Suite.App.Wpf.csproj sets <AssemblyName>WindowsCareKit</AssemblyName>, which is the identity reflection sees.
+    [InlineData("WindowsCareKit")]
+    [InlineData("Suite.App.Abstractions")]
+    public void Shell_assembly_declares_no_module_namespace(string assemblyName)
+    {
+        Assembly shell = assemblyName == "WindowsCareKit"
+            ? typeof(DirectoryModuleCatalog).Assembly
+            : typeof(AppLayout).Assembly;
+
+        Assert.Equal(assemblyName, shell.GetName().Name);
+
+        string[] moduleNamespaces = WckNamespaces(shell)
+            .Where(ns => ns.StartsWith("WindowsCareKit.Module.", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.True(
+            moduleNamespaces.Length == 0,
+            $"{assemblyName} must not declare a feature-module namespace. Found: [{string.Join(", ", moduleNamespaces)}]");
+    }
+
     [Fact]
     public void Suite_Core_does_not_reference_Suite_Execution()
     {

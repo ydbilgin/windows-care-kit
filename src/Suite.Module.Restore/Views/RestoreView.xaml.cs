@@ -1,8 +1,8 @@
 using Microsoft.Win32;
 using System.Windows.Controls;
-using WindowsCareKit.App.ViewModels;
+using WindowsCareKit.Module.Restore.ViewModels;
 
-namespace WindowsCareKit.App.Views;
+namespace WindowsCareKit.Module.Restore.Views;
 
 public partial class RestoreView : UserControl
 {

@@ -1,9 +1,9 @@
-<UserControl x:Class="WindowsCareKit.App.Views.UninstallView"
+<UserControl x:Class="WindowsCareKit.Module.Uninstall.Views.UninstallView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:WindowsCareKit.App.Controls;assembly=Suite.App.Abstractions"
              xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions"
-             xmlns:views="clr-namespace:WindowsCareKit.App.Views">
+             xmlns:views="clr-namespace:WindowsCareKit.Module.Uninstall.Views">
     <UserControl.Resources>
         <mvvm:BindingProxy x:Key="Proxy" Data="{Binding}" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />

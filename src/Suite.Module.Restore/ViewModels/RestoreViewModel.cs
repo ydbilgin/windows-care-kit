@@ -5,12 +5,13 @@ using System.Windows.Input;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Modules.Install;
 using WindowsCareKit.Core.Modules.Migration;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Restore.ViewModels;
 
 /// <summary>
 /// New-machine migration restore flow: load package manifest, preview through MigrationRestoreService,

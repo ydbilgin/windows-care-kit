@@ -4,7 +4,7 @@ using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 
-namespace WindowsCareKit.App.ViewModels;
+namespace WindowsCareKit.Module.Uninstall.ViewModels;
 
 /// <summary>
 /// A checkable presentation node over one read-only <see cref="LeftoverCandidate"/> for the wizard's 3-tier
