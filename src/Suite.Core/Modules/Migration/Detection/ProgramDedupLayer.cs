@@ -131,16 +131,18 @@ public static class ProgramDedupLayer
     /// Refuses a weak (leaf/namepub) union when the two components already carry different strong
     /// identities — this is what keeps "Python 3.11" and "Python 3.12" apart.
     /// <para>
-    /// Cost shape: each colliding weak key rebuilds both components' strong-value sets by scanning the
-    /// whole input, so one cluster of size k costs O(k * n) — and the inventory total is O(C * n) across
-    /// all C cross-component weak-key collisions, so many small clusters can add up to quadratic work too.
-    /// Measured on the collision-heavy fitness inventories in <c>ProgramDedupScaleTests</c>: 500 records
-    /// ≈ 4 ms, 1 000 ≈ 16 ms, 2 000 ≈ 50 ms, 5 000 ≈ 262 ms. A measured real machine produced ~650 raw
-    /// pre-dedup rows (uninstall registry + MSI + AppX + App Paths + Start Menu), so the budget is pinned
-    /// at 2 000 records — a selected target with roughly 2x headroom, not a cap the producers enforce.
-    /// That budget is enforced by those tests; if the input can ever grow past it, carry the strong-value
-    /// sets as union-root metadata merged inside <see cref="UnionFind.Union"/> instead of rescanning here
-    /// (the set must follow the surviving root on every union, and must not widen "strong identity").
+    /// Cost shape: each colliding weak key scans the whole input twice for product codes; without a
+    /// product-code conflict it falls through to two more scans for package family names. The product-code
+    /// early return is therefore the cheaper two-scan shape; the worst path performs four full scans.
+    /// One cluster of size k costs O(k * n), and all C cross-component collisions cost O(C * n).
+    /// Measured by <c>ProgramDedupScaleTests</c> at 500 / 1 000 / 2 000 / 5 000 / 10 000 records:
+    /// two-scan 1 / 5 / 22 / 132 / 557 ms; four-scan 2 / 11 / 49 / 252 / 1 208 ms.
+    /// The four-scan budget is enforced at 2 000 records, a selected target with inventory headroom,
+    /// not a producer cap. The 10 000 point remains reporting-only because one host's 1 208 ms
+    /// does not establish a stable CI gate. If input can grow past the target, carry the strong-value sets
+    /// as union-root metadata merged inside <see cref="UnionFind.Union"/> (following the surviving root
+    /// without widening "strong identity"). Before that rewrite, write and green an equivalence-vs-current
+    /// test; never write it after the rewrite, when it could only compare the new implementation to itself.
     /// </para>
     /// </summary>
     private static bool ComponentsHaveConflictingStrongIdentities(
