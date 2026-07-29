@@ -13,19 +13,33 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly IReadOnlyDictionary<string, IWckModule> _modulesById;
     private readonly Dictionary<string, FrameworkElement> _moduleViews = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ModuleCatalogHealth _health;
     private NavItem _selectedNav = null!;
     private CancellationTokenSource? _navigationCts;
     private Task _activeNavigation = Task.CompletedTask;
 
-    public MainViewModel(I18n i18n, IReadOnlyList<IWckModule> modules)
-        : this(i18n, modules, EmptyServiceProvider.Instance)
+    public MainViewModel(
+        I18n i18n,
+        IReadOnlyList<IWckModule> modules,
+        ModuleCatalogHealth health)
+        : this(i18n, modules, health, EmptyServiceProvider.Instance)
     {
     }
 
-    internal MainViewModel(I18n i18n, IReadOnlyList<IWckModule> modules, IServiceProvider services)
+    internal MainViewModel(
+        I18n i18n,
+        IReadOnlyList<IWckModule> modules,
+        ModuleCatalogHealth health,
+        IServiceProvider services)
     {
         I18n = i18n;
+        _health = health ?? throw new ArgumentNullException(nameof(health));
         _modulesById = modules.ToDictionary(m => m.Id, StringComparer.OrdinalIgnoreCase);
+        I18n.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is "Item[]" or nameof(I18n.Culture) or nameof(I18n.SelectedCulture))
+                Raise(nameof(ModuleHealthNotice));
+        };
 
         // Glyphs are Segoe MDL2 Assets / Segoe Fluent Icons code points (delete / clean / save / migrate / restore / download / gear).
         Nav = new ObservableCollection<NavItem>(
@@ -49,6 +63,16 @@ public sealed class MainViewModel : ObservableObject
     public I18n I18n { get; }
     public ObservableCollection<NavItem> Nav { get; }
     public ICommand DismissFirstRunCommand { get; }
+
+    /// <summary>The shell's one-line statement when part of the app is missing; empty in every calm state.
+    /// Deliberately carries no count and no component name: the itemized list lives in Settings next to the
+    /// evidence, and no untrusted directory name is ever rendered in the window chrome.</summary>
+    public string ModuleHealthNotice => _health.Status switch
+    {
+        ModuleInventoryStatus.Degraded => I18n["modules.notice.degraded"],
+        ModuleInventoryStatus.Unavailable => I18n["modules.notice.unavailable"],
+        _ => string.Empty,
+    };
 
     private bool _showFirstRun = true;
     public bool ShowFirstRun { get => _showFirstRun; set => SetField(ref _showFirstRun, value); }

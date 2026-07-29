@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.App.Theming;
 using WindowsCareKit.Core.Execution;
@@ -8,6 +9,9 @@ using WindowsCareKit.Core.Execution;
 namespace WindowsCareKit.App.ViewModels;
 
 public sealed record ThemeChoice(AppTheme Theme, string DisplayName);
+
+/// <summary>One row of the Components card. Pure projection: no I/O, no policy.</summary>
+public sealed record ModuleComponentRow(string Name, string StatusText, string ReasonText);
 
 public sealed class SettingsViewModel : ObservableObject
 {
@@ -17,13 +21,20 @@ public sealed class SettingsViewModel : ObservableObject
 
     private readonly IThemeService _themeService;
     private readonly IUrlOpener _urlOpener;
+    private readonly ModuleCatalogHealth _health;
     private bool _themeSaveFailed;
 
-    public SettingsViewModel(I18n i18n, IThemeService themeService, IUrlOpener urlOpener)
+    public SettingsViewModel(
+        I18n i18n,
+        IThemeService themeService,
+        IUrlOpener urlOpener,
+        ModuleCatalogHealth health)
     {
         I18n = i18n ?? throw new ArgumentNullException(nameof(i18n));
         _themeService = themeService ?? throw new ArgumentNullException(nameof(themeService));
         _urlOpener = urlOpener ?? throw new ArgumentNullException(nameof(urlOpener));
+        _health = health ?? throw new ArgumentNullException(nameof(health));
+        ModulesRoot = _health.ModulesRoot;
         OpenExternalLinkCommand = new RelayCommand(parameter =>
         {
             Uri? uri = parameter switch
@@ -46,8 +57,10 @@ public sealed class SettingsViewModel : ObservableObject
             {
                 Raise(nameof(AvailableThemes));
                 Raise(nameof(ThemeStatusText));
+                RebuildModulePresentation();
             }
         };
+        RebuildModulePresentation();
     }
 
     public I18n I18n { get; }
@@ -56,6 +69,10 @@ public sealed class SettingsViewModel : ObservableObject
     public string RepositoryUrl => ProjectRepositoryUrl;
     public string ReleasesUrl => ProjectReleasesUrl;
     public ICommand OpenExternalLinkCommand { get; }
+    public string ModulesRoot { get; }
+    public IReadOnlyList<ModuleComponentRow> ModuleComponents { get; private set; } = [];
+    public string ModulesEmptyNote { get; private set; } = string.Empty;
+    public string ModulesInventoryNote { get; private set; } = string.Empty;
     public IReadOnlyList<ThemeChoice> AvailableThemes
         => _themeService.AvailableThemes
             .Select(theme => new ThemeChoice(theme, I18n[ThemeResourceKey(theme)]))
@@ -113,6 +130,48 @@ public sealed class SettingsViewModel : ObservableObject
 
     private static string ThemeResourceKey(AppTheme theme)
         => theme == AppTheme.Light ? "theme.light" : "theme.dark";
+
+    private void RebuildModulePresentation()
+    {
+        ModuleComponents = _health.Components.Select(record => record.Status switch
+        {
+            ModuleComponentStatus.Loaded => new ModuleComponentRow(
+                record.DirectoryName,
+                I18n["modules.status.loaded"],
+                string.Empty),
+            ModuleComponentStatus.Incomplete => new ModuleComponentRow(
+                record.DirectoryName,
+                I18n["modules.status.incomplete"],
+                I18n["modules.reason.incomplete"]),
+            ModuleComponentStatus.Malformed => new ModuleComponentRow(
+                record.DirectoryName,
+                I18n["modules.status.malformed"],
+                I18n.Format(
+                    "modules.reason.malformed",
+                    record.FailureCategory ?? record.Status.ToString())),
+            ModuleComponentStatus.Unreadable => new ModuleComponentRow(
+                record.DirectoryName,
+                I18n["modules.status.unreadable"],
+                I18n.Format(
+                    "modules.reason.unreadable",
+                    record.FailureCategory ?? record.Status.ToString())),
+            _ => throw new ArgumentOutOfRangeException(nameof(record.Status), record.Status, null),
+        }).ToList();
+
+        ModulesEmptyNote = _health.Status == ModuleInventoryStatus.NotInstalled
+            ? I18n["modules.none"]
+            : string.Empty;
+        ModulesInventoryNote = _health.Status == ModuleInventoryStatus.Unavailable
+            ? I18n.Format(
+                "modules.inventory.unavailable",
+                _health.FailureCategory ?? _health.Status.ToString())
+            : string.Empty;
+
+        Raise(nameof(ModulesRoot));
+        Raise(nameof(ModuleComponents));
+        Raise(nameof(ModulesEmptyNote));
+        Raise(nameof(ModulesInventoryNote));
+    }
 
     private void NotifyThemeStateChanged()
     {

@@ -233,25 +233,39 @@ public partial class App : Application
         return code is "en" or "tr" ? code : null;
     }
 
-    private static void ConfigureServices(IServiceCollection s, string[] args)
+    /// <summary>Internal so the registrations the shell actually composes can be asserted directly. The health
+    /// registration this method performs is the one that was silently absent before, and a composition root that
+    /// cannot be exercised is a composition root whose omissions cannot be caught (C12/P25).</summary>
+    internal static void ConfigureServices(IServiceCollection s, string[] args)
     {
-        AddBaseServices(s, args);
+        // Discovery FIRST: the base registrations now state what the shell knows about its own components, so
+        // the fact has to exist before they are declared. Discovery performs no service resolution, so nothing
+        // is reordered semantically.
+        ModuleCatalogResult catalog = new DirectoryModuleCatalog().LoadModules();
 
-        IReadOnlyList<IWckModule> modules = new DirectoryModuleCatalog().LoadModules();
-        foreach (IWckModule module in modules)
+        AddBaseServices(s, args, catalog.Health);
+
+        foreach (IWckModule module in catalog.Modules)
             module.RegisterServices(s);
 
-        s.AddSingleton(modules);
+        s.AddSingleton(catalog.Modules);
     }
 
     /// <summary>
     /// The default module set, discovered from <c>&lt;appdir&gt;\Modules\</c> per the ratified M4 trust
     /// policy (see <see cref="DirectoryModuleCatalog"/>). Single production/test seam.
     /// </summary>
-    internal static IReadOnlyList<IWckModule> CreateDefaultModules() => new DirectoryModuleCatalog().LoadModules();
+    internal static IReadOnlyList<IWckModule> CreateDefaultModules()
+        => new DirectoryModuleCatalog().LoadModules().Modules;
 
-    internal static void AddBaseServices(IServiceCollection s, string[] args)
+    internal static void AddBaseServices(
+        IServiceCollection s,
+        string[] args,
+        ModuleCatalogHealth moduleHealth)
     {
+        ArgumentNullException.ThrowIfNull(moduleHealth);
+        s.AddSingleton(moduleHealth);
+
         // The graceful `?? empty` is REQUIRED: ModuleCompositionTests builds base-only providers with no
         // module list registered and still resolves I18n (shell-only strings, the modular truth). The
         // real app registers the module list at ConfigureServices below, so the app singleton gets the
@@ -357,10 +371,15 @@ public partial class App : Application
             new GatedMigrationRestoreService(sp.GetRequiredService<MigrationRestoreService>()));
 
         // Shell view-models.
-        s.AddSingleton<SettingsViewModel>();
+        s.AddSingleton<SettingsViewModel>(sp => new SettingsViewModel(
+            sp.GetRequiredService<I18n>(),
+            sp.GetRequiredService<IThemeService>(),
+            sp.GetRequiredService<IUrlOpener>(),
+            sp.GetRequiredService<ModuleCatalogHealth>()));
         s.AddSingleton<MainViewModel>(sp => new MainViewModel(
             sp.GetRequiredService<I18n>(),
             sp.GetRequiredService<IReadOnlyList<IWckModule>>(),
+            sp.GetRequiredService<ModuleCatalogHealth>(),
             sp));
     }
 

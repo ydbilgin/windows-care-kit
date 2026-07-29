@@ -11,6 +11,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -62,11 +63,18 @@
                      ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}" Padding="10,0,10,0" />
         </Border>
 
-        <!-- Row 3: content, full width -->
-        <ContentControl Grid.Row="2" Content="{Binding CurrentContent}" Margin="0" />
+        <TextBlock Grid.Row="2" x:Name="ModuleHealthNoticeText"
+                   Text="{Binding ModuleHealthNotice}"
+                   Foreground="{StaticResource Backup.DangerStrong}"
+                   FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap"
+                   Margin="18,10,18,10"
+                   Visibility="{Binding ModuleHealthNotice, Converter={StaticResource NonEmptyToVis}}" />
+
+        <!-- Row 4: content, full width -->
+        <ContentControl Grid.Row="3" Content="{Binding CurrentContent}" Margin="0" />
 
         <!-- First-run notice overlay -->
-        <Grid Grid.RowSpan="3" Background="{StaticResource Bg.Scrim}"
+        <Grid Grid.RowSpan="4" Background="{StaticResource Bg.Scrim}"
               Visibility="{Binding ShowFirstRun, Converter={StaticResource BoolToVis}}">
             <Border Style="{StaticResource Card}" MaxWidth="520" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <StackPanel>

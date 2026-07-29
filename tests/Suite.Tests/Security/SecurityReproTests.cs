@@ -830,18 +830,19 @@ public sealed class SecurityReproPart2Tests
         Assert.Equal(syntheticDependencyName, AssemblyName.GetAssemblyName(rejectedDependency).Name);
 
         var rejectedCatalog = new DirectoryModuleCatalog(rejectedRoot);
-        IReadOnlyList<IWckModule> rejectedModules = rejectedCatalog.LoadModules();
-        Assert.Equal(new[] { "settings" }, rejectedModules.Select(m => m.Id).ToArray());
+        ModuleCatalogResult rejected = rejectedCatalog.LoadModules();
+        Assert.Equal(new[] { "settings" }, rejected.Modules.Select(m => m.Id).ToArray());
         Assert.Contains(
-            rejectedCatalog.Diagnostics,
-            d => d.Contains("module id does not match", StringComparison.OrdinalIgnoreCase));
+            rejected.Health.Components,
+            component => component.Status == ModuleComponentStatus.Malformed
+                && component.FailureCategory == ModuleCatalogHealth.CategoryIdMismatch);
 
         string validRoot = workspace.Combine("valid-root");
         string validDirectory = Path.Combine(validRoot, "uninstall");
         Directory.CreateDirectory(validDirectory);
         File.Copy(knownModule.Location, Path.Combine(validDirectory, "Suite.Module.uninstall.dll"));
         var validCatalog = new DirectoryModuleCatalog(validRoot);
-        Assert.Contains(validCatalog.LoadModules(), module => module.Id == "uninstall");
+        Assert.Contains(validCatalog.LoadModules().Modules, module => module.Id == "uninstall");
 
         Type resolver = typeof(DirectoryModuleCatalog).Assembly.GetType(
             "WindowsCareKit.App.Modules.ModuleAssemblyResolver",

@@ -190,6 +190,22 @@ public static class BaseStringTable
         "settings.about.releases",
         "settings.about.releasesLink",
 
+        // The component inventory — the shell's account of its own installation.
+        "modules.title",
+        "modules.body",
+        "modules.root",
+        "modules.none",
+        "modules.status.loaded",
+        "modules.status.incomplete",
+        "modules.status.malformed",
+        "modules.status.unreadable",
+        "modules.reason.incomplete",
+        "modules.reason.malformed",
+        "modules.reason.unreadable",
+        "modules.inventory.unavailable",
+        "modules.notice.degraded",
+        "modules.notice.unavailable",
+
         // Plan-row vocabulary: the shell renders every action row, whichever module planned it. PlanRow
         // falls back to hardcoded English per key, so absence here costs the chosen language rather than
         // legibility — a quieter failure than a raw key, and still not something to ship.

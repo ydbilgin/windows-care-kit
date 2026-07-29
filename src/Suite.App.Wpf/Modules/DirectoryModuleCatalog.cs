@@ -31,7 +31,8 @@ namespace WindowsCareKit.App.Modules;
 ///     can already replace <c>WindowsCareKit.exe</c>, so this adds no new privilege boundary. This is
 ///     deliberate install-directory trust, NOT a verification step; signing arrives with M6.</item>
 ///   <item>Every per-folder load step is exception-contained: a corrupt, garbage, duplicate-id, or
-///     non-module DLL is skipped with an internal diagnostic and never crashes startup.</item>
+///     non-module DLL is skipped and never crashes startup. Its typed outcome reaches the shell UI; the
+///     directory label is sanitized first and exception messages/file content are never surfaced.</item>
 /// </list>
 /// <para>
 /// The shell-owned <see cref="SettingsModule"/> is always appended. The catalog therefore NEVER returns
@@ -48,11 +49,11 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
     internal const string ModulesFolderName = "Modules";
 
     private readonly string _modulesRoot;
-    private readonly List<string> _diagnostics = new();
+    private readonly Func<string, IEnumerable<string>> _enumerateDirectories;
 
     /// <summary>Production entry point: discovers modules from <c>&lt;appdir&gt;\Modules</c> only.</summary>
     public DirectoryModuleCatalog()
-        : this(AppLayout.Current.Resource(ModulesFolderName))
+        : this(AppLayout.Current.Resource(ModulesFolderName), Directory.EnumerateDirectories)
     {
     }
 
@@ -61,48 +62,56 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
     /// InternalsVisibleTo) so nothing outside the assembly can point the loader at a different folder.
     /// </summary>
     internal DirectoryModuleCatalog(string modulesRoot)
+        : this(modulesRoot, Directory.EnumerateDirectories)
     {
-        _modulesRoot = Path.GetFullPath(modulesRoot);
     }
 
-    /// <summary>
-    /// Skip reasons recorded during the last <see cref="LoadModules"/> call. Internal only (no logging
-    /// infrastructure exists this early in startup, and load failures must not surface attacker-controlled
-    /// strings in the UI); tests assert against this.
-    /// </summary>
-    public IReadOnlyList<string> Diagnostics => _diagnostics;
-
-    public IReadOnlyList<IWckModule> LoadModules()
+    /// <summary>Test-only root-enumeration seam. It supplies candidates only and cannot change what counts
+    /// as a usable module.</summary>
+    internal DirectoryModuleCatalog(
+        string modulesRoot,
+        Func<string, IEnumerable<string>> enumerateDirectories)
     {
-        _diagnostics.Clear();
+        _modulesRoot = Path.GetFullPath(modulesRoot);
+        _enumerateDirectories = enumerateDirectories ?? throw new ArgumentNullException(nameof(enumerateDirectories));
+    }
 
+    public ModuleCatalogResult LoadModules()
+    {
         var discovered = new List<IWckModule>();
-        if (Directory.Exists(_modulesRoot))
+        var records = new List<ModuleComponentRecord>();
+
+        if (!Directory.Exists(_modulesRoot))
+            return BuildResult(discovered, ModuleCatalogHealth.FromComponents(_modulesRoot, records));
+
+        IReadOnlyList<string> moduleDirectories;
+        try
         {
-            try
-            {
-                foreach (string moduleDir in Directory.EnumerateDirectories(_modulesRoot))
-                {
-                    IWckModule? module = TryLoadModule(moduleDir);
-                    if (module is not null)
-                        discovered.Add(module);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-            {
-                // A filesystem-level failure enumerating the modules root (I/O error, permission, reparse
-                // loop) must degrade to the Settings floor, never crash startup (per the trust policy).
-                _diagnostics.Add($"skip enumeration: {ex.GetType().Name}");
-            }
+            // Materialize the root listing before loading any assembly. If enumeration fails partway through,
+            // no partial list is presented as a fact and no candidate from that incomplete listing is executed.
+            moduleDirectories = _enumerateDirectories(_modulesRoot).ToList();
         }
-        else
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
-            // "The module root is not there" and "the module root is there and holds nothing" are different
-            // facts, and both end in the same Settings-only nav rail below. Recording the first keeps them
-            // distinguishable instead of silently identical (a "Base only" install is the legitimate case).
-            _diagnostics.Add($"module root absent: '{_modulesRoot}' does not exist; no module is installed.");
+            return BuildResult(
+                discovered,
+                ModuleCatalogHealth.Unavailable(_modulesRoot, ex.GetType().Name));
         }
 
+        foreach (string moduleDir in moduleDirectories)
+        {
+            IWckModule? module = TryLoadModule(moduleDir, records);
+            if (module is not null)
+                discovered.Add(module);
+        }
+
+        return BuildResult(discovered, ModuleCatalogHealth.FromComponents(_modulesRoot, records));
+    }
+
+    private static ModuleCatalogResult BuildResult(
+        List<IWckModule> discovered,
+        ModuleCatalogHealth health)
+    {
         // Deterministic, filesystem-order-independent ordering; duplicate ids are impossible because
         // ids are gated to equal the (unique) folder name.
         var ordered = discovered
@@ -112,12 +121,15 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
 
         // Structural floor: Settings is shell-owned and always present (even for a missing/empty Modules\).
         ordered.Add(new SettingsModule());
-        return ordered;
+        return new ModuleCatalogResult(ordered, health);
     }
 
-    private IWckModule? TryLoadModule(string moduleDir)
+    private IWckModule? TryLoadModule(
+        string moduleDir,
+        List<ModuleComponentRecord> records)
     {
         string folderName = Path.GetFileName(moduleDir);
+        string displayName = ModuleDirectoryLabel.ForDisplay(folderName);
         try
         {
             string candidate = Path.GetFullPath(Path.Combine(moduleDir, ModuleAssemblyPrefix + folderName + ".dll"));
@@ -128,14 +140,21 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
             string rootPrefix = _modulesRoot + Path.DirectorySeparatorChar;
             if (!candidate.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                _diagnostics.Add($"skip '{folderName}': candidate path resolves outside the modules root.");
+                records.Add(new(
+                    displayName,
+                    ModuleComponentStatus.Malformed,
+                    ModuleCatalogHealth.CategoryOutsideRoot));
                 return null;
             }
 
             // Exactly one explicit file per folder; a non-matching name (e.g. a private dep) is never loaded.
-            if (!File.Exists(candidate))
+            // Deliberately NOT File.Exists: it swallows UnauthorizedAccessException and returns false, which
+            // would report an unreadable folder as Incomplete -- telling the user to reinstall the component
+            // when the real fix is a permission. Enumeration throws instead, so the access failure reaches the
+            // Unreadable clause below. That is the malformed-vs-unreadable split this whole change exists for.
+            if (!Directory.EnumerateFiles(moduleDir, Path.GetFileName(candidate)).Any())
             {
-                _diagnostics.Add($"skip '{folderName}': no {ModuleAssemblyPrefix}{folderName}.dll present.");
+                records.Add(new(displayName, ModuleComponentStatus.Incomplete, null));
                 return null;
             }
 
@@ -155,15 +174,30 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
                 .Where(t => t is { IsAbstract: false, IsInterface: false } && typeof(IWckModule).IsAssignableFrom(t))
                 .ToList();
 
-            if (moduleTypes.Count != 1)
+            if (moduleTypes.Count == 0)
             {
-                _diagnostics.Add($"skip '{folderName}': expected exactly one IWckModule implementation, found {moduleTypes.Count}.");
+                records.Add(new(
+                    displayName,
+                    ModuleComponentStatus.Malformed,
+                    ModuleCatalogHealth.CategoryNoModuleType));
+                return null;
+            }
+
+            if (moduleTypes.Count > 1)
+            {
+                records.Add(new(
+                    displayName,
+                    ModuleComponentStatus.Malformed,
+                    ModuleCatalogHealth.CategoryMultipleModuleTypes));
                 return null;
             }
 
             if (Activator.CreateInstance(moduleTypes[0]) is not IWckModule module)
             {
-                _diagnostics.Add($"skip '{folderName}': the module type could not be constructed.");
+                records.Add(new(
+                    displayName,
+                    ModuleComponentStatus.Malformed,
+                    ModuleCatalogHealth.CategoryNotConstructible));
                 return null;
             }
 
@@ -171,13 +205,19 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
             // dropped DLL cannot impersonate another nav slot) and must not claim the reserved Settings slot.
             if (!string.Equals(module.Id, folderName, StringComparison.OrdinalIgnoreCase))
             {
-                _diagnostics.Add($"skip '{folderName}': module id does not match the folder name.");
+                records.Add(new(
+                    displayName,
+                    ModuleComponentStatus.Malformed,
+                    ModuleCatalogHealth.CategoryIdMismatch));
                 return null;
             }
 
             if (string.Equals(module.Id, ReservedSettingsId, StringComparison.OrdinalIgnoreCase))
             {
-                _diagnostics.Add($"skip '{folderName}': '{ReservedSettingsId}' is reserved for the shell.");
+                records.Add(new(
+                    displayName,
+                    ModuleComponentStatus.Malformed,
+                    ModuleCatalogHealth.CategoryReservedId));
                 return null;
             }
 
@@ -187,14 +227,22 @@ public sealed class DirectoryModuleCatalog : IModuleCatalog
             // pollute the process-global dependency resolver (S2). Its own private deps were resolved during the type
             // scan above from the default probe path; the recipes dep is loaded lazily on first use, after this point.
             ModuleAssemblyResolver.Register(moduleDir);
+            records.Add(new(displayName, ModuleComponentStatus.Loaded, null));
             return module;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException
+                                      or System.Security.SecurityException
+                                      or (IOException and not FileNotFoundException and not DirectoryNotFoundException))
+        {
+            // The file is present but could not be read: release a lock or fix permissions.
+            records.Add(new(displayName, ModuleComponentStatus.Unreadable, ex.GetType().Name));
+            return null;
         }
         catch (Exception ex)
         {
-            // A malformed/garbage/incompatible DLL (BadImageFormat, ctor throw, missing dep, ...) is an
-            // omission, never a crash. Only the exception TYPE is recorded — never a message that could
-            // echo an attacker-planted string.
-            _diagnostics.Add($"skip '{folderName}': {ex.GetType().Name}.");
+            // The file is present but not usable: reinstall it. Only the exception TYPE is recorded — never
+            // a message that could echo an attacker-planted string.
+            records.Add(new(displayName, ModuleComponentStatus.Malformed, ex.GetType().Name));
             return null;
         }
     }

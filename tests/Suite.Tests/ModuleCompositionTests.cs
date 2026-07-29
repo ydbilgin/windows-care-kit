@@ -60,7 +60,7 @@ public sealed class ModuleCompositionTests
             TestModule.For("settings", "nav.settings", "nav.settings.desc", "\uE713", 900, settings, constructed, isSettings: true),
         };
 
-        var subsetVm = new MainViewModel(new I18n(), subset);
+        var subsetVm = new MainViewModel(new I18n(), subset, TestHelpers.NoComponentsDiscovered());
 
         Assert.Equal(new[] { "clean", "backup", "settings" }, subsetVm.Nav.Select(item => item.Id).ToArray());
         Assert.Equal(new[] { "clean", "backup", "settings" }, constructed.ToArray());
@@ -71,7 +71,7 @@ public sealed class ModuleCompositionTests
         {
             TestModule.For("clean", "nav.clean", "nav.clean.desc", "\uE75C", 20, new object(), new List<string>()),
             new TestModule("migration", "nav.migration", "nav.migration.desc", "\uE7AD", 40, false, _ => navAware),
-        });
+        }, TestHelpers.NoComponentsDiscovered());
 
         Assert.Equal(0, navAware.NavigatedToCount);
         Assert.True(navAwareVm.SelectNavByKey("migration"));
@@ -82,7 +82,7 @@ public sealed class ModuleCompositionTests
     public void Payload_root_policy_is_registered_and_forbids_the_resolved_app_root()
     {
         var services = new ServiceCollection();
-        WpfApp.AddBaseServices(services, []);
+        WpfApp.AddBaseServices(services, [], TestHelpers.NoComponentsDiscovered());
         using ServiceProvider provider = services.BuildServiceProvider();
 
         PayloadRootPolicy policy = provider.GetRequiredService<PayloadRootPolicy>();
@@ -101,7 +101,7 @@ public sealed class ModuleCompositionTests
         {
             TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
             new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => blocking),
-        });
+        }, TestHelpers.NoComponentsDiscovered());
 
         // Constructor selected the first, non-nav-aware tab (clean, order 20): no load started.
         Assert.Equal(0, blocking.StartedCount);
@@ -127,7 +127,7 @@ public sealed class ModuleCompositionTests
         {
             TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
             new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => faulting),
-        });
+        }, TestHelpers.NoComponentsDiscovered());
 
         Exception? thrown = Record.Exception(() => { vm.SelectNavByKey("migration"); });
         Assert.Null(thrown);                                  // the fault never escapes the synchronous setter
@@ -163,7 +163,7 @@ public sealed class ModuleCompositionTests
             TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
             new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => oldLoad),
             new TestModule("restore", "nav.restore", "nav.restore.desc", "", 45, false, _ => newLoad),
-        });
+        }, TestHelpers.NoComponentsDiscovered());
 
         Assert.True(vm.SelectNavByKey("migration"));
         Task oldNavigationTask = vm.ActiveNavigationTask;
@@ -210,7 +210,7 @@ public sealed class ModuleCompositionTests
         {
             new TestModule("migration", "nav.migration", "nav.migration.desc", "", 5, false, _ => blocking),
             TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), new List<string>()),
-        });
+        }, TestHelpers.NoComponentsDiscovered());
 
         Assert.Equal("migration", vm.Nav[0].Id);              // the nav-aware tab sorts first (order 5)
         Assert.Equal(1, blocking.StartedCount);               // its load started during construction
@@ -230,7 +230,7 @@ public sealed class ModuleCompositionTests
             TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), subsetConstructed),
             TestModule.For("settings", "nav.settings", "nav.settings.desc", "", 900, new object(), subsetConstructed, isSettings: true),
         };
-        var subsetVm = new MainViewModel(new I18n(), subset);
+        var subsetVm = new MainViewModel(new I18n(), subset, TestHelpers.NoComponentsDiscovered());
 
         Exception? thrown = await Record.ExceptionAsync(subsetVm.OnShellStartupAsync);
         Assert.Null(thrown);
@@ -242,7 +242,7 @@ public sealed class ModuleCompositionTests
             TestModule.For("clean", "nav.clean", "nav.clean.desc", "", 20, new object(), mixedConstructed),
             new TestModule("migration", "nav.migration", "nav.migration.desc", "", 40, false, _ => startupAware),
         };
-        var mixedVm = new MainViewModel(new I18n(), mixed);
+        var mixedVm = new MainViewModel(new I18n(), mixed, TestHelpers.NoComponentsDiscovered());
 
         await mixedVm.OnShellStartupAsync();
 
@@ -251,7 +251,7 @@ public sealed class ModuleCompositionTests
         var faultingVm = new MainViewModel(new I18n(), new IWckModule[]
         {
             new TestModule("uninstall", "nav.uninstall", "nav.uninstall.desc", "", 10, false, _ => new FaultingStartupAware()),
-        });
+        }, TestHelpers.NoComponentsDiscovered());
         InvalidOperationException fault = await Assert.ThrowsAsync<InvalidOperationException>(
             faultingVm.OnShellStartupAsync);
         Assert.Equal("synthetic startup failure", fault.Message);
@@ -293,7 +293,10 @@ public sealed class ModuleCompositionTests
         RunOnStaThread(() =>
         {
             var baseServices = new ServiceCollection();
-            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                baseServices,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IInstalledAppReader));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IAppxReader));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IRegistryProbe));
@@ -329,7 +332,10 @@ public sealed class ModuleCompositionTests
             Assert.Null(baseProvider.GetService<MigrationViewModel>());
 
             var services = new ServiceCollection();
-            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                services,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             var module = new MigrationModule();
             module.RegisterServices(services);
             using ServiceProvider provider = services.BuildServiceProvider();
@@ -371,7 +377,10 @@ public sealed class ModuleCompositionTests
         RunOnStaThread(() =>
         {
             var services = new ServiceCollection();
-            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                services,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             var module = new CleanModule();
             module.RegisterServices(services);
             using ServiceProvider provider = services.BuildServiceProvider();
@@ -406,7 +415,10 @@ public sealed class ModuleCompositionTests
         RunOnStaThread(() =>
         {
             var baseServices = new ServiceCollection();
-            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                baseServices,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IBackupExecutor));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IClock));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IHasher));
@@ -435,7 +447,10 @@ public sealed class ModuleCompositionTests
             Assert.Null(baseProvider.GetService<BackupViewModel>());
 
             var services = new ServiceCollection();
-            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                services,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             var module = new BackupModule();
             module.RegisterServices(services);
             using ServiceProvider provider = services.BuildServiceProvider();
@@ -472,7 +487,10 @@ public sealed class ModuleCompositionTests
         RunOnStaThread(() =>
         {
             var baseServices = new ServiceCollection();
-            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                baseServices,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IInstalledAppReader));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IAppxReader));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IRegistryProbe));
@@ -497,7 +515,10 @@ public sealed class ModuleCompositionTests
             Assert.Null(baseProvider.GetService<UninstallViewModel>());
 
             var services = new ServiceCollection();
-            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                services,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             var module = new UninstallModule();
             module.RegisterServices(services);
             using ServiceProvider provider = services.BuildServiceProvider();
@@ -545,7 +566,10 @@ public sealed class ModuleCompositionTests
         RunOnStaThread(() =>
         {
             var baseServices = new ServiceCollection();
-            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                baseServices,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(InstallPlanner));
             Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IInstallManifestLoader));
             Assert.DoesNotContain(baseServices, d => d.ServiceType == typeof(IAuthProbe));
@@ -567,7 +591,10 @@ public sealed class ModuleCompositionTests
             Assert.Null(baseProvider.GetService<InstallPlanner>());
 
             var services = new ServiceCollection();
-            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                services,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             var module = new InstallModule();
             module.RegisterServices(services);
             using ServiceProvider provider = services.BuildServiceProvider();
@@ -601,7 +628,10 @@ public sealed class ModuleCompositionTests
         RunOnStaThread(() =>
         {
             var baseServices = new ServiceCollection();
-            WpfApp.AddBaseServices(baseServices, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                baseServices,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             Assert.Contains(baseServices, d => d.ServiceType == typeof(MigrationRestoreManifestStore));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(IRestoreStateStore));
             Assert.Contains(baseServices, d => d.ServiceType == typeof(GatedExecutor));
@@ -624,7 +654,10 @@ public sealed class ModuleCompositionTests
             Assert.Null(baseProvider.GetService<RestoreViewModel>());
 
             var services = new ServiceCollection();
-            WpfApp.AddBaseServices(services, Array.Empty<string>());
+            WpfApp.AddBaseServices(
+                services,
+                Array.Empty<string>(),
+                TestHelpers.NoComponentsDiscovered());
             var module = new RestoreModule();
             module.RegisterServices(services);
             using ServiceProvider provider = services.BuildServiceProvider();
@@ -660,7 +693,10 @@ public sealed class ModuleCompositionTests
     private static ServiceProvider BuildProvider(IReadOnlyList<IWckModule> modules)
     {
         var services = new ServiceCollection();
-        WpfApp.AddBaseServices(services, Array.Empty<string>());
+        WpfApp.AddBaseServices(
+            services,
+            Array.Empty<string>(),
+            TestHelpers.NoComponentsDiscovered());
         foreach (IWckModule module in modules)
             module.RegisterServices(services);
         services.AddSingleton(modules);

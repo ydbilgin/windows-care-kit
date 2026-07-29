@@ -24,7 +24,8 @@ public sealed class LangFragmentCompositionTests
     // Manifest honesty adds 2 Install and 3 Backup health-note keys.
     // MINOR-03 (2026-07-29) adds 2 Install and 2 Backup manifest failure-cause clauses (corrupt/unreadable),
     // so the actionable difference stops being carried only by an untranslated CLR type name.
-    private const int ExpectedMergedKeyCount = 412;
+    // Catalog health adds 14 shell-owned component inventory/status/reason/notice keys.
+    private const int ExpectedMergedKeyCount = 426;
 
     private static readonly Regex XamlKeyRegex = new(@"I18n\[([a-z][A-Za-z0-9_.]+)\]", RegexOptions.Compiled);
     private static readonly Regex CsKeyRegex =

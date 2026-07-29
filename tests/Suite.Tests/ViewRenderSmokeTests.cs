@@ -13,10 +13,12 @@ using System.Windows.Threading;
 using System.Xml;
 using System.Xml.Linq;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Controls;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.App.Theming;
 using WindowsCareKit.App.ViewModels;
@@ -74,7 +76,11 @@ public sealed class ViewRenderSmokeTests
 
                 var view = new SettingsView
                 {
-                    DataContext = new SettingsViewModel(i18n, new FakeThemeService(), new RecordingUrlOpener())
+                    DataContext = new SettingsViewModel(
+                        i18n,
+                        new FakeThemeService(),
+                        new RecordingUrlOpener(),
+                        TestHelpers.NoComponentsDiscovered())
                 };
 
                 var host = new ContentControl
@@ -116,7 +122,11 @@ public sealed class ViewRenderSmokeTests
 
                 var view = new SettingsView
                 {
-                    DataContext = new SettingsViewModel(i18n, new FakeThemeService(), new RecordingUrlOpener())
+                    DataContext = new SettingsViewModel(
+                        i18n,
+                        new FakeThemeService(),
+                        new RecordingUrlOpener(),
+                        TestHelpers.NoComponentsDiscovered())
                 };
                 var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
                 var size = new Size(1000, 800);
@@ -142,7 +152,11 @@ public sealed class ViewRenderSmokeTests
             {
                 I18n i18n = TestI18n.Full("en");
                 var opener = new RecordingUrlOpener();
-                var viewModel = new SettingsViewModel(i18n, new FakeThemeService(), opener);
+                var viewModel = new SettingsViewModel(
+                    i18n,
+                    new FakeThemeService(),
+                    opener,
+                    TestHelpers.NoComponentsDiscovered());
                 var view = new SettingsView { DataContext = viewModel };
                 var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
                 var size = new Size(1000, 800);
@@ -775,6 +789,314 @@ public sealed class ViewRenderSmokeTests
         });
     }
 
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void MainWindow_renders_module_health_notice_when_degraded(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                ModuleCatalogHealth health = ModuleCatalogHealth.FromComponents(
+                    @"C:\app\Modules",
+                    [new("broken", ModuleComponentStatus.Malformed, nameof(BadImageFormatException))]);
+                var vm = new MainViewModel(i18n, [new RenderShellModule()], health)
+                {
+                    ShowFirstRun = false,
+                };
+                var window = new MainWindow { DataContext = vm, Width = 1100, Height = 720 };
+                var root = Assert.IsAssignableFrom<FrameworkElement>(window.Content);
+                root.DataContext = vm;
+                var size = new Size(1100, 720);
+
+                root.Measure(size);
+                root.Arrange(new Rect(size));
+                root.UpdateLayout();
+
+                AssertHealthNoteVisible(
+                    window,
+                    "ModuleHealthNoticeText",
+                    i18n["modules.notice.degraded"]);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void MainWindow_renders_module_health_notice_when_inventory_unavailable(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                using var workspace = new TempWorkspace("wck-render-modules-unavailable-");
+                string modulesRoot = workspace.Combine("Modules");
+                Directory.CreateDirectory(modulesRoot);
+                ModuleCatalogHealth health = new DirectoryModuleCatalog(
+                    modulesRoot,
+                    _ => throw new UnauthorizedAccessException("synthetic render failure"))
+                    .LoadModules()
+                    .Health;
+                var vm = new MainViewModel(i18n, [new RenderShellModule()], health)
+                {
+                    ShowFirstRun = false,
+                };
+                var window = new MainWindow { DataContext = vm, Width = 1100, Height = 720 };
+                var root = Assert.IsAssignableFrom<FrameworkElement>(window.Content);
+                root.DataContext = vm;
+                var size = new Size(1100, 720);
+
+                root.Measure(size);
+                root.Arrange(new Rect(size));
+                root.UpdateLayout();
+
+                AssertHealthNoteVisible(
+                    window,
+                    "ModuleHealthNoticeText",
+                    i18n["modules.notice.unavailable"]);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void MainWindow_renders_no_module_health_notice_when_no_component_is_installed(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                var notInstalledVm = new MainViewModel(
+                    i18n,
+                    [new RenderShellModule()],
+                    ModuleCatalogHealth.FromComponents(@"C:\app\Modules", []))
+                {
+                    ShowFirstRun = false,
+                };
+                var notInstalledWindow = new MainWindow
+                {
+                    DataContext = notInstalledVm,
+                    Width = 1100,
+                    Height = 720,
+                };
+                FrameworkElement notInstalledRoot =
+                    Assert.IsAssignableFrom<FrameworkElement>(notInstalledWindow.Content);
+                notInstalledRoot.DataContext = notInstalledVm;
+                var size = new Size(1100, 720);
+                notInstalledRoot.Measure(size);
+                notInstalledRoot.Arrange(new Rect(size));
+                notInstalledRoot.UpdateLayout();
+
+                AssertHealthNoteCollapsed(notInstalledWindow, "ModuleHealthNoticeText");
+
+                var completeVm = new MainViewModel(
+                    i18n,
+                    [new RenderShellModule()],
+                    ModuleCatalogHealth.FromComponents(
+                        @"C:\app\Modules",
+                        [new("clean", ModuleComponentStatus.Loaded, null)]))
+                {
+                    ShowFirstRun = false,
+                };
+                var completeWindow = new MainWindow
+                {
+                    DataContext = completeVm,
+                    Width = 1100,
+                    Height = 720,
+                };
+                FrameworkElement completeRoot =
+                    Assert.IsAssignableFrom<FrameworkElement>(completeWindow.Content);
+                completeRoot.DataContext = completeVm;
+                completeRoot.Measure(size);
+                completeRoot.Arrange(new Rect(size));
+                completeRoot.UpdateLayout();
+
+                AssertHealthNoteCollapsed(completeWindow, "ModuleHealthNoticeText");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void SettingsView_renders_failed_component_row_with_its_reason(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                ModuleCatalogHealth health = ModuleCatalogHealth.FromComponents(
+                    @"C:\app\Modules",
+                    [
+                        new("loaded", ModuleComponentStatus.Loaded, null),
+                        new("incomplete", ModuleComponentStatus.Incomplete, null),
+                        new("malformed", ModuleComponentStatus.Malformed, nameof(BadImageFormatException)),
+                        new("unreadable", ModuleComponentStatus.Unreadable, nameof(IOException)),
+                    ]);
+                var vm = new SettingsViewModel(
+                    i18n,
+                    new FakeThemeService(),
+                    new RecordingUrlOpener(),
+                    health);
+                var view = new SettingsView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 1000 };
+                var size = new Size(1000, 1000);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                AssertHealthNoteCollapsed(view, "SettingsModulesEmptyNoteText");
+                AssertHealthNoteCollapsed(view, "SettingsModulesInventoryNoteText");
+                var list = Assert.IsType<ItemsControl>(view.FindName("SettingsModulesList"));
+                Assert.Equal(4, list.Items.Count);
+                TextBlock[] rowText = Descendants<TextBlock>(list).ToArray();
+
+                Assert.Contains(rowText, text => text.Text == "loaded");
+                Assert.Contains(rowText, text => text.Text == i18n["modules.status.loaded"]);
+                TextBlock loadedReason = Assert.Single(
+                    rowText,
+                    text => text.Text == string.Empty && text.Visibility == Visibility.Collapsed);
+                Assert.Equal(Visibility.Collapsed, loadedReason.Visibility);
+
+                Assert.Contains(rowText, text => text.Text == "incomplete");
+                Assert.Contains(rowText, text => text.Text == i18n["modules.status.incomplete"]);
+                AssertVisibleRowText(rowText, i18n["modules.reason.incomplete"]);
+
+                Assert.Contains(rowText, text => text.Text == "malformed");
+                Assert.Contains(rowText, text => text.Text == i18n["modules.status.malformed"]);
+                AssertVisibleRowText(
+                    rowText,
+                    i18n.Format("modules.reason.malformed", nameof(BadImageFormatException)));
+
+                Assert.Contains(rowText, text => text.Text == "unreadable");
+                Assert.Contains(rowText, text => text.Text == i18n["modules.status.unreadable"]);
+                AssertVisibleRowText(
+                    rowText,
+                    i18n.Format("modules.reason.unreadable", nameof(IOException)));
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void SettingsView_renders_calm_empty_note_when_no_component_is_installed(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                var vm = new SettingsViewModel(
+                    i18n,
+                    new FakeThemeService(),
+                    new RecordingUrlOpener(),
+                    ModuleCatalogHealth.FromComponents(@"C:\app\Modules", []));
+                var view = new SettingsView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
+                var size = new Size(1000, 800);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                AssertHealthNoteVisible(
+                    view,
+                    "SettingsModulesEmptyNoteText",
+                    i18n["modules.none"]);
+                AssertHealthNoteCollapsed(view, "SettingsModulesInventoryNoteText");
+                // The folder the user must actually look in. §4.4 lists it in EVERY state, so deleting the
+                // row must not stay green. The expectation is the literal this test built the health from,
+                // not the view-model property under test.
+                AssertHealthNoteVisible(view, "SettingsModulesRootText", @"C:\app\Modules");
+                var list = Assert.IsType<ItemsControl>(view.FindName("SettingsModulesList"));
+                Assert.Empty(list.Items);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void SettingsView_renders_inventory_unavailable_note_without_claiming_emptiness(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                using var workspace = new TempWorkspace("wck-render-settings-modules-unavailable-");
+                string modulesRoot = workspace.Combine("Modules");
+                Directory.CreateDirectory(modulesRoot);
+                ModuleCatalogHealth health = new DirectoryModuleCatalog(
+                    modulesRoot,
+                    _ => throw new UnauthorizedAccessException("synthetic render failure"))
+                    .LoadModules()
+                    .Health;
+                var vm = new SettingsViewModel(
+                    i18n,
+                    new FakeThemeService(),
+                    new RecordingUrlOpener(),
+                    health);
+                var view = new SettingsView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 800 };
+                var size = new Size(1000, 800);
+
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                AssertHealthNoteVisible(
+                    view,
+                    "SettingsModulesInventoryNoteText",
+                    i18n.Format(
+                        "modules.inventory.unavailable",
+                        nameof(UnauthorizedAccessException)));
+                AssertHealthNoteCollapsed(view, "SettingsModulesEmptyNoteText");
+                var list = Assert.IsType<ItemsControl>(view.FindName("SettingsModulesList"));
+                Assert.Empty(list.Items);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
     [Fact]
     public void UninstallView_search_and_column_headers_render_from_i18n()
     {
@@ -1224,6 +1546,15 @@ public sealed class ViewRenderSmokeTests
         Assert.Equal(Visibility.Collapsed, block.Visibility);
     }
 
+    private static void AssertVisibleRowText(IEnumerable<TextBlock> blocks, string expectedText)
+    {
+        TextBlock block = Assert.Single(blocks, text => text.Text == expectedText);
+        Assert.Equal(Visibility.Visible, block.Visibility);
+        Assert.True(
+            block.ActualHeight > 0 || block.RenderSize.Height > 0,
+            $"row text '{expectedText}' claimed Visible but had zero rendered height.");
+    }
+
     private static void AssertInside(FrameworkElement ancestor, FrameworkElement element, double maxWidth, string label)
     {
         Rect bounds = element.TransformToAncestor(ancestor)
@@ -1473,8 +1804,27 @@ public sealed class ViewRenderSmokeTests
         public IReadOnlyList<NavItem> Nav { get; }
         public NavItem SelectedNav { get; set; }
         public object CurrentContent => SelectedNav.Content;
+        public string ModuleHealthNotice => string.Empty;
         public bool ShowFirstRun { get; set; }
         public ICommand DismissFirstRunCommand { get; }
+    }
+
+    private sealed class RenderShellModule : IWckModule
+    {
+        public string Id => "settings";
+        public string TitleKey => "nav.settings";
+        public string DescKey => "nav.settings.desc";
+        public string IconKey => "\uE713";
+        public int Order => 900;
+        public bool IsSettings => true;
+
+        public void RegisterServices(IServiceCollection services)
+        {
+        }
+
+        public object CreateContent(IServiceProvider sp) => new Border();
+
+        public FrameworkElement? CreateView() => null;
     }
 
     private sealed class FakeInstalledAppReader(params InstalledApp[] apps) : IInstalledAppReader

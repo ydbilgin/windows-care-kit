@@ -1,9 +1,16 @@
 using WindowsCareKit.App.Deployment;
+using WindowsCareKit.App.Modules;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
 namespace WindowsCareKit.Tests;
+
+internal static class TestHelpers
+{
+    internal static ModuleCatalogHealth NoComponentsDiscovered(string root = @"C:\wck-test\Modules")
+        => ModuleCatalogHealth.FromComponents(root, []);
+}
 
 /// <summary>An in-memory <see cref="IPathCanonicalizer"/> so SafetyGate path policy can be tested
 /// deterministically. Unmapped paths resolve to themselves (identity).</summary>
