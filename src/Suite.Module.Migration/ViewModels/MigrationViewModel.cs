@@ -25,6 +25,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
     private readonly IMigrationScanService _scanService;
     private readonly IMigrationBackupRunner _backupRunner;
     private readonly Func<IReadOnlyList<MigrationRecipe>> _recipeSource;
+    private readonly PayloadRootPolicy _payloadRootPolicy;
     private CancellationTokenSource? _scanCancellation;
     private int _scanStarted;
     private ScanReadyGate? _scanGate;
@@ -43,12 +44,14 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         I18n i18n,
         IMigrationScanService scanService,
         IMigrationBackupRunner backupRunner,
-        Func<IReadOnlyList<MigrationRecipe>> recipeSource)
+        Func<IReadOnlyList<MigrationRecipe>> recipeSource,
+        PayloadRootPolicy payloadRootPolicy)
     {
         I18n = i18n ?? throw new ArgumentNullException(nameof(i18n));
         _scanService = scanService ?? throw new ArgumentNullException(nameof(scanService));
         _backupRunner = backupRunner ?? throw new ArgumentNullException(nameof(backupRunner));
         _recipeSource = recipeSource ?? throw new ArgumentNullException(nameof(recipeSource));
+        _payloadRootPolicy = payloadRootPolicy ?? throw new ArgumentNullException(nameof(payloadRootPolicy));
         I18n.PropertyChanged += OnLanguageChanged;
 
         StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => !IsScanning && !IsScanComplete);
@@ -529,29 +532,11 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         CommandManager.InvalidateRequerySuggested();
     }
 
-    private static bool TryNormalizePackageDir(string packageDir, out string normalized)
+    private bool TryNormalizePackageDir(string packageDir, out string normalized)
     {
-        normalized = string.Empty;
-        string full;
-        try
-        {
-            full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(packageDir));
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return false;
-        }
-
-        if (full.Length < 2 || !char.IsLetter(full[0]) || full[1] != ':')
-            return false;
-
-        string appDir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(AppContext.BaseDirectory));
-        if (string.Equals(full, appDir, StringComparison.OrdinalIgnoreCase)
-            || full.StartsWith(appDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        normalized = full;
-        return true;
+        PayloadRootVerdict verdict = _payloadRootPolicy.Evaluate(packageDir);
+        normalized = verdict.IsAllowed ? verdict.NormalizedRoot : string.Empty;
+        return verdict.IsAllowed;
     }
 
     private string RefusedSummary(CopySkipReport report)

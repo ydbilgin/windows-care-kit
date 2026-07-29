@@ -104,7 +104,10 @@ public class RecipeToBackupEntryTests
         ResolvedRecipe resolved = MigrationTestData.Resolver(fs).Resolve(recipe);
         ResolvedRecipeItem retained = Assert.Single(resolved.Items);
         BridgedMigrationItem bridged = Assert.Single(RecipeToBackupEntry.Bridge(resolved, new FixedContentProbe(new ContentSignature { BytesInspected = 1 })));
-        var planner = new BackupPlanner(TestData.Gate(), new FakeEnvironmentExpander());
+        var planner = new BackupPlanner(
+            TestData.Gate(),
+            new FakeEnvironmentExpander(),
+            TestData.PayloadRoots());
         CopyAction action = Assert.IsType<CopyAction>(Assert.Single(planner.BuildPlan(
             new BackupManifest([bridged.Entry]), @"C:\Users\alice\wck-backup\out", DateTime.UtcNow).Plan.Actions));
 
@@ -169,7 +172,10 @@ public class RecipeToBackupEntryTests
         var manifest = new BackupManifest(bridged.Select(b => b.Entry).ToArray());
 
         string payload = System.IO.Path.Combine(@"C:\Users\alice\wck-backup", "out");
-        var planner = new BackupPlanner(TestData.Gate(), new FakeEnvironmentExpander());
+        var planner = new BackupPlanner(
+            TestData.Gate(),
+            new FakeEnvironmentExpander(),
+            TestData.PayloadRoots());
         var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         BackupPlanResult r1 = planner.BuildPlan(manifest, payload, t0);

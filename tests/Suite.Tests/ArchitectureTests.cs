@@ -1,4 +1,6 @@
+using WindowsCareKit.App.Deployment;
 using WindowsCareKit.Core.Planning;
+using WindowsCareKit.Core.Safety;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -26,6 +28,79 @@ public class ArchitectureTests
             referenced.Any(r => string.Equals(r.Name, "Suite.Execution", StringComparison.OrdinalIgnoreCase)),
             $"Suite.Core must not reference Suite.Execution (Core→Execution layering violation). " +
             $"Referenced: [{referencedNames}]");
+    }
+
+    [Fact]
+    public void Suite_Core_does_not_reference_Suite_App_Abstractions()
+    {
+        System.Reflection.Assembly coreAssembly = typeof(PayloadRootPolicy).Assembly;
+        System.Reflection.AssemblyName[] referenced = coreAssembly.GetReferencedAssemblies();
+        string referencedNames = string.Join(", ", referenced.Select(reference => reference.Name));
+
+        Assert.False(
+            referenced.Any(reference => string.Equals(
+                reference.Name,
+                typeof(AppLayout).Assembly.GetName().Name,
+                StringComparison.OrdinalIgnoreCase)),
+            $"Suite.Core must not reference Suite.App.Abstractions. Referenced: [{referencedNames}]");
+    }
+
+    [Fact]
+    public void Suite_Core_csproj_does_not_reference_Suite_App_Abstractions()
+    {
+        string csproj = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(), "src", "Suite.Core", "Suite.Core.csproj"));
+
+        Assert.DoesNotContain("Suite.App.Abstractions", csproj, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Every API that hands out the ambient application directory. `AppContext.BaseDirectory` and
+    /// `AppDomain.CurrentDomain.BaseDirectory` return the same value, so the fence must name both or the
+    /// defect class simply moves to the unnamed sibling.</summary>
+    private static readonly string[] AmbientAppDirectoryReads =
+        ["AppContext.BaseDirectory", "AppDomain.CurrentDomain.BaseDirectory"];
+
+    [Fact]
+    public void No_src_file_outside_AppLayout_reads_the_ambient_app_directory()
+    {
+        string srcRoot = Path.Combine(FindRepositoryRoot(), "src");
+        string[] readers = Directory
+            .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !Path.GetRelativePath(srcRoot, path)
+                .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => segment is "bin" or "obj"))
+            .Where(path => !path.EndsWith(
+                Path.Combine("Suite.App.Abstractions", "Deployment", "AppLayout.cs"),
+                StringComparison.OrdinalIgnoreCase))
+            // Both APIs return the identical value, so banning only one leaves the headline
+            // ("no ambient app-directory reads in src") reinstatable with the build clean.
+            .Where(path => AmbientAppDirectoryReads.Any(
+                api => File.ReadAllText(path).Contains(api, StringComparison.Ordinal)))
+            .Select(path => Path.GetRelativePath(srcRoot, path))
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        Assert.Empty(readers);
+    }
+
+    [Fact]
+    public void AppPayloadRoots_reads_the_resolved_root()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Suite.App.Abstractions",
+            "Deployment",
+            "AppPayloadRoots.cs"));
+
+        Assert.Contains("layout.Root", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("BaseDirectory", source, StringComparison.Ordinal);
+
+        // An undetermined layout must propagate its refusal. A `catch` here could swallow it and
+        // substitute a fallback root with the whole suite green: the behavioural test exercises
+        // For(layout), the composition test runs under a determined host layout, and a fallback
+        // need not mention BaseDirectory at all. Source-level is the only place this is pinnable.
+        Assert.DoesNotContain("catch", source, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using WindowsCareKit.App.Controls;
+using WindowsCareKit.App.Deployment;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
@@ -75,6 +76,21 @@ public sealed class ModuleCompositionTests
         Assert.Equal(0, navAware.NavigatedToCount);
         Assert.True(navAwareVm.SelectNavByKey("migration"));
         Assert.Equal(1, navAware.NavigatedToCount);
+    }
+
+    [Fact]
+    public void Payload_root_policy_is_registered_and_forbids_the_resolved_app_root()
+    {
+        var services = new ServiceCollection();
+        WpfApp.AddBaseServices(services, []);
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        PayloadRootPolicy policy = provider.GetRequiredService<PayloadRootPolicy>();
+
+        Assert.Contains(
+            AppLayout.Current.Root,
+            policy.ForbiddenRoots,
+            StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]

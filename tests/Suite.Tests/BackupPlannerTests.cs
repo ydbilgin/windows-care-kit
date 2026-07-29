@@ -10,7 +10,8 @@ public class BackupPlannerTests
 {
     private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    private static BackupPlanner Planner() => new(TestData.Gate(), new FakeEnvironmentExpander());
+    private static BackupPlanner Planner(PayloadRootPolicy? payloadRoots = null) =>
+        new(TestData.Gate(), new FakeEnvironmentExpander(), payloadRoots ?? TestData.PayloadRoots());
 
     // Under the test policy's current profile (alice) so the hardened write-target gate allows it
     // deterministically; BackupPlanner does no IO on the payload path, so it need not exist.
@@ -132,6 +133,66 @@ public class BackupPlannerTests
 
         Assert.True(result.Plan.IsEmpty);
         Assert.Contains(result.Skipped, s => s.Reason.Contains("outside the app", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Payload_inside_an_injected_forbidden_root_is_refused()
+    {
+        var manifest = new BackupManifest(new[]
+        {
+            CopyEntry("docs", @"C:\Users\alice\App", "cat/App"),
+        });
+        PayloadRootPolicy payloadRoots = TestData.PayloadRoots(@"C:\Users\alice\synthetic-app");
+
+        BackupPlanResult result = Planner(payloadRoots).BuildPlan(
+            manifest,
+            @"C:\Users\alice\synthetic-app\payload",
+            T0);
+
+        Assert.True(result.Plan.IsEmpty);
+        Assert.Equal(
+            "backup folder must be outside the app folder",
+            Assert.Single(result.Skipped).Reason);
+    }
+
+    [Fact]
+    public void Payload_outside_the_injected_root_is_allowed_even_inside_the_process_base_directory()
+    {
+        var manifest = new BackupManifest(new[]
+        {
+            CopyEntry("docs", @"C:\Users\alice\App", "cat/App"),
+        });
+        PayloadRootPolicy payloadRoots = TestData.PayloadRoots(@"C:\Users\alice\synthetic-app");
+        string payload = Path.Combine(AppContext.BaseDirectory, "payload");
+
+        BackupPlanResult result = Planner(payloadRoots).BuildPlan(manifest, payload, T0);
+
+        Assert.Single(result.Plan.Actions);
+        Assert.Empty(result.Skipped);
+    }
+
+    [Fact]
+    public void Payload_rejection_reasons_are_the_exact_strings_the_ui_matches()
+    {
+        var manifest = new BackupManifest(new[]
+        {
+            CopyEntry("docs", @"C:\Users\alice\App", "cat/App"),
+        });
+        BackupPlanner planner = Planner(TestData.PayloadRoots(@"C:\Users\alice\synthetic-app"));
+        (string? Candidate, string Reason)[] cases =
+        [
+            (null, "no backup folder chosen"),
+            ("embedded\0null", "backup folder path is invalid"),
+            (@"\\server\share\payload", "backup folder must be a local drive path"),
+            (@"C:\Users\alice\synthetic-app\payload", "backup folder must be outside the app folder"),
+        ];
+
+        foreach ((string? candidate, string expectedReason) in cases)
+        {
+            BackupPlanResult result = planner.BuildPlan(manifest, candidate!, T0);
+            Assert.True(result.Plan.IsEmpty);
+            Assert.Equal(expectedReason, Assert.Single(result.Skipped).Reason);
+        }
     }
 
     [Fact]

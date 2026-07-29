@@ -267,6 +267,10 @@ public partial class App : Application
         s.AddSingleton<IPathCanonicalizer, Win32PathCanonicalizer>();
         s.AddSingleton<ICurrentSidProvider, Win32CurrentSidProvider>();
         s.AddSingleton(_ => ProtectedResources.ForCurrentSystem());
+        // The payload-root guard's forbidden set. Registered here, at the composition root, because the
+        // rule lives in Suite.Core (pure) while "which directory is the app's" is a deployment fact owned
+        // by AppLayout. A lambda so it is computed on first resolve, not at registration.
+        s.AddSingleton(_ => AppPayloadRoots.ForCurrentProcess());
         s.AddSingleton<ISafetyGate>(sp =>
             new SafetyGate(
                 sp.GetRequiredService<ProtectedResources>(),

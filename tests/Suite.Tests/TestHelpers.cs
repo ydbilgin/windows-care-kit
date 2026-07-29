@@ -1,3 +1,4 @@
+using WindowsCareKit.App.Deployment;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
@@ -66,6 +67,11 @@ internal static class TestData
 
     public static SafetyGate Gate(IPathCanonicalizer? canon = null, string? currentSid = CurrentUserSid, bool elevated = true)
         => new(Policy(), canon ?? new FakeCanonicalizer(), new FakeCurrentSidProvider(currentSid), new FakeElevationProbe(elevated));
+
+    /// <summary>The default test payload-root policy: the test host's own directory is forbidden, which
+    /// is what AppLayout.Current.Root resolves to under the test host (AppLayoutTests.cs:202-212).</summary>
+    public static PayloadRootPolicy PayloadRoots(params string[] forbidden)
+        => new(forbidden.Length > 0 ? forbidden : [AppLayout.Current.Root]);
 
     public static FileDeleteAction FileDelete(string path, bool recycle = true)
         => new() { Path = path, ToRecycleBin = recycle, Description = "delete " + path, Reason = "test" };

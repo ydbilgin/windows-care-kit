@@ -86,7 +86,7 @@ public sealed class BackupViewModelTests
                     Array.Empty<string>(), SecretHandling.NeverRead, 50, "manual", "manual", null),
                 new BackupEntry("disabled", false, BackupMethod.Copy, "cat", "cache", "cat/cache",
                     Array.Empty<string>(), SecretHandling.Normal, 50, "skip", "disabled", null)),
-            new BackupPlanner(gate, new Win32EnvironmentExpander()),
+            new BackupPlanner(gate, new Win32EnvironmentExpander(), TestData.PayloadRoots()),
             runner)
         {
             PayloadDir = ws.Root,
@@ -111,9 +111,13 @@ public sealed class BackupViewModelTests
         ExecutorFixture fx,
         TempWorkspace ws,
         IManifestLoader manifestLoader,
-        I18n i18n)
+        I18n i18n,
+        PayloadRootPolicy? payloadRoots = null)
     {
-        var planner = new BackupPlanner(fx.Gate, new Win32EnvironmentExpander());
+        var planner = new BackupPlanner(
+            fx.Gate,
+            new Win32EnvironmentExpander(),
+            payloadRoots ?? TestData.PayloadRoots());
         var runner = new BackupRunner(
             new BackupExecutorAdapter(fx.Executor),
             new BackupIntegrityWriter(new SanctionedFileWriter()),
@@ -126,6 +130,28 @@ public sealed class BackupViewModelTests
         {
             PayloadDir = ws.Root,
         };
+    }
+
+    [Fact]
+    public async Task Payload_inside_the_forbidden_root_surfaces_the_outside_app_warning()
+    {
+        using var fx = new ExecutorFixture(RealGate());
+        using var ws = new TempWorkspace("wck-backup-forbidden-payload-");
+        I18n i18n = TestI18n.Full();
+        string source = Path.Combine(Path.GetTempPath(), "wck-backup-src", "App");
+        BackupViewModel vm = BuildVm(
+            fx,
+            ws,
+            new FakeManifestLoader(CopyEntry("docs", source, "cat/App")),
+            i18n,
+            TestData.PayloadRoots(ws.Root));
+
+        await vm.BuildPlanAsync();
+
+        // Not IsNullOrWhiteSpace: I18n returns the key itself on a miss, so that can never fail and
+        // would only look like a "the user sees real localized text" proof.
+        Assert.NotEqual("backup.payloadOutsideRepo", vm.PayloadWarning);
+        Assert.Equal(i18n["backup.payloadOutsideRepo"], vm.PayloadWarning);
     }
 
     [Fact]
@@ -253,7 +279,7 @@ public sealed class BackupViewModelTests
         Assert.Equal(Path.GetFullPath(Path.Combine(ws.Root, "cat", "App")), ran.Destination);
 
         // TOCTOU: the hash the executor authorized against is the previewed plan's ComputeHash().
-        var rebuilt = new BackupPlanner(fx.Gate, new Win32EnvironmentExpander())
+        var rebuilt = new BackupPlanner(fx.Gate, new Win32EnvironmentExpander(), TestData.PayloadRoots())
             .BuildPlan(new BackupManifest(new[] { CopyEntry("docs", source, "cat/App") }), ws.Root, T0).Plan;
         Assert.Equal(rebuilt.ComputeHash(), LoggedPlanHash(fx));
 

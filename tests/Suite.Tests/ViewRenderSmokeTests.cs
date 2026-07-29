@@ -471,7 +471,8 @@ public sealed class ViewRenderSmokeTests
                     i18n,
                     new RenderFakeMigrationScanService(),
                     new RenderFakeMigrationBackupRunner(),
-                    () => Array.Empty<MigrationRecipe>());
+                    () => Array.Empty<MigrationRecipe>(),
+                    TestData.PayloadRoots());
 
                 var view = new MigrationView { DataContext = vm };
                 var host = new ContentControl { Content = view, Width = 1100, Height = 900 };
@@ -510,7 +511,8 @@ public sealed class ViewRenderSmokeTests
                     i18n,
                     new RenderFakeMigrationScanService(),
                     new RenderFakeMigrationBackupRunner(),
-                    () => [multiRecipe]);
+                    () => [multiRecipe],
+                    TestData.PayloadRoots());
 
                 vm.LoadScan(
                     new DetectionResult(Array.Empty<DiscoveredProgram>(), Array.Empty<ProgramSourceReport>()),
@@ -570,7 +572,8 @@ public sealed class ViewRenderSmokeTests
                     i18n,
                     new RenderFakeMigrationScanService(),
                     new RenderFakeMigrationBackupRunner(),
-                    () => [multiRecipe]);
+                    () => [multiRecipe],
+                    TestData.PayloadRoots());
                 MigrationSelectionCandidate secretPart = MultiPartCandidate(1, BadgeCase.MachineLocked) with
                 {
                     Meta = MultiPartCandidate(1, BadgeCase.MachineLocked).Meta with { HasExcludedSecret = true },
@@ -1127,7 +1130,7 @@ public sealed class ViewRenderSmokeTests
     private static BackupViewModel BuildBackupRenderViewModel(I18n i18n, IManifestLoader? manifestLoader = null)
     {
         var gate = TestData.Gate();
-        var planner = new BackupPlanner(gate, new FakeEnvironmentExpander());
+        var planner = new BackupPlanner(gate, new FakeEnvironmentExpander(), TestData.PayloadRoots());
         var runner = new BackupRunner(
             new NoOpBackupExecutor(),
             new BackupIntegrityWriter(new SanctionedFileWriter()),

@@ -38,3 +38,5 @@ M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(System.String,Microsof
 M:Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(System.String,Microsoft.VisualBasic.FileIO.UIOption,Microsoft.VisualBasic.FileIO.RecycleOption,Microsoft.VisualBasic.FileIO.UICancelOption);Use GatedExecutor sanctioned sink
 M:Windows.Management.Deployment.PackageManager.RemovePackageAsync(System.String,Windows.Management.Deployment.RemovalOptions);AppX removal must be a SafetyGate-approved AppxRemoveAction dispatched by the sanctioned Suite.Execution adapter.
 M:Windows.Management.Deployment.PackageManager.RemovePackageAsync(System.String);AppX removal must be a SafetyGate-approved AppxRemoveAction dispatched by the sanctioned Suite.Execution adapter.
+P:System.AppContext.BaseDirectory;The app root is owned by AppLayout (resolved process identity). Reading BaseDirectory directly is the AliasedShim defect - see AGENTS.md "The Deployment Contract".
+P:System.AppDomain.BaseDirectory;Same value as AppContext.BaseDirectory and the same defect - the app root is owned by AppLayout (resolved process identity). See AGENTS.md "The Deployment Contract".

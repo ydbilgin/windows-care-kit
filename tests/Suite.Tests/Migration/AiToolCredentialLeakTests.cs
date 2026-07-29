@@ -137,7 +137,10 @@ public class AiToolCredentialLeakTests
                 Description: "Codex CLI settings", UiWarning: null);
 
             string payload = Path.Combine(root, "payload");
-            var planner = new BackupPlanner(RealGate(), new FakeEnvironmentExpander());
+            var planner = new BackupPlanner(
+                RealGate(),
+                new FakeEnvironmentExpander(),
+                TestData.PayloadRoots());
             BackupPlanResult result = planner.BuildPlan(
                 new BackupManifest(new[] { entry }), payload, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 

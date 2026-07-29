@@ -341,7 +341,8 @@ public sealed class CopyAndPlanningSecurityReproTests
         Assert.Contains(result.Skipped, s => s.Reason.Contains("inside the source", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static BackupPlanner Planner() => new(TestData.Gate(), new FakeEnvironmentExpander());
+    private static BackupPlanner Planner() =>
+        new(TestData.Gate(), new FakeEnvironmentExpander(), TestData.PayloadRoots());
 
     private static BackupEntry CopyEntry(string source, string target) => new(
         "security-repro", true, BackupMethod.Copy, "synthetic", source, target,
@@ -462,7 +463,10 @@ public sealed class UiReliabilitySecurityReproTests
         var vm = new BackupViewModel(
             TestI18n.Full("en"),
             loader,
-            new BackupPlanner(TestData.Gate(), new FakeEnvironmentExpander()),
+            new BackupPlanner(
+                TestData.Gate(),
+                new FakeEnvironmentExpander(),
+                TestData.PayloadRoots()),
             null!)
         {
             PayloadDir = payloadA,

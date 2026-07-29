@@ -240,12 +240,16 @@ public sealed class AppLayout
                         $"the process image '{Describe(processPath)}' could not be resolved to its final target " +
                         $"({ex.GetType().Name}), so the app root cannot be established.",
                     processDirectory: null,
+#pragma warning disable RS0030 // AppLayout is the sanctioned owner of this read - see the trust contract above.
                     baseDirectory: NormalizeDirectory(AppContext.BaseDirectory),
+#pragma warning restore RS0030
                     exists: ResourceExists);
             }
         }
 
+#pragma warning disable RS0030 // AppLayout is the sanctioned owner of this read - see the trust contract above.
         return Create(processPath, resolvedTarget, AppContext.BaseDirectory, ResourceExists);
+#pragma warning restore RS0030
     }
 
     /// <summary>Probes for the required kind specifically: a directory named like the base table, or a regular

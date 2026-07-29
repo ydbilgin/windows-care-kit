@@ -130,6 +130,11 @@ always present by construction.
   root derives from **resolved process identity only** — never from a marker file, cwd, environment,
   config, or registry. Module loading is code execution: a root chosen by user-writable filesystem
   evidence is an arbitrary-code-execution vector, not a cosmetic concern.
+- Code that *guards writes against* the application folder resolves it through the layout owner too,
+  and receives it as an explicit input rather than reading ambient process state. The rule lives in
+  `Suite.Core` (`PayloadRootPolicy`); which directories are forbidden is supplied by the composition
+  root from `AppLayout`. A guard that reads `AppContext.BaseDirectory` protects the link's folder
+  under `AliasedShim`, which is the wrong directory.
 - A missing shipped resource is a **failure that says so** — never an empty collection, a raw i18n
   key, or a silently shorter nav rail. Optional components absent is a different statement from
   resources unreadable, and the UI must not conflate them.

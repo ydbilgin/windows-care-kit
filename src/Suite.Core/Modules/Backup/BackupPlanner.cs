@@ -34,26 +34,29 @@ public sealed record BackupPlanResult(
 /// <item><c>install-*</c> entries are collected into a reinstall list for the Kur module — never a Backup action.</item>
 /// <item>Every <c>CopyAction</c> is checked through the <see cref="ISafetyGate"/> on its DESTINATION; a blocked
 /// destination is reported as skipped, never copied.</item>
-/// <item>The payload root MUST be outside the app folder (spec §1.3) — an invalid root yields an empty plan
-/// with every entry skipped, so the UI can show the "outside the repo" warning.</item>
+/// <item>The payload root MUST satisfy the injected <see cref="PayloadRootPolicy"/> (spec §1.3) — a refused root
+/// yields an empty plan with every entry skipped, so the UI can show the "outside the repo" warning.</item>
 /// </list>
 /// </summary>
 public sealed class BackupPlanner
 {
     private readonly ISafetyGate _gate;
     private readonly IEnvironmentExpander _expander;
+    private readonly PayloadRootPolicy _payloadRootPolicy;
 
-    /// <summary>Creates a planner that gates copies and expands payload-relative targets via <paramref name="expander"/>.</summary>
-    public BackupPlanner(ISafetyGate gate, IEnvironmentExpander expander)
+    /// <summary>Creates a planner that gates copies, expands payload-relative targets, and applies the supplied
+    /// payload-root policy.</summary>
+    public BackupPlanner(ISafetyGate gate, IEnvironmentExpander expander, PayloadRootPolicy payloadRootPolicy)
     {
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _expander = expander ?? throw new ArgumentNullException(nameof(expander));
+        _payloadRootPolicy = payloadRootPolicy ?? throw new ArgumentNullException(nameof(payloadRootPolicy));
     }
 
     /// <summary>
     /// Build the dry-run backup plan. <paramref name="payloadRootDir"/> is the backup output folder; it MUST be
-    /// an absolute path outside the application folder (spec §1.3). When it is not, the result is an empty plan
-    /// with every copyable entry reported as skipped so the UI can surface the payload-location warning.
+    /// accepted by the injected payload-root policy (spec §1.3). When it is not, the result is an empty plan with
+    /// every copyable entry reported as skipped so the UI can surface the payload-location warning.
     /// </summary>
     public BackupPlanResult BuildPlan(BackupManifest manifest, string payloadRootDir, DateTime utc)
     {
@@ -64,7 +67,10 @@ public sealed class BackupPlanner
         var skipped = new List<BackupSkip>();
         var reinstall = new List<BackupEntry>();
 
-        bool payloadValid = IsValidPayloadRoot(payloadRootDir, out string normalizedPayload, out string payloadReason);
+        PayloadRootVerdict payloadVerdict = _payloadRootPolicy.Evaluate(payloadRootDir);
+        bool payloadValid = payloadVerdict.IsAllowed;
+        string normalizedPayload = payloadVerdict.NormalizedRoot;
+        string payloadReason = payloadValid ? string.Empty : ReasonFor(payloadVerdict.Rejection);
 
         foreach (BackupEntry entry in manifest.Entries)
         {
@@ -141,49 +147,15 @@ public sealed class BackupPlanner
         return new BackupPlanResult(plan, manual, skipped, reinstall);
     }
 
-    /// <summary>
-    /// True when <paramref name="payloadRootDir"/> is an absolute, drive-rooted path that is NOT the app folder
-    /// or inside it (spec §1.3: the payload must live outside the app). The app folder is
-    /// <see cref="AppContext.BaseDirectory"/>.
-    /// </summary>
-    private static bool IsValidPayloadRoot(string? payloadRootDir, out string normalized, out string reason)
-    {
-        normalized = string.Empty;
-        if (string.IsNullOrWhiteSpace(payloadRootDir))
+    private static string ReasonFor(PayloadRootRejection rejection) =>
+        rejection switch
         {
-            reason = "no backup folder chosen";
-            return false;
-        }
-
-        string full;
-        try
-        {
-            full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(payloadRootDir));
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            reason = "backup folder path is invalid";
-            return false;
-        }
-
-        if (full.Length < 2 || !char.IsLetter(full[0]) || full[1] != ':')
-        {
-            reason = "backup folder must be a local drive path";
-            return false;
-        }
-
-        string appDir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(AppContext.BaseDirectory));
-        if (string.Equals(full, appDir, StringComparison.OrdinalIgnoreCase)
-            || full.StartsWith(appDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            reason = "backup folder must be outside the app folder";
-            return false;
-        }
-
-        normalized = full;
-        reason = string.Empty;
-        return true;
-    }
+            PayloadRootRejection.NotProvided => "no backup folder chosen",
+            PayloadRootRejection.Unparseable => "backup folder path is invalid",
+            PayloadRootRejection.NotLocalDrivePath => "backup folder must be a local drive path",
+            PayloadRootRejection.InsideForbiddenRoot => "backup folder must be outside the app folder",
+            _ => throw new ArgumentOutOfRangeException(nameof(rejection), rejection, "Unknown payload-root rejection."),
+        };
 
     /// <summary>Combine the payload root with a manifest target and prove the result stays INSIDE the payload
     /// root (rejecting any '..'/reparse escape). Returns false with a reason when the combination escapes.</summary>

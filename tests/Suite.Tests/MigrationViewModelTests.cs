@@ -21,7 +21,12 @@ public sealed class MigrationViewModelTests
             new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", []));
         var runner = new RecordingMigrationBackupRunner();
 
-        var vm = new MigrationViewModel(new I18n(), scan, runner, () => Array.Empty<MigrationRecipe>());
+        var vm = new MigrationViewModel(
+            new I18n(),
+            scan,
+            runner,
+            () => Array.Empty<MigrationRecipe>(),
+            TestData.PayloadRoots());
 
         Assert.NotNull(vm);
         Assert.Equal(0, scan.CallCount);
@@ -624,6 +629,38 @@ public sealed class MigrationViewModelTests
     }
 
     [Fact]
+    public async Task PackageDir_inside_an_injected_forbidden_root_is_rejected_before_runner_plan_build()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationViewModel vm = CreateCaptureVm(
+            runner,
+            TestData.PayloadRoots(@"C:\Users\demo\synthetic-app"));
+        vm.PackageDir = @"C:\Users\demo\synthetic-app\pkg";
+
+        await vm.BuildCapturePlanAsync();
+
+        Assert.Equal(0, runner.BuildCount);
+        Assert.False(vm.HasCapturePlan);
+        Assert.Equal("migration.capture.outsideAppWarning", vm.PackageWarning);
+    }
+
+    [Fact]
+    public async Task A_UNC_package_directory_is_rejected_before_runner_plan_build()
+    {
+        var runner = new RecordingMigrationBackupRunner();
+        MigrationViewModel vm = CreateCaptureVm(
+            runner,
+            TestData.PayloadRoots(@"C:\Users\demo\synthetic-app"));
+        vm.PackageDir = @"\\server\share\pkg";
+
+        await vm.BuildCapturePlanAsync();
+
+        Assert.Equal(0, runner.BuildCount);
+        Assert.False(vm.HasCapturePlan);
+        Assert.Equal("migration.capture.outsideAppWarning", vm.PackageWarning);
+    }
+
+    [Fact]
     public async Task Selection_change_invalidates_capture_plan_and_approval()
     {
         var runner = new RecordingMigrationBackupRunner();
@@ -760,12 +797,14 @@ public sealed class MigrationViewModelTests
         IMigrationScanService? scan = null,
         RecordingMigrationBackupRunner? runner = null,
         IReadOnlyList<MigrationRecipe>? recipes = null,
-        I18n? i18n = null)
+        I18n? i18n = null,
+        PayloadRootPolicy? payloadRoots = null)
         => new(
             i18n ?? new I18n(),
             scan ?? new FakeScanService(new MigrationScanResult(Detection(0, 0), @"C:\Users\demo", [])),
             runner ?? new RecordingMigrationBackupRunner(),
-            () => recipes ?? Array.Empty<MigrationRecipe>());
+            () => recipes ?? Array.Empty<MigrationRecipe>(),
+            payloadRoots ?? TestData.PayloadRoots());
 
     private static HashSet<string> ReadLangKeys(string code)
     {
@@ -789,10 +828,12 @@ public sealed class MigrationViewModelTests
         throw new DirectoryNotFoundException("repository root not found");
     }
 
-    private static MigrationViewModel CreateCaptureVm(RecordingMigrationBackupRunner runner)
+    private static MigrationViewModel CreateCaptureVm(
+        RecordingMigrationBackupRunner runner,
+        PayloadRootPolicy? payloadRoots = null)
     {
         MigrationRecipe recipe = Recipe("recipe-a", "settings.json");
-        MigrationViewModel vm = CreateVm(runner: runner, recipes: [recipe]);
+        MigrationViewModel vm = CreateVm(runner: runner, recipes: [recipe], payloadRoots: payloadRoots);
         vm.LoadScan(Detection(1, 0), @"C:\Users\demo", [Candidate("settings", "projects", "recipe-a")]);
         vm.ConfirmProfileCommand.Execute(null);
         vm.PackageDir = OutsideAppPackage();
