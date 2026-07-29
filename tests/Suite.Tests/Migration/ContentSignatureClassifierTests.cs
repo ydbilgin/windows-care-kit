@@ -208,6 +208,69 @@ public sealed class ContentSignatureClassifierTests
         }
     }
 
+    /// <summary>
+    /// The timeout override must not be visible to a classification running on another thread. This is the
+    /// guard for a real intermittent failure: as a process-global static, the flag set by
+    /// <see cref="Profile_root_regex_timeout_is_not_machine_bound"/> leaked into a parallel xUnit collection
+    /// and made <c>Win32ContentSignatureProbeTests</c> see <see cref="ContentProbeStatus.ProbeTimedOut"/> on
+    /// a clean file, blocking its portability claim.
+    /// <para>
+    /// A race cannot be proven by re-running the racing test, so this asserts the invariant directly with a
+    /// handshake that holds the window open — deterministic, no timing luck. Removing <c>[ThreadStatic]</c>
+    /// from the backing field turns this red with Complete vs ProbeTimedOut.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Profile_root_regex_timeout_override_is_confined_to_the_setting_thread()
+    {
+        using var flagIsSet = new ManualResetEventSlim(false);
+        using var otherThreadDone = new ManualResetEventSlim(false);
+        ContentProbeStatus observedOnOtherThread = ContentProbeStatus.Complete;
+        Exception? otherThreadFailure = null;
+
+        var setter = new Thread(() =>
+        {
+            ContentSignatureClassifier.ForceProfileRootRegexTimeoutForTests = true;
+            try
+            {
+                flagIsSet.Set();
+                otherThreadDone.Wait(TimeSpan.FromSeconds(30));
+            }
+            finally
+            {
+                ContentSignatureClassifier.ForceProfileRootRegexTimeoutForTests = false;
+            }
+        });
+
+        var observer = new Thread(() =>
+        {
+            try
+            {
+                flagIsSet.Wait(TimeSpan.FromSeconds(30));
+                ContentSignature signature = ContentSignatureClassifier.Classify(
+                    Encoding.UTF8.GetBytes("theme=dark").AsSpan(),
+                    new ContentSignatureOptions([@"C:\Users\Alice"]));
+                observedOnOtherThread = signature.Status;
+            }
+            catch (Exception ex)
+            {
+                otherThreadFailure = ex;
+            }
+            finally
+            {
+                otherThreadDone.Set();
+            }
+        });
+
+        setter.Start();
+        observer.Start();
+        Assert.True(observer.Join(TimeSpan.FromSeconds(30)), "observer thread did not finish");
+        Assert.True(setter.Join(TimeSpan.FromSeconds(30)), "setter thread did not finish");
+
+        Assert.Null(otherThreadFailure);
+        Assert.Equal(ContentProbeStatus.Complete, observedOnOtherThread);
+    }
+
     [Fact]
     public void Profile_root_regexes_are_cached_across_classifications()
     {

@@ -336,5 +336,23 @@ public static partial class ContentSignatureClassifier
 
     internal static void ResetProfileRootRegexCacheForTests() => ProfileRootRegexCache.Clear();
 
-    internal static bool ForceProfileRootRegexTimeoutForTests { get; set; }
+    /// <summary>
+    /// Test seam that forces the profile-root match to time out. <b>Thread-confined on purpose.</b>
+    /// As a plain static it was process-global, and the suite parallelises at xUnit collection level:
+    /// while <c>ContentSignatureClassifierTests</c> held it true, a <c>Classify</c> call from any other
+    /// collection saw the flag and came back <see cref="ContentProbeStatus.ProbeTimedOut"/>, which blocks
+    /// the portability claim. That is exactly how it leaked into
+    /// <c>Win32ContentSignatureProbeTests.Directory_sampler_does_not_count_excluded_secret_or_cache_files_as_uncovered</c>
+    /// — observed once in seven full-suite runs, never when that class ran alone. The setter is a
+    /// synchronous test that sets, classifies and resets on one thread, so confining the override to that
+    /// thread costs nothing and removes the cross-collection window entirely.
+    /// </summary>
+    [ThreadStatic]
+    private static bool _forceProfileRootRegexTimeoutForTests;
+
+    internal static bool ForceProfileRootRegexTimeoutForTests
+    {
+        get => _forceProfileRootRegexTimeoutForTests;
+        set => _forceProfileRootRegexTimeoutForTests = value;
+    }
 }
