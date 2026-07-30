@@ -89,6 +89,48 @@ public sealed class Win32ContentSignatureProbeTests : IDisposable
     }
 
     [Fact]
+    public void Directory_sampler_blocks_portability_when_sampled_entry_attributes_become_unreadable()
+    {
+        string unreadable = Path.Combine(_root, "unreadable.txt");
+        File.WriteAllText(unreadable, "theme=dark");
+        int unreadableAttributeReads = 0;
+        var probe = new Win32ContentSignatureProbe(
+            maxBytes: 64,
+            getAttributes: path =>
+            {
+                if (string.Equals(path, unreadable, StringComparison.OrdinalIgnoreCase)
+                    && ++unreadableAttributeReads == 2)
+                    throw new UnauthorizedAccessException("synthetic unreadable entry");
+                return File.GetAttributes(path);
+            });
+
+        ContentSignature signature = probe.ProbeFile(_root);
+
+        Assert.True(signature.IsDirectorySignature);
+        Assert.Equal(1, signature.DirectoryEntriesUnreadable);
+        Assert.True(signature.BlocksPortabilityClaim);
+    }
+
+    [Fact]
+    public void Directory_sampler_blocks_portability_when_enumerated_directory_entry_is_unreadable()
+    {
+        string unreadableDirectory = Path.Combine(_root, "unreadable");
+        Directory.CreateDirectory(unreadableDirectory);
+        File.WriteAllText(Path.Combine(unreadableDirectory, "hidden.txt"), "theme=dark");
+        var probe = new Win32ContentSignatureProbe(
+            maxBytes: 64,
+            getAttributes: path => string.Equals(path, unreadableDirectory, StringComparison.OrdinalIgnoreCase)
+                ? throw new UnauthorizedAccessException("synthetic unreadable entry")
+                : File.GetAttributes(path));
+
+        ContentSignature signature = probe.ProbeFile(_root);
+
+        Assert.True(signature.IsDirectorySignature);
+        Assert.Equal(1, signature.DirectoryEntriesUnreadable);
+        Assert.True(signature.BlocksPortabilityClaim);
+    }
+
+    [Fact]
     public void Directory_sampler_counts_only_cloud_placeholders_as_unanalyzed()
     {
         string placeholder = Path.Combine(_root, "cloud.txt");

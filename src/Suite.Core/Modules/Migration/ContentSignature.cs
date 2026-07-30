@@ -42,6 +42,7 @@ public sealed record ContentSignature
     public int DirectoryFilesTotalSeen { get; init; }
     public int DirectoryCloudPlaceholdersSkipped { get; init; }
     public int DirectorySubtreesSkipped { get; init; }
+    public int DirectoryEntriesUnreadable { get; init; }
     public bool DirectoryEnumerationTruncated { get; init; }
     public IReadOnlyList<string> DirectorySampledFiles { get; init; } = Array.Empty<string>();
 
@@ -59,6 +60,7 @@ public sealed record ContentSignature
         || DirectoryEnumerationTruncated
         || DirectoryCloudPlaceholdersSkipped > 0
         || DirectorySubtreesSkipped > 0
+        || DirectoryEntriesUnreadable > 0
         || Status is ContentProbeStatus.Inaccessible
             or ContentProbeStatus.LockedNow
             or ContentProbeStatus.CloudPlaceholder
@@ -230,7 +232,8 @@ public static partial class ContentSignatureClassifier
         int filesTotalSeen,
         bool truncated = false,
         int cloudPlaceholdersSkipped = 0,
-        int subtreesSkipped = 0)
+        int subtreesSkipped = 0,
+        int entriesUnreadable = 0)
     {
         ArgumentNullException.ThrowIfNull(samples);
 
@@ -254,6 +257,7 @@ public static partial class ContentSignatureClassifier
             DirectoryFilesTotalSeen = Math.Max(0, filesTotalSeen),
             DirectoryCloudPlaceholdersSkipped = Math.Max(0, cloudPlaceholdersSkipped),
             DirectorySubtreesSkipped = Math.Max(0, subtreesSkipped),
+            DirectoryEntriesUnreadable = Math.Max(0, entriesUnreadable),
             DirectoryEnumerationTruncated = truncated,
             DirectorySampledFiles = sampleList.Select(s => s.RelativePath).ToArray(),
         };

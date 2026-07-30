@@ -41,6 +41,24 @@ public class CopyAdapterTests
     }
 
     [Fact]
+    public void Copy_refuses_when_source_destination_nesting_cannot_be_evaluated()
+    {
+        var action = new CopyAction
+        {
+            Source = "invalid\0source",
+            Destination = @"C:\synthetic-destination",
+            Description = "copy",
+            Reason = "test",
+        };
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => new CopyAdapter(new Win32PathCanonicalizer()).Copy(action));
+
+        Assert.Contains("spec §1.3/S6", exception.Message);
+        Assert.NotNull(exception.InnerException);
+    }
+
+    [Fact]
     public void Copies_a_directory_tree()
     {
         string root = TempDir();

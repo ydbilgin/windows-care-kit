@@ -18,11 +18,13 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
     private readonly int _maxBytes;
     private readonly int _directorySampleFileCount;
     private readonly ContentSignatureOptions _defaultOptions;
+    private readonly Func<string, FileAttributes> _getAttributes;
 
     public Win32ContentSignatureProbe(
         int maxBytes = DefaultMaxBytes,
         int directorySampleFileCount = DefaultDirectorySampleFileCount,
-        IReadOnlyList<string>? profileRoots = null)
+        IReadOnlyList<string>? profileRoots = null,
+        Func<string, FileAttributes>? getAttributes = null)
     {
         if (maxBytes <= 0 || maxBytes > DefaultMaxBytes)
             throw new ArgumentOutOfRangeException(nameof(maxBytes), $"maxBytes must be in 1..{DefaultMaxBytes}");
@@ -33,6 +35,7 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
         _directorySampleFileCount = directorySampleFileCount;
         _defaultOptions = new ContentSignatureOptions(
             (profileRoots ?? LoadProfileRoots()).ToArray());
+        _getAttributes = getAttributes ?? File.GetAttributes;
     }
 
     public ContentSignature ProbeFile(string path, ContentSignatureOptions? options = null)
@@ -89,19 +92,24 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
         int eligibleSeen = 0;
         int cloudPlaceholdersSkipped = 0;
         int subtreesSkipped = 0;
+        int entriesUnreadable = 0;
         bool truncated = false;
 
         try
         {
-            foreach (string file in EnumerateFilesDeterministically(path, () => subtreesSkipped++))
+            foreach (string file in EnumerateFilesDeterministically(
+                         path,
+                         () => subtreesSkipped++,
+                         () => entriesUnreadable++))
             {
                 FileAttributes attributes;
                 try
                 {
-                    attributes = File.GetAttributes(file);
+                    attributes = _getAttributes(file);
                 }
                 catch
                 {
+                    entriesUnreadable++;
                     continue;
                 }
 
@@ -148,10 +156,14 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
             eligibleSeen,
             truncated,
             cloudPlaceholdersSkipped,
-            subtreesSkipped);
+            subtreesSkipped,
+            entriesUnreadable);
     }
 
-    private static IEnumerable<string> EnumerateFilesDeterministically(string root, Action skippedSubtree)
+    private IEnumerable<string> EnumerateFilesDeterministically(
+        string root,
+        Action skippedSubtree,
+        Action entryUnreadable)
     {
         var pending = new Queue<(string Path, bool IsRoot)>();
         pending.Enqueue((root, true));
@@ -194,10 +206,11 @@ public sealed class Win32ContentSignatureProbe : IContentSignatureProbe
                 FileAttributes attributes;
                 try
                 {
-                    attributes = File.GetAttributes(entry);
+                    attributes = _getAttributes(entry);
                 }
                 catch
                 {
+                    entryUnreadable();
                     continue;
                 }
 

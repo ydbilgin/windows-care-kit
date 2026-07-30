@@ -493,7 +493,12 @@ public sealed class CopyAdapter : ICopyAdapter
             s = Path.TrimEndingDirectorySeparator(Path.GetFullPath(source));
             d = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destination));
         }
-        catch { return; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Refusing to copy: source and destination nesting could not be evaluated ({source} <-> {destination}) (spec §1.3/S6).",
+                ex);
+        }
         if (s.Equals(d, StringComparison.OrdinalIgnoreCase)
             || d.StartsWith(s + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
             || s.StartsWith(d + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
