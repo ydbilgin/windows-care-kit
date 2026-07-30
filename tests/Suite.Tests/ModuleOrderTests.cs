@@ -17,9 +17,9 @@ public class ModuleOrderTests
         Assert.True(ModuleOrder.Uninstall < ModuleOrder.Clean);
         Assert.True(ModuleOrder.Clean < ModuleOrder.Backup);
         Assert.True(ModuleOrder.Backup < ModuleOrder.Migration);
-        Assert.True(ModuleOrder.Migration < ModuleOrder.Restore);
-        Assert.True(ModuleOrder.Restore < ModuleOrder.Install);
-        Assert.True(ModuleOrder.Install < ModuleOrder.Settings);
+        Assert.True(ModuleOrder.Migration < ModuleOrder.Install);
+        Assert.True(ModuleOrder.Install < ModuleOrder.Restore);
+        Assert.True(ModuleOrder.Restore < ModuleOrder.Settings);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class ModuleOrderTests
         Assert.Equal(ModuleOrder.Clean, new CleanModule().Order);
         Assert.Equal(ModuleOrder.Backup, new BackupModule().Order);
         Assert.Equal(ModuleOrder.Migration, new MigrationModule().Order);
-        Assert.Equal(ModuleOrder.Restore, new RestoreModule().Order);
         Assert.Equal(ModuleOrder.Install, new InstallModule().Order);
+        Assert.Equal(ModuleOrder.Restore, new RestoreModule().Order);
     }
 }

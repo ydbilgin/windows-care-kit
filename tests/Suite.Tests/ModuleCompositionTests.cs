@@ -53,13 +53,13 @@ public sealed class ModuleCompositionTests
         var vm = provider.GetRequiredService<MainViewModel>();
 
         Assert.Equal(
-            new[] { "uninstall", "clean", "backup", "migration", "restore", "install", "settings" },
+            new[] { "uninstall", "clean", "backup", "migration", "install", "restore", "settings" },
             vm.Nav.Select(item => item.Id).ToArray());
         Assert.Equal(
-            new[] { "nav.uninstall", "nav.clean", "nav.backup", "nav.migration", "nav.restore", "nav.install", "nav.settings" },
+            new[] { "nav.uninstall", "nav.clean", "nav.backup", "nav.migration", "nav.install", "nav.restore", "nav.settings" },
             vm.Nav.Select(item => item.NameKey).ToArray());
         Assert.Equal(
-            new[] { "\uE74D", "\uE75C", "\uE74E", "\uE7AD", "\uE81C", "\uE896", "\uE713" },
+            new[] { "\uE74D", "\uE75C", "\uE74E", "\uE7AD", "\uE896", "\uE81C", "\uE713" },
             vm.Nav.Select(item => item.Glyph).ToArray());
         Assert.DoesNotContain(vm.Nav.Take(6), item => item.IsSettings);
         Assert.True(vm.Nav.Last().IsSettings);

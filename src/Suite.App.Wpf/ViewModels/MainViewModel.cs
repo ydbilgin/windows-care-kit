@@ -55,6 +55,10 @@ public sealed class MainViewModel : ObservableObject
                     m.DescKey,
                     m.IsSettings)));
 
+        FeatureNav = Nav.Where(item => !item.IsSettings).ToArray();
+        SettingsNav = Nav.Where(item => item.IsSettings).ToArray();
+        SettingsNavItem = SettingsNav.SingleOrDefault();
+        SelectNavCommand = new RelayCommand(parameter => SelectNavByKey(parameter as string));
         DismissFirstRunCommand = new RelayCommand(() => ShowFirstRun = false);
         if (Nav.Count > 0)
             SelectedNav = Nav[0];
@@ -62,6 +66,10 @@ public sealed class MainViewModel : ObservableObject
 
     public I18n I18n { get; }
     public ObservableCollection<NavItem> Nav { get; }
+    public IReadOnlyList<NavItem> FeatureNav { get; }
+    public IReadOnlyList<NavItem> SettingsNav { get; }
+    public NavItem? SettingsNavItem { get; }
+    public ICommand SelectNavCommand { get; }
     public ICommand DismissFirstRunCommand { get; }
 
     /// <summary>The shell's one-line statement when part of the app is missing; empty in every calm state.
@@ -85,8 +93,30 @@ public sealed class MainViewModel : ObservableObject
             if (SetField(ref _selectedNav, value))
             {
                 OnPropertyChanged(nameof(CurrentContent));
+                Raise(nameof(SelectedFeatureNav));
+                Raise(nameof(SelectedSettingsNav));
                 DispatchNavigation(value);
             }
+        }
+    }
+
+    public NavItem? SelectedFeatureNav
+    {
+        get => SelectedNav.IsSettings ? null : SelectedNav;
+        set
+        {
+            if (value is not null)
+                SelectedNav = value;
+        }
+    }
+
+    public NavItem? SelectedSettingsNav
+    {
+        get => SelectedNav.IsSettings ? SelectedNav : null;
+        set
+        {
+            if (value is not null)
+                SelectedNav = value;
         }
     }
 

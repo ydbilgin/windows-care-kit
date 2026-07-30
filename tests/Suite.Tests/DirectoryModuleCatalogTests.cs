@@ -19,10 +19,10 @@ namespace WindowsCareKit.Tests;
 public sealed class DirectoryModuleCatalogTests
 {
     private static readonly string[] FullOrderedIds =
-        { "uninstall", "clean", "backup", "migration", "restore", "install", "settings" };
+        { "uninstall", "clean", "backup", "migration", "install", "restore", "settings" };
 
     private static readonly string[] FullGlyphs =
-        { "", "", "", "", "", "", "" };
+        { "", "", "", "", "", "", "" };
 
     private static string TestBinModulesRoot => Path.Combine(AppContext.BaseDirectory, "Modules");
 
@@ -51,7 +51,7 @@ public sealed class DirectoryModuleCatalogTests
         IReadOnlyList<IWckModule> modules = result.Modules;
 
         Assert.Equal(
-            new[] { "uninstall", "clean", "backup", "restore", "install", "settings" },
+            new[] { "uninstall", "clean", "backup", "install", "restore", "settings" },
             modules.Select(m => m.Id).ToArray());
         Assert.DoesNotContain(modules, m => m.Id == "migration");
 

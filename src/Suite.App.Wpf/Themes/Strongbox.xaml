@@ -48,6 +48,13 @@
     <SolidColorBrush x:Key="ScrollBar.Track" Color="#14181F" />
     <SolidColorBrush x:Key="ScrollBar.Thumb" Color="#3A4351" />
     <SolidColorBrush x:Key="ScrollBar.Thumb.Hover" Color="#727C8C" />
+    <SolidColorBrush x:Key="Wck.Rail.Background" Color="#14181F" />
+    <SolidColorBrush x:Key="Wck.Rail.Border" Color="#262D3A" />
+    <SolidColorBrush x:Key="Wck.Rail.Hover" Color="#1E242F" />
+    <SolidColorBrush x:Key="Wck.Rail.Selected" Color="#122A20" />
+    <SolidColorBrush x:Key="Wck.Rail.Accent" Color="#7FDCAE" />
+    <SolidColorBrush x:Key="Wck.Rail.Text" Color="#E9EDF3" />
+    <SolidColorBrush x:Key="Wck.Rail.Quiet" Color="#727C8C" />
     <sys:Double x:Key="Opacity.Disabled.Button">0.45</sys:Double>
     <Color x:Key="Brand.Mark.Start">#3BD598</Color>
     <Color x:Key="Brand.Mark.End">#1F9464</Color>
@@ -314,102 +321,81 @@
         </Setter>
     </Style>
 
-    <!-- ===== Top module tab strip (horizontal nav) ===== -->
-    <!-- Tabs wrap at narrower widths so the final Settings entry is never clipped. -->
-    <Style x:Key="TopNavList" TargetType="ListBox">
+    <!-- ===== Left task rail ===== -->
+    <Style x:Key="RailNavList" TargetType="ListBox">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
         <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="ItemsPanel">
-            <Setter.Value>
-                <ItemsPanelTemplate>
-                    <WrapPanel />
-                </ItemsPanelTemplate>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Padding" Value="0,8,0,0" />
     </Style>
 
-    <!-- One module tab: glyph + bold label + one-line descriptor.
-         Glyph + label brighten to gold when the parent ListBoxItem is selected (mockup .tab.active). -->
-    <DataTemplate x:Key="TopNavModuleTemplate">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                       FontSize="18" VerticalAlignment="Center" Margin="0,0,11,0">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Foreground" Value="{StaticResource Text.Muted}" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                <Setter Property="Foreground" Value="{StaticResource Gold.Bright}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="{StaticResource Text}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                    <Setter Property="Foreground" Value="{StaticResource Gold.Bright}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-                <TextBlock Text="{Binding Descriptor}" FontSize="10.5" Margin="0,1,0,0"
-                           Foreground="{StaticResource Text.Faint}" />
-            </StackPanel>
-        </StackPanel>
-    </DataTemplate>
-
-    <!-- The Settings tab: quiet, compact, icon + small label, far right. -->
-    <DataTemplate x:Key="TopNavSettingsTemplate">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                       FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"
-                       Foreground="{StaticResource Text.Muted}" />
-            <TextBlock Text="{Binding Title}" FontSize="12.5" VerticalAlignment="Center"
-                       Foreground="{StaticResource Text.Muted}" />
-        </StackPanel>
-    </DataTemplate>
-
-    <!-- Picks the module vs. settings inner template from NavItem.IsSettings. -->
-    <Style x:Key="TopNavTab" TargetType="ListBoxItem">
+    <Style x:Key="RailNavItem" TargetType="ListBoxItem">
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="ContentTemplate" Value="{StaticResource TopNavModuleTemplate}" />
-        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Foreground" Value="{StaticResource Wck.Rail.Text}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="ToolTip" Value="{Binding Descriptor}" />
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Glyph}"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="12.5"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                    </Grid>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <!-- Bd carries hover/selected fill; Underline is the 2px gold active affordance. -->
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="9,9,0,0"
-                            Padding="12,0" Margin="2,6,2,0" MinHeight="46" SnapsToDevicePixels="True">
-                        <Border x:Name="Underline" BorderBrush="Transparent" BorderThickness="0,0,0,2">
-                            <ContentPresenter VerticalAlignment="Center" />
-                        </Border>
+                    <Border x:Name="RailItemBackground" Background="Transparent" CornerRadius="0,8,8,0"
+                            Margin="8,1,8,1" Height="42" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Border x:Name="SelectionBar" Width="3" HorizontalAlignment="Left"
+                                    Background="Transparent" CornerRadius="0,2,2,0" />
+                            <ContentPresenter Margin="14,0,10,0"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#1F1B13" />
+                            <Setter TargetName="RailItemBackground" Property="Background"
+                                    Value="{StaticResource Wck.Rail.Hover}" />
                         </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Bg.PanelAlt}" />
-                            <Setter TargetName="Underline" Property="BorderBrush" Value="{StaticResource Gold.Bright}" />
-                        </Trigger>
-                        <!-- Settings = quiet, compact template. -->
                         <DataTrigger Binding="{Binding IsSettings}" Value="True">
-                            <Setter Property="ContentTemplate" Value="{StaticResource TopNavSettingsTemplate}" />
-                            <Setter TargetName="Bd" Property="Padding" Value="13,0" />
+                            <Setter Property="Foreground" Value="{StaticResource Wck.Rail.Quiet}" />
                         </DataTrigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Wck.Rail.Accent}" />
+                            <Setter TargetName="RailItemBackground" Property="Background"
+                                    Value="{StaticResource Wck.Rail.Selected}" />
+                            <Setter TargetName="SelectionBar" Property="Background"
+                                    Value="{StaticResource Wck.Rail.Accent}" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style x:Key="PromisesFooter" TargetType="Border">
+        <Setter Property="Padding" Value="14,10,10,8" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource Wck.Rail.Quiet}" />
+        <Setter Property="TextElement.FontSize" Value="10.5" />
+        <Setter Property="TextElement.FontWeight" Value="Normal" />
     </Style>
 
     <!-- ===== App list ===== -->

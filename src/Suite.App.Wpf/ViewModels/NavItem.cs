@@ -4,7 +4,7 @@ using WindowsCareKit.App.Mvvm;
 
 namespace WindowsCareKit.App.ViewModels;
 
-/// <summary>One module tab in the top navigation strip. <see cref="Title"/> and
+/// <summary>One item in the shell's left navigation rail. <see cref="Title"/> and
 /// <see cref="Descriptor"/> track the active language.</summary>
 public sealed class NavItem : ObservableObject
 {
@@ -35,12 +35,12 @@ public sealed class NavItem : ObservableObject
     public object Content { get; }
     public string DescriptorKey { get; }
 
-    /// <summary>True for the quiet, far-right Settings tab (separated from the four modules).</summary>
+    /// <summary>True for the quiet, bottom-pinned Settings item.</summary>
     public bool IsSettings { get; }
 
     public string Title => _i18n[NameKey];
 
-    /// <summary>One-line descriptor under the bold label; empty for the icon-only Settings tab.</summary>
+    /// <summary>Localized detail shown as the rail item's tooltip.</summary>
     public string Descriptor => DescriptorKey.Length == 0 ? string.Empty : _i18n[DescriptorKey];
 
     private void OnI18nChanged(object? sender, PropertyChangedEventArgs e)

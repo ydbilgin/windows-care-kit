@@ -764,7 +764,7 @@ public sealed class ViewRenderSmokeTests
     }
 
     [Fact]
-    public void Main_shell_nav_keeps_settings_and_restore_descriptor_inside_1030_width()
+    public void Main_shell_rail_keeps_settings_and_module_labels_inside_1030_width()
     {
         RunOnStaThread(() =>
         {
@@ -782,17 +782,24 @@ public sealed class ViewRenderSmokeTests
                 root.Arrange(new Rect(size));
                 root.UpdateLayout();
 
-                ListBox nav = Descendants<ListBox>(root).Single(lb => lb.Items.Count == vm.Nav.Count);
-                nav.UpdateLayout();
-                var settingsItem = Assert.IsType<ListBoxItem>(nav.ItemContainerGenerator.ContainerFromItem(vm.Nav.Last()));
+                var featureNav = Assert.IsType<ListBox>(window.FindName("FeatureRailNav"));
+                var settingsNav = Assert.IsType<ListBox>(window.FindName("SettingsRailNav"));
+                featureNav.UpdateLayout();
+                settingsNav.UpdateLayout();
+                var settingsItem = Assert.IsType<ListBoxItem>(
+                    settingsNav.ItemContainerGenerator.ContainerFromItem(vm.Nav.Last()));
                 TextBlock settingsText = Descendants<TextBlock>(settingsItem)
                     .Single(t => t.Text == i18n["nav.settings"]);
-                TextBlock restoreDescriptor = Descendants<TextBlock>(nav)
-                    .Single(t => t.Text == i18n["nav.restore.desc"]);
+                var restoreItem = Assert.IsType<ListBoxItem>(
+                    featureNav.ItemContainerGenerator.ContainerFromItem(
+                        vm.Nav.Single(item => item.Id == "restore")));
+                TextBlock restoreLabel = Descendants<TextBlock>(restoreItem)
+                    .Single(t => t.Text == i18n["nav.restore"]);
 
                 AssertInside(root, settingsItem, size.Width, "Settings nav item");
                 AssertInside(root, settingsText, size.Width, "Settings label");
-                AssertInside(root, restoreDescriptor, size.Width, "Restore descriptor");
+                AssertInside(root, restoreLabel, size.Width, "Restore label");
+                Assert.Equal(i18n["nav.restore.desc"], restoreItem.ToolTip);
             }
             finally
             {
@@ -1804,21 +1811,59 @@ public sealed class ViewRenderSmokeTests
                 new(i18n, "nav.clean", "", new object(), "nav.clean.desc"),
                 new(i18n, "nav.backup", "", new object(), "nav.backup.desc"),
                 new(i18n, "nav.migration", "", new object(), "nav.migration.desc"),
-                new(i18n, "nav.restore", "", new object(), "nav.restore.desc"),
                 new(i18n, "nav.install", "", new object(), "nav.install.desc"),
-                new(i18n, "nav.settings", "", new object(), "nav.settings.desc", isSettings: true),
+                new(i18n, "nav.restore", "", new object(), "nav.restore.desc"),
+                new(i18n, "nav.settings", "", new ShellProbeSettings(), "nav.settings.desc", isSettings: true),
             ];
             SelectedNav = Nav[0];
+            FeatureNav = Nav.Where(item => !item.IsSettings).ToArray();
+            SettingsNav = Nav.Where(item => item.IsSettings).ToArray();
+            SettingsNavItem = SettingsNav.SingleOrDefault();
+            SelectNavCommand = new RelayCommand(parameter =>
+            {
+                NavItem? target = Nav.SingleOrDefault(item =>
+                    item.Id.Equals(parameter as string, StringComparison.OrdinalIgnoreCase));
+                if (target is not null)
+                    SelectedNav = target;
+            });
             DismissFirstRunCommand = new RelayCommand(() => ShowFirstRun = false);
         }
 
         public I18n I18n { get; }
         public IReadOnlyList<NavItem> Nav { get; }
+        public IReadOnlyList<NavItem> FeatureNav { get; }
+        public IReadOnlyList<NavItem> SettingsNav { get; }
+        public NavItem? SettingsNavItem { get; }
         public NavItem SelectedNav { get; set; }
+        public NavItem? SelectedFeatureNav
+        {
+            get => SelectedNav.IsSettings ? null : SelectedNav;
+            set
+            {
+                if (value is not null)
+                    SelectedNav = value;
+            }
+        }
+        public NavItem? SelectedSettingsNav
+        {
+            get => SelectedNav.IsSettings ? SelectedNav : null;
+            set
+            {
+                if (value is not null)
+                    SelectedNav = value;
+            }
+        }
         public object CurrentContent => SelectedNav.Content;
         public string ModuleHealthNotice => string.Empty;
         public bool ShowFirstRun { get; set; }
+        public ICommand SelectNavCommand { get; }
         public ICommand DismissFirstRunCommand { get; }
+    }
+
+    private sealed class ShellProbeSettings
+    {
+        public string RepositoryUrl => SettingsViewModel.ProjectRepositoryUrl;
+        public ICommand OpenExternalLinkCommand { get; } = new RelayCommand(_ => { });
     }
 
     private sealed class RenderShellModule : IWckModule

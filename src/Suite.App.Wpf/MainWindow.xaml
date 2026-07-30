@@ -1,16 +1,39 @@
 <Window x:Class="WindowsCareKit.App.MainWindow"
+        x:Name="ShellWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{Binding I18n[app.title]}" Height="720" Width="1100"
-        MinHeight="560" MinWidth="900"
+        MinHeight="560" MinWidth="980"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg.Window}"
         Icon="app.ico">
 
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="D1"
+                    Command="{Binding DataContext.SelectNavCommand, ElementName=ShellWindow}"
+                    CommandParameter="uninstall" />
+        <KeyBinding Modifiers="Control" Key="D2"
+                    Command="{Binding DataContext.SelectNavCommand, ElementName=ShellWindow}"
+                    CommandParameter="clean" />
+        <KeyBinding Modifiers="Control" Key="D3"
+                    Command="{Binding DataContext.SelectNavCommand, ElementName=ShellWindow}"
+                    CommandParameter="backup" />
+        <KeyBinding Modifiers="Control" Key="D4"
+                    Command="{Binding DataContext.SelectNavCommand, ElementName=ShellWindow}"
+                    CommandParameter="migration" />
+        <KeyBinding Modifiers="Control" Key="D5"
+                    Command="{Binding DataContext.SelectNavCommand, ElementName=ShellWindow}"
+                    CommandParameter="install" />
+        <KeyBinding Modifiers="Control" Key="D6"
+                    Command="{Binding DataContext.SelectNavCommand, ElementName=ShellWindow}"
+                    CommandParameter="restore" />
+        <KeyBinding Modifiers="Control" Key="D7"
+                    Command="{Binding DataContext.SelectNavCommand, ElementName=ShellWindow}"
+                    CommandParameter="settings" />
+    </Window.InputBindings>
+
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -56,25 +79,77 @@
             </Grid>
         </Border>
 
-        <!-- Row 2: horizontal module tab strip. It can grow to two rows at narrow widths instead of clipping. -->
-        <Border Grid.Row="1" Background="{StaticResource Bg.Panel}" BorderBrush="{StaticResource Border.Soft}"
-                BorderThickness="0,0,0,1" MinHeight="58">
-            <ListBox Style="{StaticResource TopNavList}" ItemContainerStyle="{StaticResource TopNavTab}"
-                     ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}" Padding="10,0,10,0" />
-        </Border>
+        <!-- Row 2: fixed left task rail plus the selected module content. -->
+        <Grid Grid.Row="1" x:Name="ShellBodyGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Row="2" x:Name="ModuleHealthNoticeText"
-                   Text="{Binding ModuleHealthNotice}"
-                   Foreground="{StaticResource Backup.DangerStrong}"
-                   FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap"
-                   Margin="18,10,18,10"
-                   Visibility="{Binding ModuleHealthNotice, Converter={StaticResource NonEmptyToVis}}" />
+            <Border x:Name="TaskRail" Grid.Column="0"
+                    Background="{StaticResource Wck.Rail.Background}"
+                    BorderBrush="{StaticResource Wck.Rail.Border}"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-        <!-- Row 4: content, full width -->
-        <ContentControl Grid.Row="3" Content="{Binding CurrentContent}" Margin="0" />
+                    <ListBox x:Name="FeatureRailNav" Grid.Row="0"
+                             Style="{StaticResource RailNavList}"
+                             ItemContainerStyle="{StaticResource RailNavItem}"
+                             ItemsSource="{Binding FeatureNav}"
+                             SelectedItem="{Binding SelectedFeatureNav}" />
+
+                    <Border x:Name="PromisesFooter" Grid.Row="2" Style="{StaticResource PromisesFooter}">
+                        <StackPanel>
+                            <TextBlock Text="No ads · no telemetry · no background tasks"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="Closes when you close it"
+                                       TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                            <TextBlock TextTrimming="CharacterEllipsis" Margin="0,3,0,0">
+                                <Run Text="Open source — " />
+                                <Hyperlink Command="{Binding SettingsNavItem.Content.OpenExternalLinkCommand}"
+                                           CommandParameter="{Binding SettingsNavItem.Content.RepositoryUrl}"
+                                           Foreground="{StaticResource Wck.Rail.Accent}">
+                                    <Run Text="view the code" />
+                                </Hyperlink>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <ListBox x:Name="SettingsRailNav" Grid.Row="3"
+                             Style="{StaticResource RailNavList}"
+                             ItemContainerStyle="{StaticResource RailNavItem}"
+                             ItemsSource="{Binding SettingsNav}"
+                             SelectedItem="{Binding SelectedSettingsNav}"
+                             Margin="0,0,0,8" />
+                </Grid>
+            </Border>
+
+            <Grid x:Name="ContentColumn" Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" x:Name="ModuleHealthNoticeText"
+                           Text="{Binding ModuleHealthNotice}"
+                           Foreground="{StaticResource Backup.DangerStrong}"
+                           FontSize="11.5" FontWeight="SemiBold" TextWrapping="Wrap"
+                           Margin="18,10,18,10"
+                           Visibility="{Binding ModuleHealthNotice, Converter={StaticResource NonEmptyToVis}}" />
+
+                <ContentControl x:Name="ModuleContentHost" Grid.Row="1"
+                                Content="{Binding CurrentContent}" Margin="0" />
+            </Grid>
+        </Grid>
 
         <!-- First-run notice overlay -->
-        <Grid Grid.RowSpan="4" Background="{StaticResource Bg.Scrim}"
+        <Grid Grid.RowSpan="2" Background="{StaticResource Bg.Scrim}"
               Visibility="{Binding ShowFirstRun, Converter={StaticResource BoolToVis}}">
             <Border Style="{StaticResource Card}" MaxWidth="520" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <StackPanel>

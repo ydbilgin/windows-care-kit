@@ -13,8 +13,8 @@ public static class ModuleOrder
     public const int Clean = 20;
     public const int Backup = 30;
     public const int Migration = 40;
-    public const int Restore = 50;
-    public const int Install = 60;
+    public const int Install = 50;
+    public const int Restore = 60;
 
     /// <summary>Trailing band for settings-class modules; always sorts after every feature module.</summary>
     public const int Settings = 900;
