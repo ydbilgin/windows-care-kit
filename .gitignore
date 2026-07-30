@@ -110,3 +110,6 @@ Thumbs.db
 desktop.ini
 .tmp/
 /_process/
+
+# Playwright MCP session artifacts (layout measurement runs)
+.playwright-mcp/
