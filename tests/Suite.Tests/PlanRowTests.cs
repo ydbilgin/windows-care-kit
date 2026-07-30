@@ -58,6 +58,68 @@ public class PlanRowSelectionTests
         Undo = "undo: Full",
     };
 
+    // ---- Selection is ONE state (spec §2.0) ---------------------------------------------------------------
+
+    /// <summary>
+    /// Every construction path lands on exactly one <see cref="RowSelection"/>, and the three convenience
+    /// predicates are read OFF that value rather than kept beside it. This is the contract the boolean pair
+    /// could not hold: "blocked" and "included" were independently settable, so they could disagree.
+    /// </summary>
+    [Fact]
+    public void Every_construction_path_lands_on_exactly_one_selection_state()
+    {
+        Assert.Equal(RowSelection.Required, PlanRow.FromAction(Junk(), new I18n()).Selection);
+        Assert.Equal(RowSelection.OptionalExcluded, PlanRow.FromAction(Junk(), new I18n(), isVetoable: true).Selection);
+        Assert.Equal(RowSelection.Blocked, PlanRow.FromSkipped(Junk(), "protected", new I18n()).Selection);
+        Assert.Equal(RowSelection.Blocked, PlanRow.FromSkipped(Junk(), "protected").Selection);
+
+        // The legacy literal paths name no action, so they assert NOTHING about execution — neither required
+        // nor blocked. Reporting them as Required would claim the engine always runs a row it cannot even name.
+        Assert.Equal(RowSelection.Unbound, PlanRow.FromAction(Junk()).Selection);
+        Assert.Equal(RowSelection.Unbound, LiteralRow().Selection);
+    }
+
+    [Fact]
+    public void The_selection_predicates_are_derived_from_the_state_and_cannot_disagree_with_it()
+    {
+        PlanRow[] rows =
+        [
+            PlanRow.FromAction(Junk(), new I18n()),
+            PlanRow.FromAction(Junk(), new I18n(), isVetoable: true),
+            PlanRow.FromSkipped(Junk(), "protected", new I18n()),
+            PlanRow.FromSkipped(Junk(), "protected"),
+            PlanRow.FromAction(Junk()),
+            LiteralRow(),
+        ];
+
+        foreach (PlanRow row in rows)
+        {
+            Assert.Equal(row.Selection is RowSelection.Blocked, row.IsSkipped);
+            Assert.Equal(
+                row.Selection is RowSelection.OptionalIncluded or RowSelection.OptionalExcluded,
+                row.IsVetoable);
+            Assert.Equal(row.Selection is RowSelection.OptionalIncluded, row.IsIncluded);
+
+            // A blocked row is never vetoable and a vetoable row is never blocked — not by convention between
+            // two fields, but because one value cannot be two things.
+            Assert.False(row.IsSkipped && row.IsVetoable);
+        }
+    }
+
+    /// <summary>
+    /// The state is unforgeable: there is no public write path to <see cref="PlanRow.Selection"/> or
+    /// <see cref="PlanRow.IsVetoable"/>, so an object-initializer caller cannot assert a selection the engine
+    /// could not honour. Previously <c>IsVetoable</c> had a public <c>init</c> and only a getter's invariant
+    /// stood between a caller and a checkbox on a row nothing would execute.
+    /// </summary>
+    [Fact]
+    public void Selection_state_has_no_public_write_path()
+    {
+        Assert.Null(typeof(PlanRow).GetProperty(nameof(PlanRow.Selection))!.SetMethod);
+        Assert.Null(typeof(PlanRow).GetProperty(nameof(PlanRow.IsVetoable))!.SetMethod);
+        Assert.Null(typeof(PlanRow).GetProperty(nameof(PlanRow.IsSkipped))!.SetMethod);
+    }
+
     // ---- IsVetoable defaults (MP-3 target) ----------------------------------------------------------------
 
     [Fact]
@@ -134,12 +196,23 @@ public class PlanRowSelectionTests
 
         Assert.True(row.IsIncluded);
         Assert.Contains(nameof(PlanRow.IsIncluded), changed);
+
+        // The checkbox moves the ONE state, so a view bound to Selection (lock badge vs checkbox vs WON'T RUN)
+        // is told about it too — a stale badge beside a fresh checkbox is the same class of lie.
+        Assert.Equal(RowSelection.OptionalIncluded, row.Selection);
+        Assert.Contains(nameof(PlanRow.Selection), changed);
+
+        row.IsIncluded = false;
+        Assert.Equal(RowSelection.OptionalExcluded, row.Selection);
     }
 
     [Fact]
     public void A_vetoable_row_starts_excluded()
     {
-        Assert.False(PlanRow.FromAction(Junk(), new I18n(), isVetoable: true).IsIncluded);
+        PlanRow row = PlanRow.FromAction(Junk(), new I18n(), isVetoable: true);
+
+        Assert.False(row.IsIncluded);
+        Assert.Equal(RowSelection.OptionalExcluded, row.Selection);
     }
 
     // ---- IsSkipped ----------------------------------------------------------------------------------------
@@ -177,12 +250,41 @@ public class PlanRowSelectionTests
         Assert.Equal(undo, PlanRow.FromSkipped(Junk(undo), "protected").Recovery);
     }
 
+    /// <summary>
+    /// A bare literal row has no typed source, so its recovery is UNKNOWN and says so (spec §2.0b). The
+    /// previous contract collapsed it to a definite <see cref="UndoCapability.None"/>: fail-safe, but not
+    /// honest — this very fixture renders "undo: Full" to the user while a counter scored it permanent, on no
+    /// evidence in either direction (P20-R1).
+    /// </summary>
     [Fact]
-    public void A_legacy_literal_row_promises_no_recovery()
+    public void A_bare_literal_row_reports_unknown_recovery_rather_than_a_definite_None()
     {
-        // It has no typed field to read. Falling back to None is the fail-safe direction: claiming
-        // recoverability the engine never promised is the more dangerous error.
-        Assert.Equal(UndoCapability.None, LiteralRow().Recovery);
+        PlanRow row = LiteralRow();
+
+        Assert.Null(row.Recovery);
+        Assert.NotEqual(UndoCapability.None, row.Recovery);
+        Assert.Contains("Full", row.Undo, StringComparison.Ordinal); // what the user is actually reading
+    }
+
+    /// <summary>
+    /// The counting rule the ReviewSummary must follow: unknown is its own tally, never folded into the
+    /// permanent one. Collapsing unknown back to <see cref="UndoCapability.None"/> turns this red, because the
+    /// permanent count would then claim two actions it cannot support.
+    /// </summary>
+    [Fact]
+    public void A_counter_reports_an_unknown_row_as_unknown_and_never_as_permanent()
+    {
+        PlanRow[] rows =
+        [
+            PlanRow.FromAction(Junk(UndoCapability.None, @"C:\junk\none.tmp"), new I18n()),
+            LiteralRow(),
+        ];
+
+        int[] counts = CountByRecovery(rows);
+
+        Assert.Equal(new[] { 0, 0, 1, 1 }, counts); // full, partial, permanent, unknown
+        Assert.Equal(1, counts[PermanentBucket]);
+        Assert.Equal(1, counts[UnknownBucket]);
     }
 
     // ---- MP-4: the wire-level proof ----------------------------------------------------------------------
@@ -207,14 +309,14 @@ public class PlanRowSelectionTests
             PlanRow.FromAction(Junk(UndoCapability.None, @"C:\junk\none.tmp"), i18n),
         ];
 
-        UndoCapability[] recoveryInEnglish = rows.Select(r => r.Recovery).ToArray();
+        UndoCapability?[] recoveryInEnglish = rows.Select(r => r.Recovery).ToArray();
         string[] undoInEnglish = rows.Select(r => r.Undo).ToArray();
         int[] countsInEnglish = CountByRecovery(rows);
 
         Assert.Equal(
-            new[] { UndoCapability.Full, UndoCapability.Partial, UndoCapability.None },
+            new UndoCapability?[] { UndoCapability.Full, UndoCapability.Partial, UndoCapability.None },
             recoveryInEnglish);
-        Assert.Equal(new[] { 1, 1, 1 }, countsInEnglish);
+        Assert.Equal(new[] { 1, 1, 1, 0 }, countsInEnglish);
 
         i18n.Load("tr");
 
@@ -234,8 +336,12 @@ public class PlanRowSelectionTests
         Assert.Equal(countsInEnglish, CountByRecovery(rows));
     }
 
+    private const int PermanentBucket = 2;
+    private const int UnknownBucket = 3;
+
     /// <summary>Recovery counting exactly as the ReviewSummary will do it (spec §1.2): arithmetic over the
-    /// typed value, never over rendered text.</summary>
+    /// typed value, never over rendered text — and with an explicit UNKNOWN bucket (spec §2.0b), because a row
+    /// whose capability could not be determined is not evidence of permanence.</summary>
     private static int[] CountByRecovery(IEnumerable<PlanRow> rows)
     {
         PlanRow[] snapshot = rows.ToArray();
@@ -244,6 +350,7 @@ public class PlanRowSelectionTests
             snapshot.Count(r => r.Recovery == UndoCapability.Full),
             snapshot.Count(r => r.Recovery == UndoCapability.Partial),
             snapshot.Count(r => r.Recovery == UndoCapability.None),
+            snapshot.Count(r => r.Recovery is null),
         ];
     }
 }

@@ -30,6 +30,37 @@ public static class RiskVisuals
     }
 }
 
+/// <summary>
+/// What a <see cref="PlanRow"/> says about whether its action runs — ONE value, never a combination of
+/// booleans. The pair it replaces (<c>IsVetoable</c> + <c>IsIncluded</c>, alongside <c>IsSkipped</c>) could
+/// represent contradictions such as "blocked and included", and each reader had to re-derive the real meaning
+/// from the combination (spec §2.0, P19-R1). Every selection question is now derived from this single value, so
+/// two answers cannot disagree.
+/// </summary>
+public enum RowSelection
+{
+    /// <summary>The row names no <see cref="PlanRow.Action"/>, so it makes NO claim about execution — the
+    /// legacy literal path (result rows, manual checklists, rendered text only). It is neither required nor
+    /// blocked: nothing is known about the engine's relationship to it, and <see cref="PlanSelection.Subset"/>
+    /// therefore ignores it entirely rather than reading a claim into it (P20-R1). This is the default, so a
+    /// row that never states a selection cannot accidentally assert one.</summary>
+    Unbound = 0,
+
+    /// <summary>The engine always runs this action; the user has no choice about it (a restore point, the
+    /// vendor uninstaller). The view renders the Required lock badge, never a checkbox.</summary>
+    Required,
+
+    /// <summary>The user may veto this action and currently keeps it.</summary>
+    OptionalIncluded,
+
+    /// <summary>The user may veto this action and currently vetoes it.</summary>
+    OptionalExcluded,
+
+    /// <summary>The action will NOT run — the gate's <c>WON'T RUN</c> row. Blocked DOMINATES: no other row for
+    /// the same action can resurrect it (spec §2.0 rule 1).</summary>
+    Blocked,
+}
+
 /// <summary>A single action shown in the dry-run preview. When constructed with an <see cref="I18n"/> it
 /// re-renders its text live on a language switch (finding G6). Without one it keeps the legacy frozen-English
 /// text so existing literal callers and the frozen Migration call site are unchanged. The risk-chip COLOR is
@@ -49,19 +80,28 @@ public sealed class PlanRow : ObservableObject
     private readonly string? _litDetail;
     private readonly bool _litElevated;
 
-    private readonly bool _vetoRequested;
-    private bool _isIncluded;
+    /// <summary>The row's ONE selection state; every selection question is derived from it, so no two answers
+    /// can contradict each other. It is fixed at construction and afterwards moves only between the two
+    /// optional states, through <see cref="IsIncluded"/>.</summary>
+    private RowSelection _selection = RowSelection.Unbound;
 
     /// <summary>Legacy literal path: object-initializer callers set the required members directly.</summary>
     public PlanRow() { }
 
     [SetsRequiredMembers]
-    private PlanRow(PlannedAction action, bool isWholeTree, string? skipReason, I18n i18n)
+    private PlanRow(PlannedAction action, bool isWholeTree, string? skipReason, I18n i18n, bool vetoRequested)
     {
         _action = action;
         _isWholeTree = isWholeTree;
         _skipReason = skipReason;
         _i18n = i18n;
+
+        // Decided HERE, once, from the row's own construction facts. A skipped row is Blocked whatever the
+        // caller asked for, so "blocked yet vetoable" is not merely rejected downstream — it is unreachable.
+        _selection = skipReason is not null
+            ? RowSelection.Blocked
+            : vetoRequested ? RowSelection.OptionalExcluded : RowSelection.Required;
+
         _riskBrush = RiskVisuals.For(skipReason is null ? action.Risk : RiskLevel.Critical);
         Text = string.Empty;
         RiskText = string.Empty;
@@ -89,68 +129,82 @@ public sealed class PlanRow : ObservableObject
     public PlannedAction? Action => _action;
 
     /// <summary>
-    /// True when the engine executes at this row's granularity and the row may therefore carry a veto control.
-    /// False for display-only rows: skipped rows, legacy literal rows, and any row that cannot name its
-    /// <see cref="Action"/>. The view binds a checkbox if and only if this is true — a disabled checkbox still
-    /// says "this is a choice", so a non-vetoable row renders a Required lock badge instead (spec §2.1 rule 2).
-    /// <para>
-    /// The getter, not the initializer, enforces the invariant, so it holds whatever order an object initializer
-    /// assigns in: a row with no action or a skip reason can never report itself vetoable, and a caller that asks
-    /// for a veto it cannot honour gets a row the view will not put a checkbox on — rather than a checkbox the
-    /// engine ignores, which is the defect spec §1.1 exists to prevent.
-    /// </para>
+    /// What this row says about whether its action runs. This is the CONTRACT; <see cref="IsVetoable"/>,
+    /// <see cref="IsIncluded"/> and <see cref="IsSkipped"/> are conveniences derived from it. There is no
+    /// public setter or initializer: the state comes from the construction path, so no caller can assert a
+    /// selection the engine could not honour — a checkbox the engine ignores is the defect spec §1.1 exists to
+    /// prevent, and the same is true of a lock badge on a row nothing will run.
     /// </summary>
-    public bool IsVetoable
-    {
-        get => _vetoRequested && Action is not null && !IsSkipped;
-        init => _vetoRequested = value;
-    }
+    public RowSelection Selection => _selection;
 
     /// <summary>
-    /// User inclusion for the veto checkbox. Meaningful only when <see cref="IsVetoable"/> is true; setting it on
-    /// any other row throws, because silently accepting the write would record a choice nothing downstream can
-    /// act on. Reading a non-vetoable row is safe and always returns false — <see cref="PlanSelection.Subset"/>
-    /// retains such rows on the strength of <see cref="IsVetoable"/> alone, never this value.
+    /// True when the engine executes at this row's granularity and the row may therefore carry a veto control.
+    /// False for every other row: required steps, blocked (<c>WON'T RUN</c>) rows, and legacy literal rows that
+    /// cannot name their <see cref="Action"/>. The view binds a checkbox if and only if this is true — a
+    /// disabled checkbox still says "this is a choice", so a non-vetoable row renders a Required lock badge or
+    /// its blocked reason instead (spec §2.1 rule 2).
+    /// </summary>
+    public bool IsVetoable => _selection is RowSelection.OptionalIncluded or RowSelection.OptionalExcluded;
+
+    /// <summary>
+    /// User inclusion for the veto checkbox — the one transition <see cref="Selection"/> allows, between
+    /// <see cref="RowSelection.OptionalIncluded"/> and <see cref="RowSelection.OptionalExcluded"/>. Meaningful
+    /// only when <see cref="IsVetoable"/> is true; setting it on any other row throws, because silently
+    /// accepting the write would record a choice nothing downstream can act on. Reading a non-vetoable row is
+    /// safe and always returns false — <see cref="PlanSelection.Subset"/> retains a required row on the strength
+    /// of its <see cref="Selection"/> alone, never this value.
     /// </summary>
     public bool IsIncluded
     {
-        get => _isIncluded;
+        get => _selection is RowSelection.OptionalIncluded;
         set
         {
             if (!IsVetoable)
             {
                 throw new InvalidOperationException(
-                    "PlanRow.IsIncluded is only settable on a vetoable row. This row is display-only "
-                    + $"(Action={(Action is null ? "null" : Action.Kind)}, IsSkipped={IsSkipped}), so a veto "
+                    "PlanRow.IsIncluded is only settable on a vetoable row. This row is "
+                    + $"{_selection} (Action={(Action is null ? "null" : Action.Kind)}), so a veto "
                     + "could not be honoured at execution time.");
             }
 
-            SetField(ref _isIncluded, value);
+            RowSelection next = value ? RowSelection.OptionalIncluded : RowSelection.OptionalExcluded;
+            if (_selection == next)
+                return;
+
+            _selection = next;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Selection));
         }
     }
 
     /// <summary>
-    /// The row's TYPED recovery capability. <see cref="Undo"/> is a rendered, localized string and must never be
-    /// parsed — counting recovery is arithmetic over this value only (spec §1.2), which is why this is invariant
-    /// under a language switch.
+    /// The row's TYPED recovery capability, or <c>null</c> when it is UNKNOWN. <see cref="Undo"/> is a rendered,
+    /// localized string and must never be parsed — counting recovery is arithmetic over this value only
+    /// (spec §1.2), which is why this is invariant under a language switch.
     /// <para>
     /// It describes what recovering the ACTION would cost. A skipped row does not run at all, so a counter must
-    /// exclude it via <see cref="IsSkipped"/> rather than read a recovery promise into it. The legacy literal
-    /// path has no typed field to read, so it falls back to <see cref="UndoCapability.None"/> — the fail-safe
-    /// direction, since claiming recoverability the engine never promised is the more dangerous error.
+    /// exclude it via <see cref="IsSkipped"/> rather than read a recovery promise into it. A bare
+    /// object-initializer row carries rendered text and no typed source at all, so its capability is genuinely
+    /// unknown and is reported as such: collapsing it to <see cref="UndoCapability.None"/> was fail-safe but not
+    /// honest (spec §2.0b, P20-R1) — the same row's rendered text may read <c>undo: Full</c>, and a counter
+    /// scored it permanent on no evidence. Callers MUST surface unknown explicitly instead of folding it into
+    /// the permanent tally. (<see cref="UndoCapability"/> itself is a Core enum with no unknown member and is
+    /// out of scope here, so the unknown lives in the nullability at this boundary.)
     /// </para>
     /// </summary>
-    public UndoCapability Recovery => _action?.Undo ?? LegacyRecovery;
+    public UndoCapability? Recovery => _action?.Undo ?? LegacyRecovery;
 
-    /// <summary>True when this row was built by <see cref="FromSkipped"/> — the action will NOT run.</summary>
-    public bool IsSkipped => _skipReason is not null || LegacySkipped;
+    /// <summary>True when this row states its action will NOT run — the gate's <c>WON'T RUN</c> row, built by
+    /// <see cref="FromSkipped"/> on either path.</summary>
+    public bool IsSkipped => _selection is RowSelection.Blocked;
 
     /// <summary>Typed recovery captured by the legacy factory path, which renders text but keeps no action.
-    /// Defaults to <see cref="UndoCapability.None"/> so a bare object-initializer row promises nothing.</summary>
-    private UndoCapability LegacyRecovery { get; init; } = UndoCapability.None;
+    /// Null (unknown) for a bare object-initializer row, which has no typed source to capture.</summary>
+    private UndoCapability? LegacyRecovery { get; init; }
 
-    /// <summary>Skipped-ness for the legacy factory path, where <c>_skipReason</c> is not available.</summary>
-    private bool LegacySkipped { get; init; }
+    /// <summary>Selection for the legacy factory path, where the private constructor is not used. Private, so a
+    /// public object-initializer caller cannot assert a selection state; it stays <see cref="RowSelection.Unbound"/>.</summary>
+    private RowSelection LegacySelection { get => _selection; init => _selection = value; }
 
     public static PlanRow FromAction(PlannedAction a, I18n? i18n = null, bool isVetoable = false)
         => FromAction(a, isWholeTree: false, i18n: i18n, isVetoable: isVetoable);
@@ -184,10 +238,7 @@ public sealed class PlanRow : ObservableObject
             };
         }
 
-        return new PlanRow(a, isWholeTree && a is CopyAction, skipReason: null, i18n)
-        {
-            IsVetoable = isVetoable,
-        };
+        return new PlanRow(a, isWholeTree && a is CopyAction, skipReason: null, i18n, vetoRequested: isVetoable);
     }
 
     /// <summary>A row for an action that will NOT run. It is display-only on both paths: it takes no
@@ -205,11 +256,11 @@ public sealed class PlanRow : ObservableObject
                 Undo = string.Empty,
                 Detail = reason,
                 LegacyRecovery = a.Undo,
-                LegacySkipped = true,
+                LegacySelection = RowSelection.Blocked,
             };
         }
 
-        return new PlanRow(a, isWholeTree: false, skipReason: reason, i18n);
+        return new PlanRow(a, isWholeTree: false, skipReason: reason, i18n, vetoRequested: false);
     }
 
     private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs e)
