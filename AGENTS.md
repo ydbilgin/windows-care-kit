@@ -75,6 +75,14 @@ binding and refines — never weakens — the rules in this one.
   or runtime.
 - Absence of an edge is never evidence that nothing uses a symbol. Never use `graphify` as evidence in
   a release or version gate.
+- Check freshness from the graph itself: `graph.json` carries `built_at_commit`. If it does not equal
+  `HEAD`, rebuild — do not reason from the file's timestamp.
+- **The "go straight to grep" rule above is permanent, not a wait for better tooling.** Re-measured at
+  `0cdc03b` on 2026-07-30 against `codebase-memory-mcp` (AST/LSP-based, C, SQLite-backed). That tool did
+  resolve `new`-expression calls where `graphify` does not — but it missed the DI composition root
+  exactly as `graphify` does, could not answer project-reference questions at all, and produced a
+  different edge count on two indexes of the same commit. It was rejected. An invisible composition root
+  is a limit of this tool class, not a defect of one tool.
 
 A same-day audit against this standard found real, tracked gaps: three forbidden project-reference
 edges (`Suite.Module.Restore` -> `Suite.Execution`, `Suite.Module.Uninstall` -> `Suite.Execution`,
