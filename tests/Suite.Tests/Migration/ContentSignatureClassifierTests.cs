@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using WindowsCareKit.Core.Modules.Migration;
 using Xunit;
 
@@ -6,6 +7,13 @@ namespace WindowsCareKit.Tests.Migration;
 
 public sealed class ContentSignatureClassifierTests
 {
+    /// <summary>
+    /// The single timeout for every edge of every handshake in this class — both event waits and both joins.
+    /// One owner on purpose: a timeout is what releases a thread that was supposed to stay blocked, so if the
+    /// edges could drift apart, which false-ordering windows exist would change silently.
+    /// </summary>
+    private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(30);
+
     private static readonly byte[] SyntheticDpapiHeader =
     [
         0x01, 0x00, 0x00, 0x00,
@@ -219,6 +227,11 @@ public sealed class ContentSignatureClassifierTests
     /// handshake that holds the window open — deterministic, no timing luck. Removing <c>[ThreadStatic]</c>
     /// from the backing field turns this red with Complete vs ProbeTimedOut.
     /// </para>
+    /// <para>
+    /// Both timed waits are asserted rather than discarded. A discarded wait result is what turns a handshake
+    /// back into timing luck: on timeout the observer would be released before the setter established the
+    /// window, and the guard would pass vacuously under the very mutation it exists to reject.
+    /// </para>
     /// </summary>
     [Fact]
     public void Profile_root_regex_timeout_override_is_confined_to_the_setting_thread()
@@ -227,6 +240,8 @@ public sealed class ContentSignatureClassifierTests
         using var otherThreadDone = new ManualResetEventSlim(false);
         ContentProbeStatus observedOnOtherThread = ContentProbeStatus.Complete;
         Exception? otherThreadFailure = null;
+        bool setterSawObserverFinish = false;
+        bool observerSawFlagSet = false;
 
         var setter = new Thread(() =>
         {
@@ -234,7 +249,7 @@ public sealed class ContentSignatureClassifierTests
             try
             {
                 flagIsSet.Set();
-                otherThreadDone.Wait(TimeSpan.FromSeconds(30));
+                setterSawObserverFinish = otherThreadDone.Wait(HandshakeTimeout);
             }
             finally
             {
@@ -246,7 +261,7 @@ public sealed class ContentSignatureClassifierTests
         {
             try
             {
-                flagIsSet.Wait(TimeSpan.FromSeconds(30));
+                observerSawFlagSet = flagIsSet.Wait(HandshakeTimeout);
                 ContentSignature signature = ContentSignatureClassifier.Classify(
                     Encoding.UTF8.GetBytes("theme=dark").AsSpan(),
                     new ContentSignatureOptions([@"C:\Users\Alice"]));
@@ -264,25 +279,125 @@ public sealed class ContentSignatureClassifierTests
 
         setter.Start();
         observer.Start();
-        Assert.True(observer.Join(TimeSpan.FromSeconds(30)), "observer thread did not finish");
-        Assert.True(setter.Join(TimeSpan.FromSeconds(30)), "setter thread did not finish");
+        Assert.True(observer.Join(HandshakeTimeout), "observer thread did not finish");
+        Assert.True(setter.Join(HandshakeTimeout), "setter thread did not finish");
 
         Assert.Null(otherThreadFailure);
+        Assert.True(observerSawFlagSet, "observer classified without waiting for the flag — ordering not established");
+        Assert.True(setterSawObserverFinish, "setter released the window before the observer finished");
         Assert.Equal(ContentProbeStatus.Complete, observedOnOtherThread);
     }
 
+    /// <summary>
+    /// The cache entry published for a profile-root key is reused by a later classification, and stays reused
+    /// while another thread classifies against a different root.
+    /// <para>
+    /// The claim is deliberately about the <i>published entry</i>, not about compiling exactly once.
+    /// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey,TValue}.GetOrAdd(TKey,System.Func{TKey,TValue})"/>
+    /// documents that its value factory may run more than once for one key under concurrency while only one
+    /// value is published; the extra build is discarded and every caller still receives the published instance.
+    /// A stronger exactly-once guarantee would need a <c>Lazy&lt;Regex&gt;</c> per key, which buys nothing here:
+    /// a duplicate build can only happen on a first-touch same-key race, costs one wasted compile, and cannot
+    /// produce two live instances. Reference identity is therefore the honest assertion, and the wording matches it.
+    /// </para>
+    /// <para>
+    /// Identity is asserted for this test's own key rather than by the size of the shared cache. The size cannot
+    /// carry the claim: the suite parallelises at xUnit collection level, so a concurrent <c>Classify</c> with a
+    /// different profile root inserts entries between the two reads. That is measured, not hypothesised — see
+    /// the commit that introduced this test. A per-key lookup is unaffected by any other key, so the
+    /// interference below is proof rather than a defect: the assert holds <i>because</i> the second
+    /// classification runs after a foreign insertion, on every run, with no timing luck.
+    /// </para>
+    /// <para>
+    /// Every timed wait is asserted, so a timeout fails the test instead of silently releasing a thread that was
+    /// supposed to stay blocked, and the ordering is observed <i>on the owner thread</i> — reading it after the
+    /// joins would only prove the foreign key exists eventually. There is no cache reset: clearing a
+    /// process-wide cache is itself hostile to the collections running alongside this one.
+    /// </para>
+    /// </summary>
     [Fact]
     public void Profile_root_regexes_are_cached_across_classifications()
     {
-        ContentSignatureClassifier.ResetProfileRootRegexCacheForTests();
+        const string OwnRoot = @"C:\Users\CacheIdentityProbe";
+        const string ForeignRoot = @"D:\Profiles\CacheIdentityInterferer";
+
+        // Every classification also adds the ambient user profile and C:\Users as candidates, so key uniqueness
+        // is not established by "no other test uses this literal" alone. On a host whose profile root equalled
+        // one of these, an unrelated classification could populate the key and the ordering check below would
+        // stop meaning anything. Refuse rather than silently degrade.
+        string ambientProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Assert.False(
+            OwnRoot.Equals(ambientProfile, StringComparison.OrdinalIgnoreCase)
+            || ForeignRoot.Equals(ambientProfile, StringComparison.OrdinalIgnoreCase),
+            $"a chosen root collides with this host's ambient profile root ({ambientProfile})");
+
+        using var firstClassificationDone = new ManualResetEventSlim(false);
+        using var interferenceDone = new ManualResetEventSlim(false);
         byte[] bytes = Encoding.UTF8.GetBytes("""{"theme":"dark"}""");
-        var options = new ContentSignatureOptions([@"C:\Users\Alice"]);
+        Regex? firstInstance = null;
+        Regex? secondInstance = null;
+        Regex? foreignInstanceSeenBeforeSecondClassification = null;
+        Exception? ownerFailure = null;
+        Exception? interfererFailure = null;
+        bool ownerSawInterference = false;
+        bool interfererSawFirstClassification = false;
 
-        _ = ContentSignatureClassifier.Classify(bytes.AsSpan(), options);
-        int firstCount = ContentSignatureClassifier.ProfileRootRegexCacheCountForTests;
-        _ = ContentSignatureClassifier.Classify(bytes.AsSpan(), options);
+        var owner = new Thread(() =>
+        {
+            try
+            {
+                _ = ContentSignatureClassifier.Classify(bytes.AsSpan(), new ContentSignatureOptions([OwnRoot]));
+                firstInstance = ContentSignatureClassifier.PeekProfileRootRegexForTests(OwnRoot, jsonEscapedBackslashes: false);
+                firstClassificationDone.Set();
 
-        Assert.True(firstCount > 0);
-        Assert.Equal(firstCount, ContentSignatureClassifier.ProfileRootRegexCacheCountForTests);
+                ownerSawInterference = interferenceDone.Wait(HandshakeTimeout);
+
+                // Observed here, before the second classification, not after the joins: the claim is that the
+                // foreign insertion had already happened, and only this thread can witness that ordering.
+                foreignInstanceSeenBeforeSecondClassification =
+                    ContentSignatureClassifier.PeekProfileRootRegexForTests(ForeignRoot, jsonEscapedBackslashes: false);
+
+                _ = ContentSignatureClassifier.Classify(bytes.AsSpan(), new ContentSignatureOptions([OwnRoot]));
+                secondInstance = ContentSignatureClassifier.PeekProfileRootRegexForTests(OwnRoot, jsonEscapedBackslashes: false);
+            }
+            catch (Exception ex)
+            {
+                ownerFailure = ex;
+            }
+        });
+
+        var interferer = new Thread(() =>
+        {
+            try
+            {
+                interfererSawFirstClassification = firstClassificationDone.Wait(HandshakeTimeout);
+                _ = ContentSignatureClassifier.Classify(bytes.AsSpan(), new ContentSignatureOptions([ForeignRoot]));
+            }
+            catch (Exception ex)
+            {
+                interfererFailure = ex;
+            }
+            finally
+            {
+                interferenceDone.Set();
+            }
+        });
+
+        owner.Start();
+        interferer.Start();
+        Assert.True(owner.Join(HandshakeTimeout), "owner thread did not finish");
+        Assert.True(interferer.Join(HandshakeTimeout), "interferer thread did not finish");
+
+        Assert.Null(ownerFailure);
+        Assert.Null(interfererFailure);
+
+        // The arrangement must not be vacuous. Without these three, the test would still pass if the interferer
+        // never ran, and would then assert caching with no concurrency at all.
+        Assert.True(interfererSawFirstClassification, "interferer classified before the owner's first classification");
+        Assert.True(ownerSawInterference, "owner reclassified before the interference completed");
+        Assert.NotNull(foreignInstanceSeenBeforeSecondClassification);
+
+        Assert.NotNull(firstInstance);
+        Assert.Same(firstInstance, secondInstance);
     }
 }

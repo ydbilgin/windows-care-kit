@@ -336,9 +336,17 @@ public static partial class ContentSignatureClassifier
     [GeneratedRegex(@"(?i:[a-z]:(?:\\|/)users(?:\\|/)[^\\/""']+(?:\\|/))", RegexOptions.CultureInvariant)]
     private static partial Regex GenericAbsoluteProfilePathRegex();
 
-    internal static int ProfileRootRegexCacheCountForTests => ProfileRootRegexCache.Count;
-
-    internal static void ResetProfileRootRegexCacheForTests() => ProfileRootRegexCache.Clear();
+    /// <summary>
+    /// Returns the cached profile-root regex for one key, or <see langword="null"/> when that key has not been
+    /// compiled. <b>Scoped to a single key on purpose.</b> The earlier seams — a whole-cache <c>Count</c> and a
+    /// whole-cache <c>Clear</c> — could not express the caching claim without reading state that every other
+    /// thread also writes: the suite parallelises at xUnit collection level, so a concurrent <c>Classify</c>
+    /// with a different profile root inserts entries between a test's two count reads, and the <c>Clear</c> was
+    /// hostile to whichever collection happened to be classifying. A per-key lookup is unaffected by any other
+    /// key, which makes the caching test immune by construction rather than by luck.
+    /// </summary>
+    internal static Regex? PeekProfileRootRegexForTests(string root, bool jsonEscapedBackslashes)
+        => ProfileRootRegexCache.TryGetValue((root, jsonEscapedBackslashes), out Regex? cached) ? cached : null;
 
     /// <summary>
     /// Test seam that forces the profile-root match to time out. <b>Thread-confined on purpose.</b>
