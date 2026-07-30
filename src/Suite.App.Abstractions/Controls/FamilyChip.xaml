@@ -1,0 +1,59 @@
+<UserControl x:Class="WindowsCareKit.App.Controls.FamilyChip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:WindowsCareKit.App.Controls">
+    <!-- The ONE visual definition of a chip in this design system (SPEC §3 M1). RiskChip, HealthChip and
+         StatePill are thin wrappers that decide family + glyph + text and delegate the pixels here, so the
+         family-to-token mapping exists exactly once (P06). Every family carries a Fluent GLYPH as well as
+         TEXT — colour alone never states meaning, which is what keeps the chip readable in High Contrast and
+         for a colour-blind reader (decision §2.5-11).
+         Font size/weight are inherited from the host wrapper rather than frozen here, so a one-word grade
+         chip and a wrapping one-sentence health note can share this primitive without either being typeset
+         at the other's scale. -->
+    <Border x:Name="ChipRoot" CornerRadius="999" BorderThickness="1" Padding="7,2"
+            VerticalAlignment="Center"
+            HorizontalAlignment="{Binding HorizontalContentAlignment, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}">
+        <Border.Style>
+            <Style TargetType="Border">
+                <!-- Neutral is the default so a chip that somehow loses its family degrades to the calm,
+                     non-claiming family rather than to emerald ("safe") or red ("irreversible"). -->
+                <Setter Property="Background" Value="{DynamicResource Wck.Info.Wash}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Wck.Info.Border}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource Wck.Info.Fg}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Family, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                                 Value="Reversible">
+                        <Setter Property="Background" Value="{DynamicResource Backup.OkWash}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Backup.OkBorder}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Backup.OkFg}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Family, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                                 Value="Attention">
+                        <Setter Property="Background" Value="{DynamicResource Wck.Attention.Wash}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Wck.Attention.Border}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Wck.Attention.Fg}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Family, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                                 Value="Irreversible">
+                        <Setter Property="Background" Value="{DynamicResource Backup.Row.Danger}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Backup.DangerBorder}" />
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Backup.DangerStrong}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+
+        <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="ChipGlyph"
+                       Text="{Binding Glyph, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                       VerticalAlignment="Top" Margin="0,1,5,0" />
+            <!-- Wrapping, never trimming, when the host asks for it: a health note is a sentence, and
+                 silently ellipsizing an honesty note hides content with no other route to it. -->
+            <TextBlock x:Name="ChipText"
+                       Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                       TextWrapping="{Binding TextWrapping, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+    </Border>
+</UserControl>

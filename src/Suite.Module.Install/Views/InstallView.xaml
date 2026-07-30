@@ -1,6 +1,7 @@
 <UserControl x:Class="WindowsCareKit.Module.Install.Views.InstallView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls;assembly=Suite.App.Abstractions"
              xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions">
     <!-- Restyled to the emerald evidence-row language (2026-07 UI rollout): Backup.* tokens, two-tier rows,
          a DRY-RUN badge, and a right-rail summary whose counts PROJECT the live PlanRows/ManualChecklist/
@@ -94,11 +95,11 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Background="{Binding RiskBrush}" BorderBrush="{Binding RiskBrush}"
                             BorderThickness="1" CornerRadius="999" Padding="7,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10" FontWeight="Bold" />
+                        <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Wck.Chip.Ink}" FontSize="10" FontWeight="Bold" />
                     </Border>
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
-                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontFamily="{DynamicResource Wck.Mono}"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource InstallMetaText}" Margin="0,3,0,0"
                                    Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
@@ -140,9 +141,8 @@
             <TextBlock x:Name="InstallManifestInfoNoteText" Text="{Binding ManifestInfoNote}"
                        Foreground="{DynamicResource Backup.Muted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0"
                        Visibility="{Binding ManifestInfoNote, Converter={StaticResource NonEmptyToVis}}" />
-            <TextBlock x:Name="InstallManifestHealthNoteText" Text="{Binding ManifestHealthNote}"
-                       Foreground="{DynamicResource Backup.DangerStrong}" FontSize="11.5" FontWeight="SemiBold"
-                       TextWrapping="Wrap" Margin="0,8,0,0"
+            <controls:HealthChip x:Name="InstallManifestHealthNoteText" Text="{Binding ManifestHealthNote}"
+                       HorizontalAlignment="Stretch" Margin="0,8,0,0"
                        Visibility="{Binding ManifestHealthNote, Converter={StaticResource NonEmptyToVis}}" />
             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                 <Button Style="{StaticResource InstallSecondaryButton}" Content="{Binding I18n[install.loadManifest]}"

@@ -1545,14 +1545,34 @@ public sealed class ViewRenderSmokeTests
     /// (not by scanning for matching text, which a Collapsed duplicate could also satisfy) and assert it is
     /// genuinely visible: <see cref="Visibility.Visible"/> AND a non-zero rendered height/bounds after
     /// <c>UpdateLayout</c> — a Collapsed or out-of-layout element fails Measure/Arrange and cannot pass this.</summary>
+    /// <summary>M1 (2026-07-31): widened to accept a <see cref="HealthChip"/> as well as a bare
+    /// <see cref="TextBlock"/>, because the partial-data notes moved off the red family and into the amber
+    /// chip. The assertions are unchanged in strength — exact text, genuinely Visible, non-zero rendered
+    /// height — and the resolver REJECTS any other element type rather than skipping, so replacing a note
+    /// with something unassertable is a failure, not a silent pass.</summary>
     private static void AssertHealthNoteVisible(FrameworkElement view, string elementName, string expectedText)
     {
-        var block = Assert.IsType<TextBlock>(view.FindName(elementName));
-        Assert.Equal(expectedText, block.Text);
-        Assert.Equal(Visibility.Visible, block.Visibility);
-        Assert.True(block.ActualHeight > 0 || block.RenderSize.Height > 0,
-            $"{elementName} claimed Visible but had zero rendered height.");
+        (string text, Visibility visibility, double height) = HealthNote(view, elementName);
+        Assert.Equal(expectedText, text);
+        Assert.Equal(Visibility.Visible, visibility);
+        Assert.True(height > 0, $"{elementName} claimed Visible but had zero rendered height.");
     }
+
+    /// <summary>Resolves a named health note to its text, visibility and rendered height, whichever of the two
+    /// sanctioned presentations it uses.</summary>
+    private static (string Text, Visibility Visibility, double Height) HealthNote(
+        FrameworkElement view, string elementName)
+        => view.FindName(elementName) switch
+        {
+            TextBlock block =>
+                (block.Text, block.Visibility, Math.Max(block.ActualHeight, block.RenderSize.Height)),
+            HealthChip chip =>
+                (chip.Text, chip.Visibility, Math.Max(chip.ActualHeight, chip.RenderSize.Height)),
+            null => throw new Xunit.Sdk.XunitException(
+                $"'{elementName}' was not found in the rendered view."),
+            var other => throw new Xunit.Sdk.XunitException(
+                $"'{elementName}' is a {other.GetType().Name}; a health note must be a TextBlock or a HealthChip."),
+        };
 
     /// <summary>NEW-07 MAJOR-02 fix: the healthy-path counterpart — asserts the same named health-note
     /// TextBlock is <see cref="Visibility.Collapsed"/> (no caution text shown) when its source is Complete.
@@ -1561,8 +1581,8 @@ public sealed class ViewRenderSmokeTests
     /// its presence does.</summary>
     private static void AssertHealthNoteCollapsed(FrameworkElement view, string elementName)
     {
-        var block = Assert.IsType<TextBlock>(view.FindName(elementName));
-        Assert.Equal(Visibility.Collapsed, block.Visibility);
+        (_, Visibility visibility, _) = HealthNote(view, elementName);
+        Assert.Equal(Visibility.Collapsed, visibility);
     }
 
     private static void AssertVisibleRowText(IEnumerable<TextBlock> blocks, string expectedText)

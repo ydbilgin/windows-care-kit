@@ -145,11 +145,11 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Background="{Binding RiskBrush}" BorderBrush="{Binding RiskBrush}"
                             BorderThickness="1" CornerRadius="999" Padding="7,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10" FontWeight="Bold" />
+                        <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Wck.Chip.Ink}" FontSize="10" FontWeight="Bold" />
                     </Border>
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
-                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontFamily="{DynamicResource Wck.Mono}"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource RestoreMetaText}" Margin="0,3,0,0"
                                    TextWrapping="Wrap"
@@ -202,7 +202,7 @@
                         <TextBox Grid.Column="0" VerticalContentAlignment="Center" Padding="10,8"
                                   Background="{DynamicResource Backup.Card}" Foreground="{DynamicResource Backup.Ink}"
                                   BorderBrush="{DynamicResource Backup.LineStrong}" BorderThickness="1"
-                                  FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12.5"
+                                  FontFamily="{DynamicResource Wck.Mono}" FontSize="12.5"
                                   IsEnabled="{Binding CanEditDirectories}"
                                   Text="{Binding PackageDir, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Grid.Column="1" Margin="9,0,0,0" Style="{StaticResource RestoreSecondaryButton}"
@@ -217,7 +217,7 @@
                     <TextBox VerticalContentAlignment="Center" Padding="10,8"
                              Background="{DynamicResource Backup.Card}" Foreground="{DynamicResource Backup.Ink}"
                              BorderBrush="{DynamicResource Backup.LineStrong}" BorderThickness="1"
-                             FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12.5"
+                             FontFamily="{DynamicResource Wck.Mono}" FontSize="12.5"
                              IsEnabled="{Binding CanEditDirectories}"
                              Text="{Binding StateDir, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Text="{Binding StateFilePath}" Style="{StaticResource RestoreMetaText}" Margin="0,4,0,0" />
@@ -419,7 +419,7 @@
                     <Border Background="{DynamicResource Backup.PathBg}" BorderBrush="{DynamicResource Backup.Line}"
                             BorderThickness="1" CornerRadius="6" Padding="9,7">
                         <TextBlock Text="{Binding PackageDir}" Foreground="{DynamicResource Backup.Ink}"
-                                   FontFamily="Cascadia Code, Consolas, Courier New" FontSize="11.5" TextWrapping="Wrap" />
+                                   FontFamily="{DynamicResource Wck.Mono}" FontSize="11.5" TextWrapping="Wrap" />
                     </Border>
                 </StackPanel>
             </Border>

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using WindowsCareKit.App.Localization;
@@ -73,6 +72,13 @@ public sealed class ThemeTests
             ["Wck.Rail.Accent"] = "#7FDCAE",
             ["Wck.Rail.Text"] = "#E9EDF3",
             ["Wck.Rail.Quiet"] = "#727C8C",
+            ["Wck.Info.Fg"] = "#9AB1C7",
+            ["Wck.Info.Wash"] = "#171E27",
+            ["Wck.Info.Border"] = "#2C3A49",
+            ["Wck.Attention.Fg"] = "#E5C76B",
+            ["Wck.Attention.Wash"] = "#2B2413",
+            ["Wck.Attention.Border"] = "#57491F",
+            ["Wck.Chip.Ink"] = "#181410",
             ["Brand.Mark.Start"] = "#3BD598",
             ["Brand.Mark.End"] = "#1F9464",
             ["Backup.Backdrop"] = "#0A0D12",
@@ -155,6 +161,48 @@ public sealed class ThemeTests
         AssertContrast(palette, "Gold", "Bg.Status.Warn", 4.5);
         AssertContrast(palette, "Danger", "Bg.Status.Bad", 4.5);
         AssertContrast(palette, "Code.Fg", "Code.Bg", 4.5);
+
+        // M1 chip families. A chip's own label sits on its own wash, so that is the pair that decides whether
+        // the chip is readable at all; the window pairing covers the same ink used as plain caption text.
+        AssertContrast(palette, "Wck.Info.Fg", "Wck.Info.Wash", 4.5);
+        AssertContrast(palette, "Wck.Info.Fg", "Bg.Window", 4.5);
+        AssertContrast(palette, "Wck.Attention.Fg", "Wck.Attention.Wash", 4.5);
+        AssertContrast(palette, "Wck.Attention.Fg", "Bg.Window", 4.5);
+    }
+
+    /// <summary>Dark had no contrast floor at all before M1 — the light theme was gated and the dark theme was
+    /// taken on trust. This does not backfill the whole palette (that would be a separate, larger change); it
+    /// gates the two families M1 introduces, so the new tokens cannot be the ones that ship unreadable.</summary>
+    [Fact]
+    public void Strongbox_chip_families_meet_contrast_floor()
+    {
+        Dictionary<string, string> palette = LoadThemeColors(StrongboxPath);
+
+        AssertContrast(palette, "Wck.Info.Fg", "Wck.Info.Wash", 4.5);
+        AssertContrast(palette, "Wck.Info.Fg", "Bg.Window", 4.5);
+        AssertContrast(palette, "Wck.Attention.Fg", "Wck.Attention.Wash", 4.5);
+        AssertContrast(palette, "Wck.Attention.Fg", "Bg.Window", 4.5);
+    }
+
+    /// <summary>
+    /// <c>Wck.Attention.*</c> re-keys the <c>Backup.Med*</c> values rather than inventing a colour, and both
+    /// keys must ship until the four out-of-scope screens migrate. The theme dictionary format forces the hex
+    /// to be written twice (a <c>{StaticResource}</c> indirection would defeat the frozen-baseline assertion
+    /// above, which reads literal hex), so this test is what keeps the duplication from becoming drift: edit
+    /// one and forget the other, and this goes red instead of the two families silently diverging.
+    /// It is deleted together with the <c>Backup.Med*</c> alias, not before.
+    /// </summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void Attention_family_stays_identical_to_its_Backup_alias(string themeName)
+    {
+        Dictionary<string, string> palette = LoadThemeColors(
+            themeName == "Strongbox" ? StrongboxPath : DaylightPath);
+
+        Assert.Equal(palette["Backup.MedFg"], palette["Wck.Attention.Fg"]);
+        Assert.Equal(palette["Backup.MedWash"], palette["Wck.Attention.Wash"]);
+        Assert.Equal(palette["Backup.MedBorder"], palette["Wck.Attention.Border"]);
     }
 
     [Fact]
@@ -363,32 +411,11 @@ public sealed class ThemeTests
 
     private static void AssertContrast(Dictionary<string, string> palette, string foregroundKey, string backgroundKey, double floor)
     {
-        double ratio = ContrastRatio(palette[foregroundKey], palette[backgroundKey]);
+        double ratio = Contrast.Ratio(palette[foregroundKey], palette[backgroundKey]);
         Assert.True(
             ratio >= floor,
             $"{foregroundKey} on {backgroundKey} contrast was {ratio:F2}:1, below {floor:F1}:1.");
     }
-
-    private static double ContrastRatio(string foreground, string background)
-    {
-        double fg = RelativeLuminance(foreground);
-        double bg = RelativeLuminance(background);
-        double lighter = Math.Max(fg, bg);
-        double darker = Math.Min(fg, bg);
-        return (lighter + 0.05) / (darker + 0.05);
-    }
-
-    private static double RelativeLuminance(string hex)
-    {
-        string rgb = hex.Length == 9 ? hex[3..] : hex[1..];
-        double r = Linear(byte.Parse(rgb[0..2], NumberStyles.HexNumber, CultureInfo.InvariantCulture) / 255.0);
-        double g = Linear(byte.Parse(rgb[2..4], NumberStyles.HexNumber, CultureInfo.InvariantCulture) / 255.0);
-        double b = Linear(byte.Parse(rgb[4..6], NumberStyles.HexNumber, CultureInfo.InvariantCulture) / 255.0);
-        return (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
-    }
-
-    private static double Linear(double channel)
-        => channel <= 0.03928 ? channel / 12.92 : Math.Pow((channel + 0.055) / 1.055, 2.4);
 
     private sealed class RecordingThemeService : IThemeService
     {

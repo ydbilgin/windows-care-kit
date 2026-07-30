@@ -1,0 +1,13 @@
+<UserControl x:Class="WindowsCareKit.App.Controls.StatePill"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:WindowsCareKit.App.Controls">
+    <!-- Machine state of the screen (PREVIEW / RUNNING / DONE), beside the H1.
+         Neutral-info in EVERY state, never emerald — emerald states a capability (reversible, verified
+         success) or marks the primary action; it never captions state or safety (decision §2.4, §2.1). The
+         glyph changes with the state so the pill is readable without colour at all. -->
+    <ctl:FamilyChip FontSize="10.5" FontWeight="Bold"
+                    Family="Neutral"
+                    Glyph="{Binding Glyph, RelativeSource={RelativeSource AncestorType=ctl:StatePill}}"
+                    Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ctl:StatePill}}" />
+</UserControl>

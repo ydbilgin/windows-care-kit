@@ -119,11 +119,11 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Background="{Binding RiskBrush}" BorderBrush="{Binding RiskBrush}"
                             BorderThickness="1" CornerRadius="999" Padding="7,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10" FontWeight="Bold" />
+                        <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Wck.Chip.Ink}" FontSize="10" FontWeight="Bold" />
                     </Border>
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
-                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontFamily="{DynamicResource Wck.Mono}"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource GateMetaText}" Margin="0,3,0,0"
                                    Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
@@ -216,7 +216,7 @@
                         <TextBox x:Name="TypeBox" Margin="0,8,0,0" Padding="10,7" VerticalContentAlignment="Center"
                                  Background="{DynamicResource Backup.Card}" Foreground="{DynamicResource Backup.Ink}"
                                  BorderBrush="{DynamicResource Backup.DangerBorder}" BorderThickness="1"
-                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontFamily="{DynamicResource Wck.Mono}"
                                  Text="{Binding TypedConfirm, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Border>

@@ -1,0 +1,15 @@
+<UserControl x:Class="WindowsCareKit.App.Controls.HealthChip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:WindowsCareKit.App.Controls">
+    <!-- Per-source degraded-read note (decision §2.1). Fixed to the AMBER attention family: "some of this
+         could not be read" is attention, not irreversibility, and rendering it red spends the colour that is
+         reserved for irreversible/blocked/failed. Restyling this note is allowed; removing it is not
+         (honesty invariant §4-5), which is why the control has no "hide" mode — the caller collapses it.
+         Stretch + Wrap: the note is a sentence, so it must reflow rather than be clipped or ellipsized. -->
+    <ctl:FamilyChip FontSize="11.5" FontWeight="SemiBold"
+                    HorizontalContentAlignment="Stretch" TextWrapping="Wrap"
+                    Family="Attention"
+                    Glyph="{x:Static ctl:ChipGlyphs.Warning}"
+                    Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ctl:HealthChip}}" />
+</UserControl>

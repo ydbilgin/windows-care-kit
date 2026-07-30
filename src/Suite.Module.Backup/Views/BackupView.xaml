@@ -1,6 +1,7 @@
 <UserControl x:Class="WindowsCareKit.Module.Backup.Views.BackupView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls;assembly=Suite.App.Abstractions"
              xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -214,7 +215,7 @@
                         <Border Grid.Column="0" Background="{Binding RiskBrush}"
                                 BorderBrush="{Binding RiskBrush}" BorderThickness="1"
                                 CornerRadius="999" Padding="7,2" Margin="0,1,9,0" VerticalAlignment="Top">
-                            <TextBlock Text="{Binding RiskText}" Foreground="#181410"
+                            <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Wck.Chip.Ink}"
                                        FontSize="10" FontWeight="Bold" />
                         </Border>
                         <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
@@ -338,7 +339,7 @@
                          Foreground="{DynamicResource Backup.Ink}"
                          BorderBrush="{DynamicResource Backup.LineStrong}"
                          BorderThickness="1"
-                         FontFamily="Cascadia Code, Consolas, Courier New"
+                         FontFamily="{DynamicResource Wck.Mono}"
                          FontSize="12.5"
                          Padding="12,9"
                          VerticalContentAlignment="Center" />
@@ -355,9 +356,8 @@
             <TextBlock x:Name="BackupManifestInfoNoteText" Text="{Binding ManifestInfoNote}"
                        Foreground="{DynamicResource Backup.Muted}" FontSize="11.5" TextWrapping="Wrap" Margin="0,6,0,0"
                        Visibility="{Binding ManifestInfoNote, Converter={StaticResource NonEmptyToVis}}" />
-            <TextBlock x:Name="BackupManifestHealthNoteText" Text="{Binding ManifestHealthNote}"
-                       Foreground="{DynamicResource Backup.DangerStrong}" FontSize="11.5" FontWeight="SemiBold"
-                       TextWrapping="Wrap" Margin="0,6,0,0"
+            <controls:HealthChip x:Name="BackupManifestHealthNoteText" Text="{Binding ManifestHealthNote}"
+                       HorizontalAlignment="Stretch" Margin="0,6,0,0"
                        Visibility="{Binding ManifestHealthNote, Converter={StaticResource NonEmptyToVis}}" />
 
             <Border Background="{DynamicResource Backup.EmWash}"
@@ -523,7 +523,7 @@
                             CornerRadius="6"
                             Padding="9,7">
                         <TextBlock Text="{Binding PayloadDir}" Foreground="{DynamicResource Backup.Ink}"
-                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontFamily="{DynamicResource Wck.Mono}"
                                    FontSize="11.5" TextWrapping="Wrap" />
                     </Border>
 

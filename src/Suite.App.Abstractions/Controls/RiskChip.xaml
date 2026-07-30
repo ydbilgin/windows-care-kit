@@ -1,0 +1,13 @@
+<UserControl x:Class="WindowsCareKit.App.Controls.RiskChip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:WindowsCareKit.App.Controls">
+    <!-- Risk/status pill on rows, tiers and sections. Colour carries the FAMILY, text carries the exact
+         grade word (decision §2.1) — so the chip never resolves a brush from a frozen per-risk hex, it asks
+         RiskChipFamilies for a family and lets FamilyChip resolve that family to THEME tokens. That is the
+         whole point of the control: it follows Light/Dark, where the legacy frozen palette could not. -->
+    <ctl:FamilyChip FontSize="10" FontWeight="Bold"
+                    Family="{Binding Family, RelativeSource={RelativeSource AncestorType=ctl:RiskChip}}"
+                    Glyph="{Binding Glyph, RelativeSource={RelativeSource AncestorType=ctl:RiskChip}}"
+                    Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ctl:RiskChip}}" />
+</UserControl>

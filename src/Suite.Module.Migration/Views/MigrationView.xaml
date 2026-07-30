@@ -176,11 +176,11 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Background="{Binding RiskBrush}" BorderBrush="{Binding RiskBrush}"
                             BorderThickness="1" CornerRadius="999" Padding="7,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="#181410" FontSize="10" FontWeight="Bold" />
+                        <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Wck.Chip.Ink}" FontSize="10" FontWeight="Bold" />
                     </Border>
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
-                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontFamily="{DynamicResource Wck.Mono}"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource MigrationMeta}" Margin="0,3,0,0"
                                    TextWrapping="Wrap"
@@ -421,7 +421,7 @@
                                                                                     <TextBlock Text="{Binding PartLabel}" Foreground="{DynamicResource Backup.Ink}" FontSize="12.5" />
                                                                                     <StackPanel Orientation="Horizontal">
                                                                                         <TextBlock Text="{Binding Candidate.SourcePath}" Style="{StaticResource MigrationMeta}"
-                                                                                                   FontFamily="Cascadia Code, Consolas, Courier New" TextWrapping="NoWrap" />
+                                                                                                   FontFamily="{DynamicResource Wck.Mono}" TextWrapping="NoWrap" />
                                                                                         <TextBlock Text="{Binding SizeText}" Style="{StaticResource MigrationMeta}" Margin="8,0,0,0"
                                                                                                    Visibility="{Binding SizeText, Converter={StaticResource NonEmptyToVis}}" />
                                                                                     </StackPanel>
@@ -456,7 +456,7 @@
                         <ItemsControl ItemsSource="{Binding CommandPreview}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding}" FontFamily="Cascadia Code, Consolas, Courier New" FontSize="11.5"
+                                    <TextBlock Text="{Binding}" FontFamily="{DynamicResource Wck.Mono}" FontSize="11.5"
                                                Foreground="{DynamicResource Code.Fg}" Background="{DynamicResource Code.Bg}" Padding="10,7"
                                                TextWrapping="Wrap" Margin="0,0,0,5" />
                                 </DataTemplate>
@@ -508,7 +508,7 @@
                                      IsEnabled="{Binding CanEditDirectories}"
                                      Background="{DynamicResource Backup.Card}" Foreground="{DynamicResource Backup.Ink}"
                                      BorderBrush="{DynamicResource Backup.LineStrong}" BorderThickness="1"
-                                     FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12.5"
+                                     FontFamily="{DynamicResource Wck.Mono}" FontSize="12.5"
                                      Text="{Binding PackageDir, UpdateSourceTrigger=PropertyChanged}" />
                             <Button Grid.Column="1" Margin="9,0,0,0" Style="{StaticResource MigrationSecondaryButton}"
                                     IsEnabled="{Binding CanEditDirectories}"

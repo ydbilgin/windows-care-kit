@@ -1,0 +1,36 @@
+<UserControl x:Class="WindowsCareKit.App.Controls.UndoLine"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:WindowsCareKit.App.Controls">
+    <!-- The per-row recovery statement (decision §2.1 UndoLine). Present on every destructive row INCLUDING
+         when there is no recovery — "undo: none — permanent" is the honest case, and it renders in MUTED ink:
+         never emerald (which would read as reassurance) and never shouting red (the row's own RiskChip
+         already carries the irreversibility). This is a text line, not a pill, so it sets a foreground only. -->
+    <StackPanel Orientation="Horizontal">
+        <StackPanel.Style>
+            <Style TargetType="StackPanel">
+                <!-- Muted is the default AND the UndoCapability.None case. A recovery line that lost its
+                     binding must never fall back to a colour that promises recoverability. -->
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource Backup.Faint}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Family, RelativeSource={RelativeSource AncestorType=ctl:UndoLine}}"
+                                 Value="Reversible">
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Backup.OkFg}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Family, RelativeSource={RelativeSource AncestorType=ctl:UndoLine}}"
+                                 Value="Attention">
+                        <Setter Property="TextElement.Foreground" Value="{DynamicResource Wck.Attention.Fg}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </StackPanel.Style>
+
+        <TextBlock x:Name="UndoGlyph"
+                   Text="{Binding Glyph, RelativeSource={RelativeSource AncestorType=ctl:UndoLine}}"
+                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                   FontSize="10.5" VerticalAlignment="Top" Margin="0,1,5,0" />
+        <TextBlock x:Name="UndoText"
+                   Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ctl:UndoLine}}"
+                   FontSize="11.5" TextWrapping="Wrap" VerticalAlignment="Center" />
+    </StackPanel>
+</UserControl>

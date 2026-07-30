@@ -55,6 +55,28 @@
     <SolidColorBrush x:Key="Wck.Rail.Accent" Color="#7FDCAE" />
     <SolidColorBrush x:Key="Wck.Rail.Text" Color="#E9EDF3" />
     <SolidColorBrush x:Key="Wck.Rail.Quiet" Color="#727C8C" />
+    <!-- Neutral state family (StatePill, Desktop/Store chips, "Preview only"). New in the v2 redesign:
+         emerald states a CAPABILITY (reversible, verified success) or marks the primary action, so it must
+         never caption machine state or safety. -->
+    <SolidColorBrush x:Key="Wck.Info.Fg" Color="#9AB1C7" />
+    <SolidColorBrush x:Key="Wck.Info.Wash" Color="#171E27" />
+    <SolidColorBrush x:Key="Wck.Info.Border" Color="#2C3A49" />
+    <!-- Amber attention family: partial data and Medium/High risk are ATTENTION, not irreversibility. These
+         carry the Backup.Med* values by contract rather than a new colour. Backup.Med* survives as the alias
+         until the out-of-scope screens migrate, so the two keys must move together — ThemeTests pins the pair
+         in both themes, which is what keeps this duplication from becoming drift. -->
+    <SolidColorBrush x:Key="Wck.Attention.Fg" Color="#E5C76B" />
+    <SolidColorBrush x:Key="Wck.Attention.Wash" Color="#2B2413" />
+    <SolidColorBrush x:Key="Wck.Attention.Border" Color="#57491F" />
+    <!-- Ink for the LEGACY solid-filled risk chip, whose fill is still the theme-blind frozen RiskVisuals
+         palette. Deliberately the same near-black in BOTH themes: those five pastels stay light in Dark mode,
+         so a theme-following ink would invert the contrast. It becomes theme ink only in the commit that
+         deletes RiskVisuals; ChipInkTests pins the floor against every pastel meanwhile. -->
+    <SolidColorBrush x:Key="Wck.Chip.Ink" Color="#181410" />
+    <!-- Cascadia MONO, never the ligature-carrying variant: ligatures visually rewrite literal text (-> becomes an
+         arrow), and a tool whose promise is "the literal path, glyph for glyph" must not typeset paths with
+         ligatures. One definition; every mono site consumes it. -->
+    <FontFamily x:Key="Wck.Mono">Cascadia Mono, Consolas</FontFamily>
     <sys:Double x:Key="Opacity.Disabled.Button">0.45</sys:Double>
     <Color x:Key="Brand.Mark.Start">#3BD598</Color>
     <Color x:Key="Brand.Mark.End">#1F9464</Color>
@@ -174,7 +196,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#2A251D" />
+                            <Setter Property="Background" Value="{StaticResource Bg.Gold.Subtle}" />
                             <Setter Property="Foreground" Value="{StaticResource Gold.Bright}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -414,15 +436,15 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
                     <Border x:Name="Bd" Background="Transparent" BorderThickness="0,0,0,1"
-                            BorderBrush="#211D17" Padding="{TemplateBinding Padding}">
+                            BorderBrush="{StaticResource Border.Soft}" Padding="{TemplateBinding Padding}">
                         <ContentPresenter />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#211D17" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Bg.Row.Hover}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#2E2614" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Bg.Row.Selected}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
