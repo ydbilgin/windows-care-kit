@@ -49,6 +49,9 @@ public sealed class PlanRow : ObservableObject
     private readonly string? _litDetail;
     private readonly bool _litElevated;
 
+    private readonly bool _vetoRequested;
+    private bool _isIncluded;
+
     /// <summary>Legacy literal path: object-initializer callers set the required members directly.</summary>
     public PlanRow() { }
 
@@ -80,8 +83,77 @@ public sealed class PlanRow : ObservableObject
         init => _litElevated = value;
     }
 
-    public static PlanRow FromAction(PlannedAction a, I18n? i18n = null)
-        => FromAction(a, isWholeTree: false, i18n);
+    /// <summary>The action this row previews, or null on the legacy literal path (object-initializer callers,
+    /// which carry rendered text only). <see cref="PlanSelection.Subset"/> can only honour a veto for a row that
+    /// names its action, so a null here means the row contributes nothing to a subset.</summary>
+    public PlannedAction? Action => _action;
+
+    /// <summary>
+    /// True when the engine executes at this row's granularity and the row may therefore carry a veto control.
+    /// False for display-only rows: skipped rows, legacy literal rows, and any row that cannot name its
+    /// <see cref="Action"/>. The view binds a checkbox if and only if this is true — a disabled checkbox still
+    /// says "this is a choice", so a non-vetoable row renders a Required lock badge instead (spec §2.1 rule 2).
+    /// <para>
+    /// The getter, not the initializer, enforces the invariant, so it holds whatever order an object initializer
+    /// assigns in: a row with no action or a skip reason can never report itself vetoable, and a caller that asks
+    /// for a veto it cannot honour gets a row the view will not put a checkbox on — rather than a checkbox the
+    /// engine ignores, which is the defect spec §1.1 exists to prevent.
+    /// </para>
+    /// </summary>
+    public bool IsVetoable
+    {
+        get => _vetoRequested && Action is not null && !IsSkipped;
+        init => _vetoRequested = value;
+    }
+
+    /// <summary>
+    /// User inclusion for the veto checkbox. Meaningful only when <see cref="IsVetoable"/> is true; setting it on
+    /// any other row throws, because silently accepting the write would record a choice nothing downstream can
+    /// act on. Reading a non-vetoable row is safe and always returns false — <see cref="PlanSelection.Subset"/>
+    /// retains such rows on the strength of <see cref="IsVetoable"/> alone, never this value.
+    /// </summary>
+    public bool IsIncluded
+    {
+        get => _isIncluded;
+        set
+        {
+            if (!IsVetoable)
+            {
+                throw new InvalidOperationException(
+                    "PlanRow.IsIncluded is only settable on a vetoable row. This row is display-only "
+                    + $"(Action={(Action is null ? "null" : Action.Kind)}, IsSkipped={IsSkipped}), so a veto "
+                    + "could not be honoured at execution time.");
+            }
+
+            SetField(ref _isIncluded, value);
+        }
+    }
+
+    /// <summary>
+    /// The row's TYPED recovery capability. <see cref="Undo"/> is a rendered, localized string and must never be
+    /// parsed — counting recovery is arithmetic over this value only (spec §1.2), which is why this is invariant
+    /// under a language switch.
+    /// <para>
+    /// It describes what recovering the ACTION would cost. A skipped row does not run at all, so a counter must
+    /// exclude it via <see cref="IsSkipped"/> rather than read a recovery promise into it. The legacy literal
+    /// path has no typed field to read, so it falls back to <see cref="UndoCapability.None"/> — the fail-safe
+    /// direction, since claiming recoverability the engine never promised is the more dangerous error.
+    /// </para>
+    /// </summary>
+    public UndoCapability Recovery => _action?.Undo ?? LegacyRecovery;
+
+    /// <summary>True when this row was built by <see cref="FromSkipped"/> — the action will NOT run.</summary>
+    public bool IsSkipped => _skipReason is not null || LegacySkipped;
+
+    /// <summary>Typed recovery captured by the legacy factory path, which renders text but keeps no action.
+    /// Defaults to <see cref="UndoCapability.None"/> so a bare object-initializer row promises nothing.</summary>
+    private UndoCapability LegacyRecovery { get; init; } = UndoCapability.None;
+
+    /// <summary>Skipped-ness for the legacy factory path, where <c>_skipReason</c> is not available.</summary>
+    private bool LegacySkipped { get; init; }
+
+    public static PlanRow FromAction(PlannedAction a, I18n? i18n = null, bool isVetoable = false)
+        => FromAction(a, isWholeTree: false, i18n: i18n, isVetoable: isVetoable);
 
     /// <summary>
     /// Same as <see cref="FromAction(PlannedAction)"/> but, when <paramref name="isWholeTree"/> is true (the
@@ -89,7 +161,7 @@ public sealed class PlanRow : ObservableObject
     /// "(whole-tree copy)" warning to the detail so the dry-run preview never hides a recursive copy behind one
     /// opaque row (L7). The directory probe is done by the caller off-thread; this method stays pure.
     /// </summary>
-    public static PlanRow FromAction(PlannedAction a, bool isWholeTree, I18n? i18n = null)
+    public static PlanRow FromAction(PlannedAction a, bool isWholeTree, I18n? i18n = null, bool isVetoable = false)
     {
         if (i18n is null)
         {
@@ -108,12 +180,18 @@ public sealed class PlanRow : ObservableObject
                 Undo = "undo: " + a.Undo,
                 Detail = finalDetail,
                 IsElevated = elevated,
+                LegacyRecovery = a.Undo,
             };
         }
 
-        return new PlanRow(a, isWholeTree && a is CopyAction, skipReason: null, i18n);
+        return new PlanRow(a, isWholeTree && a is CopyAction, skipReason: null, i18n)
+        {
+            IsVetoable = isVetoable,
+        };
     }
 
+    /// <summary>A row for an action that will NOT run. It is display-only on both paths: it takes no
+    /// <c>isVetoable</c> argument, so a skipped row is never vetoable (spec §2.1 rule 1).</summary>
     public static PlanRow FromSkipped(PlannedAction a, string reason, I18n? i18n = null)
     {
         if (i18n is null)
@@ -126,6 +204,8 @@ public sealed class PlanRow : ObservableObject
                 RiskBrush = RiskVisuals.For(RiskLevel.Critical),
                 Undo = string.Empty,
                 Detail = reason,
+                LegacyRecovery = a.Undo,
+                LegacySkipped = true,
             };
         }
 
