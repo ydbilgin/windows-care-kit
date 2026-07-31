@@ -102,7 +102,7 @@
         </Style>
 
         <!-- Dry-run row: two-tier (action line + quiet meta), monospace only for the action line (it IS the
-             literal path/command from PlannedAction.Describe). Risk chip binds RiskBrush/RiskText — unchanged. -->
+             literal path/command from PlannedAction.Describe). -->
         <DataTemplate x:Key="PlanRowTemplate">
             <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
                     BorderThickness="1" CornerRadius="8" Padding="11,9" Margin="0,0,0,6">
@@ -111,10 +111,9 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="{Binding RiskBrush}" BorderBrush="{Binding RiskBrush}"
-                            BorderThickness="1" CornerRadius="999" Padding="7,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Wck.Chip.Ink}" FontSize="10" FontWeight="Bold" />
-                    </Border>
+                    <controls:RiskChip Grid.Column="0" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
+                                       Text="{Binding RiskText}" FontSize="10" FontWeight="Bold"
+                                       VerticalAlignment="Top" Margin="0,1,10,0" />
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontFamily="{DynamicResource Wck.Mono}"

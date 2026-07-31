@@ -464,7 +464,7 @@ public sealed class RestoreViewModel : ObservableObject
         {
             Text = $"{skip.Target.RecipeId}: {skip.Target.RelativePath}",
             RiskText = I18n["migration.restore.status.skipped"],
-            RiskBrush = RiskVisuals.For(risk),
+            Risk = risk,
             Undo = string.Empty,
             Detail = $"{skip.Reason}: {LocalizedNote(RestoreSkipNotes.HumanNote(skip))}",
         };
@@ -484,7 +484,7 @@ public sealed class RestoreViewModel : ObservableObject
         {
             Text = string.IsNullOrWhiteSpace(entry.RecipeId) ? entry.Id : entry.RecipeId,
             RiskText = I18n[DispositionKey(entry.Disposition)],
-            RiskBrush = RiskVisuals.For(risk),
+            Risk = risk,
             Undo = string.Empty,
             Detail = $"{entry.Reason}: {LocalizedNote(entry.Note)}",
         };
@@ -497,7 +497,7 @@ public sealed class RestoreViewModel : ObservableObject
             {
                 Text = result.ActionId,
                 RiskText = result.Status.ToString(),
-                RiskBrush = RiskVisuals.For(RiskLevel.Info),
+                Risk = RiskLevel.Info,
                 Undo = string.Empty,
                 Detail = result.Detail,
             }
@@ -507,7 +507,7 @@ public sealed class RestoreViewModel : ObservableObject
         {
             Text = row.Text,
             RiskText = I18n[$"migration.restore.status.{result.Status}"],
-            RiskBrush = RiskVisuals.For(StatusRisk(result.Status)),
+            Risk = StatusRisk(result.Status),
             Undo = row.Undo,
             Detail = result.Detail,
             IsElevated = row.IsElevated,
@@ -518,7 +518,7 @@ public sealed class RestoreViewModel : ObservableObject
     {
         Text = rejected.Step.TargetPath,
         RiskText = I18n["migration.restore.status.rejected"],
-        RiskBrush = RiskVisuals.For(RiskLevel.Critical),
+        Risk = RiskLevel.Critical,
         Undo = string.Empty,
         Detail = rejected.Reason,
     };

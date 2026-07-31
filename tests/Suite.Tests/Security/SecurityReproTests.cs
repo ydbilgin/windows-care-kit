@@ -12,6 +12,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using WindowsCareKit.App.Controls;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Modules;
@@ -893,9 +894,9 @@ public sealed class SecurityReproPart2Tests
         }
     }
 
-    /// <summary>G6: production-style bindings follow a language switch while the risk color remains deferred.</summary>
+    /// <summary>G6: production-style bindings follow a language switch while chip color follows the theme.</summary>
     [Fact]
-    public void G6_plan_row_display_follows_language_switch_color_deferred()
+    public void G6_plan_row_display_follows_language_and_theme_switch()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -913,34 +914,39 @@ public sealed class SecurityReproPart2Tests
                 var host = new StackPanel();
                 host.Resources.MergedDictionaries.Add(LoadTheme("Strongbox"));
                 var actionText = BoundText(row, nameof(PlanRow.Text));
-                var riskText = BoundText(row, nameof(PlanRow.RiskText));
-                riskText.SetBinding(TextBlock.ForegroundProperty, new Binding(nameof(PlanRow.RiskBrush)));
+                var riskChip = new RiskChip { DataContext = row };
+                riskChip.SetBinding(RiskChip.RiskProperty, new Binding(nameof(PlanRow.Risk)));
+                riskChip.SetBinding(RiskChip.IsBlockedProperty, new Binding(nameof(PlanRow.IsSkipped)));
+                riskChip.SetBinding(RiskChip.TextProperty, new Binding(nameof(PlanRow.RiskText)));
                 var undoText = BoundText(row, nameof(PlanRow.Undo));
                 host.Children.Add(actionText);
-                host.Children.Add(riskText);
+                host.Children.Add(riskChip);
                 host.Children.Add(undoText);
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
 
+                FamilyChip familyChip = Assert.IsType<FamilyChip>(riskChip.Content);
+                Border chipRoot = Assert.IsType<Border>(familyChip.Content);
+
                 string beforeActionText = actionText.Text;
-                string beforeRiskText = riskText.Text;
+                string beforeRiskText = riskChip.Text;
                 string beforeUndoText = undoText.Text;
-                Color beforeDisplayedColor = Assert.IsType<SolidColorBrush>(riskText.Foreground).Color;
+                Color beforeDisplayedColor = Assert.IsType<SolidColorBrush>(chipRoot.Background).Color;
 
                 i18n.SelectedCulture = "tr";
                 host.Resources.MergedDictionaries[0] = LoadTheme("Daylight");
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
-                Color daylightMedium = Assert.IsType<SolidColorBrush>(host.FindResource("Backup.MedFg")).Color;
+                Color daylightAttention = Assert.IsType<SolidColorBrush>(host.FindResource("Wck.Attention.Wash")).Color;
 
                 Assert.Equal("tr", i18n.SelectedCulture);
                 Assert.NotEqual(beforeActionText, actionText.Text);
                 Assert.StartsWith("Kopyala: ", actionText.Text, StringComparison.Ordinal);
                 Assert.Contains("(tüm klasör kopyası)", row.Detail, StringComparison.Ordinal);
-                Assert.NotEqual(beforeRiskText, riskText.Text);
-                Assert.Equal("Orta", riskText.Text);
+                Assert.NotEqual(beforeRiskText, riskChip.Text);
+                Assert.Equal("Orta", riskChip.Text);
                 Assert.NotEqual(beforeUndoText, undoText.Text);
                 Assert.Equal("geri al: Kısmi", undoText.Text);
-                Assert.Equal(beforeDisplayedColor, Assert.IsType<SolidColorBrush>(riskText.Foreground).Color); // color deferred: frozen
-                Assert.NotEqual(daylightMedium, beforeDisplayedColor);
+                Assert.NotEqual(beforeDisplayedColor, Assert.IsType<SolidColorBrush>(chipRoot.Background).Color);
+                Assert.Equal(daylightAttention, Assert.IsType<SolidColorBrush>(chipRoot.Background).Color);
             }
             catch (Exception ex)
             {

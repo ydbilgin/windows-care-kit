@@ -1,6 +1,5 @@
-using System.Windows.Media;
+using System.Xml.Linq;
 using WindowsCareKit.App.Controls;
-using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Safety;
 using WindowsCareKit.Tests.TestInfra;
 using Xunit;
@@ -62,37 +61,27 @@ public sealed class ChipVocabularyTests
     public void Recovery_maps_to_its_ink_family(UndoCapability recovery, ChipFamily expected)
         => Assert.Equal(expected, RiskChipFamilies.For(recovery));
 
-    /// <summary>
-    /// The legacy solid-filled risk chip still paints <c>Wck.Chip.Ink</c> on the frozen, theme-blind
-    /// <see cref="RiskVisuals"/> pastels at eleven remaining XAML sites. Those pastels are LIGHT in both
-    /// themes, so the token must stay a dark ink in both — setting it to the theme ink would invert the
-    /// contrast in Strongbox and make every risk chip unreadable there while the whole suite stayed green.
-    /// <para>
-    /// The floor is 4.4:1, not 4.5:1, and that is a measured pre-existing fact rather than a rounded-down
-    /// target: <c>RiskVisuals.For(Info)</c> is #867C67, on which the shipped ink measures 4.44:1. This test
-    /// pins today's behaviour so it cannot get worse; the AA repair happens when the chip moves to
-    /// wash + border + coloured text and these pastels are deleted.
-    /// </para>
-    /// </summary>
-    [Theory]
-    [InlineData(RiskLevel.Info)]
-    [InlineData(RiskLevel.Low)]
-    [InlineData(RiskLevel.Medium)]
-    [InlineData(RiskLevel.High)]
-    [InlineData(RiskLevel.Critical)]
-    public void Chip_ink_still_reads_on_every_legacy_risk_pastel(RiskLevel risk)
+    /// <summary>Every family resolves to its shipped theme foreground and wash with WCAG AA text contrast.
+    /// The whole-enum sweep makes a newly added family fail until its token pair joins the vocabulary.</summary>
+    [Fact]
+    public void Every_chip_family_meets_AA_contrast_in_both_themes()
     {
-        const double measuredFloor = 4.4;
-        string pastel = ToHex(RiskVisuals.For(risk));
+        const double minimumRatio = 4.5;
 
         foreach (string themeName in new[] { "Strongbox", "Daylight" })
         {
-            string ink = ThemeColor(themeName, "Wck.Chip.Ink");
-            double ratio = Contrast.Ratio(ink, pastel);
-            Assert.True(
-                ratio >= measuredFloor,
-                $"{themeName} Wck.Chip.Ink ({ink}) on the frozen {risk} pastel ({pastel}) measured "
-                + $"{ratio:F2}:1, below the pinned {measuredFloor:F1}:1 floor.");
+            foreach (ChipFamily family in Enum.GetValues<ChipFamily>())
+            {
+                var (foregroundKey, washKey) = TokensFor(family);
+                string foreground = Assert.Single(ThemeColors(themeName, foregroundKey));
+                string[] washes = ThemeColors(themeName, washKey);
+                double ratio = washes.Min(wash => Contrast.Ratio(foreground, wash));
+
+                Assert.True(
+                    ratio >= minimumRatio,
+                    $"{themeName} {family} chip measured {ratio:F2}:1 ({foregroundKey} {foreground} on "
+                    + $"{washKey} {string.Join('/', washes)}), below the WCAG AA {minimumRatio:F1}:1 floor.");
+            }
         }
     }
 
@@ -116,24 +105,21 @@ public sealed class ChipVocabularyTests
     }
 
     /// <summary>
-    /// A2 / the chip-ink sweep, scoped to CALL SITES. The two theme dictionaries are excluded on purpose and
-    /// that exclusion is the finding, not a convenience: the token has to hold the near-black value for as
-    /// long as <see cref="RiskVisuals"/> ships (see the contrast test above), so the literal cannot reach zero
-    /// repo-wide until that deletion lands. What this guard does enforce is the part that is actually
-    /// achievable today and is the point of the sweep — that no VIEW hardcodes the ink.
+    /// A2 / the chip-ink sweep. No production source carries the retired chip-ink literal; every chip resolves
+    /// its foreground from its family's theme token.
     /// </summary>
     [Fact]
     public void No_view_hardcodes_the_chip_ink()
     {
+        const string retiredChipInk = "#" + "181410";
         string[] offenders = SourceFiles()
-            .Where(path => !IsThemeDictionary(path))
-            .Where(path => File.ReadAllText(path).Contains("#181410", StringComparison.OrdinalIgnoreCase))
+            .Where(path => File.ReadAllText(path).Contains(retiredChipInk, StringComparison.OrdinalIgnoreCase))
             .Select(path => Path.GetRelativePath(RepoRoot, path))
             .ToArray();
 
         Assert.True(
             offenders.Length == 0,
-            "The chip ink must be {DynamicResource Wck.Chip.Ink}, never a literal. Found in: "
+            "The retired chip-ink literal must not appear in src/. Found in: "
             + string.Join(", ", offenders));
     }
 
@@ -167,22 +153,28 @@ public sealed class ChipVocabularyTests
             + string.Join(", ", offenders));
     }
 
-    private static bool IsThemeDictionary(string path)
-        => Path.GetFileName(path) is "Daylight.xaml" or "Strongbox.xaml";
+    private static (string Foreground, string Wash) TokensFor(ChipFamily family) => family switch
+    {
+        ChipFamily.Neutral => ("Wck.Info.Fg", "Wck.Info.Wash"),
+        ChipFamily.Reversible => ("Backup.OkFg", "Backup.OkWash"),
+        ChipFamily.Attention => ("Wck.Attention.Fg", "Wck.Attention.Wash"),
+        ChipFamily.Irreversible => ("Backup.DangerStrong", "Backup.Row.Danger"),
+        _ => throw new ArgumentOutOfRangeException(nameof(family), family, "A chip family needs a theme token pair."),
+    };
 
-    private static string ThemeColor(string themeName, string key)
+    private static string[] ThemeColors(string themeName, string key)
     {
         string path = Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "Themes", themeName + ".xaml");
-        string marker = $"x:Key=\"{key}\"";
-        string line = File.ReadAllLines(path).Single(candidate => candidate.Contains(marker, StringComparison.Ordinal));
-        int start = line.IndexOf("Color=\"", StringComparison.Ordinal) + "Color=\"".Length;
-        return line[start..line.IndexOf('"', start)];
-    }
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement resource = XDocument.Load(path).Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Key") == key);
 
-    private static string ToHex(Brush brush)
-    {
-        Color color = Assert.IsType<SolidColorBrush>(brush).Color;
-        return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        return resource.DescendantsAndSelf()
+            .Select(element => (string?)element.Attribute("Color"))
+            .Where(color => color is not null)
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     /// <summary>Every hand-written source file under <c>src/</c>. Build output is excluded because it is a

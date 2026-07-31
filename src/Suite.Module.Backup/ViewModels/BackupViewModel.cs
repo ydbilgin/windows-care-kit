@@ -291,7 +291,7 @@ public sealed class BackupViewModel : ObservableObject
     {
         Text = string.IsNullOrWhiteSpace(e.Description) ? e.Id : e.Description,
         RiskText = "MANUAL",
-        RiskBrush = RiskVisuals.For(RiskLevel.High),
+        Risk = RiskLevel.High,
         Undo = string.Empty,
         Detail = e.UiWarning ?? I18n["backup.secret.manual"],
     };
@@ -300,7 +300,7 @@ public sealed class BackupViewModel : ObservableObject
     {
         Text = string.IsNullOrWhiteSpace(s.Entry.Description) ? s.Entry.Id : s.Entry.Description,
         RiskText = "SKIPPED",
-        RiskBrush = RiskVisuals.For(RiskLevel.Info),
+        Risk = RiskLevel.Info,
         Undo = string.Empty,
         Detail = s.Reason,
     };
@@ -309,7 +309,7 @@ public sealed class BackupViewModel : ObservableObject
     {
         Text = o.Source,
         RiskText = o.Copied ? "COPIED" : "SKIPPED",
-        RiskBrush = RiskVisuals.For(o.Copied ? RiskLevel.Low : RiskLevel.Critical),
+        Risk = o.Copied ? RiskLevel.Low : RiskLevel.Critical,
         Undo = string.Empty,
         Detail = o.Copied ? o.Destination : $"{o.Reason}: {o.Detail}",
     };

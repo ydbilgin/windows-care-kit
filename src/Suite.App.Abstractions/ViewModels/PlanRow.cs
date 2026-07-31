@@ -1,34 +1,11 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.Windows.Media;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
 using WindowsCareKit.Core.Planning;
 using WindowsCareKit.Core.Safety;
 
 namespace WindowsCareKit.App.ViewModels;
-
-/// <summary>Maps a <see cref="RiskLevel"/> to a brush from the Strongbox palette.</summary>
-public static class RiskVisuals
-{
-    private static readonly Dictionary<RiskLevel, Brush> Map = new()
-    {
-        [RiskLevel.Info] = Frozen("#867C67"),
-        [RiskLevel.Low] = Frozen("#94BE8C"),
-        [RiskLevel.Medium] = Frozen("#E6B25E"),
-        [RiskLevel.High] = Frozen("#E8B36B"),
-        [RiskLevel.Critical] = Frozen("#E08C8C"),
-    };
-
-    public static Brush For(RiskLevel level) => Map[level];
-
-    private static Brush Frozen(string hex)
-    {
-        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        brush.Freeze();
-        return brush;
-    }
-}
 
 /// <summary>
 /// What a <see cref="PlanRow"/> says about whether its action runs — ONE value, never a combination of
@@ -63,9 +40,8 @@ public enum RowSelection
 
 /// <summary>A single action shown in the dry-run preview. When constructed with an <see cref="I18n"/> it
 /// re-renders its text live on a language switch (finding G6). Without one it keeps the legacy frozen-English
-/// text so existing literal callers and the frozen Migration call site are unchanged. The risk-chip COLOR is
-/// intentionally still the frozen <see cref="RiskVisuals"/> palette on both paths — theme-following color is
-/// deferred to the visual-design track (see spec G6 scoping).</summary>
+/// text so existing literal callers and the frozen Migration call site are unchanged. It exposes the engine's
+/// typed risk and blockedness separately; the view resolves those facts through the shared chip vocabulary.</summary>
 public sealed class PlanRow : ObservableObject
 {
     private readonly PlannedAction? _action;
@@ -73,7 +49,7 @@ public sealed class PlanRow : ObservableObject
     private readonly string? _skipReason;
     private readonly I18n? _i18n;
 
-    private readonly Brush _riskBrush = RiskVisuals.For(RiskLevel.Info);
+    private readonly RiskLevel _risk = RiskLevel.Info;
     private readonly string _litText = string.Empty;
     private readonly string _litRiskText = string.Empty;
     private readonly string _litUndo = string.Empty;
@@ -102,17 +78,19 @@ public sealed class PlanRow : ObservableObject
             ? RowSelection.Blocked
             : vetoRequested ? RowSelection.OptionalExcluded : RowSelection.Required;
 
-        _riskBrush = RiskVisuals.For(skipReason is null ? action.Risk : RiskLevel.Critical);
+        _risk = action.Risk;
         Text = string.Empty;
         RiskText = string.Empty;
-        RiskBrush = _riskBrush;
+        Risk = _risk;
         Undo = string.Empty;
         PropertyChangedEventManager.AddHandler(i18n, OnLocalizationChanged, string.Empty);
     }
 
     public required string Text { get => _i18n is null ? _litText : DescribeText(); init => _litText = value; }
     public required string RiskText { get => _i18n is null ? _litRiskText : RiskName(); init => _litRiskText = value; }
-    public required Brush RiskBrush { get => _riskBrush; init => _riskBrush = value; }
+    /// <summary>The action's own risk. Blockedness is carried separately by <see cref="IsSkipped"/> so a
+    /// skipped row keeps its recoverable engine fact while the chip's blocked family still dominates.</summary>
+    public required RiskLevel Risk { get => _action?.Risk ?? _risk; init => _risk = value; }
     public required string Undo { get => _i18n is null ? _litUndo : UndoLabel(); init => _litUndo = value; }
     public string? Detail { get => _i18n is null ? _litDetail : DescribeDetail(); init => _litDetail = value; }
 
@@ -230,7 +208,7 @@ public sealed class PlanRow : ObservableObject
             {
                 Text = text,
                 RiskText = a.Risk.ToString(),
-                RiskBrush = RiskVisuals.For(a.Risk),
+                Risk = a.Risk,
                 Undo = "undo: " + a.Undo,
                 Detail = finalDetail,
                 IsElevated = elevated,
@@ -252,7 +230,7 @@ public sealed class PlanRow : ObservableObject
             {
                 Text = text,
                 RiskText = "BLOCKED",
-                RiskBrush = RiskVisuals.For(RiskLevel.Critical),
+                Risk = a.Risk,
                 Undo = string.Empty,
                 Detail = reason,
                 LegacyRecovery = a.Undo,

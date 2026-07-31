@@ -111,7 +111,7 @@ public sealed class MigrationLocalizationTests
     }
 
     [Fact]
-    public void Backup_result_rows_bind_chip_brush_to_row_outcome()
+    public void Backup_result_rows_bind_risk_chip_to_row_outcome()
     {
         string viewPath = Path.Combine(FindRepositoryRoot(), "src", "Suite.Module.Backup", "Views", "BackupView.xaml");
         XNamespace xamlNs = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -121,9 +121,10 @@ public sealed class MigrationLocalizationTests
                          (string?)e.Attribute(xamlNs + "Key") == "ResultRowTemplate");
 
         Assert.Contains(resultTemplate.Descendants(), e =>
-            e.Name.LocalName == "Border" &&
-            (string?)e.Attribute("Background") == "{Binding RiskBrush}" &&
-            (string?)e.Attribute("BorderBrush") == "{Binding RiskBrush}");
+            e.Name.LocalName == "RiskChip" &&
+            (string?)e.Attribute("Risk") == "{Binding Risk}" &&
+            (string?)e.Attribute("IsBlocked") == "{Binding IsSkipped}" &&
+            (string?)e.Attribute("Text") == "{Binding RiskText}");
 
         Assert.Contains(document.Descendants(), e =>
             e.Name.LocalName == "ItemsControl" &&

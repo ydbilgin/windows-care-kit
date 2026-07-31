@@ -497,7 +497,7 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
     {
         Text = text,
         RiskText = statusText,
-        RiskBrush = RiskVisuals.For(risk),
+        Risk = risk,
         Undo = string.Empty,
         Detail = detail,
     };

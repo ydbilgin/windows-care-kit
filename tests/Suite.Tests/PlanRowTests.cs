@@ -54,7 +54,7 @@ public class PlanRowSelectionTests
     {
         Text = "Delete: C:\\junk\\a.tmp",
         RiskText = "Low",
-        RiskBrush = RiskVisuals.For(RiskLevel.Low),
+        Risk = RiskLevel.Low,
         Undo = "undo: Full",
     };
 
@@ -220,8 +220,13 @@ public class PlanRowSelectionTests
     [Fact]
     public void IsSkipped_is_true_only_for_rows_built_by_FromSkipped()
     {
-        Assert.True(PlanRow.FromSkipped(Junk(), "protected", new I18n()).IsSkipped);
-        Assert.True(PlanRow.FromSkipped(Junk(), "protected").IsSkipped);
+        PlanRow typedSkipped = PlanRow.FromSkipped(Junk() with { Risk = RiskLevel.Info }, "protected", new I18n());
+        PlanRow legacySkipped = PlanRow.FromSkipped(Junk() with { Risk = RiskLevel.Low }, "protected");
+
+        Assert.True(typedSkipped.IsSkipped);
+        Assert.Equal(RiskLevel.Info, typedSkipped.Risk);
+        Assert.True(legacySkipped.IsSkipped);
+        Assert.Equal(RiskLevel.Low, legacySkipped.Risk);
         Assert.False(PlanRow.FromAction(Junk(), new I18n()).IsSkipped);
         Assert.False(PlanRow.FromAction(Junk()).IsSkipped);
         Assert.False(LiteralRow().IsSkipped);

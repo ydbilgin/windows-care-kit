@@ -1,6 +1,7 @@
 <UserControl x:Class="WindowsCareKit.App.Controls.ConfirmGate"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:WindowsCareKit.App.Controls"
              xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm">
     <!-- The reusable confirm gate (UI decision §B2). DataContext = a ConfirmGateViewModel. The whole
          control is collapsed until the gate is open, so it can sit in any module's view as an overlay.
@@ -106,9 +107,7 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
-        <!-- Dry-run row, identical shape to the module PlanRow templates so the look matches everywhere. The
-             risk chip binds RiskBrush/RiskText from the row itself (unchanged data) — only the container,
-             type scale, and spacing are restyled. -->
+        <!-- Dry-run row, identical shape to the module PlanRow templates so the look matches everywhere. -->
         <DataTemplate x:Key="ConfirmRowTemplate">
             <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
                     BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,0,0,6">
@@ -117,10 +116,9 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="{Binding RiskBrush}" BorderBrush="{Binding RiskBrush}"
-                            BorderThickness="1" CornerRadius="999" Padding="7,2" VerticalAlignment="Top" Margin="0,1,10,0">
-                        <TextBlock Text="{Binding RiskText}" Foreground="{DynamicResource Wck.Chip.Ink}" FontSize="10" FontWeight="Bold" />
-                    </Border>
+                    <controls:RiskChip Grid.Column="0" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
+                                       Text="{Binding RiskText}" FontSize="10" FontWeight="Bold"
+                                       VerticalAlignment="Top" Margin="0,1,10,0" />
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontFamily="{DynamicResource Wck.Mono}"

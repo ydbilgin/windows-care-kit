@@ -551,7 +551,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
     {
         Text = skip.ItemPath,
         RiskText = "SKIPPED",
-        RiskBrush = RiskVisuals.For(RiskLevel.Info),
+        Risk = RiskLevel.Info,
         Undo = string.Empty,
         Detail = skip.Reason,
     };
@@ -560,7 +560,7 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
     {
         Text = outcome.Source,
         RiskText = outcome.Copied ? "COPIED" : "SKIPPED",
-        RiskBrush = RiskVisuals.For(outcome.Copied ? RiskLevel.Low : RiskLevel.Critical),
+        Risk = outcome.Copied ? RiskLevel.Low : RiskLevel.Critical,
         Undo = string.Empty,
         Detail = outcome.Copied ? outcome.Destination : $"{outcome.Reason}: {outcome.Detail}",
     };

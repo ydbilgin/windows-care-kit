@@ -68,11 +68,6 @@
     <SolidColorBrush x:Key="Wck.Attention.Fg" Color="#E5C76B" />
     <SolidColorBrush x:Key="Wck.Attention.Wash" Color="#2B2413" />
     <SolidColorBrush x:Key="Wck.Attention.Border" Color="#57491F" />
-    <!-- Ink for the LEGACY solid-filled risk chip, whose fill is still the theme-blind frozen RiskVisuals
-         palette. Deliberately the same near-black in BOTH themes: those five pastels stay light in Dark mode,
-         so a theme-following ink would invert the contrast. It becomes theme ink only in the commit that
-         deletes RiskVisuals; ChipInkTests pins the floor against every pastel meanwhile. -->
-    <SolidColorBrush x:Key="Wck.Chip.Ink" Color="#181410" />
     <!-- Cascadia MONO, never the ligature-carrying variant: ligatures visually rewrite literal text (-> becomes an
          arrow), and a tool whose promise is "the literal path, glyph for glyph" must not typeset paths with
          ligatures. One definition; every mono site consumes it. -->

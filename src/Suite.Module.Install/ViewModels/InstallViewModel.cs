@@ -424,7 +424,7 @@ public sealed class InstallViewModel : ObservableObject
         {
             Text = $"{r.Kind}: {r.Detail}",
             RiskText = r.Status.ToString().ToUpperInvariant(),
-            RiskBrush = RiskVisuals.For(ok ? RiskLevel.Low : skipped ? RiskLevel.Info : RiskLevel.Critical),
+            Risk = ok ? RiskLevel.Low : skipped ? RiskLevel.Info : RiskLevel.Critical,
             Undo = string.Empty,
             Detail = r.ActionId,
         };

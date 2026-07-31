@@ -78,7 +78,6 @@ public sealed class ThemeTests
             ["Wck.Attention.Fg"] = "#E5C76B",
             ["Wck.Attention.Wash"] = "#2B2413",
             ["Wck.Attention.Border"] = "#57491F",
-            ["Wck.Chip.Ink"] = "#181410",
             ["Brand.Mark.Start"] = "#3BD598",
             ["Brand.Mark.End"] = "#1F9464",
             ["Backup.Backdrop"] = "#0A0D12",

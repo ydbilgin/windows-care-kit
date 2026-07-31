@@ -162,7 +162,7 @@ public class PlanSelectionTests
         {
             Text = "Delete: C:\\ProgramData\\SomeApp",
             RiskText = "Low",
-            RiskBrush = RiskVisuals.For(RiskLevel.Low),
+            Risk = RiskLevel.Low,
             Undo = "undo: Partial",
         };
         Assert.Null(legacyLiteral.Action);

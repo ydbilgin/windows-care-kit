@@ -687,7 +687,7 @@ public sealed class UninstallWizardViewModel : ObservableObject
             {
                 Text = text,
                 RiskText = LocalizeStatus(r.Status),
-                RiskBrush = RiskVisuals.For(risk),
+                Risk = risk,
                 Undo = string.Empty,
                 Detail = r.Detail,
             });

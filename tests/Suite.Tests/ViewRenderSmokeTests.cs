@@ -719,14 +719,13 @@ public sealed class ViewRenderSmokeTests
         });
     }
 
-    /// <summary>UI rollout (2026-07): the shared <see cref="ConfirmGate"/> overlay (used by Uninstall today, and
-    /// the same control every module's future gated flow reuses) was reskinned to the emerald tier-banner
-    /// language. Opens the Irreversible tier — the most visually complex branch: loud-red banner, the
-    /// type-to-confirm ceremony box, AND a populated evidence row — so all three render in both themes.</summary>
+    /// <summary>The shared <see cref="ConfirmGate"/> renders a skipped row through its real XAML seam. The
+    /// source action deliberately carries Info risk, so only the IsSkipped-to-IsBlocked binding can make the
+    /// resolved chip family Irreversible.</summary>
     [Theory]
     [InlineData("Strongbox")]
     [InlineData("Daylight")]
-    public void ConfirmGate_renders_irreversible_tier_in_theme(string themeName)
+    public void ConfirmGate_skipped_row_renders_in_blocked_family_through_XAML(string themeName)
     {
         RunOnStaThread(() =>
         {
@@ -735,14 +734,10 @@ public sealed class ViewRenderSmokeTests
             {
                 I18n i18n = TestI18n.Full("en");
                 var gate = new ConfirmGateViewModel(i18n, onApprove: () => { }, onCancel: () => { }, isBusy: () => false);
-                var row = new PlanRow
-                {
-                    Text = "Delete: C:\\Users\\alice\\AppData\\Roaming\\Tool\\cache",
-                    RiskText = "Critical",
-                    RiskBrush = RiskVisuals.For(RiskLevel.Critical),
-                    Undo = "undo: None",
-                    Detail = "leftover cache, program-owned",
-                };
+                PlanRow row = PlanRow.FromSkipped(
+                    TestData.FileDelete(@"C:\Users\alice\AppData\Roaming\Tool\cache") with { Risk = RiskLevel.Info },
+                    "protected location",
+                    i18n);
                 gate.Open(ConfirmTier.Irreversible, "Confirm — this will make changes", "Review the exact actions below.", [row]);
 
                 var view = new ConfirmGate { DataContext = gate };
@@ -753,6 +748,11 @@ public sealed class ViewRenderSmokeTests
                 host.Arrange(new Rect(size));
                 host.UpdateLayout();
 
+                RiskChip chip = Assert.Single(Descendants<RiskChip>(host));
+                Assert.Same(row, chip.DataContext);
+                Assert.Equal(RiskLevel.Info, chip.Risk);
+                Assert.True(chip.IsBlocked);
+                Assert.Equal(ChipFamily.Irreversible, chip.Family);
                 Assert.True(gate.IsOpen);
                 Assert.True(gate.IsIrreversibleTier);
             }
