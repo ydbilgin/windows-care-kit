@@ -55,6 +55,7 @@ obj/
 [Rr]elease/
 publish/
 artifacts/
+.artifacts/
 TestResults/
 
 ## ──────────────────────────────────────────────────────────────
