@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Input;
+using WindowsCareKit.App.Controls;
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.Mvvm;
@@ -13,13 +15,17 @@ using WindowsCareKit.Core.Safety;
 namespace WindowsCareKit.Module.Clean.ViewModels;
 
 /// <summary>
-/// The Temizle (Clean) view-model. Four read-only sections each feed the one execution path: build a
-/// dry-run <see cref="OperationPlan"/> → the user previews it (risk-colored <see cref="PlanRow"/>) →
-/// approve → <c>hash = plan.ComputeHash()</c> → the UI plan executor. Junk and
-/// the recycle bin are the only destructive sections; startup is a per-entry disable plan; browser
-/// extensions are inventory-only (removal is out of scope, spec §1.2). Nothing runs without an explicit
-/// approve, and never outside the executor (spec §3). Command enable/disable is re-queried automatically
-/// by WPF's <c>CommandManager</c> (the <see cref="RelayCommand"/> wires <c>RequerySuggested</c>).
+/// The Temizle (Clean) view-model. Four read-only sections feed ONE approval door: build a dry-run
+/// <see cref="OperationPlan"/> → the user vetoes what they do not want, per row → approve →
+/// <see cref="PlanSelection.Subset"/> composes the plan they actually approved →
+/// <c>hash = subset.ComputeHash()</c> → the UI plan executor. Nothing runs without an explicit approve, and
+/// never outside the executor (spec §3). Command enable/disable is re-queried automatically by WPF's
+/// <c>CommandManager</c> (the <see cref="RelayCommand"/> wires <c>RequerySuggested</c>).
+/// <para>
+/// Every count on this screen is arithmetic over typed state — <see cref="PlanRow.Selection"/> and
+/// <see cref="PlanRow.Recovery"/> — never over rendered text (SPEC §1.2, §2.2). That is what makes the review
+/// rail invariant under a language switch.
+/// </para>
 /// </summary>
 public sealed class CleanViewModel : ObservableObject
 {
@@ -31,11 +37,28 @@ public sealed class CleanViewModel : ObservableObject
     private readonly ISafetyGate _gate;
     private readonly IPlanExecutor _executor;
 
-    private OperationPlan? _pendingJunkPlan;
+    /// <summary>
+    /// The ONE recycle-bin action instance on this screen. It is the action <see cref="RecycleRow"/> previews,
+    /// the action the dedicated red button stages, and the action the approvable plan carries — one instance,
+    /// because <see cref="PlanSelection.Subset"/> matches rows to plan occurrences by REFERENCE and a second
+    /// structurally-equal instance would be a different occurrence.
+    /// </summary>
+    private readonly EmptyRecycleBinAction _recycleAction = new()
+    {
+        Description = "Empty the Recycle Bin on all drives",
+        Reason = "User approved irreversible Recycle Bin empty",
+    };
+
+    private readonly List<PlanRow> _attachedRows = new();
+
+    private IReadOnlyList<PlannedAction> _junkActions = Array.Empty<PlannedAction>();
+    private OperationPlan? _pendingPlan;
     private OperationPlan? _pendingStartupPlan;
+    private OperationPlan? _stagedPlan;
     private bool _isBusy;
     private bool _junkScanned;
     private bool _recycleConfirmPending;
+    private bool _technicalDetails = true;
     private StartupRow? _selectedStartup;
     private string _recycleStats = string.Empty;
     private string _resultSummary = string.Empty;
@@ -62,17 +85,26 @@ public sealed class CleanViewModel : ObservableObject
         _gate = gate ?? throw new ArgumentNullException(nameof(gate));
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
 
+        RecycleRow = PlanRow.FromAction(_recycleAction, I18n, isVetoable: true);
+        RecycleRow.IsIncluded = StartsIncluded(_recycleAction);
+        Attach(RecycleRow);
+        RebuildPendingPlan();
+
         ScanJunkCommand = new AsyncRelayCommand(ScanJunkAsync, () => !IsBusy);
-        RunJunkCommand = new AsyncRelayCommand(RunJunkAsync, () => !IsBusy && _pendingJunkPlan is { IsEmpty: false });
+        ApprovePlanCommand = new AsyncRelayCommand(
+            ApprovePlanAsync,
+            () => !IsBusy && !RecycleConfirmPending && SelectedActionCount > 0);
         LoadStartupCommand = new AsyncRelayCommand(LoadStartupAsync, () => !IsBusy);
         DisableStartupCommand = new AsyncRelayCommand(DisableStartupAsync, () => !IsBusy && _selectedStartup is not null);
         RefreshRecycleCommand = new AsyncRelayCommand(RefreshRecycleAsync, () => !IsBusy);
         // Emptying the bin is irreversible → stage a confirm first; the actual empty needs explicit approval.
         EmptyRecycleCommand = new RelayCommand(StageEmptyRecycle, () => !IsBusy && !RecycleConfirmPending);
         ConfirmEmptyRecycleCommand = new AsyncRelayCommand(ConfirmEmptyRecycleAsync, () => RecycleConfirmPending && !IsBusy);
-        CancelEmptyRecycleCommand = new RelayCommand(() => RecycleConfirmPending = false, () => RecycleConfirmPending);
+        CancelEmptyRecycleCommand = new RelayCommand(CancelEmptyRecycle, () => RecycleConfirmPending);
         LoadExtensionsCommand = new AsyncRelayCommand(LoadExtensionsAsync, () => !IsBusy);
         OpenExtensionFolderCommand = new RelayCommand(p => OpenExtensionFolder(p as BrowserExtension), _ => !IsBusy);
+
+        I18n.PropertyChanged += OnLocalizationChanged;
     }
 
     public I18n I18n { get; }
@@ -81,9 +113,8 @@ public sealed class CleanViewModel : ObservableObject
     public ObservableCollection<PlanRow> JunkPreview { get; } = new();
     public ObservableCollection<PlanRow> JunkSkipped { get; } = new();
     public ICommand ScanJunkCommand { get; }
-    public ICommand RunJunkCommand { get; }
     public bool JunkScanned { get => _junkScanned; private set => SetField(ref _junkScanned, value); }
-    public bool JunkEmpty => _junkScanned && (_pendingJunkPlan?.IsEmpty ?? true);
+    public bool JunkEmpty => _junkScanned && _junkActions.Count == 0;
 
     // Startup
     public ObservableCollection<StartupRow> StartupEntries { get; } = new();
@@ -116,6 +147,14 @@ public sealed class CleanViewModel : ObservableObject
     public ICommand CancelEmptyRecycleCommand { get; }
     public string RecycleStats { get => _recycleStats; private set => SetField(ref _recycleStats, value); }
 
+    /// <summary>
+    /// The Recycle-Bin row: a real, vetoable <see cref="PlanRow"/> over the same action the red button stages,
+    /// so the review rail counts it from typed state instead of from a second bespoke flag. It starts
+    /// UNSELECTED and always will: its <see cref="PlanRow.Recovery"/> is <see cref="UndoCapability.None"/>, and
+    /// nothing irreversible is ever pre-selected (honesty invariant §4-7, spec §2.1 rule 3).
+    /// </summary>
+    public PlanRow RecycleRow { get; }
+
     /// <summary>Non-empty when the recycle-bin query could not be completed — the totals are unknown, not zero (NEW-07).</summary>
     public string RecycleHealthNote { get => _recycleHealthNote; private set => SetField(ref _recycleHealthNote, value); }
 
@@ -134,8 +173,82 @@ public sealed class CleanViewModel : ObservableObject
     /// <summary>Non-empty when one or more browser profiles could not be read — the list may be incomplete (NEW-07).</summary>
     public string ExtensionsHealthNote { get => _extensionsHealthNote; private set => SetField(ref _extensionsHealthNote, value); }
 
+    // ---- Review summary (the 292 px rail) ----
+
+    /// <summary>
+    /// The one destructive door on this screen: it composes <see cref="PlanSelection.Subset"/> over the rows
+    /// the user was actually shown and executes exactly that. When the composed subset contains an
+    /// irreversible action it stages the inline confirm instead of running — the proportional ceremony is
+    /// preserved, never replaced.
+    /// </summary>
+    public ICommand ApprovePlanCommand { get; }
+
+    /// <summary>The screen's machine state, typed rather than a rendered string, so the pill and any counter
+    /// read the same value (decision §2.1 StatePill).</summary>
+    public StatePillState State => IsBusy
+        ? StatePillState.Running
+        : HasResult ? StatePillState.Done : StatePillState.Preview;
+
+    /// <summary>The localized label for <see cref="State"/>.</summary>
+    public string StateText => I18n[State switch
+    {
+        StatePillState.Running => "clean.state.running",
+        StatePillState.Done => "clean.state.done",
+        _ => "clean.state.preview",
+    }];
+
+    /// <summary>
+    /// Whether rows show their technical detail line. It ADDS detail and nothing else: it is not an input to
+    /// any plan, selection or count (A-M2-7), which is what makes it a safe probe for "which fields are
+    /// compact vs technical" (SPEC §7-4).
+    /// </summary>
+    public bool TechnicalDetails
+    {
+        get => _technicalDetails;
+        set => SetField(ref _technicalDetails, value);
+    }
+
+    /// <summary>How many actions the composed plan would carry. Derived from <see cref="PlanRow.Selection"/>
+    /// with exactly the survivor rule <see cref="PlanSelection.Subset"/> applies, so the number on screen and
+    /// the number of actions handed to the executor cannot disagree (A-M2-3).</summary>
+    public int SelectedActionCount
+        => SelectableRows.Count(row => row.Selection is RowSelection.Required or RowSelection.OptionalIncluded);
+
+    /// <summary>Rows the engine refused — they are shown, and they will not run.</summary>
+    public int ProtectedCount => JunkSkipped.Count;
+
+    public int RecoveryFullCount => CountRecovery(UndoCapability.Full);
+    public int RecoveryPartialCount => CountRecovery(UndoCapability.Partial);
+    public int RecoveryNoneCount => CountRecovery(UndoCapability.None);
+
+    /// <summary>
+    /// Selected rows whose recovery is genuinely UNKNOWN (spec §2.0b). It is reported separately and never
+    /// folded into <see cref="RecoveryNoneCount"/>: collapsing unknown into "permanent" is fail-safe but not
+    /// honest, and the row's own rendered text may claim otherwise.
+    /// </summary>
+    public int RecoveryUnknownCount => SelectedRows().Count(row => row.Recovery is null);
+
+    /// <summary>One sentence about what approving would cost. It states only what the typed recovery values
+    /// say — never a claim about the health of the machine (A-M2-8, honesty invariant §4-6).</summary>
+    public string ConsequenceSentence => SelectedActionCount == 0
+        ? I18n["clean.consequence.empty"]
+        : RecoveryNoneCount > 0
+            ? I18n.Format("clean.consequence.permanent", RecoveryNoneCount)
+            : I18n["clean.consequence.reversible"];
+
+    /// <summary>The approve button's label, carrying the count so the button states what it will do.</summary>
+    public string ApproveText => I18n.Format("clean.review.approve", SelectedActionCount);
+
     // Shared
-    public bool IsBusy { get => _isBusy; private set => SetField(ref _isBusy, value); }
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetField(ref _isBusy, value))
+                OnPropertyChanged(nameof(State));
+        }
+    }
 
     public string ResultSummary
     {
@@ -143,27 +256,129 @@ public sealed class CleanViewModel : ObservableObject
         private set
         {
             if (SetField(ref _resultSummary, value))
+            {
                 OnPropertyChanged(nameof(HasResult));
+                OnPropertyChanged(nameof(State));
+            }
         }
     }
 
     /// <summary>True once an execution/empty has produced a summary line, so the result banner can show.</summary>
     public bool HasResult => !string.IsNullOrEmpty(_resultSummary);
 
+    // ---- Selection ----
+
+    /// <summary>Every row that names an action of the approvable plan, in PLAN order.</summary>
+    private IEnumerable<PlanRow> SelectableRows => JunkPreview.Prepend(RecycleRow);
+
+    /// <summary>Every row the user was shown for the approvable plan, including the blocked ones. The blocked
+    /// rows are passed to <see cref="PlanSelection.Subset"/> deliberately: a blocked row can only ever
+    /// SUBTRACT, so handing them over makes the composed plan agree with the whole screen rather than with the
+    /// part of it that happens to be runnable.</summary>
+    private IEnumerable<PlanRow> ApprovalRows => SelectableRows.Concat(JunkSkipped);
+
+    private IEnumerable<PlanRow> SelectedRows()
+        => SelectableRows.Where(row => row.Selection is RowSelection.Required or RowSelection.OptionalIncluded);
+
+    private int CountRecovery(UndoCapability recovery)
+        => SelectedRows().Count(row => row.Recovery == recovery);
+
+    /// <summary>
+    /// Default inclusion (spec §2.1 rule 3). The safe end is fixed and absolute: anything best-effort and
+    /// anything with no undo starts EXCLUDED, always. Every junk delete the engine produces is best-effort
+    /// (<c>JunkScanner</c> sets <c>BestEffort</c> on all of them so one locked temp file cannot abort the
+    /// sweep), so on this screen the rule resolves to "nothing is pre-checked" — which is also honesty
+    /// invariant §4-7 read literally.
+    /// </summary>
+    private static bool StartsIncluded(PlannedAction action)
+        => action.Undo != UndoCapability.None
+           && action is not FileDeleteAction { BestEffort: true };
+
+    /// <summary>
+    /// The approvable plan. The recycle-bin empty is FIRST on purpose: action order is an execution-safety
+    /// property, and a bin emptied AFTER the junk deletes would destroy the very Recycle-Bin copies those
+    /// deletes promise as their undo. Emptying first removes only what the user already had in the bin, and
+    /// every junk delete in the same run stays recoverable — so the row's stated recovery is still true after
+    /// the run, which is the whole point of stating it.
+    /// </summary>
+    private void RebuildPendingPlan()
+    {
+        var actions = new List<PlannedAction>(_junkActions.Count + 1) { _recycleAction };
+        actions.AddRange(_junkActions);
+        _pendingPlan = new OperationPlan("Clean", "clean", actions, DateTime.UtcNow);
+    }
+
+    private void Attach(PlanRow row)
+    {
+        row.PropertyChanged += OnRowChanged;
+        _attachedRows.Add(row);
+    }
+
+    private void DetachJunkRows()
+    {
+        foreach (PlanRow row in _attachedRows.Where(r => !ReferenceEquals(r, RecycleRow)).ToArray())
+        {
+            row.PropertyChanged -= OnRowChanged;
+            _attachedRows.Remove(row);
+        }
+    }
+
+    private void OnRowChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PlanRow.Selection) or nameof(PlanRow.IsIncluded))
+            RaiseSelectionCounts();
+    }
+
+    private void RaiseSelectionCounts()
+    {
+        OnPropertyChanged(nameof(SelectedActionCount));
+        OnPropertyChanged(nameof(ProtectedCount));
+        OnPropertyChanged(nameof(RecoveryFullCount));
+        OnPropertyChanged(nameof(RecoveryPartialCount));
+        OnPropertyChanged(nameof(RecoveryNoneCount));
+        OnPropertyChanged(nameof(RecoveryUnknownCount));
+        OnPropertyChanged(nameof(ConsequenceSentence));
+        OnPropertyChanged(nameof(ApproveText));
+    }
+
+    private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not ("Item[]" or nameof(I18n.Culture) or nameof(I18n.SelectedCulture)))
+            return;
+
+        OnPropertyChanged(nameof(StateText));
+
+        // The counts are re-announced even though a language switch cannot move one. That is the point: an
+        // invariant nothing re-reads is an invariant nothing can CATCH breaking. Leaving them un-raised kept
+        // the screen showing values cached from before the switch, so a counter that parsed the localized undo
+        // text would have gone wrong in the view model while the rail still displayed the old, correct number
+        // — measured, 2026-08-06, and the reason this line exists.
+        RaiseSelectionCounts();
+    }
+
     // ---- Junk ----
 
     private async Task ScanJunkAsync()
     {
         IsBusy = true;
+        DetachJunkRows();
         JunkPreview.Clear();
         JunkSkipped.Clear();
         try
         {
             var scanner = new JunkScanner(_junkProbe, _gate);
             JunkScanResult result = await Task.Run(() => scanner.Scan(DateTime.UtcNow));
-            _pendingJunkPlan = result.Plan;
-            foreach (PlannedAction a in result.Plan.Actions)
-                JunkPreview.Add(PlanRow.FromAction(a, I18n));
+            _junkActions = result.Plan.Actions;
+            RebuildPendingPlan();
+
+            foreach (PlannedAction a in _junkActions)
+            {
+                PlanRow row = PlanRow.FromAction(a, I18n, isVetoable: true);
+                row.IsIncluded = StartsIncluded(a);
+                Attach(row);
+                JunkPreview.Add(row);
+            }
+
             foreach (SkippedAction s in result.Skipped)
                 JunkSkipped.Add(PlanRow.FromSkipped(s.Action, s.Reason, I18n));
         }
@@ -171,23 +386,41 @@ public sealed class CleanViewModel : ObservableObject
         {
             JunkScanned = true;
             OnPropertyChanged(nameof(JunkEmpty));
+            RaiseSelectionCounts();
             IsBusy = false;
         }
     }
 
-    private async Task RunJunkAsync()
+    /// <summary>
+    /// Composes the plan the user actually approved and runs exactly that. The hash handed to the executor is
+    /// the SUBSET's hash (spec §1.1): approving three actions cannot execute five, because the gate
+    /// re-validates the approved hash and the two would not match.
+    /// </summary>
+    private async Task ApprovePlanAsync()
     {
-        OperationPlan? plan = _pendingJunkPlan;
-        if (plan is null || plan.IsEmpty)
+        if (_pendingPlan is not { } source)
             return;
 
-        await RunPlanAsync(plan);
-        // Re-scan so the preview reflects what is now gone.
+        OperationPlan subset = PlanSelection.Subset(source, ApprovalRows);
+        if (subset.IsEmpty)
+            return;
+
+        if (subset.Actions.Any(a => a.Undo == UndoCapability.None))
+        {
+            // The approved set contains something irreversible → the inline confirm, not a silent run. The
+            // ceremony is the shipped one (decision §2.1 calls it the correct proportional pattern); only what
+            // it is staged with changed.
+            _stagedPlan = subset;
+            RecycleConfirmPending = true;
+            return;
+        }
+
+        await RunPlanAsync(subset);
         await ScanJunkAsync();
     }
 
     /// <summary>Localized caution note for a non-Complete inventory source; empty string when Complete
-    /// (so the bound TextBlock stays collapsed via NonEmptyToVisibleConverter). Partial and Unavailable both
+    /// (so the bound HealthChip stays collapsed via NonEmptyToVisibleConverter). Partial and Unavailable both
     /// surface the same "may be incomplete" caution — the list is not to be trusted as a complete empty.</summary>
     private string IncompleteNote(SourceHealth health, string incompleteKey)
         => health == SourceHealth.Complete ? string.Empty : I18n[incompleteKey];
@@ -265,24 +498,27 @@ public sealed class CleanViewModel : ObservableObject
         }
     }
 
-    /// <summary>Shows the confirm panel; nothing is emptied until the user approves it.</summary>
-    private void StageEmptyRecycle() => RecycleConfirmPending = true;
+    /// <summary>Shows the confirm panel over the bin alone; nothing is emptied until the user approves it.</summary>
+    private void StageEmptyRecycle()
+    {
+        _stagedPlan = new OperationPlan(
+            "Empty Recycle Bin", "clean", new PlannedAction[] { _recycleAction }, DateTime.UtcNow);
+        RecycleConfirmPending = true;
+    }
+
+    private void CancelEmptyRecycle()
+    {
+        _stagedPlan = null;
+        RecycleConfirmPending = false;
+    }
 
     private async Task ConfirmEmptyRecycleAsync()
     {
+        OperationPlan? plan = _stagedPlan;
+        _stagedPlan = null;
         RecycleConfirmPending = false;
-        var plan = new OperationPlan(
-            "Empty Recycle Bin",
-            "clean",
-            new PlannedAction[]
-            {
-                new EmptyRecycleBinAction
-                {
-                    Description = "Empty the Recycle Bin on all drives",
-                    Reason = "User approved irreversible Recycle Bin empty",
-                },
-            },
-            DateTime.UtcNow);
+        if (plan is null)
+            return;
 
         try
         {
@@ -291,6 +527,8 @@ public sealed class CleanViewModel : ObservableObject
         finally
         {
             await RefreshRecycleAsync();
+            if (JunkScanned)
+                await ScanJunkAsync();
         }
     }
 
@@ -330,7 +568,9 @@ public sealed class CleanViewModel : ObservableObject
 
     // ---- Shared execution ----
 
-    /// <summary>The one execution path: hash the previewed plan, run it through the executor, show the report.</summary>
+    /// <summary>The one execution path: hash the plan being executed, run it through the executor, show the
+    /// report. The hash is computed from THIS plan — never from the superset it was composed out of, which is
+    /// the TOCTOU contract the veto is enforced by (spec §1.1).</summary>
     private async Task RunPlanAsync(OperationPlan plan)
     {
         IsBusy = true;

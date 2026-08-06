@@ -73,11 +73,11 @@ public sealed class CleanViewModelTests
         IJunkProbe? junk = null,
         IStartupProbe? startup = null,
         IBrowserExtensionInventory? extensions = null,
-        IRecycleBinService? recycle = null)
+        IRecycleBinService? recycle = null,
+        I18n? i18n = null)
     {
-        var i18n = new I18n();
         return new CleanViewModel(
-            i18n,
+            i18n ?? new I18n(),
             junk ?? new FakeJunkProbe(),
             startup ?? new FakeStartupProbe(),
             extensions ?? new FakeBrowserExtensionInventory(),
@@ -111,53 +111,259 @@ public sealed class CleanViewModelTests
         };
     }
 
-    // ---- junk: scan builds a dry-run plan; run executes the EXACT previewed hash ----
+    // ---- junk: scan builds a dry-run plan; approving executes the EXACT selected subset's hash ----
 
+    /// <summary>A-M2-1. Nothing destructive is reachable before a plan exists — and, after M2, not even then:
+    /// every junk delete the engine produces is best-effort, so spec §2.1 rule 3 starts every row EXCLUDED and
+    /// the approve door stays shut until the user opts something in.</summary>
     [Fact]
-    public async Task ScanJunk_builds_a_dry_run_preview_and_RunJunk_is_disabled_until_it_is_non_empty()
+    public async Task ScanJunk_builds_a_dry_run_preview_and_the_approve_door_stays_shut_until_a_row_is_selected()
     {
         using var fx = new ExecutorFixture();
         var vm = BuildVm(fx, new RecordingFolderOpener(),
             junk: new FakeJunkProbe(new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder")));
 
-        Assert.False(vm.RunJunkCommand.CanExecute(null));   // no plan yet → disabled
+        Assert.False(vm.ApprovePlanCommand.CanExecute(null));   // no plan yet → disabled
 
         vm.ScanJunkCommand.Execute(null);
         await PumpAsync(() => vm.JunkScanned);
 
-        Assert.Single(vm.JunkPreview);                       // the temp folder became one previewed delete
-        Assert.True(vm.RunJunkCommand.CanExecute(null));     // non-empty plan → run enabled
-        Assert.Empty(fx.Adapters.Calls);                     // scan is read-only: NOTHING executed yet
+        Assert.Single(vm.JunkPreview);                          // the temp folder became one previewed delete
+        Assert.True(vm.JunkPreview[0].IsVetoable);              // the engine acts at this row's granularity
+        Assert.False(vm.JunkPreview[0].IsIncluded);             // best-effort → never pre-checked
+        Assert.Equal(0, vm.SelectedActionCount);
+        Assert.False(vm.ApprovePlanCommand.CanExecute(null));   // a plan exists but nothing is selected
+        Assert.Empty(fx.Adapters.Calls);                        // scan is read-only: NOTHING executed yet
+
+        vm.JunkPreview[0].IsIncluded = true;
+        Assert.Equal(1, vm.SelectedActionCount);
+        Assert.True(vm.ApprovePlanCommand.CanExecute(null));
     }
 
+    /// <summary>
+    /// A-M2-3. Approving executes EXACTLY the subset: the plan handed to the executor carries
+    /// <see cref="CleanViewModel.SelectedActionCount"/> actions, and the hash it is authorized against is that
+    /// subset's own hash — not the superset it was composed out of (spec §1.1). Two candidates are scanned and
+    /// one is vetoed, so a regression that ran the whole plan would dispatch the vetoed path too.
+    /// </summary>
     [Fact]
-    public async Task RunJunk_runs_the_exact_previewed_plan_hash_through_the_gated_executor()
+    public async Task Approving_runs_exactly_the_selected_subset_under_the_subsets_own_hash()
     {
         using var fx = new ExecutorFixture();
-        var candidate = new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder");
-        var vm = BuildVm(fx, new RecordingFolderOpener(),
-            junk: new FakeJunkProbe(candidate));
+        var kept = new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder");
+        var vetoed = new JunkCandidate(@"C:\Users\alice\AppData\Local\CrashDumps", 4096, "Crash dumps");
+        var vm = BuildVm(fx, new RecordingFolderOpener(), junk: new FakeJunkProbe(kept, vetoed));
 
         vm.ScanJunkCommand.Execute(null);
         await PumpAsync(() => vm.JunkScanned);
-        Assert.Single(vm.JunkPreview);
+        Assert.Equal(2, vm.JunkPreview.Count);
 
-        vm.RunJunkCommand.Execute(null);
+        vm.JunkPreview[0].IsIncluded = true;                    // keep the temp folder, veto the crash dumps
+        Assert.Equal(1, vm.SelectedActionCount);
+
+        vm.ApprovePlanCommand.Execute(null);
+
+        // The composed plan is fully reversible, so approving RUNS. If it stages the irreversible confirm
+        // instead, the composition kept an action the user vetoed — named here rather than left to surface as
+        // a timeout waiting for a result that was never coming.
+        Assert.False(vm.RecycleConfirmPending,
+            "a fully reversible subset must run on approve; staging the confirm means the composed plan still "
+            + "carried the Recycle-Bin empty the user never selected");
         await PumpAsync(() => vm.HasResult);
 
-        // The recording file adapter received EXACTLY the previewed temp-folder delete (non-vacuous: a regression
-        // that bypassed the executor or sent a different target would change this recorded value).
+        // Exactly the selected delete was dispatched — the vetoed one never reached an adapter.
         FileDeleteAction ran = Assert.Single(fx.Adapters.Dispatched.OfType<FileDeleteAction>());
         Assert.Equal(@"C:\Users\alice\AppData\Local\Temp", ran.Path);
 
-        // And the hash the executor authorized against is the previewed plan's hash.
-        var rebuilt = new JunkScanner(new FakeJunkProbe(candidate), fx.Gate)
-            .Scan(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)).Plan;
-        Assert.Equal(rebuilt.ComputeHash(), LoggedPlanHash(fx));
+        // The hash the executor authorized against is the SUBSET's hash. Rebuilt independently here, from the
+        // one action that survived — so computing it from the full plan (MP-2) cannot satisfy this.
+        var subset = new OperationPlan(
+            "Clean", "clean", new PlannedAction[] { ran }, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Equal(subset.ComputeHash(), LoggedPlanHash(fx));
 
-        // The plan.done log records exactly one completed action (DoneCount=1) — the non-vacuous execution proof.
         Assert.Contains(fx.LogLines(), l => l.Contains("plan.done") && l.Contains("\"done\":\"1\""));
         Assert.True(vm.HasResult); // a result summary was produced after the run
+    }
+
+    /// <summary>A-M2-2. The Recycle-Bin row exists, is vetoable, reports <see cref="UndoCapability.None"/>, and
+    /// is UNSELECTED on a fresh view model — so a fresh screen counts zero permanent selections.</summary>
+    [Fact]
+    public void A_fresh_view_model_selects_nothing_and_the_recycle_row_is_unselected_with_no_recovery()
+    {
+        using var fx = new ExecutorFixture();
+        var vm = BuildVm(fx, new RecordingFolderOpener());
+
+        Assert.True(vm.RecycleRow.IsVetoable);
+        Assert.False(vm.RecycleRow.IsIncluded);
+        Assert.Equal(UndoCapability.None, vm.RecycleRow.Recovery);
+
+        Assert.Equal(0, vm.SelectedActionCount);
+        Assert.Equal(0, vm.RecoveryNoneCount);      // nothing permanent is selected on a fresh screen
+        Assert.Equal(0, vm.RecoveryFullCount);
+        Assert.Equal(0, vm.RecoveryPartialCount);
+        Assert.Equal(0, vm.RecoveryUnknownCount);
+    }
+
+    /// <summary>
+    /// A-M2-4. Unchecking a row moves both the action count and the recovery counts, and a language switch
+    /// moves neither — the counts are arithmetic over <see cref="PlanRow.Recovery"/>, and a rendered string is
+    /// never parsed (spec §1.2). The row's own rendered undo text is asserted to CHANGE in the same switch, so
+    /// this is not vacuously true of a table that failed to load.
+    /// </summary>
+    [Fact]
+    public async Task Unchecking_a_row_moves_the_counts_and_a_language_switch_moves_none_of_them()
+    {
+        using var fx = new ExecutorFixture();
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
+            junk: new FakeJunkProbe(
+                new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder"),
+                new JunkCandidate(@"C:\Users\alice\AppData\Local\CrashDumps", 4096, "Crash dumps")),
+            i18n: TestI18n.Full("en"));
+
+        vm.ScanJunkCommand.Execute(null);
+        await PumpAsync(() => vm.JunkScanned);
+
+        vm.JunkPreview[0].IsIncluded = true;
+        vm.JunkPreview[1].IsIncluded = true;
+        vm.RecycleRow.IsIncluded = true;
+        Assert.Equal(3, vm.SelectedActionCount);
+        Assert.Equal(2, vm.RecoveryFullCount);   // junk deletes recover from the recycle bin
+        Assert.Equal(1, vm.RecoveryNoneCount);   // emptying the bin does not
+
+        vm.JunkPreview[1].IsIncluded = false;
+        Assert.Equal(2, vm.SelectedActionCount);
+        Assert.Equal(1, vm.RecoveryFullCount);
+        Assert.Equal(1, vm.RecoveryNoneCount);
+
+        string undoBefore = vm.JunkPreview[0].Undo;
+        vm.I18n.Load("tr");
+
+        Assert.NotEqual(undoBefore, vm.JunkPreview[0].Undo);  // the RENDERED text really did switch language
+        Assert.Equal(2, vm.SelectedActionCount);              // …and not one count moved with it
+        Assert.Equal(1, vm.RecoveryFullCount);
+        Assert.Equal(1, vm.RecoveryNoneCount);
+        Assert.Equal(0, vm.RecoveryPartialCount);
+        Assert.Equal(0, vm.RecoveryUnknownCount);
+    }
+
+    /// <summary>A-M2-7. The Technical-details toggle ADDS detail and nothing else: it is not an input to the
+    /// plan, the selection, or any count.</summary>
+    [Fact]
+    public async Task Technical_details_toggle_changes_no_plan_no_selection_and_no_count()
+    {
+        using var fx = new ExecutorFixture();
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
+            junk: new FakeJunkProbe(new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder")));
+
+        vm.ScanJunkCommand.Execute(null);
+        await PumpAsync(() => vm.JunkScanned);
+        vm.JunkPreview[0].IsIncluded = true;
+
+        (int actions, int full, int partial, int none, string consequence, bool included) before =
+            (vm.SelectedActionCount, vm.RecoveryFullCount, vm.RecoveryPartialCount, vm.RecoveryNoneCount,
+             vm.ConsequenceSentence, vm.JunkPreview[0].IsIncluded);
+
+        Assert.True(vm.TechnicalDetails);
+        vm.TechnicalDetails = false;
+        vm.TechnicalDetails = true;
+        vm.TechnicalDetails = false;
+
+        Assert.Equal(before,
+            (vm.SelectedActionCount, vm.RecoveryFullCount, vm.RecoveryPartialCount, vm.RecoveryNoneCount,
+             vm.ConsequenceSentence, vm.JunkPreview[0].IsIncluded));
+        Assert.Empty(fx.Adapters.Calls);   // and it certainly never runs anything
+    }
+
+    /// <summary>
+    /// Approving a selection that contains something irreversible stages the INLINE confirm rather than
+    /// running — the proportional ceremony decision §2.1 names correct, kept and not replaced by a gate. The
+    /// emptier is not called until the confirm is approved (fail-without / pass-with).
+    /// </summary>
+    [Fact]
+    public async Task Approving_a_selection_containing_the_recycle_bin_stages_the_inline_confirm_first()
+    {
+        using var fx = new ExecutorFixture();
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
+            junk: new FakeJunkProbe(new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder")));
+
+        vm.ScanJunkCommand.Execute(null);
+        await PumpAsync(() => vm.JunkScanned);
+        vm.JunkPreview[0].IsIncluded = true;
+        vm.RecycleRow.IsIncluded = true;
+
+        vm.ApprovePlanCommand.Execute(null);
+
+        Assert.True(vm.RecycleConfirmPending);           // staged, not run
+        Assert.Equal(0, fx.RecycleBinEmptier.CallCount); // FAIL-WITHOUT: nothing emptied at the approve step
+        Assert.Empty(fx.Adapters.Dispatched);            // and no junk delete ran either
+
+        vm.ConfirmEmptyRecycleCommand.Execute(null);
+        await PumpAsync(() => vm.HasResult);
+
+        Assert.Equal(1, fx.RecycleBinEmptier.CallCount); // PASS-WITH: emptied exactly once after the confirm
+        Assert.Single(fx.Adapters.Dispatched.OfType<FileDeleteAction>());
+    }
+
+    /// <summary>
+    /// Action order is an execution-safety property. The bin is emptied BEFORE the junk deletes, because a bin
+    /// emptied after them would destroy the very Recycle-Bin copies those rows state as their undo — the
+    /// screen would print "recovers from the Recycle Bin" about files the same run had just made permanent.
+    /// </summary>
+    [Fact]
+    public async Task The_composed_plan_empties_the_bin_before_it_deletes_junk_into_it()
+    {
+        using var fx = new ExecutorFixture();
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
+            junk: new FakeJunkProbe(new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder")));
+
+        vm.ScanJunkCommand.Execute(null);
+        await PumpAsync(() => vm.JunkScanned);
+        vm.JunkPreview[0].IsIncluded = true;
+        vm.RecycleRow.IsIncluded = true;
+
+        vm.ApprovePlanCommand.Execute(null);
+        vm.ConfirmEmptyRecycleCommand.Execute(null);
+        await PumpAsync(() => vm.HasResult);
+
+        string[] kinds = fx.LogLines()
+            .Where(line => line.Contains("action.done", StringComparison.Ordinal))
+            .Select(line => line.Contains("recyclebin.empty", StringComparison.Ordinal) ? "empty" : "delete")
+            .ToArray();
+
+        Assert.Equal(new[] { "empty", "delete" }, kinds);
+    }
+
+    /// <summary>
+    /// A-M2-5 (view-model half). A row the gate refused is kept, carries its reason, and can never be selected
+    /// — and it never enters the composed plan. The render half is in <c>CleanScreenTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task A_gate_refused_junk_row_is_shown_with_its_reason_and_is_not_selectable()
+    {
+        using var fx = new ExecutorFixture();
+        // Under the Windows directory → the gate refuses the delete outright, so it is previewed as BLOCKED.
+        var vm = BuildVm(fx, new RecordingFolderOpener(),
+            junk: new FakeJunkProbe(
+                new JunkCandidate(@"C:\Windows\System32\wck-not-junk", 2048, "Protected"),
+                new JunkCandidate(@"C:\Users\alice\AppData\Local\Temp", 2048, "User temp folder")));
+
+        vm.ScanJunkCommand.Execute(null);
+        await PumpAsync(() => vm.JunkScanned);
+
+        PlanRow blocked = Assert.Single(vm.JunkSkipped);
+        Assert.True(blocked.IsSkipped);
+        Assert.False(blocked.IsVetoable);                          // no veto control may be offered for it
+        Assert.False(string.IsNullOrWhiteSpace(blocked.Detail));   // the reason is carried, not dropped
+        Assert.Equal(1, vm.ProtectedCount);
+
+        // Selecting everything selectable still runs only the one allowed delete.
+        vm.JunkPreview[0].IsIncluded = true;
+        vm.ApprovePlanCommand.Execute(null);
+        Assert.False(vm.RecycleConfirmPending, "the composed plan must not carry an unselected irreversible action");
+        await PumpAsync(() => vm.HasResult);
+
+        FileDeleteAction ran = Assert.Single(fx.Adapters.Dispatched.OfType<FileDeleteAction>());
+        Assert.Equal(@"C:\Users\alice\AppData\Local\Temp", ran.Path);
     }
 
     private static string LoggedPlanHash(ExecutorFixture fx)

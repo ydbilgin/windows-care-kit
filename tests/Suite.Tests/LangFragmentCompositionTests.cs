@@ -25,7 +25,11 @@ public sealed class LangFragmentCompositionTests
     // MINOR-03 (2026-07-29) adds 2 Install and 2 Backup manifest failure-cause clauses (corrupt/unreadable),
     // so the actionable difference stops being carried only by an untranslated CLR type name.
     // Catalog health adds 14 shell-owned component inventory/status/reason/notice keys.
-    private const int ExpectedMergedKeyCount = 426;
+    // M2 (Clean screen, 2026-08-06) adds 17 Clean keys — StatePill state words, the ReviewSummary rail's
+    // labels/recovery lines/approve label, the Technical-details toggle and the three consequence sentences —
+    // and retires 2: clean.junk.run (the veto-blind whole-plan run button is gone, ApprovePlanCommand is the
+    // one door) and clean.recycle.irreversible (the row's UndoLine states the same fact once).
+    private const int ExpectedMergedKeyCount = 441;
 
     private static readonly Regex XamlKeyRegex = new(@"I18n\[([a-z][A-Za-z0-9_.]+)\]", RegexOptions.Compiled);
     private static readonly Regex CsKeyRegex =

@@ -3,32 +3,23 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:WindowsCareKit.App.Controls;assembly=Suite.App.Abstractions"
              xmlns:mvvm="clr-namespace:WindowsCareKit.App.Mvvm;assembly=Suite.App.Abstractions">
-    <!-- Restyled to the emerald evidence-row language (2026-07 UI rollout): Backup.* tokens, two-tier rows
-         (action line + quiet meta, monospace only where the text is a literal path/command), a DRY-RUN badge
-         beside the H1, and a loud-red treatment for the one truly irreversible action (emptying the Recycle
-         Bin). Presentation-only — no ViewModel/command/binding-source change. -->
+    <!-- M2 (redesign v2): the 2x2 equal-weight card grid is retired for a main column + a 292 px
+         ReviewSummary rail. Section order is a SAFETY statement and is binding — Junk & temporary files →
+         Startup programs → Browser extensions → Recycle Bin last, the bin separated by a divider.
+         Every row that the engine can execute at row granularity carries a real checkbox; every row it
+         cannot carries no checkbox ELEMENT at all (spec §2.1 rule 2 + the M2 mockup correction: a disabled
+         checkbox still says "this is a choice"). Every number in the rail is arithmetic over typed state. -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <mvvm:PositiveToVisibleConverter x:Key="PositiveToVis" />
         <mvvm:NonEmptyToVisibleConverter x:Key="NonEmptyToVis" />
 
-        <Style x:Key="CleanCard" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource Backup.Card}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Backup.Line}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="18" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="20" Direction="270" ShadowDepth="4" Opacity="0.16" Color="#000000" />
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <Style x:Key="CleanSectionTitle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
-            <Setter Property="FontSize" Value="15.5" />
+            <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
         <Style x:Key="CleanMeta" TargetType="TextBlock">
@@ -101,31 +92,83 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Backup.DangerDeep}" />
         </Style>
 
-        <!-- Dry-run row: two-tier (action line + quiet meta), monospace only for the action line (it IS the
-             literal path/command from PlannedAction.Describe). -->
+        <!-- ===== The row's leading control =====
+             A row gets a checkbox IF AND ONLY IF the engine executes at that row's granularity. There is no
+             disabled-checkbox branch: a disabled checkbox still presents as a choice, so a non-vetoable row
+             gets no checkbox ELEMENT at all and states its status through its chip and its reason instead
+             (A-M2-9). The two branches are separate ContentTemplates rather than one template with a
+             Visibility trigger, precisely so the CheckBox is never instantiated on a protected row. -->
+        <DataTemplate x:Key="RowNoSelectorTemplate">
+            <Grid />
+        </DataTemplate>
+
+        <DataTemplate x:Key="RowVetoTemplate">
+            <CheckBox IsChecked="{Binding IsIncluded, Mode=TwoWay}"
+                      AutomationProperties.Name="{Binding Text}"
+                      VerticalAlignment="Top" Margin="0,2,10,0" />
+        </DataTemplate>
+
+        <Style x:Key="RowSelectorHost" TargetType="ContentControl">
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="ContentTemplate" Value="{StaticResource RowNoSelectorTemplate}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsVetoable}" Value="True">
+                    <Setter Property="ContentTemplate" Value="{StaticResource RowVetoTemplate}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Dry-run row: veto control · risk chip · the literal action line (monospace, it IS the path or
+             command from the action's typed fields) · the typed recovery statement. The reason line is the
+             TECHNICAL detail the rail's toggle adds; it changes no plan, no selection and no count. -->
         <DataTemplate x:Key="PlanRowTemplate">
             <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
                     BorderThickness="1" CornerRadius="8" Padding="11,9" Margin="0,0,0,6">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <controls:RiskChip Grid.Column="0" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
+                    <ContentControl Grid.Column="0" Content="{Binding}" Style="{StaticResource RowSelectorHost}" />
+                    <controls:RiskChip Grid.Column="1" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
                                        Text="{Binding RiskText}"
                                        VerticalAlignment="Top" Margin="0,1,10,0" />
-                    <StackPanel Grid.Column="1">
+                    <StackPanel Grid.Column="2">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontFamily="{DynamicResource Wck.Mono}"
                                    FontSize="12.5" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding Detail}" Style="{StaticResource CleanMeta}" Margin="0,3,0,0"
-                                   Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
-                        <TextBlock Text="{Binding Undo}" Style="{StaticResource CleanMeta}"
-                                   Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
+                        <!-- Nested visibilities give "technical details ON *and* this row has a reason"
+                             without a second converter: the host answers the toggle, the label answers
+                             whether it has anything to say. -->
+                        <ContentControl Visibility="{Binding DataContext.TechnicalDetails, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                            <TextBlock x:Name="RowDetailText" Text="{Binding Detail}" Style="{StaticResource CleanMeta}"
+                                       Margin="0,3,0,0"
+                                       Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
+                        </ContentControl>
                     </StackPanel>
+                    <controls:UndoLine Grid.Column="3" Recovery="{Binding Recovery}" Text="{Binding Undo}"
+                                       VerticalAlignment="Top" Margin="12,1,0,0"
+                                       Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
                 </Grid>
             </Border>
         </DataTemplate>
+
+        <Style x:Key="ReviewStatLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Muted}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="ReviewStatValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Backup.Ink}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="24,14,24,8">
@@ -134,28 +177,25 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,2">
-                <TextBlock Text="{Binding I18n[clean.title]}" Foreground="{DynamicResource Backup.Ink}"
-                           FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Background="{DynamicResource Backup.EmWash}" BorderBrush="{DynamicResource Backup.EmBorder}"
-                        BorderThickness="1" CornerRadius="999" Padding="12,4" Margin="12,0,0,0" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="7" Height="7" Fill="{DynamicResource Backup.Em}" Margin="0,0,8,0" />
-                        <TextBlock Foreground="{DynamicResource Backup.Em}" FontSize="10.5" FontWeight="Bold">
-                            <Run Text="{Binding I18n[clean.dryRun.badge], Mode=OneWay}" />
-                            <Run Text="{Binding I18n[clean.dryRun.caption], Mode=OneWay}"
-                                 Foreground="{DynamicResource Backup.Muted}" FontSize="11" FontWeight="Normal" />
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+        <!-- ===== Header: H1 + machine-state pill ===== -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding I18n[clean.title]}" Foreground="{DynamicResource Backup.Ink}"
+                           FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+                <controls:StatePill Grid.Column="1" x:Name="CleanStatePill"
+                                    State="{Binding State}" Text="{Binding StateText}"
+                                    HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0" />
+            </Grid>
             <TextBlock Text="{Binding I18n[clean.subtitle]}" Foreground="{DynamicResource Backup.Muted}"
                        FontSize="13" TextWrapping="Wrap" Margin="0,4,0,0" />
 
             <Border Background="{DynamicResource Backup.Rail.Background}" BorderBrush="{DynamicResource Backup.RailBorder}"
-                    BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,12,0,0" HorizontalAlignment="Left"
+                    BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,10,0,0" HorizontalAlignment="Left"
                     Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding I18n[clean.result.title]}" Foreground="{DynamicResource Backup.Ink}"
@@ -165,165 +205,115 @@
             </Border>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,2,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="16" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="16" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+        <Grid x:Name="CleanBody" Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="292" />
+            </Grid.ColumnDefinitions>
 
-                <!-- ===== Junk & temporary files ===== -->
-                <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CleanCard}">
-                    <StackPanel>
-                        <Grid>
+            <!-- ===== Main column ===== -->
+            <ScrollViewer x:Name="MainColumn" Grid.Column="0" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
+                <StackPanel>
+
+                    <!-- 1. Junk & temporary files -->
+                    <StackPanel x:Name="JunkSection" Margin="0,0,0,18">
+                        <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="{Binding I18n[clean.junk.title]}" Style="{StaticResource CleanSectionTitle}" />
-                            <TextBlock Grid.Column="1" Style="{StaticResource CleanMeta}" VerticalAlignment="Center"
+                            <TextBlock Grid.Column="1" Style="{StaticResource CleanMeta}" VerticalAlignment="Center" Margin="10,0,10,0"
                                        Visibility="{Binding JunkPreview.Count, Converter={StaticResource PositiveToVis}}">
                                 <Run Text="{Binding JunkPreview.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
                                 <Run Text="{Binding I18n[clean.count.found], Mode=OneWay}" />
                             </TextBlock>
+                            <Button Grid.Column="2" Style="{StaticResource CleanSecondaryButton}"
+                                    Content="{Binding I18n[clean.junk.scan]}" Command="{Binding ScanJunkCommand}" />
                         </Grid>
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Style="{StaticResource CleanSecondaryButton}" Content="{Binding I18n[clean.junk.scan]}"
-                                    Command="{Binding ScanJunkCommand}" />
-                            <Button Style="{StaticResource CleanPrimaryButton}" Margin="8,0,0,0"
-                                    Content="{Binding I18n[clean.junk.run]}" Command="{Binding RunJunkCommand}" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding I18n[clean.junk.none]}" Style="{StaticResource CleanMeta}" Margin="0,12,0,0"
+                        <TextBlock Text="{Binding I18n[clean.junk.none]}" Style="{StaticResource CleanMeta}" Margin="0,0,0,8"
                                    Visibility="{Binding JunkEmpty, Converter={StaticResource BoolToVis}}" />
-                        <ItemsControl ItemsSource="{Binding JunkPreview}" Margin="0,12,0,0"
+                        <ItemsControl x:Name="JunkRowsHost" ItemsSource="{Binding JunkPreview}"
                                       ItemTemplate="{StaticResource PlanRowTemplate}" />
-                        <TextBlock Text="{Binding I18n[uninstall.leftovers.skippedTitle]}" Foreground="{DynamicResource Backup.DangerStrong}"
-                                   FontSize="11.5" FontWeight="SemiBold" Margin="0,8,0,8"
+                        <!-- A-M2-5: what the engine refused stays INLINE with what remains, with its reason. -->
+                        <TextBlock Text="{Binding I18n[uninstall.leftovers.skippedTitle]}" Foreground="{DynamicResource Backup.Muted}"
+                                   FontSize="11.5" FontWeight="SemiBold" Margin="0,4,0,6" TextWrapping="Wrap"
                                    Visibility="{Binding JunkSkipped.Count, Converter={StaticResource PositiveToVis}}" />
-                        <ItemsControl ItemsSource="{Binding JunkSkipped}" ItemTemplate="{StaticResource PlanRowTemplate}" />
+                        <ItemsControl x:Name="JunkSkippedHost" ItemsSource="{Binding JunkSkipped}"
+                                      ItemTemplate="{StaticResource PlanRowTemplate}" />
                     </StackPanel>
-                </Border>
 
-                <!-- ===== Recycle bin (the one irreversible action on this screen) ===== -->
-                <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource CleanCard}">
-                    <StackPanel>
-                        <TextBlock Text="{Binding I18n[clean.recycle.title]}" Style="{StaticResource CleanSectionTitle}" />
-                        <TextBlock Text="{Binding RecycleStats}" Foreground="{DynamicResource Backup.Muted}" FontSize="13"
-                                   TextWrapping="Wrap" Margin="0,10,0,0" />
-                        <controls:HealthChip x:Name="RecycleHealthNoteText" Text="{Binding RecycleHealthNote}"
-                                   HorizontalAlignment="Stretch" Margin="0,8,0,0"
-                                   Visibility="{Binding RecycleHealthNote, Converter={StaticResource NonEmptyToVis}}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                            <Button Style="{StaticResource CleanSecondaryButton}" Content="{Binding I18n[common.refresh]}"
-                                    Command="{Binding RefreshRecycleCommand}" />
-                            <Button Style="{StaticResource CleanDangerButton}" Margin="8,0,0,0"
-                                    Content="{Binding I18n[clean.recycle.empty]}" Command="{Binding EmptyRecycleCommand}" />
-                            <Border Background="{DynamicResource Backup.Danger}" BorderBrush="{DynamicResource Backup.DangerDeep}"
-                                    BorderThickness="1" CornerRadius="999" Padding="8,3" Margin="8,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding I18n[clean.recycle.irreversible]}" Foreground="{DynamicResource Backup.DangerText}"
-                                           FontSize="10" FontWeight="Bold" />
-                            </Border>
-                        </StackPanel>
-
-                        <!-- Irreversible: explicit confirm before emptying — loud red, never softened. -->
-                        <Border Background="{DynamicResource Backup.Row.Danger}" BorderBrush="{DynamicResource Backup.DangerBorder}"
-                                BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,14,0,0"
-                                Visibility="{Binding RecycleConfirmPending, Converter={StaticResource BoolToVis}}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.title]}" Foreground="{DynamicResource Backup.DangerStrong}"
-                                           FontWeight="SemiBold" FontSize="13.5" />
-                                <TextBlock Text="{Binding I18n[clean.recycle.confirm.body]}" Foreground="{DynamicResource Backup.Muted}"
-                                           FontSize="12.5" TextWrapping="Wrap" Margin="0,7,0,12" />
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Style="{StaticResource CleanDangerButton}"
-                                            Content="{Binding I18n[clean.recycle.confirm.approve]}"
-                                            Command="{Binding ConfirmEmptyRecycleCommand}" />
-                                    <Button Style="{StaticResource CleanSecondaryButton}" Margin="8,0,0,0"
-                                            Content="{Binding I18n[clean.recycle.confirm.cancel]}"
-                                            Command="{Binding CancelEmptyRecycleCommand}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <!-- ===== Startup programs ===== -->
-                <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource CleanCard}">
-                    <StackPanel>
-                        <Grid>
+                    <!-- 2. Startup programs -->
+                    <StackPanel x:Name="StartupSection" Margin="0,0,0,18">
+                        <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding I18n[clean.startup.title]}" Style="{StaticResource CleanSectionTitle}" />
-                                <TextBlock Style="{StaticResource CleanMeta}" Margin="8,2,0,0" VerticalAlignment="Center"
-                                           Visibility="{Binding StartupEntries.Count, Converter={StaticResource PositiveToVis}}">
-                                    <Run Text="{Binding StartupEntries.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
-                                    <Run Text="{Binding I18n[clean.count.entries], Mode=OneWay}" />
-                                </TextBlock>
-                            </StackPanel>
-                            <Button Grid.Column="1" Style="{StaticResource CleanSecondaryButton}"
+                            <TextBlock Grid.Column="0" Text="{Binding I18n[clean.startup.title]}" Style="{StaticResource CleanSectionTitle}" />
+                            <TextBlock Grid.Column="1" Style="{StaticResource CleanMeta}" VerticalAlignment="Center" Margin="10,0,10,0"
+                                       Visibility="{Binding StartupEntries.Count, Converter={StaticResource PositiveToVis}}">
+                                <Run Text="{Binding StartupEntries.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
+                                <Run Text="{Binding I18n[clean.count.entries], Mode=OneWay}" />
+                            </TextBlock>
+                            <Button Grid.Column="2" Style="{StaticResource CleanSecondaryButton}"
                                     Content="{Binding I18n[common.refresh]}" Command="{Binding LoadStartupCommand}" />
                         </Grid>
                         <controls:HealthChip x:Name="StartupHealthNoteText" Text="{Binding StartupHealthNote}"
-                                   HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                   HorizontalAlignment="Stretch" Margin="0,0,0,8"
                                    Visibility="{Binding StartupHealthNote, Converter={StaticResource NonEmptyToVis}}" />
                         <ListBox Style="{DynamicResource AppList}" ItemContainerStyle="{DynamicResource AppItem}"
                                  Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.Line}"
-                                 Margin="0,12,0,0" MaxHeight="220" BorderThickness="1"
+                                 MaxHeight="220" BorderThickness="1"
+                                 HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ItemsSource="{Binding StartupEntries}" SelectedItem="{Binding SelectedStartup}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Margin="0,2">
                                         <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Backup.Ink}"
                                                    FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{Binding SourceLabel}" Style="{StaticResource CleanMeta}" Margin="0,2,0,0" />
+                                        <TextBlock Text="{Binding SourceLabel}" Style="{StaticResource CleanMeta}" Margin="0,2,0,0"
+                                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Text="{Binding Command}" Style="{StaticResource CleanMeta}"
                                                    FontFamily="{DynamicResource Wck.Mono}"
-                                                   TextTrimming="CharacterEllipsis" />
+                                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <Button Style="{StaticResource CleanSecondaryButton}" HorizontalAlignment="Left" Margin="0,12,0,0"
+                        <Button Style="{StaticResource CleanSecondaryButton}" HorizontalAlignment="Left" Margin="0,10,0,0"
                                 Content="{Binding I18n[clean.startup.disable]}" Command="{Binding DisableStartupCommand}"
                                 Visibility="{Binding HasStartupSelection, Converter={StaticResource BoolToVis}}" />
-                        <ItemsControl ItemsSource="{Binding StartupPreview}" Margin="0,12,0,0"
+                        <ItemsControl ItemsSource="{Binding StartupPreview}" Margin="0,10,0,0"
                                       ItemTemplate="{StaticResource PlanRowTemplate}" />
                     </StackPanel>
-                </Border>
 
-                <!-- ===== Browser extensions (inventory only — never emerald "safe to remove") ===== -->
-                <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource CleanCard}">
-                    <StackPanel>
-                        <Grid>
+                    <!-- 3. Browser extensions — inventory only, and the restraint sentence says so verbatim -->
+                    <StackPanel x:Name="ExtensionsSection" Margin="0,0,0,14">
+                        <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding I18n[clean.ext.title]}" Style="{StaticResource CleanSectionTitle}" />
-                                <TextBlock Style="{StaticResource CleanMeta}" Margin="8,2,0,0" VerticalAlignment="Center"
-                                           Visibility="{Binding Extensions.Count, Converter={StaticResource PositiveToVis}}">
-                                    <Run Text="{Binding Extensions.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
-                                    <Run Text="{Binding I18n[clean.count.found], Mode=OneWay}" />
-                                </TextBlock>
-                            </StackPanel>
-                            <Button Grid.Column="1" Style="{StaticResource CleanSecondaryButton}"
+                            <TextBlock Grid.Column="0" Text="{Binding I18n[clean.ext.title]}" Style="{StaticResource CleanSectionTitle}" />
+                            <TextBlock Grid.Column="1" Style="{StaticResource CleanMeta}" VerticalAlignment="Center" Margin="10,0,10,0"
+                                       Visibility="{Binding Extensions.Count, Converter={StaticResource PositiveToVis}}">
+                                <Run Text="{Binding Extensions.Count, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource Backup.Ink}" />
+                                <Run Text="{Binding I18n[clean.count.found], Mode=OneWay}" />
+                            </TextBlock>
+                            <Button Grid.Column="2" Style="{StaticResource CleanSecondaryButton}"
                                     Content="{Binding I18n[common.refresh]}" Command="{Binding LoadExtensionsCommand}" />
                         </Grid>
-                        <TextBlock Text="{Binding I18n[clean.ext.note]}" Style="{StaticResource CleanMeta}" Margin="0,10,0,0" />
                         <controls:HealthChip x:Name="ExtensionsHealthNoteText" Text="{Binding ExtensionsHealthNote}"
-                                   HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                   HorizontalAlignment="Stretch" Margin="0,0,0,8"
                                    Visibility="{Binding ExtensionsHealthNote, Converter={StaticResource NonEmptyToVis}}" />
-                        <ItemsControl ItemsSource="{Binding Extensions}" Margin="0,12,0,0">
+                        <ItemsControl x:Name="ExtensionsHost" ItemsSource="{Binding Extensions}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
@@ -343,7 +333,7 @@
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Id}" Style="{StaticResource CleanMeta}"
                                                            FontFamily="{DynamicResource Wck.Mono}"
-                                                           TextTrimming="CharacterEllipsis" />
+                                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
                                             <Button Grid.Column="1" Style="{StaticResource CleanSecondaryButton}" VerticalAlignment="Center"
                                                     Margin="8,0,0,0" Content="{Binding DataContext.I18n[clean.ext.openFolder], RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -354,9 +344,167 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Border Background="{DynamicResource Backup.Card}" BorderBrush="{DynamicResource Backup.Line}"
+                                BorderThickness="1" CornerRadius="7" Padding="10,7" Margin="0,2,0,0">
+                            <TextBlock x:Name="ExtensionsRestraintText" Text="{Binding I18n[clean.ext.note]}"
+                                       Foreground="{DynamicResource Backup.Muted}" FontSize="12"
+                                       TextWrapping="Wrap" TextTrimming="None" />
+                        </Border>
                     </StackPanel>
-                </Border>
-            </Grid>
-        </ScrollViewer>
+
+                    <!-- The Recycle Bin is separated by a divider: it is the one irreversible thing here. -->
+                    <Border x:Name="SectionDivider" Height="1" Background="{DynamicResource Backup.Line}" Margin="0,0,0,14" />
+
+                    <!-- 4. Recycle Bin — LAST, irreversible, never pre-selected -->
+                    <Border x:Name="RecycleSection" Background="{DynamicResource Backup.Row.Danger}"
+                            BorderBrush="{DynamicResource Backup.DangerBorder}"
+                            BorderThickness="1" CornerRadius="10" Padding="13,11" Margin="0,0,0,4">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="RecycleIncludeCheck" Grid.Column="0" VerticalAlignment="Center"
+                                          Margin="0,0,10,0"
+                                          AutomationProperties.Name="{Binding I18n[clean.recycle.empty]}"
+                                          IsChecked="{Binding RecycleRow.IsIncluded, Mode=TwoWay}" />
+                                <controls:RiskChip Grid.Column="1" Risk="{Binding RecycleRow.Risk}"
+                                                   IsBlocked="{Binding RecycleRow.IsSkipped}"
+                                                   Text="{Binding RecycleRow.RiskText}"
+                                                   VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding I18n[clean.recycle.title]}" Style="{StaticResource CleanSectionTitle}" />
+                                <Button Grid.Column="3" Style="{StaticResource CleanDangerButton}" Margin="10,0,0,0"
+                                        Content="{Binding I18n[clean.recycle.empty]}" Command="{Binding EmptyRecycleCommand}" />
+                            </Grid>
+                            <TextBlock Text="{Binding RecycleStats}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5"
+                                       TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Visibility="{Binding RecycleStats, Converter={StaticResource NonEmptyToVis}}" />
+                            <controls:UndoLine x:Name="RecycleUndoLine" Recovery="{Binding RecycleRow.Recovery}"
+                                               Text="{Binding RecycleRow.Undo}" HorizontalAlignment="Left" Margin="0,6,0,0" />
+                            <controls:HealthChip x:Name="RecycleHealthNoteText" Text="{Binding RecycleHealthNote}"
+                                       HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                       Visibility="{Binding RecycleHealthNote, Converter={StaticResource NonEmptyToVis}}" />
+                            <Button Style="{StaticResource CleanSecondaryButton}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                    Content="{Binding I18n[common.refresh]}" Command="{Binding RefreshRecycleCommand}" />
+
+                            <!-- Irreversible: explicit confirm before emptying — kept exactly as shipped. -->
+                            <Border x:Name="RecycleConfirmPanel" Background="{DynamicResource Backup.Card}"
+                                    BorderBrush="{DynamicResource Backup.DangerBorder}"
+                                    BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,12,0,0"
+                                    Visibility="{Binding RecycleConfirmPending, Converter={StaticResource BoolToVis}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding I18n[clean.recycle.confirm.title]}" Foreground="{DynamicResource Backup.DangerStrong}"
+                                               FontWeight="SemiBold" FontSize="13.5" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding I18n[clean.recycle.confirm.body]}" Foreground="{DynamicResource Backup.Muted}"
+                                               FontSize="12.5" TextWrapping="Wrap" Margin="0,7,0,12" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Style="{StaticResource CleanSecondaryButton}"
+                                                Content="{Binding I18n[clean.recycle.confirm.cancel]}"
+                                                Command="{Binding CancelEmptyRecycleCommand}" />
+                                        <Button Style="{StaticResource CleanDangerButton}" Margin="8,0,0,0"
+                                                Content="{Binding I18n[clean.recycle.confirm.approve]}"
+                                                Command="{Binding ConfirmEmptyRecycleCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ===== ReviewSummary rail — 292 px, every number adjacent to the list it counts ===== -->
+            <Border x:Name="ReviewRail" Grid.Column="2" Background="{DynamicResource Wck.Rail.Background}"
+                    BorderBrush="{DynamicResource Wck.Rail.Border}" BorderThickness="1" CornerRadius="10"
+                    Padding="13" VerticalAlignment="Top">
+                <StackPanel>
+                    <TextBlock Text="{Binding I18n[clean.review.title]}" Foreground="{DynamicResource Backup.Ink}"
+                               FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding I18n[clean.review.lead]}" Style="{StaticResource CleanMeta}" Margin="0,3,0,9" />
+
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding I18n[clean.review.actions]}" Style="{StaticResource ReviewStatLabel}" />
+                        <TextBlock Grid.Column="1" x:Name="SelectedActionCountText" Text="{Binding SelectedActionCount}"
+                                   Style="{StaticResource ReviewStatValue}" />
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding I18n[clean.review.protected]}" Style="{StaticResource ReviewStatLabel}" />
+                        <TextBlock Grid.Column="1" x:Name="ProtectedCountText" Text="{Binding ProtectedCount}"
+                                   Style="{StaticResource ReviewStatValue}" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding I18n[clean.review.recovery]}" Foreground="{DynamicResource Backup.Faint}"
+                               FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,9,0,4" />
+                    <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="RecoveryFullText" Text="{Binding RecoveryFullCount}"
+                                   Foreground="{DynamicResource Backup.Ink}" FontSize="12.5" FontWeight="Bold" />
+                        <TextBlock Grid.Column="1" Text="{Binding I18n[clean.review.recovery.full]}"
+                                   Style="{StaticResource ReviewStatLabel}" Margin="7,0,0,0" />
+                    </Grid>
+                    <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="RecoveryPartialText" Text="{Binding RecoveryPartialCount}"
+                                   Foreground="{DynamicResource Backup.Ink}" FontSize="12.5" FontWeight="Bold" />
+                        <TextBlock Grid.Column="1" Text="{Binding I18n[clean.review.recovery.partial]}"
+                                   Style="{StaticResource ReviewStatLabel}" Margin="7,0,0,0" />
+                    </Grid>
+                    <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="RecoveryNoneText" Text="{Binding RecoveryNoneCount}"
+                                   Foreground="{DynamicResource Backup.Ink}" FontSize="12.5" FontWeight="Bold" />
+                        <TextBlock Grid.Column="1" Text="{Binding I18n[clean.review.recovery.none]}"
+                                   Style="{StaticResource ReviewStatLabel}" Margin="7,0,0,0" />
+                    </Grid>
+                    <!-- Unknown recovery is stated SEPARATELY and only when it exists — folding it into the
+                         permanent tally would be fail-safe but not honest (spec §2.0b). -->
+                    <Grid x:Name="RecoveryUnknownRow" Margin="0,0,0,2"
+                          Visibility="{Binding RecoveryUnknownCount, Converter={StaticResource PositiveToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" x:Name="RecoveryUnknownText" Text="{Binding RecoveryUnknownCount}"
+                                   Foreground="{DynamicResource Backup.Ink}" FontSize="12.5" FontWeight="Bold" />
+                        <TextBlock Grid.Column="1" Text="{Binding I18n[clean.review.recovery.unknown]}"
+                                   Style="{StaticResource ReviewStatLabel}" Margin="7,0,0,0" />
+                    </Grid>
+
+                    <TextBlock x:Name="ConsequenceText" Text="{Binding ConsequenceSentence}"
+                               Style="{StaticResource CleanMeta}" Foreground="{DynamicResource Backup.Muted}"
+                               Margin="0,10,0,10" />
+
+                    <Button x:Name="ApprovePlanButton" Style="{StaticResource CleanPrimaryButton}"
+                            Content="{Binding ApproveText}" Command="{Binding ApprovePlanCommand}"
+                            HorizontalAlignment="Stretch" Padding="12,9" />
+
+                    <CheckBox x:Name="TechnicalDetailsToggle" Margin="0,12,0,0"
+                              IsChecked="{Binding TechnicalDetails, Mode=TwoWay}"
+                              Foreground="{DynamicResource Backup.Muted}">
+                        <TextBlock Text="{Binding I18n[clean.tech.details]}" Foreground="{DynamicResource Backup.Muted}"
+                                   FontSize="11.5" TextWrapping="Wrap" />
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
