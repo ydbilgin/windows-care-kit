@@ -38,6 +38,19 @@ public enum RowSelection
     Blocked,
 }
 
+/// <summary>What a row with no <see cref="PlanRow.Action"/> says about whether its subject happened. A
+/// display-only row cannot name an action, so it cannot make an engine claim; it can still state that the
+/// work did NOT happen, which is the fact the chip vocabulary needs and the only one it may assert.</summary>
+public enum RowDisposition
+{
+    /// <summary>The row makes no statement. The default, so a row that says nothing cannot accidentally
+    /// assert something.</summary>
+    Unstated = 0,
+
+    /// <summary>The row states its subject did not run, will not run, was refused, or failed.</summary>
+    WillNotRun,
+}
+
 /// <summary>A single action shown in the dry-run preview. When constructed with an <see cref="I18n"/> it
 /// re-renders its text live on a language switch (finding G6). Without one it keeps the legacy frozen-English
 /// text so existing literal callers and the frozen Migration call site are unchanged. It exposes the engine's
@@ -177,13 +190,24 @@ public sealed class PlanRow : ObservableObject
     /// <see cref="FromSkipped"/> on either path.</summary>
     public bool IsSkipped => _selection is RowSelection.Blocked;
 
+    /// <summary>The row's display disposition. It DERIVES from <see cref="Selection"/>, so there is one truth:
+    /// a typed skipped row reports <see cref="RowDisposition.WillNotRun"/> without setting anything. The init
+    /// accessor is the object-initializer path's only way to reach <see cref="RowSelection.Blocked"/>; it can
+    /// reach no other state, so a caller that names no action can never claim the engine will RUN something.
+    /// <para>
+    /// On the initializer path <see cref="_selection"/> starts <see cref="RowSelection.Unbound"/> and nothing
+    /// else writes it, so the init only ever SETS blocked and never clears a state a caller asked for.
+    /// </para>
+    /// </summary>
+    public RowDisposition Disposition
+    {
+        get => _selection is RowSelection.Blocked ? RowDisposition.WillNotRun : RowDisposition.Unstated;
+        init { if (value is RowDisposition.WillNotRun) _selection = RowSelection.Blocked; }
+    }
+
     /// <summary>Typed recovery captured by the legacy factory path, which renders text but keeps no action.
     /// Null (unknown) for a bare object-initializer row, which has no typed source to capture.</summary>
     private UndoCapability? LegacyRecovery { get; init; }
-
-    /// <summary>Selection for the legacy factory path, where the private constructor is not used. Private, so a
-    /// public object-initializer caller cannot assert a selection state; it stays <see cref="RowSelection.Unbound"/>.</summary>
-    private RowSelection LegacySelection { get => _selection; init => _selection = value; }
 
     public static PlanRow FromAction(PlannedAction a, I18n? i18n = null, bool isVetoable = false)
         => FromAction(a, isWholeTree: false, i18n: i18n, isVetoable: isVetoable);
@@ -235,7 +259,7 @@ public sealed class PlanRow : ObservableObject
                 Undo = string.Empty,
                 Detail = reason,
                 LegacyRecovery = a.Undo,
-                LegacySelection = RowSelection.Blocked,
+                Disposition = RowDisposition.WillNotRun,
             };
         }
 

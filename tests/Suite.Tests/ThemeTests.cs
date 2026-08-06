@@ -110,7 +110,6 @@ public sealed class ThemeTests
             ["Backup.DangerText"] = "#FFF4F2",
             ["Backup.DangerBorder"] = "#6E2C2C",
             ["Backup.DangerBorderHover"] = "#8F3A3A",
-            ["Backup.SkipChip"] = "#101319",
             ["Backup.RailBorder"] = "#262D3A",
             ["Backup.PathBg"] = "#101319",
         };

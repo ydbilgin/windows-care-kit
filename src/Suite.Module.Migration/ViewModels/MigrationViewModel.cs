@@ -547,6 +547,8 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         return string.IsNullOrWhiteSpace(reason) ? generic : $"{generic}: {reason}";
     }
 
+    /// <summary>A recipe item the capture planner refused. The row STATES it will not run, so the chip resolves
+    /// the blocked family from the row's own disposition rather than from an inflated risk level.</summary>
     private static PlanRow SkipRow(RecipeItemSkip skip) => new()
     {
         Text = skip.ItemPath,
@@ -554,15 +556,20 @@ public sealed class MigrationViewModel : ObservableObject, IWckNavigationAware
         Risk = RiskLevel.Info,
         Undo = string.Empty,
         Detail = skip.Reason,
+        Disposition = RowDisposition.WillNotRun,
     };
 
+    /// <summary>One post-run copy outcome. A copy that did NOT happen is a disposition, not a Critical risk:
+    /// nothing irreversible was done to the machine, so the level stays Info and the blockedness carries the
+    /// colour.</summary>
     private static PlanRow ResultRow(CopyFileOutcome outcome) => new()
     {
         Text = outcome.Source,
         RiskText = outcome.Copied ? "COPIED" : "SKIPPED",
-        Risk = outcome.Copied ? RiskLevel.Low : RiskLevel.Critical,
+        Risk = outcome.Copied ? RiskLevel.Low : RiskLevel.Info,
         Undo = string.Empty,
         Detail = outcome.Copied ? outcome.Destination : $"{outcome.Reason}: {outcome.Detail}",
+        Disposition = outcome.Copied ? RowDisposition.Unstated : RowDisposition.WillNotRun,
     };
 
     private void RefreshManualTodoLanguage()

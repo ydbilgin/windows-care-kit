@@ -176,6 +176,84 @@ public sealed class ChipVocabularyTests
             + string.Join(", ", offenders));
     }
 
+    /// <summary>
+    /// B2 / the colour-lever sweep. A display-only row states blockedness through its own
+    /// <c>PlanRow.Disposition</c>; it must never reach for <see cref="RiskLevel.Critical"/> to obtain the red
+    /// family. That is the two-facts-in-one-value defect <c>a0d2c52</c> removed, and it re-enters silently:
+    /// six factories carried it, every render looked right, and the row was lying about what the engine said.
+    /// <para>
+    /// Asserted over the SOURCES of the six view-models that build display-only rows, as an exact set rather
+    /// than a loosened pattern — each surviving <c>RiskLevel.Critical</c> statement is named with the reason it
+    /// is honest. A seventh statement, or a changed one, fails here at the site rather than only in a render
+    /// test somebody may not add.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(DisplayRowViewModels))]
+    public void No_display_only_view_model_uses_the_critical_risk_level_as_a_colour_lever(string viewModelFileName)
+    {
+        string path = SourceFiles().Single(file => Path.GetFileName(file) == viewModelFileName);
+        (string Text, int Number)[] found = File.ReadAllLines(path)
+            .Select((line, index) => (Text: line.Trim(), Number: index + 1))
+            .Where(entry => entry.Text.Contains("RiskLevel.Critical", StringComparison.Ordinal))
+            .ToArray();
+
+        string[] allowed = HonestCriticalStatements.TryGetValue(viewModelFileName, out string[]? entries)
+            ? entries
+            : [];
+
+        string[] unexpected = found
+            .Where(entry => !allowed.Contains(entry.Text, StringComparer.Ordinal))
+            .Select(entry => $"{viewModelFileName}:{entry.Number}  {entry.Text}")
+            .ToArray();
+
+        Assert.True(
+            unexpected.Length == 0,
+            "A display-only row states that its subject will not run through PlanRow.Disposition; Critical is "
+            + "the engine's word for an irreversible ACTION and must never be borrowed to obtain a colour. "
+            + "Unlisted Critical statements: " + string.Join(" | ", unexpected));
+
+        // The other direction: an allowlisted statement that has disappeared means the reason recorded beside
+        // it is stale, and a stale allowlist is how the next honest-looking Critical slips through.
+        string[] missing = allowed
+            .Where(statement => !found.Any(entry => string.Equals(entry.Text, statement, StringComparison.Ordinal)))
+            .ToArray();
+
+        Assert.True(
+            missing.Length == 0,
+            $"{viewModelFileName} no longer contains allowlisted Critical statement(s): "
+            + string.Join(" | ", missing)
+            + ". Remove the entry rather than leaving a reason for code that is gone.");
+    }
+
+    /// <summary>The six view-models that build display-only <c>PlanRow</c>s (spec §6 production inventory).</summary>
+    public static TheoryData<string> DisplayRowViewModels() =>
+    [
+        "MigrationViewModel.cs",
+        "BackupViewModel.cs",
+        "RestoreViewModel.cs",
+        "InstallViewModel.cs",
+        "UninstallWizardViewModel.cs",
+        "UninstallViewModel.cs",
+    ];
+
+    /// <summary>
+    /// The <see cref="RiskLevel.Critical"/> statements that are HONEST engine facts, each named with its
+    /// reason. Both survivors describe the same real irreversible action — removing a Store app — which the
+    /// engine genuinely will run; neither is a display-only row reaching for red.
+    /// </summary>
+    private static readonly Dictionary<string, string[]> HonestCriticalStatements = new(StringComparer.Ordinal)
+    {
+        // UninstallViewModel.StageAppx: the confirm-gate preview row for a removal that WILL run, and
+        // RunAppxRemovalAsync: the typed AppxRemoveAction handed to the executor. Store-app removal cannot be
+        // undone, so Critical is the truth about the action, not a lever on the chip.
+        ["UninstallViewModel.cs"] =
+        [
+            "RiskLevel.Critical, package.PackageFullName),",
+            "Risk = RiskLevel.Critical,",
+        ],
+    };
+
     /// <summary>The two facts a risk chip renders. They are separate properties precisely because they are
     /// separate truths — collapsing them back into one value is the defect a0d2c52 removed.</summary>
     private static readonly string[] RequiredRiskChipAttributes = ["Risk", "IsBlocked"];

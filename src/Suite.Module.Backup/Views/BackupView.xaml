@@ -274,13 +274,13 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{DynamicResource Backup.SkipChip}"
-                                BorderBrush="{DynamicResource Backup.Line}" BorderThickness="1"
-                                CornerRadius="999" Padding="7,2" Margin="0,1,9,0" VerticalAlignment="Top">
-                            <TextBlock Text="{Binding DataContext.I18n[backup.row.skipChip], RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                       Foreground="{DynamicResource Backup.Faint}"
-                                       FontSize="10" FontWeight="Bold" />
-                        </Border>
+                        <!-- The shared chip vocabulary, not a bespoke grey pill: a skipped row is BLOCKED, and
+                             blocked is the red family whatever the underlying entry's risk was. Text keeps the
+                             I18n indexer binding — this view-model has no language-changed handler, so moving
+                             the word into RiskText at construction would freeze it at the build-time language. -->
+                        <controls:RiskChip Grid.Column="0" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
+                                           Text="{Binding DataContext.I18n[backup.row.skipChip], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           Margin="0,1,9,0" VerticalAlignment="Top" />
                         <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{DynamicResource Backup.Muted}"
                                    FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                     </Grid>

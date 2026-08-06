@@ -449,46 +449,44 @@ public sealed class RestoreViewModel : ObservableObject
             NotRestoredRows.Add(ReportRow(entry));
     }
 
-    private PlanRow SkipRow(RestoreSkip skip)
+    /// <summary>
+    /// A target the restore refused. Every reason but <see cref="RestoreSkipReason.AlreadyDone"/> states the
+    /// work will not run, and that is a DISPOSITION — no restore skip does anything irreversible to the machine,
+    /// so the risk level stays Info and the chip's blocked family carries the colour. <c>AlreadyDone</c> is the
+    /// one reason that is not a refusal: the work is finished, so the row makes no claim and stays calm.
+    /// </summary>
+    private PlanRow SkipRow(RestoreSkip skip) => new()
     {
-        RiskLevel risk = skip.Reason switch
-        {
-            RestoreSkipReason.AlreadyDone => RiskLevel.Info,
-            RestoreSkipReason.GateBlocked or RestoreSkipReason.MachineLocked
-                or RestoreSkipReason.RebindRejected or RestoreSkipReason.SourceMissing
-                or RestoreSkipReason.PackageSourceRejected => RiskLevel.Critical,
-            _ => RiskLevel.High,
-        };
+        Text = $"{skip.Target.RecipeId}: {skip.Target.RelativePath}",
+        RiskText = I18n["migration.restore.status.skipped"],
+        Risk = RiskLevel.Info,
+        Undo = string.Empty,
+        Detail = $"{skip.Reason}: {LocalizedNote(RestoreSkipNotes.HumanNote(skip))}",
+        Disposition = skip.Reason is RestoreSkipReason.AlreadyDone
+            ? RowDisposition.Unstated
+            : RowDisposition.WillNotRun,
+    };
 
-        return new PlanRow
-        {
-            Text = $"{skip.Target.RecipeId}: {skip.Target.RelativePath}",
-            RiskText = I18n["migration.restore.status.skipped"],
-            Risk = risk,
-            Undo = string.Empty,
-            Detail = $"{skip.Reason}: {LocalizedNote(RestoreSkipNotes.HumanNote(skip))}",
-        };
-    }
-
-    private PlanRow ReportRow(RestoreReportEntry entry)
+    /// <summary>One reported disposition. <see cref="RestoreDisposition.NotRestored"/> states the work did not
+    /// happen, which the row now says in its own disposition instead of borrowing a Critical risk level it
+    /// cannot justify. The other dispositions keep the level the engine really assigned them.</summary>
+    private PlanRow ReportRow(RestoreReportEntry entry) => new()
     {
-        RiskLevel risk = entry.Disposition switch
+        Text = string.IsNullOrWhiteSpace(entry.RecipeId) ? entry.Id : entry.RecipeId,
+        RiskText = I18n[DispositionKey(entry.Disposition)],
+        Risk = entry.Disposition switch
         {
             RestoreDisposition.Restored => RiskLevel.Low,
             RestoreDisposition.ReinstallEnqueued => RiskLevel.Medium,
-            RestoreDisposition.NotRestored => RiskLevel.Critical,
+            RestoreDisposition.NotRestored => RiskLevel.Info,
             _ => RiskLevel.High,
-        };
-
-        return new PlanRow
-        {
-            Text = string.IsNullOrWhiteSpace(entry.RecipeId) ? entry.Id : entry.RecipeId,
-            RiskText = I18n[DispositionKey(entry.Disposition)],
-            Risk = risk,
-            Undo = string.Empty,
-            Detail = $"{entry.Reason}: {LocalizedNote(entry.Note)}",
-        };
-    }
+        },
+        Undo = string.Empty,
+        Detail = $"{entry.Reason}: {LocalizedNote(entry.Note)}",
+        Disposition = entry.Disposition is RestoreDisposition.NotRestored
+            ? RowDisposition.WillNotRun
+            : RowDisposition.Unstated,
+    };
 
     private PlanRow ResultRow(PlanActionResult result, PlannedAction? action)
     {
@@ -503,24 +501,32 @@ public sealed class RestoreViewModel : ObservableObject
             }
             : PlanRow.FromAction(action, I18n);
 
+        // Anything but Done means this action did not complete — a DISPOSITION, not an irreversible act. The
+        // level stays Info and the row's own blockedness carries the colour.
         return new PlanRow
         {
             Text = row.Text,
             RiskText = I18n[$"migration.restore.status.{result.Status}"],
-            Risk = StatusRisk(result.Status),
+            Risk = result.Status is PlanActionStatus.Done ? RiskLevel.Low : RiskLevel.Info,
             Undo = row.Undo,
             Detail = result.Detail,
             IsElevated = row.IsElevated,
+            Disposition = result.Status is PlanActionStatus.Done
+                ? RowDisposition.Unstated
+                : RowDisposition.WillNotRun,
         };
     }
 
+    /// <summary>An undo step the undo builder refused. It states the step will not run; nothing irreversible
+    /// happened, so the level stays Info.</summary>
     private PlanRow RejectedUndoRow(RejectedRestoreUndoStep rejected) => new()
     {
         Text = rejected.Step.TargetPath,
         RiskText = I18n["migration.restore.status.rejected"],
-        Risk = RiskLevel.Critical,
+        Risk = RiskLevel.Info,
         Undo = string.Empty,
         Detail = rejected.Reason,
+        Disposition = RowDisposition.WillNotRun,
     };
 
     private void SetNormalizedPaths(string packageDir, string stateDir)
@@ -630,13 +636,6 @@ public sealed class RestoreViewModel : ObservableObject
 
         return note;
     }
-
-    private static RiskLevel StatusRisk(PlanActionStatus status) => status switch
-    {
-        PlanActionStatus.Done => RiskLevel.Low,
-        PlanActionStatus.NotRun or PlanActionStatus.Skipped => RiskLevel.Info,
-        _ => RiskLevel.Critical,
-    };
 
     private string DispositionKey(RestoreDisposition disposition)
         => disposition == RestoreDisposition.Restored && _usePreviewDispositionLabels

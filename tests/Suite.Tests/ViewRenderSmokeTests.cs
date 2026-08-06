@@ -7,6 +7,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -53,11 +54,12 @@ using WindowsCareKit.Tests.Execution;
 using WindowsCareKit.Tests.MigrationRestore;
 using WindowsCareKit.Tests.TestInfra;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace WindowsCareKit.Tests;
 
 [Collection(WpfResourceCollection.Name)]
-public sealed class ViewRenderSmokeTests
+public sealed class ViewRenderSmokeTests(ITestOutputHelper output)
 {
     private static readonly object BindingTraceLock = new();
     private static int BindingTraceScopes;
@@ -1370,6 +1372,825 @@ public sealed class ViewRenderSmokeTests
                 CleanupApplicationResources(createdApplication, theme);
             }
         });
+    }
+
+    // ---- B2: a display-only row states its own disposition, proven through the PRODUCTION factory ------------
+    //
+    // Every proof below drives the REAL view-model through its public API and reads the chip off the row the
+    // PRODUCTION factory built. Constructing `new PlanRow { Disposition = ... }` and asserting the chip turns
+    // red would prove only that RiskChipFamilies.For works — four tests already prove that — and it is exactly
+    // why this defect survived four rounds: the failure was in CONSTRUCTION, never in the mapping.
+
+    /// <summary>
+    /// One display-only row, checked at BOTH seams: what the production factory decided, and what the visual
+    /// tree actually rendered for that same row instance. The chip is located by DataContext identity, so a
+    /// second row's chip can never stand in for a missing one.
+    /// </summary>
+    private static void AssertDisplayRow(
+        DependencyObject host,
+        PlanRow row,
+        RowDisposition disposition,
+        RiskLevel risk,
+        ChipFamily family,
+        string site)
+    {
+        Assert.True(
+            row.Disposition == disposition,
+            $"{site}: the production factory built a row with Disposition={row.Disposition}, expected "
+            + $"{disposition}. This is the construction seam the whole round exists to fix.");
+        Assert.True(
+            row.Risk == risk,
+            $"{site}: the production factory built a row with Risk={row.Risk}, expected {risk}. Risk is the "
+            + "engine's own level, never a lever chosen to obtain a colour.");
+        Assert.Equal(disposition is RowDisposition.WillNotRun, row.IsSkipped);
+
+        RiskChip chip = Assert.Single(
+            Descendants<RiskChip>(host),
+            candidate => ReferenceEquals(candidate.DataContext, row));
+
+        Assert.True(
+            chip.IsBlocked == (disposition is RowDisposition.WillNotRun),
+            $"{site}: the row reports IsSkipped={row.IsSkipped} but the rendered chip has "
+            + $"IsBlocked={chip.IsBlocked}. The IsSkipped-to-IsBlocked binding is what carries the fact to the "
+            + "screen; the family is meaningless without it.");
+        Assert.True(
+            chip.Family == family,
+            $"{site}: the row rendered in the {chip.Family} family, expected {family} "
+            + $"(Risk={row.Risk}, Disposition={row.Disposition}).");
+    }
+
+    private static ContentControl RenderHost(FrameworkElement view, double width = 1100, double height = 900)
+    {
+        var host = new ContentControl { Content = view, Width = width, Height = height };
+        var size = new Size(width, height);
+        host.Measure(size);
+        host.Arrange(new Rect(size));
+        host.UpdateLayout();
+        return host;
+    }
+
+    /// <summary>Sites 1-2. Drives the capture flow end to end: the planner refuses one recipe item, the run
+    /// copies one file and refuses another.</summary>
+    [Fact]
+    public void MigrationView_capture_rows_state_their_disposition_and_render_it()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                var runner = new RenderCaptureBackupRunner
+                {
+                    PlanSkips = [new RecipeItemSkip("secret.db", "forbidden secret store")],
+                    FailedActionCount = 1,
+                };
+                var vm = new MigrationViewModel(
+                    i18n,
+                    new RenderFakeMigrationScanService(),
+                    runner,
+                    () => [CaptureRecipe()],
+                    TestData.PayloadRoots());
+                vm.LoadScan(
+                    new DetectionResult(Array.Empty<DiscoveredProgram>(), Array.Empty<ProgramSourceReport>()),
+                    @"C:\Users\render-smoke",
+                    [CaptureCandidate()]);
+                vm.ConfirmProfileCommand.Execute(null);
+                vm.PackageDir = Path.Combine(
+                    Path.GetTempPath(), "wck-render-capture-" + Guid.NewGuid().ToString("N"));
+
+                vm.BuildCapturePlanAsync().GetAwaiter().GetResult();
+                vm.IsPreviewApproved = true;
+                vm.RunCaptureAsync().GetAwaiter().GetResult();
+
+                ContentControl host = RenderHost(new MigrationView { DataContext = vm });
+
+                PlanRow skipped = Assert.Single(vm.CaptureSkippedRows);
+                AssertDisplayRow(host, skipped, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 1 MigrationViewModel.SkipRow");
+
+                PlanRow copied = Assert.Single(vm.CaptureResultRows, row => row.RiskText == "COPIED");
+                PlanRow notCopied = Assert.Single(vm.CaptureResultRows, row => row.RiskText == "SKIPPED");
+                AssertDisplayRow(host, copied, RowDisposition.Unstated, RiskLevel.Low,
+                    ChipFamily.Reversible, "site 2 MigrationViewModel.ResultRow (copied)");
+                AssertDisplayRow(host, notCopied, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 2 MigrationViewModel.ResultRow (not copied)");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>Sites 3-4. The skipped row is the one this round converts from a bespoke grey pill to the
+    /// shared chip; the manual row is asserted UNCHANGED, because a manual to-do is a step that needs a
+    /// decision, not a refusal — over-reddening it would be the same defect in the other direction.</summary>
+    [Fact]
+    public void BackupView_skipped_row_is_blocked_and_the_manual_row_stays_amber()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                BackupViewModel vm = BuildBackupRenderViewModel(i18n);
+                vm.BuildPlanAsync().GetAwaiter().GetResult();
+
+                var view = new BackupView { DataContext = vm };
+                ContentControl host = RenderHost(view, 1000, 720);
+
+                PlanRow skipped = Assert.Single(vm.SkippedRows);
+                AssertDisplayRow(host, skipped, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 4 BackupViewModel.SkipRow");
+
+                // The chip keeps the localized word from the I18n indexer, not RiskText: BackupViewModel has no
+                // language-changed handler, so a word frozen at construction would survive a language switch.
+                RiskChip chip = Assert.Single(
+                    Descendants<RiskChip>(host),
+                    candidate => ReferenceEquals(candidate.DataContext, skipped));
+                Assert.Equal(i18n["backup.row.skipChip"], chip.Text);
+
+                // Site 3, unchanged and deliberately so. It renders through Backup's bespoke MANUAL pill rather
+                // than a RiskChip, so there is no rendered family to assert — stated here rather than implied.
+                PlanRow manual = Assert.Single(vm.ManualRows);
+                Assert.Equal(RowDisposition.Unstated, manual.Disposition);
+                Assert.Equal(RiskLevel.High, manual.Risk);
+                Assert.False(manual.IsSkipped);
+                Assert.DoesNotContain(
+                    Descendants<RiskChip>(host),
+                    candidate => ReferenceEquals(candidate.DataContext, manual));
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>Site 5. A real authorized run over a temp payload root: one copy lands, one is refused.</summary>
+    [Fact]
+    public void BackupView_result_rows_state_their_disposition_and_render_it()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            using var workspace = new TempWorkspace("wck-render-backup-result-");
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                BackupViewModel vm = BuildBackupResultRenderViewModel(i18n, workspace.Root);
+                vm.BuildPlanAsync().GetAwaiter().GetResult();
+                vm.IsPreviewApproved = true;
+                vm.RunAsync().GetAwaiter().GetResult();
+
+                ContentControl host = RenderHost(new BackupView { DataContext = vm }, 1000, 720);
+
+                PlanRow copied = Assert.Single(vm.ResultRows, row => row.RiskText == "COPIED");
+                PlanRow notCopied = Assert.Single(vm.ResultRows, row => row.RiskText == "SKIPPED");
+                AssertDisplayRow(host, copied, RowDisposition.Unstated, RiskLevel.Low,
+                    ChipFamily.Reversible, "site 5 BackupViewModel.ResultRow (copied)");
+                AssertDisplayRow(host, notCopied, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 5 BackupViewModel.ResultRow (not copied)");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>
+    /// The Backup skipped chip must stay legible in both themes AFTER the row's opacity composites it against
+    /// the page behind it. Every input is read off the render — the ink, the wash, the effective opacity of the
+    /// whole ancestor chain, and the page colour — so the arithmetic cannot be satisfied by constants this test
+    /// also chose. The wash may be a gradient, so the ratio is taken against its WORST stop.
+    /// </summary>
+    [Theory]
+    [InlineData("Strongbox")]
+    [InlineData("Daylight")]
+    public void BackupView_skipped_chip_meets_AA_over_the_composited_row_opacity(string themeName)
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                BackupViewModel vm = BuildBackupRenderViewModel(i18n);
+                vm.BuildPlanAsync().GetAwaiter().GetResult();
+
+                var view = new BackupView { DataContext = vm };
+                var host = new ContentControl { Content = view, Width = 1000, Height = 720 };
+
+                // The page colour the module view sits on in the shell (MainWindow.xaml:8 binds the window
+                // Background to Bg.Window), resolved from the THEME rather than restated as a literal here.
+                host.SetResourceReference(Control.BackgroundProperty, "Bg.Window");
+                var size = new Size(1000, 720);
+                host.Measure(size);
+                host.Arrange(new Rect(size));
+                host.UpdateLayout();
+
+                PlanRow skipped = Assert.Single(vm.SkippedRows);
+                RiskChip chip = Assert.Single(
+                    Descendants<RiskChip>(host),
+                    candidate => ReferenceEquals(candidate.DataContext, skipped));
+                Assert.Equal(ChipFamily.Irreversible, chip.Family);
+
+                Border chipRoot = Assert.Single(Descendants<Border>(chip), border => border.Name == "ChipRoot");
+                TextBlock label = Assert.Single(
+                    Descendants<TextBlock>(chip), block => block.Name == "ChipText");
+
+                double alpha = EffectiveOpacity(chipRoot, host);
+                Color page = Assert.IsType<SolidColorBrush>(host.Background).Color;
+                Color ink = Composite(RenderedInk(label), page, alpha);
+                Color[] wash = RenderedWash(chipRoot).Select(stop => Composite(stop, page, alpha)).ToArray();
+                double ratio = wash.Min(stop => Contrast.Ratio(HexOf(ink), HexOf(stop)));
+
+                output.WriteLine(
+                    $"AA  {themeName,-9} Backup skip chip  opacity {alpha:F2} over {HexOf(page)}  ink "
+                    + $"{HexOf(ink)} on wash {string.Join('/', wash.Select(HexOf))} = {ratio:F2}:1");
+
+                Assert.True(
+                    ratio >= MinimumChipContrastRatio,
+                    $"{themeName}: the Backup skipped chip rendered {ratio:F2}:1 after compositing at "
+                    + $"opacity {alpha:F2} over {HexOf(page)} (ink {HexOf(ink)} on wash "
+                    + $"{string.Join('/', wash.Select(HexOf))}), below the WCAG AA "
+                    + $"{MinimumChipContrastRatio:F1}:1 floor for normal-size text.");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>Sites 6-7 at PREVIEW: a machine-locked target is refused, a restorable one is planned, and the
+    /// manual bucket stays amber.</summary>
+    [Fact]
+    public void RestoreView_preview_rows_state_their_disposition_and_render_it()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            using var fixture = RestoreViewModelTests.Fixture.Create("render-b2-preview");
+            try
+            {
+                fixture.WritePayload("migration/x/settings.json", "NEW");
+                fixture.SaveManifest(
+                    RestoreViewModelTests.Target("git.config#0", ".gitconfig"),
+                    RestoreViewModelTests.Target(
+                        "locked#0", "locked.db",
+                        recipeId: "locked.app",
+                        portability: PortabilityClass.MachineLocked));
+                RestoreViewModel vm = fixture.CreateViewModel();
+                vm.LoadAndPreviewAsync().GetAwaiter().GetResult();
+
+                ContentControl host = RenderHost(new RestoreView { DataContext = vm });
+
+                PlanRow skipped = Assert.Single(vm.SkippedRows);
+                AssertDisplayRow(host, skipped, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 6 RestoreViewModel.SkipRow (MachineLocked)");
+
+                PlanRow restored = Assert.Single(vm.RestoredRows);
+                AssertDisplayRow(host, restored, RowDisposition.Unstated, RiskLevel.Low,
+                    ChipFamily.Reversible, "site 7 RestoreViewModel.ReportRow (Restored)");
+
+                PlanRow manual = vm.ManualRows[0];
+                AssertDisplayRow(host, manual, RowDisposition.Unstated, RiskLevel.High,
+                    ChipFamily.Attention, "site 7 RestoreViewModel.ReportRow (Manual)");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>Sites 7-8 after a RUN whose second merge throws: one target restores, one does not. The failure
+    /// is injected at the copy ADAPTER, so the plan the runner rebuilds still hashes to the approved value and
+    /// the run is genuinely authorized — a refused run reports nothing at all and would prove nothing here.</summary>
+    [Fact]
+    public void RestoreView_run_rows_state_their_disposition_and_render_it()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            using var workspace = new TempWorkspace("wck-render-restore-run-");
+            try
+            {
+                RestoreViewModel vm = BuildFailingRestoreRenderViewModel(workspace);
+
+                vm.LoadAndPreviewAsync().GetAwaiter().GetResult();
+                vm.IsPreviewApproved = true;
+                vm.RunRestoreAsync().GetAwaiter().GetResult();
+
+                ContentControl host = RenderHost(new RestoreView { DataContext = vm });
+
+                PlanRow done = Assert.Single(
+                    vm.ResultRows, row => row.RiskText == vm.I18n["migration.restore.status.Done"]);
+                AssertDisplayRow(host, done, RowDisposition.Unstated, RiskLevel.Low,
+                    ChipFamily.Reversible, "site 8 RestoreViewModel.ResultRow (Done)");
+
+                PlanRow notDone = Assert.Single(
+                    vm.ResultRows, row => row.RiskText != vm.I18n["migration.restore.status.Done"]);
+                AssertDisplayRow(host, notDone, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 8 RestoreViewModel.ResultRow (not Done)");
+
+                PlanRow notRestored = Assert.Single(vm.NotRestoredRows);
+                AssertDisplayRow(host, notRestored, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 7 RestoreViewModel.ReportRow (NotRestored)");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>
+    /// A real restore stack — real runner, real gate, real <see cref="GatedExecutor"/> — over a synthetic
+    /// profile inside <paramref name="workspace"/>, whose copy adapter throws on the SECOND merge. That is the
+    /// only seam that yields a mixed Done/Failed execution without disturbing the approved plan hash.
+    /// </summary>
+    private static RestoreViewModel BuildFailingRestoreRenderViewModel(TempWorkspace workspace)
+    {
+        string package = workspace.Combine("package");
+        string stateDir = workspace.Combine("state");
+        string usersRoot = workspace.Combine("Users");
+        string profile = Path.Combine(usersRoot, "render-user");
+        Directory.CreateDirectory(profile);
+        Directory.CreateDirectory(stateDir);
+        Directory.CreateDirectory(Path.Combine(package, "migration", "render"));
+        for (int i = 1; i <= 2; i++)
+            File.WriteAllText(Path.Combine(package, "migration", "render", $"source-{i}.json"), $"payload-{i}");
+
+        var manifest = new MigrationRestoreManifest(
+            MigrationRestoreManifest.CurrentSchemaVersion,
+            Enumerable.Range(1, 2).Select(i => new MigrationRestoreTarget(
+                $"render.recipe.{i}",
+                $"render-entry-{i}",
+                KnownFolder.UserProfile,
+                $"target-{i}.json",
+                $"migration/render/source-{i}.json",
+                RestoreStrategy.ConfigWrite,
+                RestorePhase.ConfigWrite,
+                Array.Empty<string>(),
+                PortabilityClass.ProfileRelative,
+                $"render-sha-{i}")
+            {
+                RestoreTier = RestoreTier.ConfigCopy,
+            }).ToArray());
+
+        var manifestStore = new MigrationRestoreManifestStore(new SanctionedFileWriter());
+        manifestStore.Save(package, manifest);
+
+        SafetyGate gate = MigrationRestoreTestData.GateForProfile(profile, usersRoot);
+        var runner = new MigrationRestoreRunner(
+            new RecipePathResolver(new ProfileRoots(
+                profile,
+                Path.Combine(profile, "AppData", "Roaming"),
+                Path.Combine(profile, "AppData", "Local"))),
+            gate);
+        var unusedAdapters = new RecordingAdapters { ThrowOnAnyCall = true };
+        var executor = new GatedExecutor(
+            gate,
+            new ExecutionLog(workspace.Combine("execution.jsonl"), new LogRedactor(null, null)),
+            unusedAdapters.File,
+            unusedAdapters.Registry,
+            unusedAdapters.Service,
+            unusedAdapters.Task,
+            unusedAdapters.Process,
+            new RenderFailOnSecondMergeAdapter());
+        var service = new MigrationRestoreService(
+            runner, executor, new RestoreStateStore(new SanctionedFileWriter()));
+
+        return new RestoreViewModel(
+            TestI18n.Full("en"),
+            new GatedMigrationRestoreService(service),
+            manifestStore,
+            new RestoreStateStore(new SanctionedFileWriter()))
+        {
+            PackageDir = package,
+            StateDir = stateDir,
+        };
+    }
+
+    private sealed class RenderFailOnSecondMergeAdapter : ICopyAdapter
+    {
+        private int _mergeCalls;
+
+        public CopyAdapterResult Copy(CopyAction action)
+            => throw new InvalidOperationException("copy actions are not expected in a restore render proof");
+
+        public void Merge(RestoreMergeAction action)
+        {
+            if (++_mergeCalls == 2)
+                throw new IOException("synthetic second-merge failure");
+        }
+    }
+
+    /// <summary>
+    /// Site 6, the OTHER direction. <c>AlreadyDone</c> is the one skip reason that is not a refusal — the work
+    /// is finished — so it must stay in the calm family. This is the guard against over-reddening: a fix that
+    /// blocks every skip reason passes every other proof in this region and fails here.
+    /// </summary>
+    [Fact]
+    public void RestoreView_an_already_done_skip_stays_in_the_calm_family()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            using var fixture = RestoreViewModelTests.Fixture.Create("render-b2-alreadydone");
+            try
+            {
+                fixture.WritePayload("migration/x/settings.json", "NEW");
+                fixture.SaveManifest(RestoreViewModelTests.Target("git.config#0", ".gitconfig"));
+                RestoreViewModel vm = fixture.CreateViewModel();
+
+                vm.LoadAndPreviewAsync().GetAwaiter().GetResult();
+                vm.IsPreviewApproved = true;
+                vm.RunRestoreAsync().GetAwaiter().GetResult();
+                vm.LoadAndPreviewAsync().GetAwaiter().GetResult();
+
+                ContentControl host = RenderHost(new RestoreView { DataContext = vm });
+
+                PlanRow skipped = Assert.Single(vm.SkippedRows);
+                Assert.Contains(
+                    RestoreSkipReason.AlreadyDone.ToString(), skipped.Detail ?? string.Empty,
+                    StringComparison.Ordinal);
+                AssertDisplayRow(host, skipped, RowDisposition.Unstated, RiskLevel.Info,
+                    ChipFamily.Neutral, "site 6 RestoreViewModel.SkipRow (AlreadyDone)");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>Site 9. A restore that CREATED its destination has nothing to undo, so the undo builder rejects
+    /// the step and the row must say so.</summary>
+    [Fact]
+    public void RestoreView_a_rejected_undo_row_states_its_disposition_and_renders_it()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            using var fixture = RestoreViewModelTests.Fixture.Create("render-b2-undo");
+            try
+            {
+                fixture.WritePayload("migration/x/settings.json", "NEW");
+                fixture.SaveManifest(RestoreViewModelTests.Target("git.config#0", ".gitconfig"));
+                RestoreViewModel vm = fixture.CreateViewModel();
+
+                vm.LoadAndPreviewAsync().GetAwaiter().GetResult();
+                vm.IsPreviewApproved = true;
+                vm.RunRestoreAsync().GetAwaiter().GetResult();
+                vm.PreviewUndoAsync().GetAwaiter().GetResult();
+
+                ContentControl host = RenderHost(new RestoreView { DataContext = vm });
+
+                PlanRow rejected = Assert.Single(
+                    vm.UndoRows, row => row.RiskText == vm.I18n["migration.restore.status.rejected"]);
+                AssertDisplayRow(host, rejected, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 9 RestoreViewModel.RejectedUndoRow");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>Site 10. One install action completes, one is skipped and one never runs. All three
+    /// not-completed statuses are swept, because a factory that classified only ONE of them would leave the
+    /// others rendering a calm chip on a row whose own text says the work did not happen.</summary>
+    [Fact]
+    public void InstallView_execution_result_rows_state_their_disposition_and_render_it()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                using var fx = new ExecutorFixture();
+                var entries = new[]
+                {
+                    new InstallEntry("git", "install", "dev", InstallMethod.Winget, "Git.Git", null, false, false, 100, "Install git"),
+                    new InstallEntry("node", "install", "dev", InstallMethod.Winget, "OpenJS.NodeJS", null, false, false, 110, "Install node"),
+                    new InstallEntry("pwsh", "install", "dev", InstallMethod.Winget, "Microsoft.PowerShell", null, false, false, 120, "Install pwsh"),
+                };
+                var vm = new InstallViewModel(
+                    i18n,
+                    new RenderFakeManifestLoader(entries),
+                    new InstallPlanner(fx.Gate, new RenderAllNetDriverGuard()),
+                    new RenderFakeAuthProbe(),
+                    new RenderRecordingStateStore(),
+                    fx.Gate,
+                    new RenderMixedStatusExecutor(),
+                    new InstallRunner(new RenderThrowingPlanWriter(), new FakeClock(DateTime.UtcNow)));
+                vm.StateDirectory = Path.Combine(
+                    Path.GetTempPath(), "wck-render-install-" + Guid.NewGuid().ToString("N"));
+
+                vm.LoadManifest();
+                vm.BuildPlan();
+                vm.ApproveCommand.Execute(null);
+                vm.RunAsync().GetAwaiter().GetResult();
+
+                ContentControl host = RenderHost(new InstallView { DataContext = vm });
+
+                AssertDisplayRow(
+                    host, Assert.Single(vm.ExecutionResults, row => row.RiskText == "DONE"),
+                    RowDisposition.Unstated, RiskLevel.Low,
+                    ChipFamily.Reversible, "site 10 InstallViewModel.ResultRow (Done)");
+                AssertDisplayRow(
+                    host, Assert.Single(vm.ExecutionResults, row => row.RiskText == "SKIPPED"),
+                    RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 10 InstallViewModel.ResultRow (Skipped)");
+                AssertDisplayRow(
+                    host, Assert.Single(vm.ExecutionResults, row => row.RiskText == "NOTRUN"),
+                    RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 10 InstallViewModel.ResultRow (NotRun)");
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>Site 11. The wizard folds a mixed execution report into its result rows; the counts it keeps
+    /// beside them are asserted too, because this round must not move them.</summary>
+    [Fact]
+    public void UninstallWizardView_result_rows_state_their_disposition_and_render_it()
+    {
+        RunOnStaThread(() =>
+        {
+            bool createdApplication = EnsureApplicationResources(out ResourceDictionary theme);
+            try
+            {
+                I18n i18n = TestI18n.Full("en");
+                var probe = new FakeLeftoverProbe();
+                probe.RegistryKeys.Add(new LeftoverRegistryKey(
+                    RegistryHive.LocalMachine, @"SOFTWARE\SomeVendor\SomeApp", RegistryView.Registry64,
+                    "render-owned registry key"));
+                var vm = new UninstallWizardViewModel(
+                    i18n, TestData.Gate(), probe, new RenderFirstDoneThenFailedExecutor(),
+                    () => new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+                vm.Open(TestData.App(
+                    displayName: "SomeApp",
+                    publisher: "SomeVendor",
+                    source: InstalledAppSource.MachineWide64,
+                    uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
+                    installLocation: @"C:\Program Files\SomeApp"));
+                InstallDispatcherSyncContext();
+                vm.SkipToScanCommand.Execute(null);
+                PumpAsyncWork(() => vm.IsLeftoversBeat, TimeSpan.FromSeconds(5));
+
+                LeftoverCandidate owned = vm.RegistryNodes.Concat(vm.FileNodes)
+                    .Single(node => node.IsProgramOwned).ToCandidate() with { Selected = true };
+                vm.StageLeftovers([owned, SecondOwnedRegistryCandidate()]);
+                vm.Gate.TypedConfirm = vm.Gate.ConfirmWord;
+                vm.Gate.ApproveCommand.Execute(null);
+                PumpAsyncWork(() => vm.IsResultBeat && vm.HasResult, TimeSpan.FromSeconds(10));
+
+                ContentControl host = RenderHost(new UninstallWizardView { DataContext = vm }, 1000, 760);
+
+                PlanRow done = Assert.Single(
+                    vm.ExecutionResults, row => row.RiskText == i18n["uninstall.result.status.done"]);
+                PlanRow failed = Assert.Single(
+                    vm.ExecutionResults, row => row.RiskText == i18n["uninstall.result.status.failed"]);
+                AssertDisplayRow(host, done, RowDisposition.Unstated, RiskLevel.Low,
+                    ChipFamily.Reversible, "site 11 UninstallWizardViewModel.Accumulate (Done)");
+                AssertDisplayRow(host, failed, RowDisposition.WillNotRun, RiskLevel.Info,
+                    ChipFamily.Irreversible, "site 11 UninstallWizardViewModel.Accumulate (Failed)");
+
+                // The bookkeeping beside the rows is a different fact and must not have moved.
+                Assert.StartsWith("1 done", vm.ResultSummary, StringComparison.Ordinal);
+                Assert.Contains("1 failed", vm.ResultSummary, StringComparison.Ordinal);
+            }
+            finally
+            {
+                CleanupApplicationResources(createdApplication, theme);
+            }
+        });
+    }
+
+    /// <summary>WCAG AA for normal-size text; the chip label is 10-11.5pt, so the large-text exemption never
+    /// applies to it.</summary>
+    private const double MinimumChipContrastRatio = 4.5;
+
+    /// <summary>The product of every <see cref="UIElement.Opacity"/> between an element and an ancestor — the
+    /// alpha the whole subtree is actually composited with. Read from the render, so a theme that changes the
+    /// row opacity moves this number without the test being edited.</summary>
+    private static double EffectiveOpacity(DependencyObject from, DependencyObject ancestor)
+    {
+        double alpha = 1.0;
+        DependencyObject? current = from;
+        while (current is not null && !ReferenceEquals(current, ancestor))
+        {
+            if (current is UIElement element)
+                alpha *= element.Opacity;
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return alpha;
+    }
+
+    private static Color Composite(Color over, Color under, double alpha) => Color.FromRgb(
+        (byte)Math.Round((over.R * alpha) + (under.R * (1 - alpha))),
+        (byte)Math.Round((over.G * alpha) + (under.G * (1 - alpha))),
+        (byte)Math.Round((over.B * alpha) + (under.B * (1 - alpha))));
+
+    private static Color RenderedInk(DependencyObject element)
+        => Assert.IsType<SolidColorBrush>(element.GetValue(TextElement.ForegroundProperty)).Color;
+
+    private static string HexOf(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+    private static Color[] RenderedWash(Border border) => border.Background switch
+    {
+        SolidColorBrush solid => [solid.Color],
+        GradientBrush gradient => gradient.GradientStops.Select(stop => stop.Color).Distinct().ToArray(),
+        _ => throw new InvalidOperationException(
+            $"A chip wash must be a solid or gradient brush to be measurable; got "
+            + $"{border.Background?.GetType().Name ?? "null"}."),
+    };
+
+    private static MigrationRecipe CaptureRecipe() => new(
+        1,
+        "render.capture",
+        "Render Capture App",
+        "projects",
+        new RecipeDetect(KnownFolder.UserProfile, "first.json", true),
+        [
+            new RecipeItem("first.json", Array.Empty<string>(), Array.Empty<string>()),
+            new RecipeItem("second.json", Array.Empty<string>(), Array.Empty<string>()),
+        ],
+        Array.Empty<string>(),
+        "global",
+        PortabilityClass.ProfileRelative,
+        new RecipeRestore(RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, Array.Empty<string>()));
+
+    private static MigrationSelectionCandidate CaptureCandidate() => new()
+    {
+        Id = "capture",
+        DisplayName = "capture",
+        RecipeCategory = "projects",
+        Meta = new MigrationItemMeta(
+            "render.capture", "capture", PortabilityClass.ProfileRelative,
+            RestoreStrategy.ConfigWrite, RestorePhase.ConfigWrite, Array.Empty<string>()),
+        RestoreTier = RestoreTier.ConfigCopy,
+        SourceKind = MigrationSourceKind.Directory,
+        SourcePath = @"C:\Users\render-smoke\capture",
+        DestinationPath = @"E:\WCK\capture",
+        CloudBackup = CloudBackupStatus.NotBackedUp,
+        IsOnSystemDrive = true,
+        IsUnique = true,
+        IsRegenerable = false,
+        IsRecognized = true,
+        HasInstallRecord = true,
+    };
+
+    private static LeftoverCandidate SecondOwnedRegistryCandidate() => new()
+    {
+        Action = new RegistryDeleteAction
+        {
+            Hive = RegistryHive.LocalMachine,
+            SubKeyPath = @"SOFTWARE\SomeVendor\SomeApp\Second",
+            View = RegistryView.Registry64,
+            Description = "second vendor leaf (ProgramOwned)",
+            Reason = "owned",
+            Risk = RiskLevel.Medium,
+            Undo = UndoCapability.Partial,
+        },
+        Classification = LeftoverClassification.ProgramOwned,
+        Selected = true,
+        GateReason = string.Empty,
+    };
+
+    /// <summary>The Backup VM used by the result-row proof: two copy entries so the mixed executor can land one
+    /// and refuse the other, over a temp payload root so every write stays inside the workspace.</summary>
+    private static BackupViewModel BuildBackupResultRenderViewModel(I18n i18n, string payloadRoot)
+    {
+        var gate = TestData.Gate();
+        var planner = new BackupPlanner(gate, new FakeEnvironmentExpander(), TestData.PayloadRoots());
+        var runner = new BackupRunner(
+            new RenderMixedBackupExecutor(),
+            new BackupIntegrityWriter(new SanctionedFileWriter()),
+            new BackupReportWriter(new LogRedactor(null, null), new SanctionedFileWriter()),
+            gate,
+            new FakeFileSystem(),
+            new FakeHasher(),
+            new FakeClock(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+
+        return new BackupViewModel(i18n, new BackupResultRenderManifestLoader(), planner, runner)
+        {
+            PayloadDir = payloadRoot,
+        };
+    }
+
+    private sealed class BackupResultRenderManifestLoader : IManifestLoader
+    {
+        public BackupManifestLoadResult LoadFromDirectory(string manifestsDirectory)
+            => BackupManifestLoadResult.Complete(Load());
+
+        public BackupManifestLoadResult LoadFromJson(IEnumerable<string> jsonDocuments)
+            => BackupManifestLoadResult.Complete(Load());
+
+        private static BackupManifest Load() => new(new[]
+        {
+            BackupCopyEntry("landed", @"C:\Users\alice\AppData\Roaming\Tool\landed.json", "tool/landed.json"),
+            BackupCopyEntry("refused", @"C:\Users\alice\AppData\Roaming\Tool\refused.json", "tool/refused.json"),
+        });
+    }
+
+    /// <summary>One copy lands, one fails — the shape the ResultRow factory has to tell apart.</summary>
+    private sealed class RenderMixedBackupExecutor : IBackupExecutor
+    {
+        public BackupExecutionReport Execute(OperationPlan plan, string approvedPlanHash)
+        {
+            CopyAction[] actions = plan.Actions.OfType<CopyAction>().ToArray();
+            Assert.Equal(2, actions.Length);
+            return new BackupExecutionReport(true,
+            [
+                new BackupActionResult(actions[0].Id, BackupActionStatus.Done, "done"),
+                new BackupActionResult(actions[1].Id, BackupActionStatus.Failed, "IOException: synthetic failure"),
+            ]);
+        }
+    }
+
+    /// <summary>Reports Done, then Skipped, then NotRun — every status the Install result factory has to tell
+    /// apart, so a classifier that handles one not-completed status and misses another cannot pass.</summary>
+    private sealed class RenderMixedStatusExecutor : IPlanExecutor
+    {
+        private static readonly PlanActionStatus[] Sequence =
+            [PlanActionStatus.Done, PlanActionStatus.Skipped, PlanActionStatus.NotRun];
+
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+            => new(true, approvedPlanHash, plan.Actions
+                .Select((action, index) => new PlanActionResult(
+                    action.Id, action.Kind, Sequence[index % Sequence.Length], "render-mixed"))
+                .ToArray());
+    }
+
+    /// <summary>The wizard twin of <see cref="RenderMixedStatusExecutor"/>, reporting a failure rather
+    /// than a skip so the Failed branch is exercised too.</summary>
+    private sealed class RenderFirstDoneThenFailedExecutor : IPlanExecutor
+    {
+        public PlanExecutionReport ExecuteWithReport(OperationPlan plan, string approvedPlanHash)
+            => new(true, approvedPlanHash, plan.Actions
+                .Select((action, index) => new PlanActionResult(
+                    action.Id, action.Kind,
+                    index == 0 ? PlanActionStatus.Done : PlanActionStatus.Failed, "render-mixed"))
+                .ToArray());
+    }
+
+    /// <summary>A capture runner that plans one action per recipe item and refuses the first
+    /// <see cref="FailedActionCount"/> of them at run time.</summary>
+    private sealed class RenderCaptureBackupRunner : IMigrationBackupRunner
+    {
+        public IReadOnlyList<RecipeItemSkip> PlanSkips { get; init; } = Array.Empty<RecipeItemSkip>();
+        public int FailedActionCount { get; init; }
+
+        public MigrationBackupPlanResult BuildPlan(
+            IEnumerable<MigrationRecipe> recipes, string packageDir, DateTime utc)
+        {
+            PlannedAction[] actions = recipes
+                .SelectMany(recipe => recipe.Items.Select(item => (PlannedAction)new CopyAction
+                {
+                    Source = Path.Combine(@"C:\Users\render-smoke", item.Path),
+                    Destination = Path.Combine(packageDir, recipe.Id, item.Path),
+                    Description = recipe.DisplayName,
+                    Reason = "migration backup",
+                    Risk = RiskLevel.Low,
+                    Undo = UndoCapability.None,
+                }))
+                .ToArray();
+            return new MigrationBackupPlanResult(
+                new OperationPlan("Migration backup", "migration-backup", actions, utc), PlanSkips);
+        }
+
+        public MigrationBackupRunResult Run(
+            MigrationBackupPlanResult plan, string approvedPlanHash, string packageDir)
+        {
+            CopyFileOutcome[] outcomes = plan.Plan.Actions.OfType<CopyAction>()
+                .Select((action, index) => new CopyFileOutcome(
+                    action.Id, action.Source, action.Destination,
+                    index >= FailedActionCount,
+                    index >= FailedActionCount ? null : CopySkipReason.Blocked,
+                    index >= FailedActionCount ? "done" : "synthetic failure"))
+                .ToArray();
+            return new MigrationBackupRunResult(
+                true,
+                new CopySkipReport(outcomes),
+                new MigrationRestoreManifest(
+                    MigrationRestoreManifest.CurrentSchemaVersion, Array.Empty<MigrationRestoreTarget>()),
+                plan.SkippedItems,
+                Array.Empty<RecipeItemSkip>());
+        }
     }
 
     [Fact]

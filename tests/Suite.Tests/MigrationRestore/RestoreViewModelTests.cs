@@ -253,7 +253,10 @@ public sealed class RestoreViewModelTests
         Assert.Equal(state, vm.StateDir);
     }
 
-    private static MigrationRestoreTarget Target(
+    /// <summary>Internal rather than private so the B2 render proofs in <c>ViewRenderSmokeTests</c> can drive
+    /// the SAME real restore fixture instead of keeping a second copy of a 40-line IO harness. One fixture, one
+    /// place to change when the restore surface moves.</summary>
+    internal static MigrationRestoreTarget Target(
         string entryId,
         string relativePath,
         string recipeId = "git.config",
@@ -290,7 +293,8 @@ public sealed class RestoreViewModelTests
         field.SetValue(vm, value);
     }
 
-    private sealed class Fixture : IDisposable
+    /// <summary>Internal for the same reason as <see cref="Target"/>: the render proofs reuse it verbatim.</summary>
+    internal sealed class Fixture : IDisposable
     {
         private readonly MigrationRestoreManifestStore _manifestStore = new(new SanctionedFileWriter());
         private readonly RestoreStateStore _stateStore = new(new SanctionedFileWriter());

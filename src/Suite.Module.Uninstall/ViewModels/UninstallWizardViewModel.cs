@@ -670,12 +670,10 @@ public sealed class UninstallWizardViewModel : ObservableObject
         foreach (PlanActionResult r in report.Results)
         {
             string text = byId.TryGetValue(r.ActionId, out var desc) ? desc : DescribeResultRowKind(r.Kind);
-            RiskLevel risk = r.Status switch
-            {
-                PlanActionStatus.Done => RiskLevel.Low,
-                PlanActionStatus.NotRun or PlanActionStatus.Skipped => RiskLevel.Info,
-                _ => RiskLevel.Critical,
-            };
+
+            // Anything but Done means this action did not complete — a DISPOSITION, not an irreversible act.
+            // The level stays Info and the row's own blockedness carries the colour.
+            bool done = r.Status == PlanActionStatus.Done;
             if (r.Status == PlanActionStatus.Done)
                 _doneCount++;
             else if (r.Status is PlanActionStatus.NotRun or PlanActionStatus.Skipped)
@@ -687,9 +685,10 @@ public sealed class UninstallWizardViewModel : ObservableObject
             {
                 Text = text,
                 RiskText = LocalizeStatus(r.Status),
-                Risk = risk,
+                Risk = done ? RiskLevel.Low : RiskLevel.Info,
                 Undo = string.Empty,
                 Detail = r.Detail,
+                Disposition = done ? RowDisposition.Unstated : RowDisposition.WillNotRun,
             });
         }
     }

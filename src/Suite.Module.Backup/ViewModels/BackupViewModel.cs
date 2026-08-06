@@ -296,6 +296,8 @@ public sealed class BackupViewModel : ObservableObject
         Detail = e.UiWarning ?? I18n["backup.secret.manual"],
     };
 
+    /// <summary>An entry the planner excluded. The row STATES it will not run, so the chip resolves the blocked
+    /// family from the row's own disposition rather than from an inflated risk level.</summary>
     private static PlanRow SkipRow(BackupSkip s) => new()
     {
         Text = string.IsNullOrWhiteSpace(s.Entry.Description) ? s.Entry.Id : s.Entry.Description,
@@ -303,14 +305,19 @@ public sealed class BackupViewModel : ObservableObject
         Risk = RiskLevel.Info,
         Undo = string.Empty,
         Detail = s.Reason,
+        Disposition = RowDisposition.WillNotRun,
     };
 
+    /// <summary>One post-run copy outcome. A copy that did NOT happen is a disposition, not a Critical risk:
+    /// nothing irreversible was done to the machine, so the level stays Info and the blockedness carries the
+    /// colour.</summary>
     private static PlanRow ResultRow(CopyFileOutcome o) => new()
     {
         Text = o.Source,
         RiskText = o.Copied ? "COPIED" : "SKIPPED",
-        Risk = o.Copied ? RiskLevel.Low : RiskLevel.Critical,
+        Risk = o.Copied ? RiskLevel.Low : RiskLevel.Info,
         Undo = string.Empty,
         Detail = o.Copied ? o.Destination : $"{o.Reason}: {o.Detail}",
+        Disposition = o.Copied ? RowDisposition.Unstated : RowDisposition.WillNotRun,
     };
 }

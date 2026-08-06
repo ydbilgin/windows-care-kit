@@ -461,9 +461,12 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
             ?? new PlanActionResult(action.Id, action.Kind, PlanActionStatus.NotRun, "no result");
         bool removed = result.Status == PlanActionStatus.Done;
 
+        // A removal that did NOT happen is a disposition, not an irreversible act: the level stays Info and the
+        // row's own blockedness carries the colour.
         ExecutionResults.Add(removed
             ? ResultRow($"Removed Store app: {package.DisplayName}", "Done", RiskLevel.Low, result.Detail)
-            : ResultRow($"Store app not removed: {package.DisplayName}", "Failed", RiskLevel.Critical, result.Detail));
+            : ResultRow($"Store app not removed: {package.DisplayName}", "Failed", RiskLevel.Info, result.Detail,
+                RowDisposition.WillNotRun));
 
         int done = removed ? 1 : 0;
         int failed = removed ? 0 : 1;
@@ -492,13 +495,21 @@ public sealed class UninstallViewModel : ObservableObject, IWckStartupAware
     /// <summary>Re-queries the run/uninstall commands' CanExecute after a selection or preview change.</summary>
     private static void RaiseRunCommandStates() => System.Windows.Input.CommandManager.InvalidateRequerySuggested();
 
-    /// <summary>Builds a result row reusing the same <see cref="PlanRow"/> shape + Strongbox risk palette.</summary>
-    private static PlanRow ResultRow(string text, string statusText, RiskLevel risk, string detail) => new()
+    /// <summary>Builds a result row reusing the same <see cref="PlanRow"/> shape + Strongbox risk palette.
+    /// <paramref name="disposition"/> is how a row states that its subject did NOT happen; it defaults to
+    /// <see cref="RowDisposition.Unstated"/> so a row that says nothing cannot assert something.</summary>
+    private static PlanRow ResultRow(
+        string text,
+        string statusText,
+        RiskLevel risk,
+        string detail,
+        RowDisposition disposition = RowDisposition.Unstated) => new()
     {
         Text = text,
         RiskText = statusText,
         Risk = risk,
         Undo = string.Empty,
         Detail = detail,
+        Disposition = disposition,
     };
 }

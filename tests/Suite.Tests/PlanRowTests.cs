@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 using WindowsCareKit.App.Localization;
 using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Planning;
@@ -95,6 +96,10 @@ public class PlanRowSelectionTests
         foreach (PlanRow row in rows)
         {
             Assert.Equal(row.Selection is RowSelection.Blocked, row.IsSkipped);
+
+            // Disposition is the display-only path's view of the SAME value, so it can never disagree with
+            // IsSkipped. A typed skipped row reports WillNotRun without any caller setting it.
+            Assert.Equal(row.Disposition is RowDisposition.WillNotRun, row.IsSkipped);
             Assert.Equal(
                 row.Selection is RowSelection.OptionalIncluded or RowSelection.OptionalExcluded,
                 row.IsVetoable);
@@ -118,6 +123,52 @@ public class PlanRowSelectionTests
         Assert.Null(typeof(PlanRow).GetProperty(nameof(PlanRow.Selection))!.SetMethod);
         Assert.Null(typeof(PlanRow).GetProperty(nameof(PlanRow.IsVetoable))!.SetMethod);
         Assert.Null(typeof(PlanRow).GetProperty(nameof(PlanRow.IsSkipped))!.SetMethod);
+    }
+
+    /// <summary>
+    /// The display-only path may say "this did not happen" and NOTHING else. Swept over the whole enum rather
+    /// than over the one member that exists today, so a future member mapped to <c>Required</c> — a row that
+    /// cannot name its action claiming the engine will run it — fails here and names itself.
+    /// </summary>
+    [Fact]
+    public void No_row_disposition_value_can_assert_an_engine_claim()
+    {
+        RowDisposition[] values = Enum.GetValues<RowDisposition>();
+
+        // Non-vacuity: an empty sweep would satisfy every assertion below for the wrong reason.
+        Assert.NotEmpty(values);
+
+        foreach (RowDisposition value in values)
+        {
+            var row = new PlanRow
+            {
+                Text = string.Empty,
+                RiskText = string.Empty,
+                Risk = RiskLevel.Info,
+                Undo = string.Empty,
+                Disposition = value,
+            };
+
+            Assert.True(
+                row.Selection is RowSelection.Unbound or RowSelection.Blocked,
+                $"RowDisposition.{value} produced Selection={row.Selection} on a row that names no Action. A "
+                + "display-only row cannot make an engine claim: the only states it may reach are Unbound "
+                + "(said nothing) and Blocked (said it will not run).");
+        }
+    }
+
+    /// <summary>
+    /// <c>Disposition</c> replaced <c>LegacySelection</c>; both must not survive. Two private writers for one
+    /// state is the duplication this round removes everywhere else, and leaving one inside the type itself
+    /// would be the same defect at the shortest possible range. Asserted by reflection over the private
+    /// surface, which is where the member lived.
+    /// </summary>
+    [Fact]
+    public void The_legacy_selection_writer_no_longer_exists()
+    {
+        Assert.Null(typeof(PlanRow).GetProperty(
+            "LegacySelection",
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public));
     }
 
     // ---- IsVetoable defaults (MP-3 target) ----------------------------------------------------------------

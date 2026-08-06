@@ -107,7 +107,6 @@
     <SolidColorBrush x:Key="Backup.DangerText" Color="#FFF4F2" />
     <SolidColorBrush x:Key="Backup.DangerBorder" Color="#6E2C2C" />
     <SolidColorBrush x:Key="Backup.DangerBorderHover" Color="#8F3A3A" />
-    <SolidColorBrush x:Key="Backup.SkipChip" Color="#101319" />
     <SolidColorBrush x:Key="Backup.RailBorder" Color="#262D3A" />
     <SolidColorBrush x:Key="Backup.PathBg" Color="#101319" />
     <sys:Double x:Key="Backup.SkipRowOpacity">0.75</sys:Double>

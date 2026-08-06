@@ -416,17 +416,19 @@ public sealed class InstallViewModel : ObservableObject
         };
     }
 
+    /// <summary>One post-run outcome. Anything but Done means the install did not complete — a DISPOSITION, not
+    /// an irreversible act — so the level stays Info and the row's own blockedness carries the colour.</summary>
     private PlanRow ResultRow(PlanActionResult r)
     {
         bool ok = r.Status == PlanActionStatus.Done;
-        bool skipped = r.Status is PlanActionStatus.NotRun or PlanActionStatus.Skipped;
         return new PlanRow
         {
             Text = $"{r.Kind}: {r.Detail}",
             RiskText = r.Status.ToString().ToUpperInvariant(),
-            Risk = ok ? RiskLevel.Low : skipped ? RiskLevel.Info : RiskLevel.Critical,
+            Risk = ok ? RiskLevel.Low : RiskLevel.Info,
             Undo = string.Empty,
             Detail = r.ActionId,
+            Disposition = ok ? RowDisposition.Unstated : RowDisposition.WillNotRun,
         };
     }
 }

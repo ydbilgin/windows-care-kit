@@ -1,5 +1,6 @@
 using WindowsCareKit.App.Execution;
 using WindowsCareKit.App.Localization;
+using WindowsCareKit.App.ViewModels;
 using WindowsCareKit.Core.Execution;
 using WindowsCareKit.Core.Modules.Uninstall;
 using WindowsCareKit.Core.Planning;
@@ -151,6 +152,48 @@ public class UninstallExecutionTests
         Assert.Equal(1, remover.CallCount);
         Assert.True(vm.HasResult);
         Assert.Single(vm.AllRows, r => r.Appx is not null); // not removed — still in the unified list
+    }
+
+    /// <summary>
+    /// B2 site 12. The two rows this view-model builds must state DIFFERENT things: the removal that happened
+    /// makes no blocked claim, the one that did not says so through its disposition — and neither borrows
+    /// <see cref="RiskLevel.Critical"/> to obtain a colour, because a removal that did NOT happen did nothing
+    /// irreversible.
+    /// <para>
+    /// Asserted at the view-model seam only, and that is stated rather than hidden: no view binds
+    /// <c>UninstallViewModel.ExecutionResults</c> (the only <c>ExecutionResults</c> bindings under <c>src/</c>
+    /// are <c>InstallView.xaml</c> and <c>UninstallWizardView.xaml</c>), so there is no visual tree to read a
+    /// rendered chip family from. Its sibling sites carry render proofs; this one cannot.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(true, RiskLevel.Low, RowDisposition.Unstated)]
+    [InlineData(false, RiskLevel.Info, RowDisposition.WillNotRun)]
+    public async Task Appx_removal_result_row_states_its_disposition(
+        bool removed, RiskLevel expectedRisk, RowDisposition expectedDisposition)
+    {
+        var remover = new FakeAppxRemover { Result = new AppxRemovalResult(removed, removed ? "removed" : "refused") };
+        using var executor = new ExecutorFixture(appxRemover: remover);
+        var package = new InstalledAppx { PackageFullName = "Contoso.App_1.0.0.0_x64__abc", DisplayName = "Contoso" };
+        var vm = BuildVm(new GatedPlanExecutor(executor.Executor), appx: new[] { package });
+
+        await vm.LoadAsync();
+        SelectFirstAppx(vm);
+        vm.RemoveAppxCommand.Execute(null);
+
+        // The gate preview row for the removal itself keeps Critical — the action really is irreversible and it
+        // really will run. That is an engine fact, not a colour lever, and this round must not soften it.
+        PlanRow previewRow = Assert.Single(vm.Gate.Rows);
+        Assert.Equal(RiskLevel.Critical, previewRow.Risk);
+        Assert.Equal(RowDisposition.Unstated, previewRow.Disposition);
+
+        vm.ApproveCommand.Execute(null);
+        await PumpAsync(() => vm.HasResult);
+
+        PlanRow resultRow = Assert.Single(vm.ExecutionResults);
+        Assert.Equal(expectedRisk, resultRow.Risk);
+        Assert.Equal(expectedDisposition, resultRow.Disposition);
+        Assert.Equal(expectedDisposition is RowDisposition.WillNotRun, resultRow.IsSkipped);
     }
 
     [Fact]
