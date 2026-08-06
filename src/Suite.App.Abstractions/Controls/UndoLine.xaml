@@ -6,7 +6,7 @@
          when there is no recovery — "undo: none — permanent" is the honest case, and it renders in MUTED ink:
          never emerald (which would read as reassurance) and never shouting red (the row's own RiskChip
          already carries the irreversibility). This is a text line, not a pill, so it sets a foreground only. -->
-    <StackPanel Orientation="Horizontal">
+    <StackPanel x:Name="UndoRoot" Orientation="Horizontal">
         <StackPanel.Style>
             <Style TargetType="StackPanel">
                 <!-- Muted is the default AND the UndoCapability.None case. A recovery line that lost its
@@ -25,12 +25,19 @@
             </Style>
         </StackPanel.Style>
 
+        <!-- Both runs read the recovery ink back off UndoRoot as a LOCAL value. Inheriting it does NOT work:
+             both themes merge an implicit <Style TargetType="TextBlock"> that sets Foreground, and WPF ranks a
+             style setter ABOVE an inherited value — so an inherited ink loses to the generic body colour and
+             "undo: none — permanent" renders in exactly the same ink as a full recovery. Reading the attached
+             property back keeps the recovery-to-token mapping in exactly one place, the style above. -->
         <TextBlock x:Name="UndoGlyph"
                    Text="{Binding Glyph, RelativeSource={RelativeSource AncestorType=ctl:UndoLine}}"
+                   Foreground="{Binding Path=(TextElement.Foreground), ElementName=UndoRoot}"
                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                    FontSize="10.5" VerticalAlignment="Top" Margin="0,1,5,0" />
         <TextBlock x:Name="UndoText"
                    Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ctl:UndoLine}}"
+                   Foreground="{Binding Path=(TextElement.Foreground), ElementName=UndoRoot}"
                    FontSize="11.5" TextWrapping="Wrap" VerticalAlignment="Center" />
     </StackPanel>
 </UserControl>

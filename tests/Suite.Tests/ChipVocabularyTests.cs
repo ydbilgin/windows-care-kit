@@ -1,7 +1,7 @@
+using System.Xml;
 using System.Xml.Linq;
 using WindowsCareKit.App.Controls;
 using WindowsCareKit.Core.Safety;
-using WindowsCareKit.Tests.TestInfra;
 using Xunit;
 
 namespace WindowsCareKit.Tests;
@@ -10,6 +10,13 @@ namespace WindowsCareKit.Tests;
 /// The chip vocabulary contract (SPEC §3 M1, decision §2.1): colour carries the FAMILY, text carries the
 /// exact grade word. These are the assertions that make the mapping a contract rather than a XAML detail —
 /// they need no rendering, so they stay fast and they fail on the mapping itself rather than on pixels.
+/// <para>
+/// They assert the mapping FUNCTION and the SOURCES that call it, and they are honest that this is a
+/// different claim from "the mapping reaches the screen". That second claim is only provable from a rendered
+/// visual tree and lives in <see cref="ChipControlRenderTests"/>. No family-to-token table is written down
+/// here any more: one used to be, it agreed with the theme perfectly, and every chip on screen was rendering
+/// a colour neither of them named.
+/// </para>
 /// </summary>
 public sealed class ChipVocabularyTests
 {
@@ -61,28 +68,44 @@ public sealed class ChipVocabularyTests
     public void Recovery_maps_to_its_ink_family(UndoCapability recovery, ChipFamily expected)
         => Assert.Equal(expected, RiskChipFamilies.For(recovery));
 
-    /// <summary>Every family resolves to its shipped theme foreground and wash with WCAG AA text contrast.
-    /// The whole-enum sweep makes a newly added family fail until its token pair joins the vocabulary.</summary>
+    /// <summary>
+    /// A3 / the wiring sweep. Every <c>RiskChip</c> in a shipped view must state BOTH halves of the fact it
+    /// renders: the engine's risk AND whether the engine will refuse to run the row. A site that binds only
+    /// <c>Risk</c> paints a blocked row in the calm colour of the work it is refusing, and nothing else
+    /// catches it — both cross-family reviewers deleted one <c>IsBlocked</c> binding and the whole suite
+    /// stayed green.
+    /// <para>
+    /// The elements are ENUMERATED from the XAML rather than counted, because a count survives a site being
+    /// added half-wired while another is deleted. Parsing is real XML parsing, not a regex, so a prefix other
+    /// than <c>controls:</c> and an attribute order other than the one in use today are both handled.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void Every_chip_family_meets_AA_contrast_in_both_themes()
+    public void Every_risk_chip_site_binds_both_the_risk_and_the_blocked_fact()
     {
-        const double minimumRatio = 4.5;
+        (string Site, XElement Element)[] sites = RiskChipSites().ToArray();
 
-        foreach (string themeName in new[] { "Strongbox", "Daylight" })
-        {
-            foreach (ChipFamily family in Enum.GetValues<ChipFamily>())
-            {
-                var (foregroundKey, washKey) = TokensFor(family);
-                string foreground = Assert.Single(ThemeColors(themeName, foregroundKey));
-                string[] washes = ThemeColors(themeName, washKey);
-                double ratio = washes.Min(wash => Contrast.Ratio(foreground, wash));
+        // Non-vacuity: an enumeration that finds nothing would pass every assertion below for the wrong
+        // reason. This is not the count the guard asserts on — it only proves the sweep reached the views.
+        Assert.True(
+            sites.Length > 0,
+            "The RiskChip sweep found no <RiskChip> element under src/. The guard is not reading the views.");
 
-                Assert.True(
-                    ratio >= minimumRatio,
-                    $"{themeName} {family} chip measured {ratio:F2}:1 ({foregroundKey} {foreground} on "
-                    + $"{washKey} {string.Join('/', washes)}), below the WCAG AA {minimumRatio:F1}:1 floor.");
-            }
-        }
+        string[] halfWired = sites
+            .Select(site => (
+                site.Site,
+                Missing: RequiredRiskChipAttributes
+                    .Where(attribute => site.Element.Attribute(attribute) is null)
+                    .ToArray()))
+            .Where(site => site.Missing.Length > 0)
+            .Select(site => $"{site.Site} (missing {string.Join(" and ", site.Missing)})")
+            .ToArray();
+
+        Assert.True(
+            halfWired.Length == 0,
+            "Every RiskChip must bind both the engine's risk and its blockedness; blocked DOMINATES the risk "
+            + "level, so a site that omits one renders a row the engine refuses in the colour of the work it "
+            + "is refusing. Half-wired sites: " + string.Join(", ", halfWired));
     }
 
     /// <summary>
@@ -153,28 +176,41 @@ public sealed class ChipVocabularyTests
             + string.Join(", ", offenders));
     }
 
-    private static (string Foreground, string Wash) TokensFor(ChipFamily family) => family switch
-    {
-        ChipFamily.Neutral => ("Wck.Info.Fg", "Wck.Info.Wash"),
-        ChipFamily.Reversible => ("Backup.OkFg", "Backup.OkWash"),
-        ChipFamily.Attention => ("Wck.Attention.Fg", "Wck.Attention.Wash"),
-        ChipFamily.Irreversible => ("Backup.DangerStrong", "Backup.Row.Danger"),
-        _ => throw new ArgumentOutOfRangeException(nameof(family), family, "A chip family needs a theme token pair."),
-    };
+    /// <summary>The two facts a risk chip renders. They are separate properties precisely because they are
+    /// separate truths — collapsing them back into one value is the defect a0d2c52 removed.</summary>
+    private static readonly string[] RequiredRiskChipAttributes = ["Risk", "IsBlocked"];
 
-    private static string[] ThemeColors(string themeName, string key)
-    {
-        string path = Path.Combine(RepoRoot, "src", "Suite.App.Wpf", "Themes", themeName + ".xaml");
-        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        XElement resource = XDocument.Load(path).Descendants()
-            .Single(element => (string?)element.Attribute(xaml + "Key") == key);
+    /// <summary>The CLR namespace the chip controls live in, as a XAML namespace URI writes it. The assembly
+    /// suffix is stripped before comparing, because the same control is referenced both with and without one.</summary>
+    private const string ControlsClrNamespace = "clr-namespace:WindowsCareKit.App.Controls";
 
-        return resource.DescendantsAndSelf()
-            .Select(element => (string?)element.Attribute("Color"))
-            .Where(color => color is not null)
-            .Cast<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+    /// <summary>Every <c>RiskChip</c> ELEMENT under <c>src/</c>, with the <c>file:line</c> that locates it.
+    /// Namespace-checked, so a same-named control from anywhere else is not counted, and binding expressions
+    /// that merely mention the type (<c>AncestorType=ctl:RiskChip</c>) are not elements and never appear.</summary>
+    private static IEnumerable<(string Site, XElement Element)> RiskChipSites()
+    {
+        foreach (string path in SourceFiles().Where(file => file.EndsWith(".xaml", StringComparison.OrdinalIgnoreCase)))
+        {
+            XDocument document = XDocument.Load(path, LoadOptions.SetLineInfo);
+            foreach (XElement element in document.Descendants().Where(IsRiskChip))
+            {
+                string site = $"{Path.GetRelativePath(RepoRoot, path)}:{((IXmlLineInfo)element).LineNumber}";
+                yield return (site, element);
+            }
+        }
+    }
+
+    private static bool IsRiskChip(XElement element)
+    {
+        if (!string.Equals(element.Name.LocalName, nameof(RiskChip), StringComparison.Ordinal))
+            return false;
+
+        string declared = element.Name.NamespaceName;
+        int assemblySuffix = declared.IndexOf(';', StringComparison.Ordinal);
+        return string.Equals(
+            assemblySuffix < 0 ? declared : declared[..assemblySuffix],
+            ControlsClrNamespace,
+            StringComparison.Ordinal);
     }
 
     /// <summary>Every hand-written source file under <c>src/</c>. Build output is excluded because it is a

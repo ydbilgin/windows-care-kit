@@ -213,7 +213,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <controls:RiskChip Grid.Column="0" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
-                                           Text="{Binding RiskText}" FontSize="10" FontWeight="Bold"
+                                           Text="{Binding RiskText}"
                                            Margin="0,1,9,0" VerticalAlignment="Top" />
                         <TextBlock Grid.Column="1" Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />

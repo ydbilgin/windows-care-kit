@@ -43,17 +43,34 @@
             </Style>
         </Border.Style>
 
-        <StackPanel Orientation="Horizontal">
-            <TextBlock x:Name="ChipGlyph"
+        <!-- A two-column Grid, NOT a horizontal StackPanel: a StackPanel measures its children at infinite
+             width, so TextWrapping never fires and a one-sentence health note renders as one 845px line inside
+             a 220px cell — content pushed off the edge with no other route to it. The star column hands the
+             label the width that is actually left over. A one-word grade pill is unaffected: ChipRoot follows
+             HorizontalContentAlignment, whose default this control sets to Left, so the pill is measured to
+             its own content and only a host that explicitly asks for Stretch (HealthChip) gets the full cell. -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <!-- Both runs read the family ink back off ChipRoot as a LOCAL value. Inheriting it does NOT
+                 work: both themes merge an implicit <Style TargetType="TextBlock"> that sets Foreground, and
+                 WPF ranks a style setter ABOVE an inherited value — so an inherited family ink loses to the
+                 generic body colour on every chip, in every family, in both themes. Reading the attached
+                 property back keeps the family-to-token mapping in exactly one place, the style above. -->
+            <TextBlock x:Name="ChipGlyph" Grid.Column="0"
                        Text="{Binding Glyph, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                       Foreground="{Binding Path=(TextElement.Foreground), ElementName=ChipRoot}"
                        FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                        VerticalAlignment="Top" Margin="0,1,5,0" />
             <!-- Wrapping, never trimming, when the host asks for it: a health note is a sentence, and
                  silently ellipsizing an honesty note hides content with no other route to it. -->
-            <TextBlock x:Name="ChipText"
+            <TextBlock x:Name="ChipText" Grid.Column="1"
                        Text="{Binding Text, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
+                       Foreground="{Binding Path=(TextElement.Foreground), ElementName=ChipRoot}"
                        TextWrapping="{Binding TextWrapping, RelativeSource={RelativeSource AncestorType=ctl:FamilyChip}}"
                        VerticalAlignment="Center" />
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

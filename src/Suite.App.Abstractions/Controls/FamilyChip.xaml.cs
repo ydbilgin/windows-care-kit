@@ -27,6 +27,19 @@ public partial class FamilyChip : UserControl
         nameof(TextWrapping), typeof(TextWrapping), typeof(FamilyChip),
         new PropertyMetadata(System.Windows.TextWrapping.NoWrap));
 
+    /// <summary>
+    /// A chip is a PILL: it is sized by the word it carries, so its content alignment defaults to
+    /// <see cref="HorizontalAlignment.Left"/> rather than to the <see cref="UserControl"/> default of
+    /// <see cref="HorizontalAlignment.Stretch"/>, which every chip inherited by accident. With Stretch, a chip
+    /// dropped into a star-sized cell paints its wash across the whole cell — a coloured band claiming space
+    /// the chip does not own. A host that genuinely wants the full width (HealthChip, whose note is a
+    /// sentence) asks for it explicitly, and overriding the METADATA default rather than setting the value in
+    /// XAML is what lets that host attribute win cleanly instead of racing a local value.
+    /// </summary>
+    static FamilyChip()
+        => HorizontalContentAlignmentProperty.OverrideMetadata(
+            typeof(FamilyChip), new FrameworkPropertyMetadata(HorizontalAlignment.Left));
+
     public FamilyChip() => InitializeComponent();
 
     /// <summary>Which of the four visual families this chip belongs to.</summary>

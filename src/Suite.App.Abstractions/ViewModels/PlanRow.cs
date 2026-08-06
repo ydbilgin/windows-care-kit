@@ -78,10 +78,11 @@ public sealed class PlanRow : ObservableObject
             ? RowSelection.Blocked
             : vetoRequested ? RowSelection.OptionalExcluded : RowSelection.Required;
 
+        // Risk is NOT assigned here: its getter reads the action on this path, and its init accessor writes the
+        // same _risk this line already holds — a second write of one truth, which is how the two sources drift.
         _risk = action.Risk;
         Text = string.Empty;
         RiskText = string.Empty;
-        Risk = _risk;
         Undo = string.Empty;
         PropertyChangedEventManager.AddHandler(i18n, OnLocalizationChanged, string.Empty);
     }
