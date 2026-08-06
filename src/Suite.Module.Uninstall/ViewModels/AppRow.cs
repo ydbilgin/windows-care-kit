@@ -1,4 +1,4 @@
-using System.Windows.Media;
+using WindowsCareKit.App.Controls;
 using WindowsCareKit.Core.Modules.Uninstall;
 
 namespace WindowsCareKit.Module.Uninstall.ViewModels;
@@ -60,18 +60,19 @@ public sealed class AppRow
     /// </summary>
     public StatusTone StatusTone { get; private init; } = StatusTone.Neutral;
 
-    /// <summary>The badge foreground brush from <see cref="StatusTone"/> — neutral gray or amber, never green.</summary>
-    public Brush BadgeBrush => StatusTone == StatusTone.Attention ? Amber : Gray;
+    /// <summary>
+    /// The badge's CHIP FAMILY, resolved by the shared vocabulary rather than by a brush this type owns.
+    /// It used to hand the view two frozen hexes (<c>#B8AD96</c> / <c>#E6B25E</c>) — theme-blind by
+    /// construction, exactly the defect the M1 <c>RiskVisuals</c> deletion removed elsewhere, and invisible
+    /// to that sweep because it lived in C# rather than in XAML. The family resolves to theme tokens at
+    /// render time, so the badge follows Daylight and Strongbox instead of a Strongbox-era literal.
+    /// </summary>
+    public ChipFamily BadgeFamily
+        => StatusTone == StatusTone.Attention ? ChipFamily.Attention : ChipFamily.Neutral;
 
-    private static readonly Brush Gray = Frozen("#B8AD96");   // Text.Muted — neutral
-    private static readonly Brush Amber = Frozen("#E6B25E");  // Gold — attention, NOT green
-
-    private static Brush Frozen(string hex)
-    {
-        var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        b.Freeze();
-        return b;
-    }
+    /// <summary>The badge's Fluent glyph, so the status survives a colour-blind or High Contrast read.</summary>
+    public string BadgeGlyph
+        => StatusTone == StatusTone.Attention ? ChipGlyphs.Warning : ChipGlyphs.Info;
 
     /// <summary>True when removing this app needs elevation (HKLM machine-wide) — drives the "[Yönetici]" hint.</summary>
     public bool NeedsAdmin { get; private init; }

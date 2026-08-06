@@ -29,7 +29,13 @@ public sealed class LangFragmentCompositionTests
     // labels/recovery lines/approve label, the Technical-details toggle and the three consequence sentences —
     // and retires 2: clean.junk.run (the veto-blind whole-plan run button is gone, ApprovePlanCommand is the
     // one door) and clean.recycle.irreversible (the row's UndoLine states the same fact once).
-    private const int ExpectedMergedKeyCount = 441;
+    /// <summary>
+    /// The merged key ledger. It moved 441 → 401 in M3: the shell base gained the four confirm-gate keys the
+    /// Required badge, the optional counter and the clipped-content affordance render (+4), and the Uninstall
+    /// fragment lost the 4-beat wizard's own vocabulary when the wizard was retired for one destructive door
+    /// (−44). A count that is edited without that arithmetic being stated is a count that stops being a ledger.
+    /// </summary>
+    private const int ExpectedMergedKeyCount = 401;
 
     private static readonly Regex XamlKeyRegex = new(@"I18n\[([a-z][A-Za-z0-9_.]+)\]", RegexOptions.Compiled);
     private static readonly Regex CsKeyRegex =

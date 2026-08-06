@@ -1206,60 +1206,9 @@ public sealed class ViewRenderSmokeTests(ITestOutputHelper output)
         });
     }
 
-    /// <summary>UI rollout (2026-07): the desktop-app wizard overlay was reskinned to the same Backup.*
-    /// evidence-row language as Uninstall/Backup. Seed a ProgramOwned leftover so the populated row template,
-    /// sub-tab button state, and centered wizard chrome render in both themes.</summary>
-    [Theory]
-    [InlineData("Strongbox")]
-    [InlineData("Daylight")]
-    public void UninstallWizardView_renders_seeded_leftover_rows_in_theme(string themeName)
-    {
-        RunOnStaThread(() =>
-        {
-            bool createdApplication = EnsureApplicationResources(themeName, out ResourceDictionary theme);
-            try
-            {
-                I18n i18n = TestI18n.Full("en");
-                var probe = new FakeLeftoverProbe();
-                probe.RegistryKeys.Add(new LeftoverRegistryKey(
-                    RegistryHive.LocalMachine,
-                    @"SOFTWARE\SomeVendor\SomeApp",
-                    RegistryView.Registry64,
-                    "render-owned registry key"));
-                var vm = new UninstallWizardViewModel(
-                    i18n,
-                    TestData.Gate(),
-                    probe,
-                    new FakeExecutor(),
-                    () => new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-                vm.Open(TestData.App(
-                    displayName: "SomeApp",
-                    publisher: "SomeVendor",
-                    source: InstalledAppSource.MachineWide64,
-                    uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
-                    installLocation: @"C:\Program Files\SomeApp"));
-                InstallDispatcherSyncContext();
-                vm.SkipToScanCommand.Execute(null);
-                PumpAsyncWork(() => vm.IsLeftoversBeat, TimeSpan.FromSeconds(5));
-                Assert.True(vm.IsLeftoversBeat);
-
-                var view = new UninstallWizardView { DataContext = vm };
-                var host = new ContentControl { Content = view, Width = 1000, Height = 760 };
-                var size = new Size(1000, 760);
-
-                host.Measure(size);
-                host.Arrange(new Rect(size));
-                host.UpdateLayout();
-
-                Assert.True(vm.IsOpen);
-                Assert.Single(vm.RegistryNodes);
-            }
-            finally
-            {
-                CleanupApplicationResources(createdApplication, theme);
-            }
-        });
-    }
+    // The 4-beat wizard's render smoke retired with the wizard itself (M3): the leftover rows it seeded now
+    // render in the Uninstall screen's removal rail, and UninstallScreenTests renders them there — against
+    // the real frame, with the layout measured rather than merely pumped.
 
     [Theory]
     [InlineData("Strongbox")]
@@ -1922,10 +1871,12 @@ public sealed class ViewRenderSmokeTests(ITestOutputHelper output)
         });
     }
 
-    /// <summary>Site 11. The wizard folds a mixed execution report into its result rows; the counts it keeps
-    /// beside them are asserted too, because this round must not move them.</summary>
+    /// <summary>Site 11. The Uninstall screen folds a mixed execution report into its result rows; the counts
+    /// it keeps beside them are asserted too, because this round must not move them. The run goes through the
+    /// real single door — scan, stage, type the confirm word, approve — so the rows under test are the ones a
+    /// real removal produces.</summary>
     [Fact]
-    public void UninstallWizardView_result_rows_state_their_disposition_and_render_it()
+    public void UninstallView_result_rows_state_their_disposition_and_render_it()
     {
         RunOnStaThread(() =>
         {
@@ -1937,36 +1888,47 @@ public sealed class ViewRenderSmokeTests(ITestOutputHelper output)
                 probe.RegistryKeys.Add(new LeftoverRegistryKey(
                     RegistryHive.LocalMachine, @"SOFTWARE\SomeVendor\SomeApp", RegistryView.Registry64,
                     "render-owned registry key"));
-                var vm = new UninstallWizardViewModel(
-                    i18n, TestData.Gate(), probe, new RenderFirstDoneThenFailedExecutor(),
-                    () => new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-                vm.Open(TestData.App(
+                InstalledApp app = TestData.App(
                     displayName: "SomeApp",
                     publisher: "SomeVendor",
                     source: InstalledAppSource.MachineWide64,
                     uninstall: "\"C:\\Program Files\\SomeApp\\uninst.exe\" /S",
-                    installLocation: @"C:\Program Files\SomeApp"));
-                InstallDispatcherSyncContext();
-                vm.SkipToScanCommand.Execute(null);
-                PumpAsyncWork(() => vm.IsLeftoversBeat, TimeSpan.FromSeconds(5));
+                    installLocation: @"C:\Program Files\SomeApp");
+                var vm = new UninstallViewModel(
+                    i18n,
+                    new RenderInstalledAppReader(app),
+                    new RenderAppxReader(),
+                    TestData.Gate(),
+                    probe,
+                    new RenderFirstDoneThenFailedExecutor(),
+                    new RenderFolderOpener());
 
-                LeftoverCandidate owned = vm.RegistryNodes.Concat(vm.FileNodes)
-                    .Single(node => node.IsProgramOwned).ToCandidate() with { Selected = true };
-                vm.StageLeftovers([owned, SecondOwnedRegistryCandidate()]);
+                // Load BEFORE the dispatcher context is installed. Blocking on a task whose continuation is
+                // posted back to a dispatcher this thread is not pumping is a deadlock, not a slow test.
+                vm.LoadAsync().GetAwaiter().GetResult();
+                InstallDispatcherSyncContext();
+                vm.SelectedRow = Assert.Single(vm.AllRows);
+                vm.ScanLeftoversCommand.Execute(null);
+                PumpAsyncWork(() => vm.HasScanned, TimeSpan.FromSeconds(5));
+
+                vm.UninstallSelectedCommand.Execute(null);
+                // Keep the one program-owned leftover, so the report carries a vendor step AND a leftover.
+                foreach (PlanRow row in vm.Gate.Rows.Where(row => row.IsVetoable))
+                    row.IsIncluded = true;
                 vm.Gate.TypedConfirm = vm.Gate.ConfirmWord;
                 vm.Gate.ApproveCommand.Execute(null);
-                PumpAsyncWork(() => vm.IsResultBeat && vm.HasResult, TimeSpan.FromSeconds(10));
+                PumpAsyncWork(() => vm.HasResult, TimeSpan.FromSeconds(10));
 
-                ContentControl host = RenderHost(new UninstallWizardView { DataContext = vm }, 1000, 760);
+                ContentControl host = RenderHost(new UninstallView { DataContext = vm }, 1100, 760);
 
                 PlanRow done = Assert.Single(
                     vm.ExecutionResults, row => row.RiskText == i18n["uninstall.result.status.done"]);
                 PlanRow failed = Assert.Single(
                     vm.ExecutionResults, row => row.RiskText == i18n["uninstall.result.status.failed"]);
                 AssertDisplayRow(host, done, RowDisposition.Unstated, RiskLevel.Low,
-                    ChipFamily.Reversible, "site 11 UninstallWizardViewModel.Accumulate (Done)");
+                    ChipFamily.Reversible, "site 11 UninstallViewModel.RunRemovalAsync (Done)");
                 AssertDisplayRow(host, failed, RowDisposition.WillNotRun, RiskLevel.Info,
-                    ChipFamily.Irreversible, "site 11 UninstallWizardViewModel.Accumulate (Failed)");
+                    ChipFamily.Irreversible, "site 11 UninstallViewModel.RunRemovalAsync (Failed)");
 
                 // The bookkeeping beside the rows is a different fact and must not have moved.
                 Assert.StartsWith("1 done", vm.ResultSummary, StringComparison.Ordinal);
@@ -1977,6 +1939,21 @@ public sealed class ViewRenderSmokeTests(ITestOutputHelper output)
                 CleanupApplicationResources(createdApplication, theme);
             }
         });
+    }
+
+    private sealed class RenderInstalledAppReader(params InstalledApp[] apps) : IInstalledAppReader
+    {
+        public IReadOnlyList<InstalledApp> ReadAll() => apps;
+    }
+
+    private sealed class RenderAppxReader : IAppxReader
+    {
+        public IReadOnlyList<InstalledAppx> ReadCurrentUserPackages() => Array.Empty<InstalledAppx>();
+    }
+
+    private sealed class RenderFolderOpener : IFolderOpener
+    {
+        public void OpenFolder(string path) { }
     }
 
     /// <summary>WCAG AA for normal-size text; the chip label is 10-11.5pt, so the large-text exemption never
@@ -2213,7 +2190,6 @@ public sealed class ViewRenderSmokeTests(ITestOutputHelper output)
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("RestoreView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("BackupView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("UninstallView.xaml", StringComparison.Ordinal));
-        Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("UninstallWizardView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("MigrationView.xaml", StringComparison.Ordinal));
         Assert.Contains(xamlFiles, path => Path.GetFileName(path).Equals("MainWindow.xaml", StringComparison.Ordinal));
 

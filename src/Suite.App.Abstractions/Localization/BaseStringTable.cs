@@ -161,6 +161,10 @@ public static class BaseStringTable
         "confirm.type.word",
         "confirm.approve",
         "confirm.cancel",
+        "confirm.required.badge",
+        "confirm.optional.counter",
+        "confirm.clipped.more",
+        "confirm.clipped.blocked",
 
         // The first-run notice.
         "firstrun.title",

@@ -547,9 +547,8 @@ public sealed class ModuleCompositionTests
             var uninstallView = Assert.IsType<UninstallView>(view);
             Assert.Equal("Suite.Module.Uninstall", module.GetType().Assembly.GetName().Name);
             Assert.Equal("Suite.Module.Uninstall", vm.GetType().Assembly.GetName().Name);
-            Assert.Equal("Suite.Module.Uninstall", vm.Wizard.GetType().Assembly.GetName().Name);
             Assert.Equal("Suite.Module.Uninstall", typeof(AppRow).Assembly.GetName().Name);
-            Assert.Equal("Suite.Module.Uninstall", typeof(LeftoverNode).Assembly.GetName().Name);
+            Assert.Equal("Suite.Module.Uninstall", typeof(RemovalPlanComposer).Assembly.GetName().Name);
             Assert.Equal("Suite.Module.Uninstall", uninstallView.GetType().Assembly.GetName().Name);
             Assert.IsType<Win32LeftoverProbe>(provider.GetRequiredService<ILeftoverProbe>());
             Assert.Null(provider.GetService<IAppxRemover>());

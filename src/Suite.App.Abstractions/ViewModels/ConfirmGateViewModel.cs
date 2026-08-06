@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Input;
 using WindowsCareKit.App.Localization;
@@ -48,6 +49,8 @@ public sealed class ConfirmGateViewModel : ObservableObject
     private string _title = string.Empty;
     private string _body = string.Empty;
     private string _typedConfirm = string.Empty;
+    private int _clippedRowCount;
+    private int _clippedBlockedCount;
 
     /// <param name="i18n">The shared string table (live language switching).</param>
     /// <param name="onApprove">Invoked when the user approves (the host runs the staged plan here).</param>
@@ -93,6 +96,87 @@ public sealed class ConfirmGateViewModel : ObservableObject
 
     public ICommand ApproveCommand { get; }
     public ICommand CancelCommand { get; }
+
+    // ---- Selection surface (SPEC §3 M3) ----
+
+    /// <summary>
+    /// The optional rows the user currently keeps. Arithmetic over <see cref="PlanRow.Selection"/> — never
+    /// over a rendered string — so it is invariant under a language switch (SPEC §1.2).
+    /// </summary>
+    public int OptionalIncludedCount
+        => Rows.Count(row => row.Selection is RowSelection.OptionalIncluded);
+
+    /// <summary>How many rows in this gate carry a veto control at all.</summary>
+    public int OptionalTotalCount => Rows.Count(row => row.IsVetoable);
+
+    /// <summary>True when this gate offers any choice, so the counter line has something to count.</summary>
+    public bool HasOptionalRows => OptionalTotalCount > 0;
+
+    /// <summary>The "n of m optional leftovers included" line (SPEC §3 M3 gate).</summary>
+    public string OptionalCounterText
+        => I18n.Format("confirm.optional.counter", OptionalIncludedCount, OptionalTotalCount);
+
+    /// <summary>
+    /// The rows that will contribute an action: the required steps plus the optional ones still checked.
+    /// Blocked rows are deliberately excluded — a <c>WON'T RUN</c> row states the opposite (SPEC §2.3).
+    /// </summary>
+    public IReadOnlyList<PlanRow> IncludedRows => Rows
+        .Where(row => row.Selection is RowSelection.Required or RowSelection.OptionalIncluded)
+        .ToArray();
+
+    // ---- The clipped-content affordance (SPEC §1.3, A-M3-4) ----
+
+    /// <summary>
+    /// How many rows the scroll viewport currently hides. Only the VIEW can know this — it is a measurement
+    /// of laid-out geometry, not of state — so the view reports it here and this view-model owns the
+    /// localized sentence. That split keeps the string composition out of the XAML while leaving the
+    /// measurement where the pixels are.
+    /// </summary>
+    public int ClippedRowCount => _clippedRowCount;
+
+    /// <summary>How many of the hidden rows state that they will NOT run. Counted separately because §1.3
+    /// exists for exactly that row: a <c>WON'T RUN</c> row scrolled out of sight with no cue is an honesty
+    /// defect, so the affordance must name it rather than fold it into a generic total.</summary>
+    public int ClippedBlockedCount => _clippedBlockedCount;
+
+    /// <summary>True while the gate's row list has content below (or above) the fold.</summary>
+    public bool HasClippedRows => _clippedRowCount > 0;
+
+    /// <summary>The affordance's sentence. It always states the hidden count, and names the hidden
+    /// <c>WON'T RUN</c> rows whenever there are any.</summary>
+    public string ClippedRowsText => _clippedBlockedCount > 0
+        ? I18n.Format("confirm.clipped.blocked", _clippedRowCount, _clippedBlockedCount)
+        : I18n.Format("confirm.clipped.more", _clippedRowCount);
+
+    /// <summary>
+    /// Called by the view after a layout pass with what its scroll viewport is currently hiding. Silent
+    /// clipping of a skipped row is prohibited (SPEC §1.3), so the counts arrive here and are re-announced
+    /// as one sentence rather than being formatted at three different call sites.
+    /// </summary>
+    /// <param name="hiddenRows">Rows not fully inside the viewport.</param>
+    /// <param name="hiddenBlockedRows">How many of those state they will not run.</param>
+    public void ReportClippedRows(int hiddenRows, int hiddenBlockedRows)
+    {
+        if (hiddenRows < 0)
+            throw new ArgumentOutOfRangeException(nameof(hiddenRows));
+        if (hiddenBlockedRows < 0 || hiddenBlockedRows > hiddenRows)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(hiddenBlockedRows),
+                "The hidden blocked rows are a subset of the hidden rows; a larger count would state that the "
+                + "affordance names more refusals than it hides.");
+        }
+
+        if (_clippedRowCount == hiddenRows && _clippedBlockedCount == hiddenBlockedRows)
+            return;
+
+        _clippedRowCount = hiddenRows;
+        _clippedBlockedCount = hiddenBlockedRows;
+        OnPropertyChanged(nameof(ClippedRowCount));
+        OnPropertyChanged(nameof(ClippedBlockedCount));
+        OnPropertyChanged(nameof(HasClippedRows));
+        OnPropertyChanged(nameof(ClippedRowsText));
+    }
 
     /// <summary>True when the gate is shown.</summary>
     public bool IsOpen
@@ -217,9 +301,7 @@ public sealed class ConfirmGateViewModel : ObservableObject
     /// <summary>Opens the gate for a staged plan, supplying the chosen tier, heading, honest body, and rows.</summary>
     public void Open(ConfirmTier tier, string title, string body, IEnumerable<PlanRow> rows)
     {
-        Rows.Clear();
-        foreach (var r in rows)
-            Rows.Add(r);
+        ReplaceRows(rows);
 
         Tier = tier;
         Title = title;
@@ -231,9 +313,46 @@ public sealed class ConfirmGateViewModel : ObservableObject
     /// <summary>Closes the gate and resets the type-to-confirm state.</summary>
     public void Close()
     {
-        Rows.Clear();
+        ReplaceRows(Array.Empty<PlanRow>());
         TypedConfirm = string.Empty;
         IsOpen = false;
+    }
+
+    /// <summary>
+    /// Swaps the gate's row set and re-subscribes to it. The subscription is what makes the counter live: a
+    /// veto toggled inside the gate must move the "n of m" line, and a gate that only read its rows at Open
+    /// would show the count the user started with while approving a different one.
+    /// </summary>
+    private void ReplaceRows(IEnumerable<PlanRow> rows)
+    {
+        foreach (PlanRow row in Rows)
+            row.PropertyChanged -= OnRowChanged;
+
+        Rows.Clear();
+        foreach (PlanRow row in rows)
+        {
+            Rows.Add(row);
+            row.PropertyChanged += OnRowChanged;
+        }
+
+        // A new row set invalidates the previous measurement; the view re-reports after its next layout.
+        ReportClippedRows(0, 0);
+        RaiseSelectionCounts();
+    }
+
+    private void OnRowChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PlanRow.Selection) or nameof(PlanRow.IsIncluded))
+            RaiseSelectionCounts();
+    }
+
+    private void RaiseSelectionCounts()
+    {
+        OnPropertyChanged(nameof(OptionalIncludedCount));
+        OnPropertyChanged(nameof(OptionalTotalCount));
+        OnPropertyChanged(nameof(HasOptionalRows));
+        OnPropertyChanged(nameof(OptionalCounterText));
+        OnPropertyChanged(nameof(IncludedRows));
     }
 
     /// <summary>Re-raises busy-dependent state (call when the host's IsBusy flips).</summary>
@@ -246,6 +365,12 @@ public sealed class ConfirmGateViewModel : ObservableObject
         OnPropertyChanged(nameof(TypePrompt));
         OnPropertyChanged(nameof(TypedMatches));
         OnPropertyChanged(nameof(CanApprove));
+        OnPropertyChanged(nameof(ClippedRowsText));
+
+        // The counts are re-announced even though a language switch cannot move one. That is the point: a
+        // counter that parsed the localized row text would go wrong in the view-model while the gate still
+        // displayed the value cached from before the switch (the M2 finding, carried into M3).
+        RaiseSelectionCounts();
     }
 
     private void RaiseDerived()

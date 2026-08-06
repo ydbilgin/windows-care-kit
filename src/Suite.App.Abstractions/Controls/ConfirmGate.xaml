@@ -107,6 +107,42 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
+        <!-- ===== The row's leading control =====
+             Three branches, and none of them is a disabled checkbox: a disabled checkbox still says "this is
+             a choice" (SPEC §2.1 rule 2 / A-M3-2). A REQUIRED step renders the lock badge, a vetoable row
+             renders one real checkbox, and a blocked (WON'T RUN) row renders neither — its chip and its
+             reason already state that it will not run. Separate ContentTemplates rather than one template
+             with a Visibility trigger, so the CheckBox is never INSTANTIATED on a required row. -->
+        <DataTemplate x:Key="GateRowNoSelectorTemplate">
+            <Grid />
+        </DataTemplate>
+
+        <DataTemplate x:Key="GateRowVetoTemplate">
+            <CheckBox IsChecked="{Binding IsIncluded, Mode=TwoWay}"
+                      AutomationProperties.Name="{Binding Text}"
+                      VerticalAlignment="Top" Margin="0,2,10,0" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="GateRowRequiredTemplate">
+            <controls:FamilyChip x:Name="RequiredLockBadge" Family="Neutral" FontSize="10.5" FontWeight="SemiBold"
+                                 Glyph="{x:Static controls:ChipGlyphs.Locked}"
+                                 Text="{Binding DataContext.I18n[confirm.required.badge], RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                 VerticalAlignment="Top" Margin="0,1,10,0" />
+        </DataTemplate>
+
+        <Style x:Key="GateRowSelectorHost" TargetType="ContentControl">
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="ContentTemplate" Value="{StaticResource GateRowNoSelectorTemplate}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsVetoable}" Value="True">
+                    <Setter Property="ContentTemplate" Value="{StaticResource GateRowVetoTemplate}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Selection}" Value="Required">
+                    <Setter Property="ContentTemplate" Value="{StaticResource GateRowRequiredTemplate}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Dry-run row, identical shape to the module PlanRow templates so the look matches everywhere. -->
         <DataTemplate x:Key="ConfirmRowTemplate">
             <Border Background="{DynamicResource Backup.Row.Background}" BorderBrush="{DynamicResource Backup.Line}"
@@ -114,19 +150,22 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <controls:RiskChip Grid.Column="0" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
+                    <ContentControl Grid.Column="0" Content="{Binding}" Style="{StaticResource GateRowSelectorHost}" />
+                    <controls:RiskChip Grid.Column="1" Risk="{Binding Risk}" IsBlocked="{Binding IsSkipped}"
                                        Text="{Binding RiskText}"
                                        VerticalAlignment="Top" Margin="0,1,10,0" />
-                    <StackPanel Grid.Column="1">
+                    <StackPanel Grid.Column="2">
                         <TextBlock Text="{Binding Text}" Foreground="{DynamicResource Backup.Ink}"
                                    FontFamily="{DynamicResource Wck.Mono}"
                                    FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Detail}" Style="{StaticResource GateMetaText}" Margin="0,3,0,0"
                                    Visibility="{Binding Detail, Converter={StaticResource NonEmptyToVis}}" />
-                        <TextBlock Text="{Binding Undo}" Style="{StaticResource GateMetaText}"
-                                   Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
+                        <controls:UndoLine Recovery="{Binding Recovery}" Text="{Binding Undo}"
+                                           HorizontalAlignment="Left" Margin="0,4,0,0"
+                                           Visibility="{Binding Undo, Converter={StaticResource NonEmptyToVis}}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -175,7 +214,8 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Text="{Binding BannerText}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap">
+                    <TextBlock x:Name="GateBannerText" Text="{Binding BannerText}" FontSize="12.5"
+                               FontWeight="SemiBold" TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{DynamicResource Backup.OkFg}" />
@@ -192,15 +232,38 @@
                     </TextBlock>
                 </Border>
 
-                <!-- Honest body + the exact dry-run rows (what will be deleted/written). -->
-                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,14,0,0">
-                    <StackPanel>
-                        <TextBlock Text="{Binding Body}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5"
-                                   TextWrapping="Wrap" Margin="0,0,0,10"
-                                   Visibility="{Binding Body, Converter={StaticResource NonEmptyToVis}}" />
-                        <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource ConfirmRowTemplate}" />
-                    </StackPanel>
-                </ScrollViewer>
+                <!-- Honest body + the exact dry-run rows (what will be deleted/written).
+                     §1.3: this viewport can hold a WON'T RUN row, and the mockup measurement showed exactly
+                     that row half-visible at first paint with no cue. So the region carries a persistent
+                     bottom edge affordance stating what it is hiding — silent clipping of a skipped row is
+                     prohibited (A-M3-4). The affordance is an OVERLAY inside the same Grid cell, so it is
+                     drawn over the fold rather than stealing height from the rows it is describing. -->
+                <Grid Grid.Row="2" Margin="0,14,0,0">
+                    <ScrollViewer x:Name="GateScroll" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Body}" Foreground="{DynamicResource Backup.Muted}" FontSize="12.5"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"
+                                       Visibility="{Binding Body, Converter={StaticResource NonEmptyToVis}}" />
+                            <!-- "n of m optional leftovers included" — arithmetic over the rows' typed
+                                 selection, adjacent to the list it counts (decision §2.5-1). -->
+                            <TextBlock x:Name="GateOptionalCounterText" Text="{Binding OptionalCounterText}"
+                                       Style="{StaticResource GateMetaText}" Margin="0,0,0,8"
+                                       Visibility="{Binding HasOptionalRows, Converter={StaticResource BoolToVis}}" />
+                            <ItemsControl x:Name="GateRowsHost" ItemsSource="{Binding Rows}"
+                                          ItemTemplate="{StaticResource ConfirmRowTemplate}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border x:Name="GateOverflowAffordance" VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                            Background="{DynamicResource Backup.CardHi}" BorderBrush="{DynamicResource Backup.LineStrong}"
+                            BorderThickness="0,1,0,0" Padding="10,5" IsHitTestVisible="False"
+                            Visibility="{Binding HasClippedRows, Converter={StaticResource BoolToVis}}">
+                        <TextBlock x:Name="GateOverflowText" Text="{Binding ClippedRowsText}"
+                                   Foreground="{DynamicResource Backup.Muted}" FontSize="11.5"
+                                   FontWeight="SemiBold" TextWrapping="Wrap" />
+                    </Border>
+                </Grid>
 
                 <!-- Type-to-confirm (Irreversible tier only): user types the confirm word to unlock Approve. Framed
                      in the same loud-red wash as the banner — the ceremony visually belongs to the warning. -->

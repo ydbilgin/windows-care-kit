@@ -449,11 +449,14 @@ public sealed class UiReliabilitySecurityReproTests
 
         Assert.Empty(offenders);
 
-        string uninstallWizard = RepoSource.Read(
-            "src/Suite.Module.Uninstall/ViewModels/UninstallWizardViewModel.cs");
+        // The Uninstall gate's approve callback must stay the awaited Func<Task> overload. Handing it a
+        // fire-and-forget lambda would drop a post-await fault on the destructive path — the same defect the
+        // regex above forbids, at the one seam that actually runs an uninstaller.
+        string uninstallViewModel = RepoSource.Read(
+            "src/Suite.Module.Uninstall/ViewModels/UninstallViewModel.cs");
         Assert.DoesNotMatch(
             @"onApprove:\s*\(\)\s*=>\s*_\s*=\s*ApproveAsync\s*\(\s*\)",
-            uninstallWizard);
+            uninstallViewModel);
     }
 
     /// <summary>G4/NEW-04: PayloadDir cannot change while backup planning is in flight.</summary>

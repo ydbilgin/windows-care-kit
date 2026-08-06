@@ -233,7 +233,6 @@ public sealed class ChipVocabularyTests
         "BackupViewModel.cs",
         "RestoreViewModel.cs",
         "InstallViewModel.cs",
-        "UninstallWizardViewModel.cs",
         "UninstallViewModel.cs",
     ];
 
